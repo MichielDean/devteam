@@ -81,10 +81,10 @@ func (es *ExternalSpecIntake) generateSpecFromExternal(f *feature.Feature, conte
 	if len(sections) > 0 {
 		b.WriteString("## Source Document Summary\n\n")
 		limit := 5
-	if len(sections) < limit {
-		limit = len(sections)
-	}
-	for _, section := range sections[:limit] {
+		if len(sections) < limit {
+			limit = len(sections)
+		}
+		for _, section := range sections[:limit] {
 			b.WriteString(fmt.Sprintf("- %s\n", section))
 		}
 		b.WriteString("\n")

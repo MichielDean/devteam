@@ -12,14 +12,14 @@ import (
 )
 
 type Manager struct {
-	baseDir string
+	baseDir      string
 	worktreesDir string
 }
 
 func NewManager(baseDir string) *Manager {
 	return &Manager{
-		baseDir:       baseDir,
-		worktreesDir:  filepath.Join(baseDir, "worktrees"),
+		baseDir:      baseDir,
+		worktreesDir: filepath.Join(baseDir, "worktrees"),
 	}
 }
 

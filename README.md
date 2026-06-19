@@ -2,6 +2,10 @@
 
 A multi-agent development platform with predefined specialist roles, spec-driven workflow, and cross-repository feature support.
 
+## Status
+
+**v0.1.0-dev** — Core engine implemented. Phases 1-8 complete (T001-T042). Pipeline engine, intake paths, gate enforcement, cross-repo support, and self-bootstrap are working. 39 tests passing.
+
 ## Architecture
 
 Dev Team has 6 specialist roles working through a fixed pipeline:
@@ -36,56 +40,71 @@ Each phase has a gate. You can't skip phases.
 ## Quick Start
 
 ```bash
-# Install specify CLI (Spec Kit)
-uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.11.2
-
-# Create a new feature spec
+# Build
 cd ~/source/devteam
-specify create-new-feature --name "feature-name"
+go build -o ~/go/bin/devteam ./cmd/devteam/
 
-# Or submit a loose idea for the PM to refine
-# (handled by the orchestrator once built)
+# Check status
+devteam status
+
+# Submit a loose idea
+devteam intake --type loose --text "We need user authentication"
+
+# Run next phase
+devteam run 001-user-auth
+
+# Evaluate current gate
+devteam gate 001-user-auth
+
+# Self-bootstrap
+devteam bootstrap
 ```
 
-## Repository Structure
+## Commands
 
-```
-devteam/
-├── specs/                    # Central spec repository
-│   └── 001-dev-team-platform/
-│       ├── spec.md
-│       ├── acceptance.md
-│       └── repos.yaml
-├── constitution/             # Project governing principles
-│   └── constitution.md
-├── roles/                    # Role definitions with INSTRUCTIONS.md
-│   ├── pm/
-│   ├── architect/
-│   ├── developer/
-│   ├── reviewer/
-│   ├── tester/
-│   └── ops/
-├── rules/                    # AIDLC phase governance rules
-│   ├── aidlc/
-│   └── aidlc-rule-details/
-├── .specify/                 # Spec Kit configuration
-├── devteam.yaml              # Team configuration
-└── repos.yaml                # Repository registry
-```
+| Command | Description |
+|---------|-------------|
+| `devteam status` | Show all features and their current phase |
+| `devteam intake` | Submit a new feature (loose idea or external spec) |
+| `devteam run <id>` | Run the next pipeline phase for a feature |
+| `devteam gate <id>` | Evaluate the current phase gate |
+| `devteam bootstrap` | Process spec 001 (self-bootstrap) |
+| `devteam version` | Print version |
 
 ## Hybrid Framework
 
-Dev Team takes the best from two open-source frameworks:
+| Aspect | From AIDLC | From Spec Kit | Dev Team Original |
+|--------|-----------|---------------|-------------------|
+| Phase governance | Adaptive rules per role | — | ✓ |
+| Artifact structure | — | Templates (spec.md, plan.md, tasks.md) | ✓ |
+| Quality gates | Phase gate reviews | checklist, analyze, converge | ✓ |
+| Extensions | Security, resiliency, testing | Community extensions | ✓ |
+| Human-in-the-loop | File-based approval gates | — | ✓ |
+| Multi-repo support | — | — | ✓ (central spec + repos.yaml) |
+| Distinct role agents | — | — | ✓ (6 fixed roles) |
+| Self-bootstrap | — | — | ✓ (platform processes its own spec) |
+| Intake paths | — | — | ✓ (loose ideas + external specs) |
 
-| Aspect | From AIDLC | From Spec Kit |
-|--------|-----------|---------------|
-| Phase governance | Adaptive rules per role | — |
-| Artifact structure | — | Templates (spec.md, plan.md, tasks.md) |
-| Quality gates | Phase gate reviews | checklist, analyze, converge |
-| Extensions | Security, resiliency, testing | Community extensions |
-| Human-in-the-loop | File-based approval gates | — |
-| Multi-repo support | — | — (original contribution) |
-| Distinct role agents | — | — (original contribution) |
+## Project Structure
+
+```
+cmd/devteam/main.go           # CLI entrypoint
+internal/
+├── config/                    # YAML config loading
+├── feature/                   # Feature state machine, types, gates
+├── intake/                     # Loose idea + external spec intake paths
+├── pipeline/                  # Pipeline orchestrator, gate evaluation
+├── role/                       # Role loader, agent dispatcher
+├── spec/                       # Spec provider, writer, artifact validation
+├── rules/                      # AIDLC phase rule loader
+└── repo/                       # Cross-repo git operations
+specs/                           # Central spec repository
+roles/                           # 6 role INSTRUCTIONS.md files
+rules/                           # AIDLC governance rules
+constitution/                    # 10 governing principles
+devteam.yaml                     # Pipeline configuration
+repos.yaml                       # Repository registry
+```
 
 ## License
 

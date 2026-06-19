@@ -49,7 +49,7 @@ func TestManagerPrepareRepos(t *testing.T) {
 	// This will fail because the remote isn't reachable in test,
 	// but we can test the happy path with a local repo
 	_ = workDirs // may be nil if clone fails
-	_ = err       // may be non-nil if clone fails
+	_ = err      // may be non-nil if clone fails
 }
 
 func TestManagerIsBuildable(t *testing.T) {

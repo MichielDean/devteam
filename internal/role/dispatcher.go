@@ -18,13 +18,13 @@ type DispatchRequest struct {
 }
 
 type DispatchResult struct {
-	FeatureID    string        `yaml:"feature_id" json:"feature_id"`
-	Phase        string        `yaml:"phase" json:"phase"`
-	Role         string        `yaml:"role" json:"role"`
-	Output       string        `yaml:"output" json:"output"`
-	Error        string        `yaml:"error,omitempty" json:"error,omitempty"`
-	Duration     time.Duration `yaml:"duration" json:"duration"`
-	Success      bool          `yaml:"success" json:"success"`
+	FeatureID string        `yaml:"feature_id" json:"feature_id"`
+	Phase     string        `yaml:"phase" json:"phase"`
+	Role      string        `yaml:"role" json:"role"`
+	Output    string        `yaml:"output" json:"output"`
+	Error     string        `yaml:"error,omitempty" json:"error,omitempty"`
+	Duration  time.Duration `yaml:"duration" json:"duration"`
+	Success   bool          `yaml:"success" json:"success"`
 }
 
 type Dispatcher struct {
@@ -48,8 +48,8 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Dispat
 	start := time.Now()
 	result := &DispatchResult{
 		FeatureID: req.FeatureID,
-		Phase:    req.Phase,
-		Role:     req.Role,
+		Phase:     req.Phase,
+		Role:      req.Role,
 	}
 
 	cmd := exec.CommandContext(ctx, "opencode", "run",

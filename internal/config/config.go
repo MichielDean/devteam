@@ -8,12 +8,12 @@ import (
 )
 
 type Config struct {
-	Version  string        `yaml:"version"`
-	Pipeline PipelineConfig `yaml:"pipeline"`
-	Roles    map[string]RoleConfig `yaml:"roles"`
+	Version    string                     `yaml:"version"`
+	Pipeline   PipelineConfig             `yaml:"pipeline"`
+	Roles      map[string]RoleConfig      `yaml:"roles"`
 	Extensions map[string]ExtensionConfig `yaml:"extensions"`
-	Intake   IntakeConfig   `yaml:"intake"`
-	SpecRepo SpecRepoConfig `yaml:"spec_repo"`
+	Intake     IntakeConfig               `yaml:"intake"`
+	SpecRepo   SpecRepoConfig             `yaml:"spec_repo"`
 }
 
 type PipelineConfig struct {
@@ -29,16 +29,16 @@ type PhaseConfig struct {
 }
 
 type RoleConfig struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
+	Name         string `yaml:"name"`
+	Description  string `yaml:"description"`
 	Instructions string `yaml:"instructions"`
-	PhaseRules  string `yaml:"phase_rules"`
+	PhaseRules   string `yaml:"phase_rules"`
 }
 
 type ExtensionConfig struct {
-	OptIn          bool  `yaml:"opt_in"`
-	LoadForPriority []int `yaml:"load_for_priority"`
-	Rules          string `yaml:"rules"`
+	OptIn           bool   `yaml:"opt_in"`
+	LoadForPriority []int  `yaml:"load_for_priority"`
+	Rules           string `yaml:"rules"`
 }
 
 type IntakeConfig struct {
@@ -52,8 +52,8 @@ type IntakePathConfig struct {
 }
 
 type SpecRepoConfig struct {
-	Path           string `yaml:"path"`
-	SpecsDir       string `yaml:"specs_dir"`
+	Path            string `yaml:"path"`
+	SpecsDir        string `yaml:"specs_dir"`
 	ConstitutionDir string `yaml:"constitution_dir"`
 }
 

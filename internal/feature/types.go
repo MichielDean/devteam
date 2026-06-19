@@ -3,12 +3,12 @@ package feature
 type Phase string
 
 const (
-	PhaseInception   Phase = "inception"
-	PhasePlanning    Phase = "planning"
+	PhaseInception    Phase = "inception"
+	PhasePlanning     Phase = "planning"
 	PhaseConstruction Phase = "construction"
-	PhaseReview      Phase = "review"
-	PhaseTesting     Phase = "testing"
-	PhaseDelivery    Phase = "delivery"
+	PhaseReview       Phase = "review"
+	PhaseTesting      Phase = "testing"
+	PhaseDelivery     Phase = "delivery"
 )
 
 func AllPhases() []Phase {
@@ -41,11 +41,11 @@ func ParsePhase(s string) Phase {
 type Status string
 
 const (
-	StatusDraft       Status = "draft"
+	StatusDraft        Status = "draft"
 	StatusInProgress   Status = "in_progress"
-	StatusGateBlocked Status = "gate_blocked"
-	StatusPassed      Status = "passed"
-	StatusFailed      Status = "failed"
+	StatusGateBlocked  Status = "gate_blocked"
+	StatusPassed       Status = "passed"
+	StatusFailed       Status = "failed"
 	StatusDone         Status = "done"
 	StatusRecirculated Status = "recirculated"
 	StatusCancelled    Status = "cancelled"
@@ -58,7 +58,7 @@ func (s Status) String() string {
 type IntakePath string
 
 const (
-	IntakeLooseIdea   IntakePath = "loose_idea"
+	IntakeLooseIdea    IntakePath = "loose_idea"
 	IntakeExternalSpec IntakePath = "external_spec"
 )
 
@@ -69,17 +69,17 @@ func (i IntakePath) String() string {
 type ArtifactType string
 
 const (
-	ArtifactSpecMD         ArtifactType = "spec_md"
-	ArtifactAcceptanceMD   ArtifactType = "acceptance_md"
-	ArtifactReposYAML      ArtifactType = "repos_yaml"
-	ArtifactPlanMD         ArtifactType = "plan_md"
-	ArtifactTasksMD        ArtifactType = "tasks_md"
-	ArtifactReviewReport   ArtifactType = "review_report"
-	ArtifactTestReport     ArtifactType = "test_report"
-	ArtifactDocs           ArtifactType = "docs"
-	ArtifactDataModelMD    ArtifactType = "data_model_md"
-	ArtifactQuickstartMD   ArtifactType = "quickstart_md"
-	ArtifactContractsDir   ArtifactType = "contracts_dir"
+	ArtifactSpecMD       ArtifactType = "spec_md"
+	ArtifactAcceptanceMD ArtifactType = "acceptance_md"
+	ArtifactReposYAML    ArtifactType = "repos_yaml"
+	ArtifactPlanMD       ArtifactType = "plan_md"
+	ArtifactTasksMD      ArtifactType = "tasks_md"
+	ArtifactReviewReport ArtifactType = "review_report"
+	ArtifactTestReport   ArtifactType = "test_report"
+	ArtifactDocs         ArtifactType = "docs"
+	ArtifactDataModelMD  ArtifactType = "data_model_md"
+	ArtifactQuickstartMD ArtifactType = "quickstart_md"
+	ArtifactContractsDir ArtifactType = "contracts_dir"
 )
 
 func (a ArtifactType) String() string {
@@ -118,12 +118,12 @@ func ParseArtifactType(s string) ArtifactType {
 type RoleName string
 
 const (
-	RolePM         RoleName = "pm"
-	RoleArchitect  RoleName = "architect"
-	RoleDeveloper  RoleName = "developer"
-	RoleReviewer   RoleName = "reviewer"
-	RoleTester     RoleName = "tester"
-	RoleOps        RoleName = "ops"
+	RolePM        RoleName = "pm"
+	RoleArchitect RoleName = "architect"
+	RoleDeveloper RoleName = "developer"
+	RoleReviewer  RoleName = "reviewer"
+	RoleTester    RoleName = "tester"
+	RoleOps       RoleName = "ops"
 )
 
 func AllRoles() []RoleName {
