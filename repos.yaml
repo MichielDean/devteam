@@ -1,0 +1,31 @@
+# Repository Registry
+
+# Maps feature specs to the implementation repos they touch.
+# Each feature declares which repos are in scope.
+# Implementation repos get a .devteam/ pointer back to the central spec.
+
+repos:
+  devteam:
+    url: git@github.com:MichielDean/devteam.git
+    description: Dev Team platform — orchestrator, roles, specs, and configuration
+    primary: true
+
+  cistern:
+    url: git@github.com:MichielDean/cistern.git
+    description: Agentic workflow orchestrator
+
+  LLMem:
+    url: git@github.com:MichielDean/LLMem.git
+    description: Structured agent memory system
+
+  lobsterdog:
+    url: git@github.com:MichielDean/lobsterdog.git
+    description: Agent harness — skills, identity, configuration
+
+  ScaledTest:
+    url: git@github.com:MichielDean/ScaledTest.git
+    description: Test result management platform
+
+  PortfolioWebsite:
+    url: git@github.com:MichielDean/PortfolioWebsite.git
+    description: Portfolio and resume website

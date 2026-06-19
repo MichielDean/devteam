@@ -1,0 +1,108 @@
+# Dev Team Configuration
+
+version: "1.0"
+
+pipeline:
+  phases:
+    - name: inception
+      roles: [pm, architect]
+      gate: spec_approved
+      artifacts: [spec.md, acceptance.md, repos.yaml]
+      rules: rules/aidlc/core-workflow.md
+
+    - name: planning
+      roles: [architect]
+      gate: plan_approved
+      artifacts: [plan.md, tasks.md]
+      rules: rules/aidlc-rule-details/construction/
+
+    - name: construction
+      roles: [developer]
+      gate: tasks_complete
+      artifacts: [implementation across repos]
+      rules: rules/aidlc-rule-details/construction/code-generation.md
+
+    - name: review
+      roles: [reviewer]
+      gate: criteria_met
+      artifacts: [review report]
+      rules: rules/aidlc-rule-details/construction/functional-design.md
+
+    - name: testing
+      roles: [tester]
+      gate: tests_pass
+      artifacts: [test report]
+      rules: rules/aidlc-rule-details/construction/build-and-test.md
+
+    - name: delivery
+      roles: [ops]
+      gate: docs_match_spec
+      artifacts: [docs, release]
+      rules: rules/aidlc-rule-details/operations/operations.md
+
+roles:
+  pm:
+    name: Product Manager
+    description: Owns the what and why. Explores, clarifies, refines ideas into specs. Decomposes external roadmaps into feature specs.
+    instructions: roles/pm/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/inception/
+
+  architect:
+    name: Architect
+    description: Owns the how. Creates technical plans, designs cross-repo boundaries, validates spec feasibility.
+    instructions: roles/architect/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/construction/functional-design.md
+
+  developer:
+    name: Developer
+    description: Writes code across repos. Follows spec, plan, and task breakdown.
+    instructions: roles/developer/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/construction/code-generation.md
+
+  reviewer:
+    name: Code Reviewer
+    description: Adversarial review against spec acceptance criteria. Verifies the right thing was built.
+    instructions: roles/reviewer/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/construction/build-and-test.md
+
+  tester:
+    name: Tester
+    description: Writes and runs tests from user stories. Traces tests to spec requirements.
+    instructions: roles/tester/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/construction/build-and-test.md
+
+  ops:
+    name: Release Engineer
+    description: Owns deployment, docs, and cross-repo coordination. Ensures docs match spec terminology.
+    instructions: roles/ops/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/operations/operations.md
+
+extensions:
+  security:
+    opt_in: true
+    load_for_priority: [1]
+    rules: rules/aidlc-rule-details/extensions/security/baseline/security-baseline.md
+
+  resiliency:
+    opt_in: true
+    load_for_priority: [1, 2]
+    rules: rules/aidlc-rule-details/extensions/resiliency/baseline/resiliency-baseline.md
+
+  property_based_testing:
+    opt_in: true
+    load_for_priority: [1]
+    rules: rules/aidlc-rule-details/extensions/testing/property-based/property-based-testing.md
+
+intake:
+  loose_idea:
+    description: Rough idea, sentence, or vague description. PM explores and refines into structured spec.
+    output: [spec.md, acceptance.md, repos.yaml]
+
+  external_spec:
+    description: PRD, RFC, roadmap, Jira epic, or other formal requirements document. PM decomposes into N feature specs.
+    output: [N x spec.md, acceptance.md, repos.yaml]
+
+spec_repo:
+  path: .
+  specs_dir: specs/
+  constitution_dir: constitution/
