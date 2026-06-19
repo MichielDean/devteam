@@ -38,11 +38,13 @@ func main() {
 	case "status":
 		handleStatus(baseDir)
 	case "intake":
-		handleIntake(baseDir, cfg)
+		handleIntake(baseDir)
 	case "run":
 		handleRun(baseDir, cfg)
 	case "gate":
 		handleGate(baseDir, cfg)
+	case "bootstrap":
+		handleBootstrap(baseDir, cfg)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -63,14 +65,16 @@ func handleStatus(baseDir string) {
 		return
 	}
 	fmt.Println("Dev Team Status:")
-	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println(strings.Repeat("=", 70))
+	fmt.Printf("  %-35s %-12s %-8s %s\n", "ID", "Phase", "Priority", "Status")
+	fmt.Println(strings.Repeat("-", 70))
 	for _, f := range features {
 		phase := f.CurrentPhase()
-		fmt.Printf("  %-30s  Phase: %-12s  Priority: %d  Status: %s\n", f.ID, phase, f.Priority, f.Status)
+		fmt.Printf("  %-35s %-12s %-8d %s\n", f.ID, phase, f.Priority, f.Status)
 	}
 }
 
-func handleIntake(baseDir string, cfg *config.Config) {
+func handleIntake(baseDir string) {
 	if len(os.Args) < 3 {
 		fmt.Fprintf(os.Stderr, "Usage: devteam intake --type loose --text \"idea\"\n")
 		fmt.Fprintf(os.Stderr, "       devteam intake --type external --file path/to/prd.md\n")
@@ -90,6 +94,7 @@ func handleIntake(baseDir string, cfg *config.Config) {
 		fmt.Printf("Feature created: %s\n", f.ID)
 		fmt.Printf("Spec directory: %s\n", filepath.Join("specs", f.ID))
 		fmt.Printf("Phase: %s\n", f.CurrentPhase())
+		fmt.Printf("Intake path: loose_idea\n")
 	case "external":
 		ei := intake.NewExternalSpecIntake(baseDir)
 		result, err := ei.Submit(title, "External specification", priority, nil)
@@ -100,6 +105,7 @@ func handleIntake(baseDir string, cfg *config.Config) {
 		for _, f := range result.Features {
 			fmt.Printf("Feature created: %s\n", f.ID)
 			fmt.Printf("Spec directory: %s\n", filepath.Join("specs", f.ID))
+			fmt.Printf("Intake path: external_spec\n")
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "unknown intake type: %s (use 'loose' or 'external')\n", intakeType)
@@ -134,7 +140,7 @@ func handleRun(baseDir string, cfg *config.Config) {
 	fmt.Printf("Phase %s started for %s\n", ps.Phase, featureID)
 	fmt.Printf("Status: %s\n", ps.Status)
 
-	if err := provider.SaveFeatureState(f); err != nil {
+	if err := p.SaveFeature(f); err != nil {
 		fmt.Fprintf(os.Stderr, "error saving feature state: %v\n", err)
 		os.Exit(1)
 	}
@@ -184,7 +190,46 @@ func handleGate(baseDir string, cfg *config.Config) {
 	}
 
 	if !result.Passed {
+		fmt.Println("\n  To fix: provide the missing artifacts listed above.")
+		fmt.Println("  Run 'devteam run <feature-id>' to execute the next phase.")
 		os.Exit(1)
+	}
+
+	fmt.Println("\n  Gate passed! Run 'devteam run <feature-id>' to advance to the next phase.")
+}
+
+func handleBootstrap(baseDir string, cfg *config.Config) {
+	featureID := "001-dev-team-platform"
+	provider := spec.NewSpecProvider(baseDir)
+
+	f, err := provider.LoadFeatureState(featureID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
+		fmt.Fprintf(os.Stderr, "Make sure spec 001 exists in %s\n", filepath.Join("specs", featureID))
+		os.Exit(1)
+	}
+
+	fmt.Println("Dev Team Self-Bootstrap")
+	fmt.Println("======================")
+	fmt.Printf("Feature: %s\n", f.ID)
+	fmt.Printf("Title: %s\n", f.Title)
+	fmt.Printf("Current phase: %s\n", f.CurrentPhase())
+	fmt.Printf("Status: %s\n\n", f.Status)
+
+	p := pipeline.NewPipeline(cfg, provider)
+	result, err := p.EvaluateGate(f)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error evaluating gate: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Gate: %s\n", result.Phase)
+	fmt.Printf("Passed: %v\n", result.Passed)
+	if len(result.MissingArts) > 0 {
+		fmt.Println("Missing artifacts:")
+		for _, art := range result.MissingArts {
+			fmt.Printf("  - %s\n", art)
+		}
 	}
 }
 
@@ -230,11 +275,12 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n")
 	fmt.Fprintf(os.Stderr, "  devteam <command> [args]\n\n")
 	fmt.Fprintf(os.Stderr, "Commands:\n")
-	fmt.Fprintf(os.Stderr, "  intake  Submit a new feature (loose idea or external spec)\n")
-	fmt.Fprintf(os.Stderr, "  run     Run the next pipeline phase for a feature\n")
-	fmt.Fprintf(os.Stderr, "  gate    Evaluate the current phase gate for a feature\n")
-	fmt.Fprintf(os.Stderr, "  status  Show current pipeline status\n")
-	fmt.Fprintf(os.Stderr, "  version Print version\n\n")
+	fmt.Fprintf(os.Stderr, "  intake     Submit a new feature (loose idea or external spec)\n")
+	fmt.Fprintf(os.Stderr, "  run        Run the next pipeline phase for a feature\n")
+	fmt.Fprintf(os.Stderr, "  gate       Evaluate the current phase gate for a feature\n")
+	fmt.Fprintf(os.Stderr, "  status     Show current pipeline status for all features\n")
+	fmt.Fprintf(os.Stderr, "  bootstrap   Self-bootstrap: process spec 001 through the pipeline\n")
+	fmt.Fprintf(os.Stderr, "  version    Print version\n\n")
 	fmt.Fprintf(os.Stderr, "Intake options:\n")
 	fmt.Fprintf(os.Stderr, "  --type loose|external   Intake path type\n")
 	fmt.Fprintf(os.Stderr, "  --text \"idea\"           Loose idea text\n")

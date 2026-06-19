@@ -18,13 +18,13 @@ type DispatchRequest struct {
 }
 
 type DispatchResult struct {
-	FeatureID  string
-	Phase      string
-	Role       string
-	Output     string
-	Error      string
-	Duration   time.Duration
-	Success    bool
+	FeatureID    string        `yaml:"feature_id" json:"feature_id"`
+	Phase        string        `yaml:"phase" json:"phase"`
+	Role         string        `yaml:"role" json:"role"`
+	Output       string        `yaml:"output" json:"output"`
+	Error        string        `yaml:"error,omitempty" json:"error,omitempty"`
+	Duration     time.Duration `yaml:"duration" json:"duration"`
+	Success      bool          `yaml:"success" json:"success"`
 }
 
 type Dispatcher struct {
@@ -77,6 +77,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Dispat
 
 	result.Success = true
 	return result, nil
+}
+
+func (d *Dispatcher) DispatchCrossRepo(ctx context.Context, req DispatchRequest, repoNames []string) (*DispatchResult, error) {
+	req.Context = fmt.Sprintf("%s\n\n=== Cross-Repo Context ===\nThis feature spans the following repositories: %s\nReview ALL repositories against the SAME spec acceptance criteria.", req.Context, strings.Join(repoNames, ", "))
+	return d.Dispatch(ctx, req)
 }
 
 func buildPrompt(req DispatchRequest) string {

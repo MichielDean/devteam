@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -138,6 +139,51 @@ func (sp *SpecProvider) ValidateArtifacts(featureID string, requiredArts []featu
 		})
 	}
 	return result
+}
+
+func (sp *SpecProvider) BuildCrossRepoContext(featureID string, repoNames []string) (string, error) {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("=== Feature: %s ===\n\n", featureID))
+
+	specContent, err := sp.ReadArtifact(featureID, feature.ArtifactSpecMD)
+	if err == nil {
+		b.WriteString("=== spec.md ===\n")
+		b.WriteString(specContent)
+		b.WriteString("\n\n")
+	}
+
+	acceptanceContent, err := sp.ReadArtifact(featureID, feature.ArtifactAcceptanceMD)
+	if err == nil {
+		b.WriteString("=== acceptance.md ===\n")
+		b.WriteString(acceptanceContent)
+		b.WriteString("\n\n")
+	}
+
+	planContent, err := sp.ReadArtifact(featureID, feature.ArtifactPlanMD)
+	if err == nil {
+		b.WriteString("=== plan.md ===\n")
+		b.WriteString(planContent)
+		b.WriteString("\n\n")
+	}
+
+	if len(repoNames) > 0 {
+		b.WriteString("=== Affected Repositories ===\n")
+		for _, name := range repoNames {
+			b.WriteString(fmt.Sprintf("- %s\n", name))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String(), nil
+}
+
+func (sp *SpecProvider) ReadArtifact(featureID string, artType feature.ArtifactType) (string, error) {
+	path := sp.ArtifactPath(featureID, artType)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func (sp *SpecProvider) currentPhase(featureID string) feature.Phase {

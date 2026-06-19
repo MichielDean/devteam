@@ -53,11 +53,6 @@ func (p *Pipeline) EvaluateGate(f *feature.Feature) (*feature.GateResult, error)
 	result := p.specProvider.ValidateArtifacts(f.ID, requiredArts)
 	result.Phase = currentPhase
 
-	phaseConfig, err := p.getPhaseConfig(currentPhase)
-	if err != nil {
-		return nil, err
-	}
-
 	gateChecks := feature.GetGateDefinition(currentPhase)
 	if gateChecks != nil {
 		for _, desc := range gateChecks.ValidationDescs {
@@ -69,7 +64,6 @@ func (p *Pipeline) EvaluateGate(f *feature.Feature) (*feature.GateResult, error)
 		}
 	}
 
-	_ = phaseConfig
 	return &result, nil
 }
 
@@ -80,4 +74,32 @@ func (p *Pipeline) getPhaseConfig(phase feature.Phase) (*config.PhaseConfig, err
 		}
 	}
 	return nil, fmt.Errorf("phase %s not found in config", phase)
+}
+
+func (p *Pipeline) ListFeatures() ([]*feature.Feature, error) {
+	return p.specProvider.ListFeatures()
+}
+
+func (p *Pipeline) GetFeature(featureID string) (*feature.Feature, error) {
+	return p.specProvider.LoadFeatureState(featureID)
+}
+
+func (p *Pipeline) AdvanceFeature(f *feature.Feature, targetPhase feature.Phase) error {
+	return f.AdvanceTo(targetPhase)
+}
+
+func (p *Pipeline) RecirculateFeature(f *feature.Feature, targetPhase feature.Phase, reason string) error {
+	return f.RecirculateTo(targetPhase)
+}
+
+func (p *Pipeline) CancelFeature(f *feature.Feature) {
+	f.Cancel()
+}
+
+func (p *Pipeline) CompleteFeature(f *feature.Feature) {
+	f.MarkDone()
+}
+
+func (p *Pipeline) SaveFeature(f *feature.Feature) error {
+	return p.specProvider.SaveFeatureState(f)
 }
