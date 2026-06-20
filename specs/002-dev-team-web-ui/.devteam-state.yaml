@@ -6,6 +6,10 @@ intake_path: loose_idea
 spec_dir: specs/002-dev-team-web-ui/
 created_at: 2026-06-20T00:00:00Z
 updated_at: 2026-06-20T00:00:00Z
+repos:
+  - name: devteam
+    url: git@github.com:MichielDean/devteam.git
+    branch: feature/002-dev-team-web-ui
 phase_states:
   inception:
     phase: inception

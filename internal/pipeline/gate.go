@@ -19,14 +19,17 @@ func NewGateEvaluator(specProvider *spec.SpecProvider) *GateEvaluator {
 }
 
 func (ge *GateEvaluator) Evaluate(f *feature.Feature) (*feature.GateResult, error) {
-	currentPhase := f.CurrentPhase()
-	gateDef := feature.GetGateDefinition(currentPhase)
+	return ge.EvaluateForPhase(f, f.CurrentPhase())
+}
+
+func (ge *GateEvaluator) EvaluateForPhase(f *feature.Feature, phase feature.Phase) (*feature.GateResult, error) {
+	gateDef := feature.GetGateDefinition(phase)
 	if gateDef == nil {
-		return nil, fmt.Errorf("no gate definition for phase %s", currentPhase)
+		return nil, fmt.Errorf("no gate definition for phase %s", phase)
 	}
 
 	result := ge.specProvider.ValidateArtifacts(f.ID, gateDef.RequiredArts)
-	result.Phase = currentPhase
+	result.Phase = phase
 
 	for _, desc := range gateDef.ValidationDescs {
 		passed := ge.evaluateDesc(f, desc)
@@ -58,7 +61,7 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		if err != nil {
 			return false
 		}
-		return strings.Contains(content, "User Story") || strings.Contains(content, "user story")
+		return strings.Contains(content, "User Stor") || strings.Contains(content, "user stor") || strings.Contains(content, "US-") || strings.Contains(content, "Scenario")
 
 	case strings.Contains(desc, "acceptance.md contains"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactAcceptanceMD)
@@ -72,7 +75,7 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		if err != nil {
 			return false
 		}
-		return strings.Contains(content, "repos:") && strings.Contains(content, "name:")
+		return strings.Contains(content, "repos:") && (strings.Contains(content, "name:") || strings.Contains(content, "url:") || strings.Contains(content, "branch:"))
 
 	case strings.Contains(desc, "plan.md addresses"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)

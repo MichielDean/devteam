@@ -79,7 +79,9 @@ func NewFeature(id, title string, priority int, intakePath IntakePath) *Feature 
 }
 
 func (f *Feature) CurrentPhase() Phase {
-	for _, phase := range AllPhases() {
+	phases := AllPhases()
+	// Find the first phase that is in_progress or gate_blocked
+	for _, phase := range phases {
 		ps, ok := f.PhaseStates[phase]
 		if !ok {
 			continue
@@ -88,24 +90,59 @@ func (f *Feature) CurrentPhase() Phase {
 			return phase
 		}
 	}
+	// Find the last passed phase and return the next one
+	lastPassedIdx := -1
+	for i, phase := range phases {
+		ps, ok := f.PhaseStates[phase]
+		if !ok {
+			continue
+		}
+		if ps.Status == StatusPassed {
+			lastPassedIdx = i
+		}
+	}
+	// If phases have passed, the current phase is the one after the last passed
+	if lastPassedIdx >= 0 && lastPassedIdx < len(phases)-1 {
+		return phases[lastPassedIdx+1]
+	}
+	// If all phases passed, feature is done
+	if lastPassedIdx == len(phases)-1 {
+		return phases[lastPassedIdx]
+	}
+	// Nothing has started yet — feature is in draft
 	return PhaseInception
 }
 
 func (f *Feature) AdvanceTo(phase Phase) error {
 	current := f.CurrentPhase()
-	// For the initial advance (from draft to inception), allow it
+	// If inception phase has passed and we're advancing to planning, allow it
+	// regardless of top-level status
 	if f.Status == StatusDraft {
-		if phase != PhaseInception {
-			return fmt.Errorf("first advance must be to inception, not %s", phase)
+		if phase == PhaseInception {
+			now := time.Now()
+			if ps, ok := f.PhaseStates[PhaseInception]; ok && ps.Status == StatusDraft {
+				ps.Status = StatusInProgress
+				ps.StartedAt = &now
+			}
+			f.Status = StatusInProgress
+			f.UpdatedAt = now
+			return nil
 		}
-		now := time.Now()
-		if ps, ok := f.PhaseStates[PhaseInception]; ok && ps.Status == StatusDraft {
-			ps.Status = StatusInProgress
-			ps.StartedAt = &now
+		// If inception already passed (gate evaluated) but top-level status wasn't updated
+		if ps, ok := f.PhaseStates[PhaseInception]; ok && ps.Status == StatusPassed {
+			f.Status = StatusInProgress
+			if !ValidateTransition(PhaseInception, phase) {
+				return fmt.Errorf("cannot advance from inception to %s: invalid transition", phase)
+			}
+			now := time.Now()
+			ps.Status = StatusPassed
+			ps.CompletedAt = &now
+			f.PhaseStates[phase].Status = StatusInProgress
+			f.PhaseStates[phase].StartedAt = &now
+			f.UpdatedAt = now
+			return nil
 		}
-		f.Status = StatusInProgress
-		f.UpdatedAt = now
-		return nil
+		return fmt.Errorf("first advance must be to inception, not %s", phase)
 	}
 	// For subsequent advances, must go to the next phase
 	if !ValidateTransition(current, phase) {

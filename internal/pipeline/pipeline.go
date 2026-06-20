@@ -3,6 +3,9 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/MichielDean/devteam/internal/config"
@@ -133,6 +136,12 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 			promptContext = promptContext + "\n\n---\n\n" + phaseInstruction
 		}
 
+		contextMD := buildContextMD(f.ID, string(currentPhase), roleName, promptContext)
+		contextPath := filepath.Join(p.specProvider.FeatureDir(f.ID), "CONTEXT.md")
+		if err := os.WriteFile(contextPath, []byte(contextMD), 0644); err != nil {
+			return nil, fmt.Errorf("writing CONTEXT.md: %w", err)
+		}
+
 		req := role.DispatchRequest{
 			FeatureID: f.ID,
 			Phase:     string(currentPhase),
@@ -148,7 +157,7 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		roleResults = append(roleResults, result)
 	}
 
-	gateResult, err := NewGateEvaluator(p.specProvider).Evaluate(f)
+	gateResult, err := NewGateEvaluator(p.specProvider).EvaluateForPhase(f, currentPhase)
 	if err != nil {
 		return nil, fmt.Errorf("evaluating gate for phase %s: %w", currentPhase, err)
 	}
@@ -213,6 +222,10 @@ func (p *Pipeline) RecirculateFeature(f *feature.Feature, targetPhase feature.Ph
 
 func (p *Pipeline) EvaluateGate(f *feature.Feature) (*feature.GateResult, error) {
 	return NewGateEvaluator(p.specProvider).Evaluate(f)
+}
+
+func (p *Pipeline) EvaluateGateForPhase(f *feature.Feature, phase feature.Phase) (*feature.GateResult, error) {
+	return NewGateEvaluator(p.specProvider).EvaluateForPhase(f, phase)
 }
 
 func (p *Pipeline) ListFeatures() ([]*feature.Feature, error) {
@@ -337,4 +350,15 @@ Write documentation to specs/%s/docs/ with:
 	default:
 		return ""
 	}
+}
+
+func buildContextMD(featureID, phase, role, promptContext string) string {
+	var b strings.Builder
+	b.WriteString("# Dev Team Context\n\n")
+	b.WriteString(fmt.Sprintf("Feature: %s\n", featureID))
+	b.WriteString(fmt.Sprintf("Phase: %s\n", phase))
+	b.WriteString(fmt.Sprintf("Role: %s\n\n", role))
+	b.WriteString("---\n\n")
+	b.WriteString(promptContext)
+	return b.String()
 }

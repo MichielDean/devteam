@@ -1,13 +1,19 @@
 package main
 
+//go:generate cd ../../ui && npm install && npm run build
+
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	devteam "github.com/MichielDean/devteam"
+	"github.com/MichielDean/devteam/internal/api"
 	"github.com/MichielDean/devteam/internal/config"
 	devinit "github.com/MichielDean/devteam/internal/init"
 	"github.com/MichielDean/devteam/internal/intake"
@@ -36,6 +42,9 @@ func main() {
 		return
 	case "init":
 		handleInit()
+		return
+	case "serve":
+		handleServe(baseDir)
 		return
 	}
 
@@ -429,9 +438,27 @@ func handleProcess(baseDir string, cfg *config.Config) {
 	fmt.Println(strings.Repeat("=", 70))
 
 	for {
+		// Reload feature from disk each iteration to stay in sync
+		f, err = provider.LoadFeatureState(featureID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reloading feature %s: %v\n", featureID, err)
+			os.Exit(1)
+		}
+
 		currentPhase := f.CurrentPhase()
+
+		// Check if we're already done
+		if f.Status == feature.StatusDone {
+			fmt.Println("\nFeature already completed!")
+			fmt.Printf("  Feature: %s\n", f.ID)
+			fmt.Printf("  Title: %s\n", f.Title)
+			fmt.Printf("  Status: %s\n", f.Status)
+			return
+		}
+
+		// Check if delivery gate passes — mark done
 		if currentPhase == feature.PhaseDelivery {
-			gateResult, err := p.EvaluateGate(f)
+			gateResult, err := pipeline.NewGateEvaluator(provider).EvaluateForPhase(f, feature.PhaseDelivery)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error evaluating delivery gate: %v\n", err)
 				os.Exit(1)
@@ -470,8 +497,15 @@ func handleProcess(baseDir string, cfg *config.Config) {
 			}
 		}
 
-		fmt.Printf("\nEvaluating gate for %s...\n", currentPhase)
-		gateResult, err := p.EvaluateGate(f)
+		// Reload after agent dispatch
+		f, err = provider.LoadFeatureState(featureID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reloading feature: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("\nEvaluating gate for %s...\n", result.Phase)
+		gateResult, err := pipeline.NewGateEvaluator(provider).EvaluateForPhase(f, result.Phase)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error evaluating gate: %v\n", err)
 			os.Exit(1)
@@ -541,6 +575,38 @@ func handleProcess(baseDir string, cfg *config.Config) {
 	}
 }
 
+func handleServe(baseDir string) {
+	addr := ":8080"
+	for i := 2; i < len(os.Args); i++ {
+		if os.Args[i] == "-http" && i+1 < len(os.Args) {
+			addr = os.Args[i+1]
+			i++
+		}
+	}
+
+	cfg, err := config.LoadConfig(filepath.Join(baseDir, "devteam.yaml"))
+	if err != nil {
+		log.Fatalf("error loading config: %v", err)
+	}
+
+	specProvider := spec.NewSpecProvider(baseDir)
+	p := pipeline.NewPipeline(cfg, specProvider)
+
+	// Extract UI assets from embedded filesystem
+	subFS, err := fs.Sub(devteam.UIAssets, "ui/dist")
+	if err != nil {
+		log.Fatalf("error extracting UI assets: %v", err)
+	}
+
+	server := api.NewServer(cfg, specProvider, p, subFS)
+
+	log.Printf("Starting Dev Team Web UI server on %s", addr)
+	go server.WaitForShutdown()
+	if err := server.ListenAndServe(addr); err != nil {
+		log.Fatalf("server error: %v", err)
+	}
+}
+
 func truncateError(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
@@ -598,6 +664,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n")
 	fmt.Fprintf(os.Stderr, "  devteam <command> [args]\n\n")
 	fmt.Fprintf(os.Stderr, "Commands:\n")
+	fmt.Fprintf(os.Stderr, "  serve        Start web UI server (default: localhost:8080)\n")
 	fmt.Fprintf(os.Stderr, "  intake       Submit a new feature (loose idea or external spec)\n")
 	fmt.Fprintf(os.Stderr, "  run          Run the current pipeline phase for a feature (dispatches agents)\n")
 	fmt.Fprintf(os.Stderr, "  process      Autonomously process a feature through the entire pipeline\n")
@@ -608,6 +675,8 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  status       Show current pipeline status for all features\n")
 	fmt.Fprintf(os.Stderr, "  bootstrap    Self-bootstrap: process spec 001 through the pipeline\n")
 	fmt.Fprintf(os.Stderr, "  version      Print version\n\n")
+	fmt.Fprintf(os.Stderr, "Serve options:\n")
+	fmt.Fprintf(os.Stderr, "  -http :8080   Address to listen on (default: :8080)\n\n")
 	fmt.Fprintf(os.Stderr, "Intake options:\n")
 	fmt.Fprintf(os.Stderr, "  --type loose|external   Intake path type\n")
 	fmt.Fprintf(os.Stderr, "  --text \"idea\"           Loose idea text\n")

@@ -1,5 +1,17 @@
-feature: 002-dev-team-web-ui
+# Repository Registry: 002-dev-team-web-ui
+
+feature_id: 002-dev-team-web-ui
+
 repos:
   - name: devteam
     url: git@github.com:MichielDean/devteam.git
-    branch: feature/002-dev-team-web-ui
+    branch: 002-dev-team-web-ui
+    description: Dev Team platform — adding web UI (REST API, SSE, and React SPA) to the existing CLI-only binary
+    primary: true
+    scope:
+      - cmd/devteam/main.go          # Add -http flag and server startup
+      - internal/api/                # NEW — HTTP handlers, SSE, routing, DTOs
+      - ui/                          # NEW — React SPA frontend
+      - internal/feature/             # May need ReadAll() method for API listing
+      - internal/pipeline/           # May need ProcessAsync() for SSE streaming
+      - internal/spec/               # May need ListFeatures() for API listing

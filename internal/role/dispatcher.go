@@ -2,10 +2,10 @@ package role
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -53,8 +53,6 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Dispat
 		Role:      req.Role,
 	}
 
-	prompt := buildPrompt(req)
-
 	if req.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, req.Timeout)
@@ -65,20 +63,39 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Dispat
 		defer cancel()
 	}
 
+	contextDir, err := d.prepareContextDir(req)
+	if err != nil {
+		return nil, fmt.Errorf("preparing context directory: %w", err)
+	}
+	defer os.RemoveAll(contextDir)
+
+	agentMDPath := filepath.Join(contextDir, "agents", req.Role+".md")
+	shortPrompt := "Read CONTEXT.md for your task and begin work. Follow the instructions in " + filepath.Base(agentMDPath)
+
 	args := []string{
 		"run",
-		"--format", "json",
 		"--dangerously-skip-permissions",
-		prompt,
+		"--agent", req.Role,
+		shortPrompt,
 	}
 
-	cmd := exec.CommandContext(ctx, "opencode", args...)
+	cmdPath, err := exec.LookPath("opencode")
+	if err != nil {
+		cmdPath = "opencode"
+	}
+
+	cmd := exec.CommandContext(ctx, cmdPath, args...)
 	cmd.Dir = d.workingDir
 	cmd.Env = append(os.Environ(),
 		"OPENCODE_SERVER_USERNAME=",
 		"OPENCODE_SERVER_PASSWORD=",
 		"OPENCODE_PID=",
 		"OPENCODE=",
+		"OPENCODE_DISABLE_PROJECT_CONFIG=1",
+		"OPENCODE_CONFIG_DIR="+contextDir,
+		"GIT_EDITOR=true",
+		"GIT_SEQUENCE_EDITOR=true",
+		"CT_CATARACTA_NAME="+req.Role,
 	)
 
 	output, err := cmd.CombinedOutput()
@@ -104,19 +121,58 @@ func (d *Dispatcher) DispatchCrossRepo(ctx context.Context, req DispatchRequest,
 	return d.Dispatch(ctx, req)
 }
 
-func buildPrompt(req DispatchRequest) string {
+func (d *Dispatcher) prepareContextDir(req DispatchRequest) (string, error) {
+	contextDir, err := os.MkdirTemp("", "devteam-"+req.Role+"-*")
+	if err != nil {
+		return "", fmt.Errorf("creating temp context dir: %w", err)
+	}
+
+	contextContent := buildContextMD(req)
+	contextPath := filepath.Join(contextDir, "CONTEXT.md")
+	if err := os.WriteFile(contextPath, []byte(contextContent), 0644); err != nil {
+		os.RemoveAll(contextDir)
+		return "", fmt.Errorf("writing CONTEXT.md: %w", err)
+	}
+
+	agentsDir := filepath.Join(contextDir, "agents")
+	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+		os.RemoveAll(contextDir)
+		return "", fmt.Errorf("creating agents dir: %w", err)
+	}
+
+	agentContent := buildAgentMD(req)
+	agentPath := filepath.Join(agentsDir, req.Role+".md")
+	if err := os.WriteFile(agentPath, []byte(agentContent), 0644); err != nil {
+		os.RemoveAll(contextDir)
+		return "", fmt.Errorf("writing agent markdown: %w", err)
+	}
+
+	return contextDir, nil
+}
+
+func buildContextMD(req DispatchRequest) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("You are the %s role in the Dev Team pipeline.\n", req.Role))
+	b.WriteString("# Dev Team Context\n\n")
 	b.WriteString(fmt.Sprintf("Feature: %s\n", req.FeatureID))
-	b.WriteString(fmt.Sprintf("Phase: %s\n\n", req.Phase))
+	b.WriteString(fmt.Sprintf("Phase: %s\n", req.Phase))
+	b.WriteString(fmt.Sprintf("Role: %s\n\n", req.Role))
+	b.WriteString("---\n\n")
 	b.WriteString(req.Context)
-	b.WriteString("\n\nExecute your role for this phase. Produce the required artifacts.")
 	return b.String()
 }
 
-type OpenCodeEvent struct {
-	Type string          `json:"type"`
-	Data json.RawMessage `json:"data,omitempty"`
+func buildAgentMD(req DispatchRequest) string {
+	var b strings.Builder
+	b.WriteString("---\n")
+	b.WriteString("description: Dev Team " + req.Role + " role for feature " + req.FeatureID + "\n")
+	b.WriteString("mode: primary\n")
+	b.WriteString("---\n\n")
+	b.WriteString(fmt.Sprintf("You are the %s role in the Dev Team pipeline.\n", req.Role))
+	b.WriteString(fmt.Sprintf("Feature: %s\n", req.FeatureID))
+	b.WriteString(fmt.Sprintf("Phase: %s\n\n", req.Phase))
+	b.WriteString("Your task: Execute your role for this phase. Produce the required artifacts.\n\n")
+	b.WriteString("Read CONTEXT.md in the working directory for the full context including spec artifacts, AIDLC rules, and feature state.\n")
+	return b.String()
 }
 
 func truncateOutput(s string, maxLen int) string {
