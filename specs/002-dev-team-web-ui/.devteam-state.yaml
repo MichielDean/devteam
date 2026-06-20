@@ -1,11 +1,11 @@
 id: 002-dev-team-web-ui
 title: Dev Team Web UI
-status: draft
+status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/002-dev-team-web-ui/
 created_at: 2026-06-20T00:00:00Z
-updated_at: 2026-06-20T00:00:00Z
+updated_at: 2026-06-20T12:00:00Z
 repos:
   - name: devteam
     url: git@github.com:MichielDean/devteam.git
@@ -13,7 +13,8 @@ repos:
 phase_states:
   inception:
     phase: inception
-    status: draft
+    status: in_progress
+    started_at: 2026-06-20T12:00:00Z
   planning:
     phase: planning
     status: draft
