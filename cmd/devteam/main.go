@@ -429,9 +429,27 @@ func handleProcess(baseDir string, cfg *config.Config) {
 	fmt.Println(strings.Repeat("=", 70))
 
 	for {
+		// Reload feature from disk each iteration to stay in sync
+		f, err = provider.LoadFeatureState(featureID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reloading feature %s: %v\n", featureID, err)
+			os.Exit(1)
+		}
+
 		currentPhase := f.CurrentPhase()
+
+		// Check if we're already done
+		if f.Status == feature.StatusDone {
+			fmt.Println("\nFeature already completed!")
+			fmt.Printf("  Feature: %s\n", f.ID)
+			fmt.Printf("  Title: %s\n", f.Title)
+			fmt.Printf("  Status: %s\n", f.Status)
+			return
+		}
+
+		// Check if delivery gate passes — mark done
 		if currentPhase == feature.PhaseDelivery {
-			gateResult, err := p.EvaluateGate(f)
+			gateResult, err := pipeline.NewGateEvaluator(provider).EvaluateForPhase(f, feature.PhaseDelivery)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error evaluating delivery gate: %v\n", err)
 				os.Exit(1)
@@ -470,8 +488,10 @@ func handleProcess(baseDir string, cfg *config.Config) {
 			}
 		}
 
-		fmt.Printf("\nEvaluating gate for %s...\n", currentPhase)
-		gateResult, err := p.EvaluateGate(f)
+		// Evaluate the gate for the phase that was just run, not CurrentPhase()
+		// (which may have advanced after the agent saved state to disk)
+		fmt.Printf("\nEvaluating gate for %s...\n", result.Phase)
+		gateResult, err := pipeline.NewGateEvaluator(provider).EvaluateForPhase(f, result.Phase)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error evaluating gate: %v\n", err)
 			os.Exit(1)
@@ -496,11 +516,11 @@ func handleProcess(baseDir string, cfg *config.Config) {
 				os.Exit(1)
 			}
 
-			targetPhase := feature.RecirculationTarget(currentPhase, "gate failed")
-			fmt.Printf("\nGate failed. Recirculating from %s to %s (attempt %d/%d)\n", currentPhase, targetPhase, recirculations, maxRecirculations)
+			targetPhase := feature.RecirculationTarget(result.Phase, "gate failed")
+			fmt.Printf("\nGate failed. Recirculating from %s to %s (attempt %d/%d)\n", result.Phase, targetPhase, recirculations, maxRecirculations)
 			fmt.Println("Fixing issues and retrying...")
 
-			f, err = p.RecirculateFeature(f, targetPhase, fmt.Sprintf("gate failed at %s (attempt %d)", currentPhase, recirculations))
+			f, err = p.RecirculateFeature(f, targetPhase, fmt.Sprintf("gate failed at %s (attempt %d)", result.Phase, recirculations))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error recirculating: %v\n", err)
 				os.Exit(1)
@@ -508,16 +528,17 @@ func handleProcess(baseDir string, cfg *config.Config) {
 			continue
 		}
 
+		// Determine next phase based on the phase that was just run
 		phases := feature.AllPhases()
-		currentIdx := -1
+		runPhaseIdx := -1
 		for i, phase := range phases {
-			if phase == currentPhase {
-				currentIdx = i
+			if phase == result.Phase {
+				runPhaseIdx = i
 				break
 			}
 		}
 
-		if currentIdx == len(phases)-1 {
+		if runPhaseIdx == len(phases)-1 {
 			f.MarkDone()
 			if err := p.SaveFeature(f); err != nil {
 				fmt.Fprintf(os.Stderr, "error saving feature: %v\n", err)
@@ -530,7 +551,8 @@ func handleProcess(baseDir string, cfg *config.Config) {
 			return
 		}
 
-		fmt.Printf("\nGate passed! Advancing from %s to next phase.\n", currentPhase)
+		nextPhase := phases[runPhaseIdx+1]
+		fmt.Printf("\nGate passed! Advancing from %s to %s.\n", result.Phase, nextPhase)
 		f, err = p.AdvanceFeature(f)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error advancing: %v\n", err)

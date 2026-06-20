@@ -1,32 +1,74 @@
 id: 002-dev-team-web-ui
 title: Dev Team Web UI
-status: in_progress
+status: recirculated
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/002-dev-team-web-ui/
 created_at: 2026-06-20T00:00:00Z
-updated_at: 2026-06-20T12:00:00Z
+updated_at: 2026-06-20T12:22:02.344741208-06:00
 repos:
-  - name: devteam
-    url: git@github.com:MichielDean/devteam.git
-    branch: feature/002-dev-team-web-ui
+    - name: devteam
+      url: git@github.com:MichielDean/devteam.git
+      branch: feature/002-dev-team-web-ui
 phase_states:
-  inception:
-    phase: inception
-    status: in_progress
-    started_at: 2026-06-20T12:00:00Z
-  planning:
-    phase: planning
-    status: draft
-  construction:
-    phase: construction
-    status: draft
-  review:
-    phase: review
-    status: draft
-  testing:
-    phase: testing
-    status: draft
-  delivery:
-    phase: delivery
-    status: draft
+    construction:
+        phase: construction
+        status: in_progress
+        gate_result:
+            phase: construction
+            passed: true
+            checks:
+                - name: code compiles in every affected repository
+                  passed: true
+                  message: ✓ code compiles in every affected repository
+                - name: no placeholder or stub code remains
+                  passed: true
+                  message: ✓ no placeholder or stub code remains
+                - name: each repository's changes are independently buildable
+                  passed: true
+                  message: ✓ each repository's changes are independently buildable
+            evaluated_at: 2026-06-20T12:22:02.343934752-06:00
+        started_at: 2026-06-20T12:22:02.344741208-06:00
+        completed_at: 2026-06-20T12:12:02.250436478-06:00
+    delivery:
+        phase: delivery
+        status: draft
+    inception:
+        phase: inception
+        status: passed
+        gate_result:
+            phase: inception
+            passed: true
+            checks:
+                - name: artifact_spec_md_exists
+                  passed: true
+                  message: artifact spec_md present at /home/lobsterdog/source/devteam/specs/002-dev-team-web-ui/spec.md
+                - name: artifact_acceptance_md_exists
+                  passed: true
+                  message: artifact acceptance_md present at /home/lobsterdog/source/devteam/specs/002-dev-team-web-ui/acceptance.md
+                - name: artifact_repos_yaml_exists
+                  passed: true
+                  message: artifact repos_yaml present at /home/lobsterdog/source/devteam/specs/002-dev-team-web-ui/repos.yaml
+                - name: spec.md contains at least one user story with priority
+                  passed: true
+                  message: ✓ spec.md contains at least one user story with priority
+                - name: acceptance.md contains at least one verifiable criterion per story
+                  passed: true
+                  message: ✓ acceptance.md contains at least one verifiable criterion per story
+                - name: repos.yaml identifies at least one affected repository
+                  passed: true
+                  message: ✓ repos.yaml identifies at least one affected repository
+            evaluated_at: 2026-06-20T12:02:02.167337392-06:00
+        started_at: 2026-06-20T11:52:31.951267782-06:00
+        completed_at: 2026-06-20T11:52:31.951267782-06:00
+    planning:
+        phase: planning
+        status: passed
+        completed_at: 2026-06-20T12:02:02.168101418-06:00
+    review:
+        phase: review
+        status: recirculated
+        completed_at: 2026-06-20T12:22:02.344741208-06:00
+    testing:
+        phase: testing
+        status: draft

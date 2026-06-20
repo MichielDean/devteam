@@ -222,6 +222,10 @@ func (f *Feature) MarkDone() {
 	f.UpdatedAt = now
 }
 
+func (f *Feature) IsTerminal() bool {
+	return f.Status == StatusDone || f.Status == StatusCancelled
+}
+
 func (f *Feature) Slug() string {
 	s := strings.ToLower(f.Title)
 	s = strings.ReplaceAll(s, " ", "-")

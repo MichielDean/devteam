@@ -89,17 +89,17 @@ func (a ArtifactType) String() string {
 
 func ParseArtifactType(s string) ArtifactType {
 	switch s {
-	case "input_md":
+	case "input_md", "input":
 		return ArtifactInputMD
-	case "spec_md":
+	case "spec_md", "spec":
 		return ArtifactSpecMD
-	case "acceptance_md":
+	case "acceptance_md", "acceptance":
 		return ArtifactAcceptanceMD
-	case "repos_yaml":
+	case "repos_yaml", "repos":
 		return ArtifactReposYAML
-	case "plan_md":
+	case "plan_md", "plan":
 		return ArtifactPlanMD
-	case "tasks_md":
+	case "tasks_md", "tasks":
 		return ArtifactTasksMD
 	case "review_report":
 		return ArtifactReviewReport
@@ -118,6 +118,27 @@ func ParseArtifactType(s string) ArtifactType {
 	}
 }
 
+// ArtifactAPIPathToType maps API path parameter values to ArtifactType.
+// This is the reverse mapping for URL parameters like /api/features/:id/artifacts/spec
+func ArtifactAPIPathToType(apiPath string) (ArtifactType, bool) {
+	m := map[string]ArtifactType{
+		"input":          ArtifactInputMD,
+		"spec":           ArtifactSpecMD,
+		"acceptance":     ArtifactAcceptanceMD,
+		"repos":          ArtifactReposYAML,
+		"plan":           ArtifactPlanMD,
+		"tasks":          ArtifactTasksMD,
+		"review_report":  ArtifactReviewReport,
+		"test_report":    ArtifactTestReport,
+		"docs":           ArtifactDocs,
+		"data_model":     ArtifactDataModelMD,
+		"quickstart":     ArtifactQuickstartMD,
+		"contracts":      ArtifactContractsDir,
+	}
+	t, ok := m[apiPath]
+	return t, ok
+}
+
 type RoleName string
 
 const (
@@ -131,6 +152,24 @@ const (
 
 func AllRoles() []RoleName {
 	return []RoleName{RolePM, RoleArchitect, RoleDeveloper, RoleReviewer, RoleTester, RoleOps}
+}
+
+func ValidPhaseNames() []string {
+	phases := AllPhases()
+	names := make([]string, len(phases))
+	for i, p := range phases {
+		names[i] = string(p)
+	}
+	return names
+}
+
+func IsValidPhase(name string) bool {
+	for _, p := range AllPhases() {
+		if string(p) == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (r RoleName) String() string {

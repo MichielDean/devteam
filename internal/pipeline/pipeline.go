@@ -147,7 +147,6 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 			Phase:     string(currentPhase),
 			Role:      roleName,
 			Context:   promptContext,
-			Timeout:   10 * time.Minute,
 		}
 
 		result, err := p.dispatcher.Dispatch(ctx, req)

@@ -36,7 +36,7 @@ type Dispatcher struct {
 func NewDispatcher(workingDir string) *Dispatcher {
 	return &Dispatcher{
 		workingDir: workingDir,
-		timeout:    10 * time.Minute,
+		timeout:    0,
 	}
 }
 

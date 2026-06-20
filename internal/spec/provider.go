@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -81,6 +82,21 @@ func (sp *SpecProvider) ListFeatures() ([]*feature.Feature, error) {
 		features = append(features, f)
 	}
 	return features, nil
+}
+
+func (sp *SpecProvider) ListFeaturesSorted() ([]*feature.Feature, error) {
+	features, err := sp.ListFeatures()
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(features, func(i, j int) bool {
+		return features[i].UpdatedAt.After(features[j].UpdatedAt)
+	})
+	return features, nil
+}
+
+func (sp *SpecProvider) ReadArtifactContent(featureID string, artType feature.ArtifactType) (string, error) {
+	return sp.ReadArtifact(featureID, artType)
 }
 
 func (sp *SpecProvider) ArtifactPath(featureID string, artType feature.ArtifactType) string {
