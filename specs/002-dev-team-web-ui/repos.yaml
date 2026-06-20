@@ -9,9 +9,20 @@ repos:
     description: Dev Team platform — adding web UI (REST API, SSE, and React SPA) to the existing CLI-only binary
     primary: true
     scope:
-      - cmd/devteam/main.go          # Add -http flag and server startup
-      - internal/api/                # NEW — HTTP handlers, SSE, routing, DTOs
-      - ui/                          # NEW — React SPA frontend
-      - internal/feature/             # May need ReadAll() method for API listing
-      - internal/pipeline/           # May need ProcessAsync() for SSE streaming
-      - internal/spec/               # May need ListFeatures() for API listing
+      # NEW files
+      - cmd/devteam/main.go           # Add -http flag and server startup
+      - internal/api/handler.go       # NEW — Feature CRUD handlers
+      - internal/api/handler_artifact.go  # NEW — Artifact serving handlers
+      - internal/api/handler_pipeline.go  # NEW — Pipeline action handlers (run, advance, recirculate, cancel, process)
+      - internal/api/handler_sse.go       # NEW — SSE stream handler
+      - internal/api/server.go            # NEW — HTTP server setup, routing, middleware
+      - internal/api/middleware.go         # NEW — CORS, logging, recovery middleware
+      - internal/api/dto.go                # NEW — Request/response data transfer objects
+      - ui/                                 # NEW — Entire React SPA frontend directory
+      # EXISTING files that may need modification
+      - internal/feature/feature.go       # May need JSON tags or helper methods for API serialization
+      - internal/feature/types.go          # May need additional Phase/Status constants or validation
+      - internal/pipeline/pipeline.go     # Needs ProcessAsync() or similar for SSE-streaming goroutine
+      - internal/spec/provider.go          # May need ListFeatures() or GetArtifact() for API
+      - internal/intake/loose.go           # May need programmatic intake (not just CLI)
+      - internal/intake/external.go        # May need programmatic intake for external specs
