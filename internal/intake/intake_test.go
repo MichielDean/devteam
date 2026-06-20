@@ -28,14 +28,16 @@ func TestLooseIdeaIntake(t *testing.T) {
 	}
 
 	provider := spec.NewSpecProvider(tmpDir)
-	if !provider.ArtifactExists(f.ID, feature.ArtifactSpecMD) {
-		t.Error("expected spec.md to exist after intake")
+	if !provider.ArtifactExists(f.ID, feature.ArtifactInputMD) {
+		t.Error("expected input.md to exist after intake")
 	}
-	if !provider.ArtifactExists(f.ID, feature.ArtifactAcceptanceMD) {
-		t.Error("expected acceptance.md to exist after intake")
+
+	inputContent, err := provider.ReadArtifact(f.ID, feature.ArtifactInputMD)
+	if err != nil {
+		t.Fatalf("reading input.md: %v", err)
 	}
-	if !provider.ArtifactExists(f.ID, feature.ArtifactReposYAML) {
-		t.Error("expected repos.yaml to exist after intake")
+	if len(inputContent) == 0 {
+		t.Error("input.md is empty")
 	}
 }
 
@@ -53,6 +55,31 @@ func TestLooseIdeaIntakeWithRepos(t *testing.T) {
 	}
 	if len(f.Repos) != 2 {
 		t.Errorf("expected 2 repos, got %d", len(f.Repos))
+	}
+
+	provider := spec.NewSpecProvider(tmpDir)
+	if !provider.ArtifactExists(f.ID, feature.ArtifactReposYAML) {
+		t.Error("expected repos.yaml to exist when repos are provided")
+	}
+}
+
+func TestLooseIdeaInputContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	li := NewLooseIdeaIntake(tmpDir)
+
+	f, err := li.Submit("Test Feature", "A test description", 2, nil)
+	if err != nil {
+		t.Fatalf("Submit() error: %v", err)
+	}
+
+	inputPath := filepath.Join(tmpDir, "specs", f.ID, "input.md")
+	data, err := os.ReadFile(inputPath)
+	if err != nil {
+		t.Fatalf("reading input.md: %v", err)
+	}
+	content := string(data)
+	if len(content) == 0 {
+		t.Error("input.md is empty")
 	}
 }
 
@@ -83,8 +110,16 @@ This document describes the requirements for a new API rate limiting feature.
 	}
 
 	provider := spec.NewSpecProvider(tmpDir)
-	if !provider.ArtifactExists(f.ID, feature.ArtifactSpecMD) {
-		t.Error("expected spec.md to exist after external intake")
+	if !provider.ArtifactExists(f.ID, feature.ArtifactInputMD) {
+		t.Error("expected input.md to exist after external intake")
+	}
+
+	inputContent, err := provider.ReadArtifact(f.ID, feature.ArtifactInputMD)
+	if err != nil {
+		t.Fatalf("reading input.md: %v", err)
+	}
+	if len(inputContent) == 0 {
+		t.Error("input.md is empty")
 	}
 }
 
@@ -106,29 +141,8 @@ func TestGenerateFeatureID(t *testing.T) {
 	}
 }
 
-func TestLooseIdeaSpecContent(t *testing.T) {
-	tmpDir := t.TempDir()
-	li := NewLooseIdeaIntake(tmpDir)
-
-	f, err := li.Submit("Test Feature", "A test description", 2, nil)
-	if err != nil {
-		t.Fatalf("Submit() error: %v", err)
-	}
-
-	specPath := filepath.Join(tmpDir, "specs", f.ID, "spec.md")
-	data, err := os.ReadFile(specPath)
-	if err != nil {
-		t.Fatalf("reading spec.md: %v", err)
-	}
-	content := string(data)
-	if len(content) == 0 {
-		t.Error("spec.md is empty")
-	}
-}
-
 func TestExternalSpecParsesSections(t *testing.T) {
-	es := NewExternalSpecIntake(t.TempDir())
-	sections := es.parseSections("# Overview\n## Details\n### Sub-detail\n# Another")
+	sections := parseSections("# Overview\n## Details\n### Sub-detail\n# Another")
 	if len(sections) != 4 {
 		t.Errorf("expected 4 sections, got %d", len(sections))
 	}

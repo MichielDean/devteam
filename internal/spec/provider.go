@@ -86,6 +86,8 @@ func (sp *SpecProvider) ListFeatures() ([]*feature.Feature, error) {
 func (sp *SpecProvider) ArtifactPath(featureID string, artType feature.ArtifactType) string {
 	dir := sp.FeatureDir(featureID)
 	switch artType {
+	case feature.ArtifactInputMD:
+		return filepath.Join(dir, "input.md")
 	case feature.ArtifactSpecMD:
 		return filepath.Join(dir, "spec.md")
 	case feature.ArtifactAcceptanceMD:

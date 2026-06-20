@@ -2,6 +2,7 @@ package role
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -52,11 +53,26 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Dispat
 		Role:      req.Role,
 	}
 
-	cmd := exec.CommandContext(ctx, "opencode", "run",
+	prompt := buildPrompt(req)
+
+	if req.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, req.Timeout)
+		defer cancel()
+	} else if d.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, d.timeout)
+		defer cancel()
+	}
+
+	args := []string{
+		"run",
 		"--format", "json",
 		"--dangerously-skip-permissions",
-		"--message", buildPrompt(req),
-	)
+		prompt,
+	}
+
+	cmd := exec.CommandContext(ctx, "opencode", args...)
 	cmd.Dir = d.workingDir
 	cmd.Env = append(os.Environ(),
 		"OPENCODE_SERVER_USERNAME=",
@@ -71,7 +87,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Dispat
 
 	if err != nil {
 		result.Success = false
-		result.Error = fmt.Sprintf("opencode run failed: %v\noutput: %s", err, string(output))
+		if ctx.Err() == context.DeadlineExceeded {
+			result.Error = fmt.Sprintf("opencode run timed out after %v", result.Duration)
+		} else {
+			result.Error = fmt.Sprintf("opencode run failed: %v\noutput: %s", err, truncateOutput(string(output), 500))
+		}
 		return result, nil
 	}
 
@@ -92,4 +112,16 @@ func buildPrompt(req DispatchRequest) string {
 	b.WriteString(req.Context)
 	b.WriteString("\n\nExecute your role for this phase. Produce the required artifacts.")
 	return b.String()
+}
+
+type OpenCodeEvent struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data,omitempty"`
+}
+
+func truncateOutput(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "... (truncated)"
 }

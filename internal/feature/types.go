@@ -69,17 +69,18 @@ func (i IntakePath) String() string {
 type ArtifactType string
 
 const (
-	ArtifactSpecMD       ArtifactType = "spec_md"
-	ArtifactAcceptanceMD ArtifactType = "acceptance_md"
-	ArtifactReposYAML    ArtifactType = "repos_yaml"
-	ArtifactPlanMD       ArtifactType = "plan_md"
-	ArtifactTasksMD      ArtifactType = "tasks_md"
-	ArtifactReviewReport ArtifactType = "review_report"
-	ArtifactTestReport   ArtifactType = "test_report"
-	ArtifactDocs         ArtifactType = "docs"
-	ArtifactDataModelMD  ArtifactType = "data_model_md"
-	ArtifactQuickstartMD ArtifactType = "quickstart_md"
-	ArtifactContractsDir ArtifactType = "contracts_dir"
+	ArtifactInputMD       ArtifactType = "input_md"
+	ArtifactSpecMD        ArtifactType = "spec_md"
+	ArtifactAcceptanceMD  ArtifactType = "acceptance_md"
+	ArtifactReposYAML     ArtifactType = "repos_yaml"
+	ArtifactPlanMD        ArtifactType = "plan_md"
+	ArtifactTasksMD       ArtifactType = "tasks_md"
+	ArtifactReviewReport  ArtifactType = "review_report"
+	ArtifactTestReport    ArtifactType = "test_report"
+	ArtifactDocs          ArtifactType = "docs"
+	ArtifactDataModelMD   ArtifactType = "data_model_md"
+	ArtifactQuickstartMD  ArtifactType = "quickstart_md"
+	ArtifactContractsDir  ArtifactType = "contracts_dir"
 )
 
 func (a ArtifactType) String() string {
@@ -88,6 +89,8 @@ func (a ArtifactType) String() string {
 
 func ParseArtifactType(s string) ArtifactType {
 	switch s {
+	case "input_md":
+		return ArtifactInputMD
 	case "spec_md":
 		return ArtifactSpecMD
 	case "acceptance_md":

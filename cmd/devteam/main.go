@@ -29,6 +29,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	switch os.Args[1] {
+	case "version":
+		fmt.Printf("devteam %s\n", version)
+		return
+	case "init":
+		handleInit()
+		return
+	}
+
 	cfg, err := config.LoadConfig(filepath.Join(baseDir, "devteam.yaml"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
@@ -36,8 +45,6 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case "version":
-		fmt.Printf("devteam %s\n", version)
 	case "status":
 		handleStatus(baseDir)
 	case "intake":
@@ -52,8 +59,6 @@ func main() {
 		handleRecirculate(baseDir, cfg)
 	case "bootstrap":
 		handleBootstrap(baseDir, cfg)
-	case "init":
-		handleInit()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		printUsage()
