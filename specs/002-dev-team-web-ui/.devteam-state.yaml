@@ -1,0 +1,27 @@
+id: 002-dev-team-web-ui
+title: Dev Team Web UI
+status: draft
+priority: 1
+intake_path: loose_idea
+spec_dir: specs/002-dev-team-web-ui/
+created_at: 2026-06-20T00:00:00Z
+updated_at: 2026-06-20T00:00:00Z
+phase_states:
+  inception:
+    phase: inception
+    status: draft
+  planning:
+    phase: planning
+    status: draft
+  construction:
+    phase: construction
+    status: draft
+  review:
+    phase: review
+    status: draft
+  testing:
+    phase: testing
+    status: draft
+  delivery:
+    phase: delivery
+    status: draft

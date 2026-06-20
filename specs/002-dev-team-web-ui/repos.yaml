@@ -1,0 +1,5 @@
+feature: 002-dev-team-web-ui
+repos:
+  - name: devteam
+    url: git@github.com:MichielDean/devteam.git
+    branch: feature/002-dev-team-web-ui
