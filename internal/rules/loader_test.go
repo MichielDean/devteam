@@ -8,11 +8,11 @@ import (
 
 func TestRuleLoaderPhaseRules(t *testing.T) {
 	tmpDir := t.TempDir()
-	phaseDir := filepath.Join(tmpDir, "rules", "aidlc-rule-details", "inception")
+	phaseDir := filepath.Join(tmpDir, "rules", "pipeline", "inception")
 	if err := os.MkdirAll(phaseDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(phaseDir, "requirements-analysis.md"), []byte("# Requirements Analysis\n\nTest content."), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(phaseDir, "rules.md"), []byte("# Inception Rules\n\nTest content."), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -64,10 +64,13 @@ func setupTestRules(t *testing.T) string {
 	tmpDir := t.TempDir()
 
 	dirs := []string{
-		filepath.Join(tmpDir, "rules", "aidlc"),
-		filepath.Join(tmpDir, "rules", "aidlc-rule-details", "inception"),
-		filepath.Join(tmpDir, "rules", "aidlc-rule-details", "construction"),
-		filepath.Join(tmpDir, "rules", "aidlc-rule-details", "operations"),
+		filepath.Join(tmpDir, "rules", "pipeline"),
+		filepath.Join(tmpDir, "rules", "pipeline", "inception"),
+		filepath.Join(tmpDir, "rules", "pipeline", "planning"),
+		filepath.Join(tmpDir, "rules", "pipeline", "construction"),
+		filepath.Join(tmpDir, "rules", "pipeline", "review"),
+		filepath.Join(tmpDir, "rules", "pipeline", "testing"),
+		filepath.Join(tmpDir, "rules", "pipeline", "delivery"),
 		filepath.Join(tmpDir, "roles", "pm"),
 	}
 	for _, dir := range dirs {
@@ -76,10 +79,10 @@ func setupTestRules(t *testing.T) string {
 		}
 	}
 
-	if err := os.WriteFile(filepath.Join(tmpDir, "rules", "aidlc", "core-workflow.md"), []byte("# Core Workflow\n\nTest workflow."), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "rules", "pipeline", "core-workflow.md"), []byte("# Dev Team Pipeline Governance\n\nTest workflow."), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "rules", "aidlc-rule-details", "inception", "requirements-analysis.md"), []byte("# Requirements Analysis\n\nTest content."), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "rules", "pipeline", "inception", "rules.md"), []byte("# Inception Phase Rules\n\nTest content."), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(tmpDir, "roles", "pm", "INSTRUCTIONS.md"), []byte("# PM Role\n\nYou are the Product Manager."), 0644); err != nil {

@@ -16,17 +16,7 @@ func NewRuleLoader(baseDir string) *RuleLoader {
 }
 
 func (rl *RuleLoader) PhaseRules(phase string) ([]string, error) {
-	var ruleDir string
-	switch phase {
-	case "inception":
-		ruleDir = filepath.Join(rl.baseDir, "rules", "aidlc-rule-details", "inception")
-	case "planning", "construction", "review":
-		ruleDir = filepath.Join(rl.baseDir, "rules", "aidlc-rule-details", "construction")
-	case "testing", "delivery":
-		ruleDir = filepath.Join(rl.baseDir, "rules", "aidlc-rule-details", "operations")
-	default:
-		return nil, fmt.Errorf("unknown phase: %s", phase)
-	}
+	ruleDir := filepath.Join(rl.baseDir, "rules", "pipeline", phase)
 	return rl.loadMarkdownFiles(ruleDir)
 }
 
@@ -40,7 +30,7 @@ func (rl *RuleLoader) RoleRules(roleName string) (string, error) {
 }
 
 func (rl *RuleLoader) CoreWorkflow() (string, error) {
-	path := filepath.Join(rl.baseDir, "rules", "aidlc", "core-workflow.md")
+	path := filepath.Join(rl.baseDir, "rules", "pipeline", "core-workflow.md")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("reading core workflow: %w", err)
@@ -49,22 +39,13 @@ func (rl *RuleLoader) CoreWorkflow() (string, error) {
 }
 
 func (rl *RuleLoader) ExtensionRules(extensionName string) (string, error) {
-	extDirs := []string{
-		filepath.Join(rl.baseDir, "rules", "aidlc-rule-details", "extensions", "security", "baseline"),
-		filepath.Join(rl.baseDir, "rules", "aidlc-rule-details", "extensions", "resiliency", "baseline"),
-		filepath.Join(rl.baseDir, "rules", "aidlc-rule-details", "extensions", "testing", "property-based"),
+	extDir := filepath.Join(rl.baseDir, "rules", "pipeline", "extensions", extensionName)
+	mds, err := rl.loadMarkdownFiles(extDir)
+	if err != nil {
+		return "", fmt.Errorf("extension %s not found: %w", extensionName, err)
 	}
-	for _, dir := range extDirs {
-		matcher := fmt.Sprintf("%s/", extensionName)
-		if strings.Contains(dir, matcher) {
-			mds, err := rl.loadMarkdownFiles(dir)
-			if err != nil {
-				continue
-			}
-			if len(mds) > 0 {
-				return mds[0], nil
-			}
-		}
+	if len(mds) > 0 {
+		return mds[0], nil
 	}
 	return "", fmt.Errorf("extension %s not found", extensionName)
 }

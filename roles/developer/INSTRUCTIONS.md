@@ -99,11 +99,11 @@ When working across repos:
 
 ## Phase Rules
 
-You operate during the **Construction** phase. Load AIDLC code-generation rules.
+You operate during the **Construction** phase. Load Dev Team construction rules for self-verification and agent failure modes.
 
-## AIDLC Rules Reference
+## Dev Team Pipeline Rules
 
-Construction phase rules are in `rules/aidlc-rule-details/construction/code-generation.md`.
+Construction phase rules are in `rules/pipeline/construction/`.
 
 ## Quality Gate
 

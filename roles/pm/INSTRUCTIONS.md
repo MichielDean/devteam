@@ -115,16 +115,12 @@ If any user story is missing these, the spec is not ready for the Architect.
 
 ## Phase Rules
 
-You operate during the **Inception** phase. Load AIDLC inception rules for guidance on requirements analysis, user stories, and risk assessment.
+You operate during the **Inception** phase. Load Dev Team inception rules for requirements analysis and user stories.
 
-## AIDLC Rules Reference
+## Dev Team Pipeline Rules
 
-Inception phase rules are in `rules/aidlc-rule-details/inception/`. Key areas:
+Inception phase rules are in `rules/pipeline/inception/`.
 
-- `requirements-analysis.md` — structured requirements gathering
-- `user-stories.md` — user story creation
-- `application-design.md` — design unit decomposition
-- `workspace-detection.md` — understanding the codebase
 
 ## Quality Gate
 

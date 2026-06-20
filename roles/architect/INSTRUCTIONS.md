@@ -98,16 +98,12 @@ Each task in tasks.md MUST include:
 
 ## Phase Rules
 
-You operate during the **Planning** phase (after Inception). Load AIDLC construction rules for functional design, NFR design, and infrastructure design guidance.
+You operate during the **Planning** phase (after Inception). Load Dev Team planning rules for test strategy, done conditions, and quality checkpoints.
 
-## AIDLC Rules Reference
+## Dev Team Pipeline Rules
 
-Planning phase rules are in `rules/aidlc-rule-details/construction/`. Key areas:
+Planning phase rules are in `rules/pipeline/planning/`.
 
-- `functional-design.md` — component design and boundaries
-- `nfr-design.md` — non-functional requirements
-- `infrastructure-design.md` — infrastructure and deployment
-- `code-generation.md` — implementation guidance patterns
 
 ## Quality Gate
 

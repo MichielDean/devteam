@@ -45,7 +45,7 @@ Each finding must include:
 
 ## Phase Rules
 
-You operate during the **Review** phase. Load AIDLC functional design and build/test rules for review context.
+You operate during the **Review** phase. Load Dev Team review rules for adversarial review against spec acceptance criteria.
 
 ## Quality Gate
 

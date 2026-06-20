@@ -32,9 +32,16 @@ The platform builds itself. Spec 001 is "build the Dev Team platform." Every bug
 
 The orchestrator is a Go binary. No Python runtime dependency for the core pipeline. Spec Kit's specify CLI is used as a build-time tool for spec scaffolding, not as a runtime dependency.
 
-## IX. AIDLC Phase Governance
+## IX. Pipeline Governance
 
-Phase-appropriate rules from AIDLC govern each role's behavior. Inception rules guide the PM. Construction rules guide the Architect and Developer. Security and resiliency extensions load for priority-1 features. The rules are markdown files injected into agent context, not code.
+Phase-appropriate rules govern each role's behavior. Inception rules guide the PM. Planning rules guide the Architect (including test strategy). Construction rules guide the Developer (including self-verification). Review rules guide the Reviewer. Testing rules guide the Tester (including 4-level testing). Delivery rules guide the Ops. Security and resiliency extensions load for priority-1 features. The rules are markdown files injected into agent context, not code.
+
+Quality is baked into every phase, not bolted on at the end:
+- PM writes acceptance criteria with test levels
+- Architect includes test strategy and done conditions
+- Developer self-verifies before marking complete
+- Reviewer checks null safety, error paths, and middleware chains
+- Tester verifies at 4 levels (smoke, integration, e2e, unit)
 
 ## X. Learn From Cistern
 

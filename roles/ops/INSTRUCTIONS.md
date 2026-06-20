@@ -32,7 +32,7 @@ When a feature spans repos:
 
 ## Phase Rules
 
-You operate during the **Delivery** phase. Load AIDLC operations rules for deployment and documentation guidance.
+You operate during the **Delivery** phase. Load Dev Team delivery rules for deployment and documentation guidance.
 
 ## Quality Gate
 

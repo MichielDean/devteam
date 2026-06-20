@@ -16,90 +16,85 @@ pipeline:
       roles: [pm, architect]
       gate: spec_approved
       artifacts: [spec.md, acceptance.md, repos.yaml]
-      rules: rules/aidlc/core-workflow.md
+      rules: rules/pipeline/core-workflow.md
 
     - name: planning
       roles: [architect]
       gate: plan_approved
       artifacts: [plan.md, tasks.md]
-      rules: rules/aidlc-rule-details/construction/
+      rules: rules/pipeline/planning/
 
     - name: construction
       roles: [developer]
       gate: tasks_complete
       artifacts: [implementation across repos]
-      rules: rules/aidlc-rule-details/construction/code-generation.md
+      rules: rules/pipeline/construction/
 
     - name: review
       roles: [reviewer]
       gate: criteria_met
       artifacts: [review report]
-      rules: rules/aidlc-rule-details/construction/functional-design.md
+      rules: rules/pipeline/review/
 
     - name: testing
       roles: [tester]
       gate: tests_pass
       artifacts: [test report]
-      rules: rules/aidlc-rule-details/construction/build-and-test.md
+      rules: rules/pipeline/testing/
 
     - name: delivery
       roles: [ops]
       gate: docs_match_spec
       artifacts: [docs, release]
-      rules: rules/aidlc-rule-details/operations/operations.md
+      rules: rules/pipeline/delivery/
 
-roles:
-  pm:
-    name: Product Manager
-    description: Owns the what and why. Explores, clarifies, refines ideas into specs.
-    instructions: roles/pm/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/inception/
+  roles:
+    pm:
+      name: Product Manager
+      description: Owns the what and why. Explores, clarifies, refines ideas into specs.
+      instructions: roles/pm/INSTRUCTIONS.md
+      phase_rules: rules/pipeline/inception/
 
-  architect:
-    name: Architect
-    description: Owns the how. Creates technical plans, designs cross-repo boundaries.
-    instructions: roles/architect/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/construction/functional-design.md
+    architect:
+      name: Architect
+      description: Owns the how. Creates technical plans, designs cross-repo boundaries.
+      instructions: roles/architect/INSTRUCTIONS.md
+      phase_rules: rules/pipeline/planning/
 
-  developer:
-    name: Developer
-    description: Writes code across repos. Follows spec, plan, and task breakdown.
-    instructions: roles/developer/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/construction/code-generation.md
+    developer:
+      name: Developer
+      description: Writes code across repos. Follows spec, plan, and task breakdown.
+      instructions: roles/developer/INSTRUCTIONS.md
+      phase_rules: rules/pipeline/construction/
 
-  reviewer:
-    name: Code Reviewer
-    description: Adversarial review against spec acceptance criteria.
-    instructions: roles/reviewer/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/construction/build-and-test.md
+    reviewer:
+      name: Code Reviewer
+      description: Adversarial review against spec acceptance criteria.
+      instructions: roles/reviewer/INSTRUCTIONS.md
+      phase_rules: rules/pipeline/review/
 
-  tester:
-    name: Tester
-    description: Writes and runs tests from user stories. Traces tests to spec requirements.
-    instructions: roles/tester/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/construction/build-and-test.md
+    tester:
+      name: Tester
+      description: Writes and runs tests from user stories. Traces tests to spec requirements.
+      instructions: roles/tester/INSTRUCTIONS.md
+      phase_rules: rules/pipeline/testing/
 
-  ops:
-    name: Release Engineer
-    description: Owns deployment, docs, and cross-repo coordination.
-    instructions: roles/ops/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/operations/operations.md
+    ops:
+      name: Release Engineer
+      description: Owns deployment, docs, and cross-repo coordination.
+      instructions: roles/ops/INSTRUCTIONS.md
+      phase_rules: rules/pipeline/delivery/
 
-extensions:
-  security:
-    opt_in: true
-    load_for_priority: [1]
-    rules: rules/aidlc-rule-details/extensions/security/baseline/security-baseline.md
+  extensions:
+    security:
+      opt_in: true
+      load_for_priority: [1]
+      rules: rules/pipeline/extensions/security/rules.md
 
-  resiliency:
-    opt_in: true
-    load_for_priority: [1, 2]
-    rules: rules/aidlc-rule-details/extensions/resiliency/baseline/resiliency-baseline.md
-
-  property_based_testing:
-    opt_in: true
-    load_for_priority: [1]
-    rules: rules/aidlc-rule-details/extensions/testing/property-based/property-based-testing.md
+    resiliency:
+      opt_in: true
+      load_for_priority: [1, 2]
+      rules: rules/pipeline/extensions/resiliency/rules.md
 
 intake:
   loose_idea:
@@ -141,13 +136,15 @@ func (init *Initializer) Init() error {
 		filepath.Join(init.baseDir, "roles", "reviewer"),
 		filepath.Join(init.baseDir, "roles", "tester"),
 		filepath.Join(init.baseDir, "roles", "ops"),
-		filepath.Join(init.baseDir, "rules", "aidlc"),
-		filepath.Join(init.baseDir, "rules", "aidlc-rule-details", "inception"),
-		filepath.Join(init.baseDir, "rules", "aidlc-rule-details", "construction"),
-		filepath.Join(init.baseDir, "rules", "aidlc-rule-details", "operations"),
-		filepath.Join(init.baseDir, "rules", "aidlc-rule-details", "extensions", "security", "baseline"),
-		filepath.Join(init.baseDir, "rules", "aidlc-rule-details", "extensions", "resiliency", "baseline"),
-		filepath.Join(init.baseDir, "rules", "aidlc-rule-details", "extensions", "testing", "property-based"),
+		filepath.Join(init.baseDir, "rules", "pipeline"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "inception"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "planning"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "construction"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "review"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "testing"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "delivery"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "extensions", "security"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "extensions", "resiliency"),
 		filepath.Join(init.baseDir, "constitution"),
 	}
 
@@ -347,7 +344,7 @@ Before passing the delivery gate, you MUST ensure:
 		}
 	}
 
-	coreWorkflow := filepath.Join(init.baseDir, "rules", "aidlc", "core-workflow.md")
+	coreWorkflow := filepath.Join(init.baseDir, "rules", "pipeline", "core-workflow.md")
 	if _, err := os.Stat(coreWorkflow); os.IsNotExist(err) {
 		content := "# AIDLC Core Workflow\n\nThis directory should contain the AIDLC core workflow rules.\nSee https://github.com/MichielDean/devteam for the full rule set.\n"
 		if err := os.WriteFile(coreWorkflow, []byte(content), 0644); err != nil {

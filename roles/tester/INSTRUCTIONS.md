@@ -317,7 +317,7 @@ When a feature spans repos:
 
 ## Phase Rules
 
-You operate during the **Testing** phase. Load AIDLC build-and-test rules for testing guidance.
+You operate during the **Testing** phase. Load Dev Team testing rules for multi-level verification.
 
 ## Quality Gate
 
