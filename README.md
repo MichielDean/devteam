@@ -4,7 +4,7 @@ A multi-agent development platform with predefined specialist roles, spec-driven
 
 ## Status
 
-**v0.1.0-dev** — Core engine implemented. Phases 1-8 complete (T001-T042). Pipeline engine, intake paths, gate enforcement, cross-repo support, and self-bootstrap are working. 39 tests passing.
+**v0.2.0** — Full pipeline engine implemented. Agent dispatch, gate evaluation, convergence detection, advance/recirculate commands, init scaffolding. 50+ tests passing. Self-bootstrap working.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ Both produce the same output: `spec.md` + `acceptance.md` + `repos.yaml`.
 
 ## Central Spec Repository
 
-Specs live in one place — this repo. Features that span multiple implementation repos have one spec, not fragmented copies across repos. Each implementation repo gets a thin `.devteam/` pointer back to the central spec.
+Specs live in one place — this repo. Features that span multiple implementation repos have one spec, not fragmented copies across repos. Each implementation repo gets a thin `.devteam/pointer.yaml` back to the central spec.
 
 ## Pipeline
 
@@ -35,7 +35,7 @@ Inception → Planning → Construction → Review → Testing → Delivery
   (PM+Arch)   (Arch)     (Dev)       (Reviewer) (Tester)   (Ops)
 ```
 
-Each phase has a gate. You can't skip phases.
+Each phase has a gate. You can't skip phases. Failed gates recirculate to the correct earlier phase.
 
 ## Quick Start
 
@@ -44,17 +44,26 @@ Each phase has a gate. You can't skip phases.
 cd ~/source/devteam
 go build -o ~/go/bin/devteam ./cmd/devteam/
 
+# Initialize a new project
+devteam init
+
 # Check status
 devteam status
 
 # Submit a loose idea
-devteam intake --type loose --text "We need user authentication"
+devteam intake --type loose --text "We need user authentication" --priority 1
 
-# Run next phase
+# Run current phase (dispatches agents)
 devteam run 001-user-auth
 
 # Evaluate current gate
 devteam gate 001-user-auth
+
+# Advance to next phase after gate passes
+devteam advance 001-user-auth
+
+# Recirculate back to a previous phase
+devteam recirculate 001-user-auth planning
 
 # Self-bootstrap
 devteam bootstrap
@@ -64,12 +73,31 @@ devteam bootstrap
 
 | Command | Description |
 |---------|-------------|
+| `devteam init` | Initialize a new devteam project (scaffolds directory structure) |
 | `devteam status` | Show all features and their current phase |
 | `devteam intake` | Submit a new feature (loose idea or external spec) |
-| `devteam run <id>` | Run the next pipeline phase for a feature |
+| `devteam run <id>` | Run the current pipeline phase (dispatches agents) |
 | `devteam gate <id>` | Evaluate the current phase gate |
+| `devteam advance <id>` | Advance feature to next phase after gate passes |
+| `devteam recirculate <id> <phase>` | Send feature back to a previous phase |
 | `devteam bootstrap` | Process spec 001 (self-bootstrap) |
 | `devteam version` | Print version |
+
+## Pipeline Flow
+
+1. **Intake**: Submit a feature via `devteam intake`
+2. **Run phase**: `devteam run <id>` dispatches agents with role instructions + AIDLC rules + spec context
+3. **Check gate**: `devteam gate <id>` evaluates whether the phase gate passes
+4. **Advance**: `devteam advance <id>` moves to the next phase
+5. **Recirculate** (on failure): `devteam recirculate <id> <phase>` goes back to fix issues
+
+## Convergence Detection
+
+Dev Team detects when implementation has drifted from spec:
+- Unrefined placeholder text in spec.md or acceptance.md
+- Missing sections (user stories, requirements, success criteria)
+- Plan sections that don't cover all spec requirements
+- Priority-1 features missing security review
 
 ## Hybrid Framework
 
@@ -84,6 +112,7 @@ devteam bootstrap
 | Distinct role agents | — | — | ✓ (6 fixed roles) |
 | Self-bootstrap | — | — | ✓ (platform processes its own spec) |
 | Intake paths | — | — | ✓ (loose ideas + external specs) |
+| Convergence detection | — | — | ✓ (spec drift checking) |
 
 ## Project Structure
 
@@ -92,12 +121,13 @@ cmd/devteam/main.go           # CLI entrypoint
 internal/
 ├── config/                    # YAML config loading
 ├── feature/                   # Feature state machine, types, gates
+├── init/                       # Project initialization scaffolding
 ├── intake/                     # Loose idea + external spec intake paths
-├── pipeline/                  # Pipeline orchestrator, gate evaluation
+├── pipeline/                  # Pipeline orchestrator, gate evaluation, convergence
 ├── role/                       # Role loader, agent dispatcher
 ├── spec/                       # Spec provider, writer, artifact validation
 ├── rules/                      # AIDLC phase rule loader
-└── repo/                       # Cross-repo git operations
+└── repo/                       # Cross-repo git operations, pointer files
 specs/                           # Central spec repository
 roles/                           # 6 role INSTRUCTIONS.md files
 rules/                           # AIDLC governance rules

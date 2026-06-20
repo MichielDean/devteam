@@ -20,6 +20,10 @@ func NewSpecProvider(baseDir string) *SpecProvider {
 	return &SpecProvider{baseDir: baseDir}
 }
 
+func (sp *SpecProvider) BaseDir() string {
+	return sp.baseDir
+}
+
 func (sp *SpecProvider) FeatureDir(featureID string) string {
 	return filepath.Join(sp.baseDir, "specs", featureID)
 }

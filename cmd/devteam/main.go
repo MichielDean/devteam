@@ -1,18 +1,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/MichielDean/devteam/internal/config"
+	devinit "github.com/MichielDean/devteam/internal/init"
 	"github.com/MichielDean/devteam/internal/intake"
+	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/spec"
 )
 
-const version = "0.1.0-dev"
+const version = "0.2.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -41,10 +44,16 @@ func main() {
 		handleIntake(baseDir)
 	case "run":
 		handleRun(baseDir, cfg)
+	case "advance":
+		handleAdvance(baseDir, cfg)
 	case "gate":
 		handleGate(baseDir, cfg)
+	case "recirculate":
+		handleRecirculate(baseDir, cfg)
 	case "bootstrap":
 		handleBootstrap(baseDir, cfg)
+	case "init":
+		handleInit()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -131,19 +140,114 @@ func handleRun(baseDir string, cfg *config.Config) {
 	fmt.Printf("Running phase %s for feature %s...\n", currentPhase, featureID)
 
 	p := pipeline.NewPipeline(cfg, provider)
-	ps, err := p.RunPhase(f)
+	result, err := p.RunPhaseWithAgent(context.Background(), f)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error running phase: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Phase %s started for %s\n", ps.Phase, featureID)
-	fmt.Printf("Status: %s\n", ps.Status)
+	fmt.Printf("Phase %s completed for %s\n", result.Phase, featureID)
+	fmt.Printf("Gate passed: %v\n", result.GateResult.Passed)
 
-	if err := p.SaveFeature(f); err != nil {
-		fmt.Fprintf(os.Stderr, "error saving feature state: %v\n", err)
+	if !result.GateResult.Passed {
+		fmt.Println("\nMissing artifacts:")
+		for _, art := range result.GateResult.MissingArts {
+			fmt.Printf("  - %s\n", art)
+		}
+		fmt.Println("\nFailed checks:")
+		for _, check := range result.GateResult.Checks {
+			if !check.Passed {
+				fmt.Printf("  [FAIL] %s\n", check.Name)
+				if check.Message != "" {
+					fmt.Printf("         %s\n", check.Message)
+				}
+			}
+		}
+		fmt.Println("\nTo fix: provide the missing artifacts and re-run the gate.")
+		fmt.Println("Run 'devteam gate <feature-id>' to re-evaluate.")
+		fmt.Println("Run 'devteam recirculate <feature-id> <target-phase>' to go back to a previous phase.")
+	} else {
+		fmt.Println("\nGate passed! Run 'devteam advance <feature-id>' to move to the next phase.")
+	}
+
+	for _, rr := range result.RoleResults {
+		status := "SUCCESS"
+		if !rr.Success {
+			status = "FAILED"
+		}
+		fmt.Printf("\nRole %s (%s): %s (%v)\n", rr.Role, rr.Phase, status, rr.Duration)
+		if rr.Error != "" {
+			fmt.Printf("  Error: %s\n", rr.Error)
+		}
+	}
+}
+
+func handleAdvance(baseDir string, cfg *config.Config) {
+	if len(os.Args) < 3 {
+		fmt.Fprintf(os.Stderr, "Usage: devteam advance <feature-id>\n")
 		os.Exit(1)
 	}
+	featureID := os.Args[2]
+
+	provider := spec.NewSpecProvider(baseDir)
+	f, err := provider.LoadFeatureState(featureID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
+		os.Exit(1)
+	}
+
+	p := pipeline.NewPipeline(cfg, provider)
+
+	gateResult, err := p.EvaluateGate(f)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error evaluating gate: %v\n", err)
+		os.Exit(1)
+	}
+
+	if !gateResult.Passed {
+		fmt.Printf("Cannot advance: gate for phase %s has not passed.\n", gateResult.Phase)
+		fmt.Println("\nMissing artifacts:")
+		for _, art := range gateResult.MissingArts {
+			fmt.Printf("  - %s\n", art)
+		}
+		fmt.Println("\nFailed checks:")
+		for _, check := range gateResult.Checks {
+			if !check.Passed {
+				fmt.Printf("  [FAIL] %s\n", check.Name)
+			}
+		}
+		fmt.Println("\nFix the issues above, then re-run 'devteam advance <feature-id>'.")
+		os.Exit(1)
+	}
+
+	currentPhase := f.CurrentPhase()
+	phases := feature.AllPhases()
+	currentIdx := -1
+	for i, phase := range phases {
+		if phase == currentPhase {
+			currentIdx = i
+			break
+		}
+	}
+
+	if currentIdx == len(phases)-1 {
+		f.MarkDone()
+		if err := p.SaveFeature(f); err != nil {
+			fmt.Fprintf(os.Stderr, "error saving feature state: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Feature %s completed! All phases passed.\n", featureID)
+		return
+	}
+
+	f, err = p.AdvanceFeature(f)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error advancing feature: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Feature %s advanced to phase: %s\n", featureID, f.CurrentPhase())
+	fmt.Println("Run 'devteam run <feature-id>' to execute the next phase.")
 }
 
 func handleGate(baseDir string, cfg *config.Config) {
@@ -191,11 +295,46 @@ func handleGate(baseDir string, cfg *config.Config) {
 
 	if !result.Passed {
 		fmt.Println("\n  To fix: provide the missing artifacts listed above.")
-		fmt.Println("  Run 'devteam run <feature-id>' to execute the next phase.")
+		fmt.Println("  Run 'devteam run <feature-id>' to re-execute the phase.")
+		fmt.Println("  Run 'devteam recirculate <feature-id> <target-phase>' to go back to a previous phase.")
 		os.Exit(1)
 	}
 
-	fmt.Println("\n  Gate passed! Run 'devteam run <feature-id>' to advance to the next phase.")
+	fmt.Println("\n  Gate passed! Run 'devteam advance <feature-id>' to move to the next phase.")
+}
+
+func handleRecirculate(baseDir string, cfg *config.Config) {
+	if len(os.Args) < 4 {
+		fmt.Fprintf(os.Stderr, "Usage: devteam recirculate <feature-id> <target-phase>\n")
+		fmt.Fprintf(os.Stderr, "Valid phases: inception, planning, construction, review, testing, delivery\n")
+		os.Exit(1)
+	}
+	featureID := os.Args[2]
+	targetPhaseStr := os.Args[3]
+
+	targetPhase := feature.ParsePhase(targetPhaseStr)
+
+	provider := spec.NewSpecProvider(baseDir)
+	f, err := provider.LoadFeatureState(featureID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
+		os.Exit(1)
+	}
+
+	currentPhase := f.CurrentPhase()
+	reason := fmt.Sprintf("recirculated from %s to %s", currentPhase, targetPhase)
+
+	p := pipeline.NewPipeline(cfg, provider)
+	f, err = p.RecirculateFeature(f, targetPhase, reason)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error recirculating feature: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Feature %s recirculated from %s to %s\n", featureID, currentPhase, targetPhase)
+	fmt.Printf("Current phase: %s\n", f.CurrentPhase())
+	fmt.Printf("Status: %s\n", f.Status)
+	fmt.Println("\nRun 'devteam run <feature-id>' to re-execute this phase.")
 }
 
 func handleBootstrap(baseDir string, cfg *config.Config) {
@@ -230,6 +369,30 @@ func handleBootstrap(baseDir string, cfg *config.Config) {
 		for _, art := range result.MissingArts {
 			fmt.Printf("  - %s\n", art)
 		}
+	}
+	if len(result.Checks) > 0 {
+		fmt.Println("Checks:")
+		for _, check := range result.Checks {
+			status := "PASS"
+			if !check.Passed {
+				status = "FAIL"
+			}
+			fmt.Printf("  [%s] %s\n", status, check.Name)
+		}
+	}
+
+	if result.Passed {
+		fmt.Println("\nBootstrap gate passed! Run 'devteam advance 001-dev-team-platform' to continue.")
+	} else {
+		fmt.Println("\nBootstrap gate not yet passed. Complete the missing artifacts above.")
+	}
+}
+
+func handleInit() {
+	initializer := devinit.NewInitializer(".")
+	if err := initializer.Init(); err != nil {
+		fmt.Fprintf(os.Stderr, "error initializing project: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -275,15 +438,27 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n")
 	fmt.Fprintf(os.Stderr, "  devteam <command> [args]\n\n")
 	fmt.Fprintf(os.Stderr, "Commands:\n")
-	fmt.Fprintf(os.Stderr, "  intake     Submit a new feature (loose idea or external spec)\n")
-	fmt.Fprintf(os.Stderr, "  run        Run the next pipeline phase for a feature\n")
-	fmt.Fprintf(os.Stderr, "  gate       Evaluate the current phase gate for a feature\n")
-	fmt.Fprintf(os.Stderr, "  status     Show current pipeline status for all features\n")
-	fmt.Fprintf(os.Stderr, "  bootstrap   Self-bootstrap: process spec 001 through the pipeline\n")
-	fmt.Fprintf(os.Stderr, "  version    Print version\n\n")
+	fmt.Fprintf(os.Stderr, "  intake       Submit a new feature (loose idea or external spec)\n")
+	fmt.Fprintf(os.Stderr, "  run          Run the current pipeline phase for a feature (dispatches agents)\n")
+	fmt.Fprintf(os.Stderr, "  advance      Advance feature to next phase after gate passes\n")
+	fmt.Fprintf(os.Stderr, "  gate         Evaluate the current phase gate for a feature\n")
+	fmt.Fprintf(os.Stderr, "  recirculate  Send a feature back to an earlier phase\n")
+	fmt.Fprintf(os.Stderr, "  init        Initialize a new devteam project (scaffolds directory structure)\n")
+	fmt.Fprintf(os.Stderr, "  status       Show current pipeline status for all features\n")
+	fmt.Fprintf(os.Stderr, "  bootstrap    Self-bootstrap: process spec 001 through the pipeline\n")
+	fmt.Fprintf(os.Stderr, "  version      Print version\n\n")
 	fmt.Fprintf(os.Stderr, "Intake options:\n")
 	fmt.Fprintf(os.Stderr, "  --type loose|external   Intake path type\n")
 	fmt.Fprintf(os.Stderr, "  --text \"idea\"           Loose idea text\n")
 	fmt.Fprintf(os.Stderr, "  --file path             Path to external spec\n")
-	fmt.Fprintf(os.Stderr, "  --priority 1|2|3       Feature priority\n")
+	fmt.Fprintf(os.Stderr, "  --priority 1|2|3       Feature priority\n\n")
+	fmt.Fprintf(os.Stderr, "Pipeline flow:\n")
+	fmt.Fprintf(os.Stderr, "  1. devteam intake --type loose --text \"idea\"\n")
+	fmt.Fprintf(os.Stderr, "  2. devteam run <feature-id>      # Execute current phase\n")
+	fmt.Fprintf(os.Stderr, "  3. devteam gate <feature-id>      # Check if gate passes\n")
+	fmt.Fprintf(os.Stderr, "  4. devteam advance <feature-id>   # Move to next phase\n")
+	fmt.Fprintf(os.Stderr, "  5. Repeat 2-4 until delivery\n\n")
+	fmt.Fprintf(os.Stderr, "Recirculate options:\n")
+	fmt.Fprintf(os.Stderr, "  devteam recirculate <feature-id> <target-phase>\n")
+	fmt.Fprintf(os.Stderr, "  Phases: inception, planning, construction, review, testing, delivery\n")
 }
