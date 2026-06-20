@@ -1,17 +1,22 @@
 package main
 
+//go:generate cd ../../ui && npm run build
+
 import (
 	"context"
+	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/MichielDean/devteam/internal/api"
 	"github.com/MichielDean/devteam/internal/config"
+	"github.com/MichielDean/devteam/internal/feature"
 	devinit "github.com/MichielDean/devteam/internal/init"
 	"github.com/MichielDean/devteam/internal/intake"
-	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/spec"
 )
@@ -19,6 +24,44 @@ import (
 const version = "0.3.0"
 
 func main() {
+	// Parse -http flag for web server mode
+	httpAddr := flag.String("http", "", "Start web server on specified address (e.g., :8080). If empty, runs in CLI mode.")
+	flag.Parse()
+
+	// If -http flag is set, start the web server
+	if *httpAddr != "" {
+		baseDir, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error getting working directory: %v\n", err)
+			os.Exit(1)
+		}
+
+		cfg, err := config.LoadConfig(filepath.Join(baseDir, "devteam.yaml"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
+			os.Exit(1)
+		}
+
+		specProvider := spec.NewSpecProvider(baseDir)
+		p := pipeline.NewPipeline(cfg, specProvider)
+
+		// Try to serve embedded frontend assets; fall back to filesystem if not built
+		var staticFS fs.FS
+		uiDir := filepath.Join(baseDir, "ui", "dist")
+		if _, err := os.Stat(uiDir); err == nil {
+			staticFS = os.DirFS(uiDir)
+		}
+
+		server := api.NewServer(*httpAddr, specProvider, p, staticFS)
+
+		fmt.Printf("Dev Team Web UI starting on %s\n", *httpAddr)
+		if err := server.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)

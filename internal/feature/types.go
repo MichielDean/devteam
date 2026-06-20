@@ -172,6 +172,11 @@ func IsValidPhase(name string) bool {
 	return false
 }
 
+// IsValidPriority returns true if the priority is 1, 2, or 3
+func IsValidPriority(p int) bool {
+	return p >= 1 && p <= 3
+}
+
 func (r RoleName) String() string {
 	return string(r)
 }
