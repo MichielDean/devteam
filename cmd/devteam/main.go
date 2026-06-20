@@ -45,12 +45,13 @@ func main() {
 		specProvider := spec.NewSpecProvider(baseDir)
 		p := pipeline.NewPipeline(cfg, specProvider)
 
-		// Try to serve embedded frontend assets; fall back to filesystem if not built
+		// Serve frontend: use local filesystem (development or after go generate)
 		var staticFS fs.FS
 		uiDir := filepath.Join(baseDir, "ui", "dist")
-		if _, err := os.Stat(uiDir); err == nil {
+		if info, err := os.Stat(uiDir); err == nil && info.IsDir() {
 			staticFS = os.DirFS(uiDir)
 		}
+		// If ui/dist doesn't exist, staticFS is nil — API-only mode (no frontend)
 
 		server := api.NewServer(*httpAddr, specProvider, p, staticFS)
 

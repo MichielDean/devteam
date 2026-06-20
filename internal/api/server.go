@@ -25,6 +25,8 @@ type Server struct {
 	mux            *http.ServeMux
 	activeProcess  sync.Map // featureID -> bool: tracks features being processed
 	sseRegistry    *SSERegistry
+	fileWatcher    *FileWatcher
+	baseDir        string
 }
 
 // SSERegistry manages SSE client channels per feature
@@ -90,7 +92,12 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 		specProvider: specProvider,
 		pipeline:    pipeline,
 		sseRegistry: NewSSERegistry(),
+		baseDir:     specProvider.BaseDir(),
 	}
+
+	// Start file watcher for CLI-triggered state changes
+	s.fileWatcher = NewFileWatcher(specProvider.BaseDir(), s.sseRegistry)
+	go s.fileWatcher.Start()
 
 	mux := http.NewServeMux()
 
@@ -247,8 +254,14 @@ func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f))
 }
 
+// maxRequestBodyBytes limits request body size to 1MB to prevent abuse
+const maxRequestBodyBytes = 1 << 20 // 1MB
+
 // createFeature handles POST /api/features
 func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
+	// Limit request body size
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+
 	var req CreateFeatureRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "validation_error", "Invalid JSON body")
@@ -454,6 +467,8 @@ func (s *Server) recirculateFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+
 	var req RecirculateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "validation_error", "Invalid JSON body")
@@ -654,7 +669,7 @@ func (s *Server) processFeature(w http.ResponseWriter, r *http.Request) {
 			log.Printf("error processing feature %s: %v", id, err)
 			s.broadcastEvent(id, "error", ErrorEvent{
 				FeatureID: id,
-				Message:   fmt.Sprintf("Processing failed: %v", err),
+				Message:   "Processing failed. Check server logs for details.",
 				Timestamp: time.Now(),
 			})
 		}

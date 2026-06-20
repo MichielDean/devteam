@@ -1,13 +1,17 @@
 import { useSSE } from '../hooks/useSSE';
 
 interface ConnectionStatusProps {
-  featureId?: string;
+  featureId?: string | null;
 }
 
 export default function ConnectionStatus({ featureId }: ConnectionStatusProps) {
-  const { connected } = useSSE(featureId ?? null);
+  // Only show connection status when we have a specific feature SSE stream
+  // (global dashboard doesn't need SSE — it uses polling via React Query)
+  if (!featureId) return null;
 
-  if (connected || !featureId) return null;
+  const { connected } = useSSE(featureId);
+
+  if (connected) return null;
 
   return (
     <div

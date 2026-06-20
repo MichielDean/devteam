@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, processFeature, evaluateGate } from '../api/client';
@@ -22,8 +23,20 @@ export default function FeatureDetail() {
   });
 
   // SSE connection for real-time updates
-  const { connected: sseConnected } = useSSE(id ?? null);
+  const { connected: sseConnected, lastEvent } = useSSE(id ?? null);
   void sseConnected; // Used for connection status banner
+
+  // Show ProcessView when processing is active (feature in_progress with recent process event)
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (lastEvent.type === 'processing_complete' || lastEvent.type === 'error') {
+      setIsProcessing(false);
+    } else if (lastEvent.type === 'agent_dispatch' || lastEvent.type === 'phase_change') {
+      setIsProcessing(true);
+    }
+  }, [lastEvent]);
 
   // Mutations for pipeline actions
   const runPhaseMutation = useMutation({
@@ -78,6 +91,9 @@ export default function FeatureDetail() {
       }
     },
   });
+
+  // Show ProcessView during active processing or mutation
+  const showProcessView = isProcessing || processMutation.isPending;
 
   const gateMutation = useMutation({
     mutationFn: () => evaluateGate(id!),
@@ -198,7 +214,7 @@ export default function FeatureDetail() {
       <PhaseTimeline phases={PHASES} currentPhase={currentPhase} phaseStates={feature.phase_states} />
 
       {/* Process View (shown during processing) */}
-      {(feature.status === 'in_progress' && processMutation.isPending) && (
+      {showProcessView && feature.status === 'in_progress' && (
         <ProcessView featureId={feature.id} />
       )}
 
@@ -278,12 +294,12 @@ export default function FeatureDetail() {
 
             <button
               onClick={() => processMutation.mutate()}
-              disabled={processMutation.isPending}
+              disabled={processMutation.isPending || isProcessing}
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-              title={feature.status === 'in_progress' ? 'Feature is already being processed' : 'Process entire pipeline'}
+              title={isProcessing ? 'Feature is already being processed' : 'Process entire pipeline'}
               data-testid="process-button"
             >
-              Process
+              {isProcessing ? 'Processing...' : 'Process'}
             </button>
           </div>
         </div>

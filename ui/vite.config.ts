@@ -15,4 +15,15 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-markdown': ['react-markdown', 'rehype-highlight', 'highlight.js'],
+        },
+      },
+    },
+  },
 });

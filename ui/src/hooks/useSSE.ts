@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type {
   SSEEventType,
 } from '../types';
@@ -9,7 +10,7 @@ interface UseSSEReturn {
 }
 
 export interface SSEEvent {
-  type: SSEEventType;
+  type: SSEEventType | 'state_change';
   data: unknown;
 }
 
@@ -19,6 +20,23 @@ export function useSSE(featureId: string | null): UseSSEReturn {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const reconnectAttempts = useRef(0);
+  const queryClient = useQueryClient();
+
+  const handleEvent = useCallback((type: SSEEventType | 'state_change', event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data as string);
+      setLastEvent({ type, data });
+
+      // Invalidate React Query cache for the relevant feature
+      if (data?.feature_id) {
+        queryClient.invalidateQueries({ queryKey: ['feature', data.feature_id] });
+      }
+      // Always invalidate the feature list when any state changes
+      queryClient.invalidateQueries({ queryKey: ['features'] });
+    } catch {
+      // Ignore parse errors
+    }
+  }, [queryClient]);
 
   const connect = useCallback(() => {
     if (!featureId) return;
@@ -44,22 +62,14 @@ export function useSSE(featureId: string | null): UseSSEReturn {
     };
 
     // Handle all event types
-    const handleEvent = (type: SSEEventType, event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data as string);
-        setLastEvent({ type, data });
-      } catch {
-        // Ignore parse errors
-      }
-    };
-
     es.addEventListener('phase_change', (e: MessageEvent) => handleEvent('phase_change', e));
     es.addEventListener('gate_result', (e: MessageEvent) => handleEvent('gate_result', e));
     es.addEventListener('agent_dispatch', (e: MessageEvent) => handleEvent('agent_dispatch', e));
     es.addEventListener('agent_complete', (e: MessageEvent) => handleEvent('agent_complete', e));
     es.addEventListener('processing_complete', (e: MessageEvent) => handleEvent('processing_complete', e));
     es.addEventListener('error', (e: MessageEvent) => handleEvent('error', e));
-  }, [featureId]);
+    es.addEventListener('state_change', (e: MessageEvent) => handleEvent('state_change', e));
+  }, [featureId, handleEvent]);
 
   useEffect(() => {
     connect();
