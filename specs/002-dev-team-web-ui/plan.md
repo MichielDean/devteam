@@ -223,8 +223,8 @@ internal/
 │   ├── handler_sse_test.go      # SSE handler tests
 │   └── dto_test.go              # DTO conversion tests
 ├── config/                      # EXISTING — no changes expected
-├── feature/                     # EXISTING — add helper methods for API serialization
-│   ├── feature.go               # MODIFIED — add IsTerminal() helper method (JSON tags already present)
+├── feature/                     # EXISTING — verify helper methods and add any API-specific ones
+│   ├── feature.go               # EXISTING — IsTerminal() already present; may add IsValidPriority() if needed
 │   ├── types.go                 # EXISTING — already has String(), ParsePhase(), AllPhases(), ValidPhaseNames(), IsValidPhase(), ArtifactAPIPathToType()
 │   ├── state.go                 # EXISTING — no changes expected
 │   └── ...

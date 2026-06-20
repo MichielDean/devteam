@@ -1,12 +1,12 @@
 id: 002-dev-team-web-ui
 title: Dev Team Web UI
-current_phase: construction
-status: in_progress
+current_phase: delivery
+status: done
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/002-dev-team-web-ui/
 created_at: 2026-06-20T00:00:00Z
-updated_at: 2026-06-20T12:35:50.393001388-06:00
+updated_at: 2026-06-20T13:23:06.05321039-06:00
 repos:
     - name: devteam
       url: git@github.com:MichielDean/devteam.git
@@ -14,11 +14,45 @@ repos:
 phase_states:
     construction:
         phase: construction
-        status: in_progress
-        started_at: 2026-06-20T12:35:50.393001388-06:00
+        status: passed
+        gate_result:
+            phase: construction
+            passed: true
+            checks:
+                - name: code compiles in every affected repository
+                  passed: true
+                  message: ✓ code compiles in every affected repository
+                - name: no placeholder or stub code remains
+                  passed: true
+                  message: ✓ no placeholder or stub code remains
+                - name: each repository's changes are independently buildable
+                  passed: true
+                  message: ✓ each repository's changes are independently buildable
+            evaluated_at: 2026-06-20T13:12:33.724930355-06:00
+        started_at: 2026-06-20T13:00:22.910611546-06:00
+        completed_at: 2026-06-20T13:12:33.725499793-06:00
     delivery:
         phase: delivery
-        status: draft
+        status: passed
+        gate_result:
+            phase: delivery
+            passed: true
+            checks:
+                - name: artifact_docs_exists
+                  passed: true
+                  message: artifact docs present at /home/lobsterdog/source/devteam/specs/002-dev-team-web-ui/docs
+                - name: documentation uses spec terminology
+                  passed: true
+                  message: ✓ documentation uses spec terminology
+                - name: changelog references the spec number
+                  passed: true
+                  message: ✓ changelog references the spec number
+                - name: cross-repo release order is documented
+                  passed: true
+                  message: ✓ cross-repo release order is documented
+            evaluated_at: 2026-06-20T13:23:06.052479569-06:00
+        started_at: 2026-06-20T13:20:10.075847218-06:00
+        completed_at: 2026-06-20T13:23:06.05321039-06:00
     inception:
         phase: inception
         status: passed
@@ -27,11 +61,69 @@ phase_states:
     planning:
         phase: planning
         status: passed
-        started_at: 2026-06-20T12:00:00Z
-        completed_at: 2026-06-20T12:35:50.393001388-06:00
+        gate_result:
+            phase: planning
+            passed: true
+            checks:
+                - name: artifact_plan_md_exists
+                  passed: true
+                  message: artifact plan_md present at /home/lobsterdog/source/devteam/specs/002-dev-team-web-ui/plan.md
+                - name: artifact_tasks_md_exists
+                  passed: true
+                  message: artifact tasks_md present at /home/lobsterdog/source/devteam/specs/002-dev-team-web-ui/tasks.md
+                - name: plan.md addresses all acceptance criteria from acceptance.md
+                  passed: true
+                  message: ✓ plan.md addresses all acceptance criteria from acceptance.md
+                - name: tasks.md contains specific file paths for implementation
+                  passed: true
+                  message: ✓ tasks.md contains specific file paths for implementation
+                - name: dependencies between tasks are explicit
+                  passed: true
+                  message: ✓ dependencies between tasks are explicit
+            evaluated_at: 2026-06-20T12:39:18.999160451-06:00
+        started_at: 2026-06-20T12:37:06.36833674-06:00
+        completed_at: 2026-06-20T12:39:19.000299085-06:00
     review:
         phase: review
-        status: draft
+        status: passed
+        gate_result:
+            phase: review
+            passed: true
+            checks:
+                - name: artifact_review_report_exists
+                  passed: true
+                  message: artifact review_report present at /home/lobsterdog/source/devteam/specs/002-dev-team-web-ui/review-report.md
+                - name: every acceptance criterion has been reviewed with evidence
+                  passed: true
+                  message: ✓ every acceptance criterion has been reviewed with evidence
+                - name: no critical findings remain unresolved
+                  passed: true
+                  message: ✓ no critical findings remain unresolved
+                - name: security review complete for priority-1 features
+                  passed: true
+                  message: ✓ security review complete for priority-1 features
+            evaluated_at: 2026-06-20T13:15:30.335203701-06:00
+        started_at: 2026-06-20T13:12:33.725977303-06:00
+        completed_at: 2026-06-20T13:15:30.335951573-06:00
     testing:
         phase: testing
-        status: draft
+        status: passed
+        gate_result:
+            phase: testing
+            passed: true
+            checks:
+                - name: artifact_test_report_exists
+                  passed: true
+                  message: artifact test_report present at /home/lobsterdog/source/devteam/specs/002-dev-team-web-ui/test-report.md
+                - name: every acceptance criterion has at least one test
+                  passed: true
+                  message: ✓ every acceptance criterion has at least one test
+                - name: all critical-path tests pass
+                  passed: true
+                  message: ✓ all critical-path tests pass
+                - name: failed tests have reproduction steps
+                  passed: true
+                  message: ✓ failed tests have reproduction steps
+            evaluated_at: 2026-06-20T13:20:10.07314851-06:00
+        started_at: 2026-06-20T13:15:30.336434236-06:00
+        completed_at: 2026-06-20T13:20:10.074978949-06:00
