@@ -100,6 +100,13 @@ func TestGateEvaluator_PlanningGate(t *testing.T) {
 
 This plan addresses all acceptance criteria with detailed file paths.
 
+## Test Strategy
+
+Each component requires specific testing levels:
+- Smoke: Verify service starts and responds to HTTP requests
+- Integration: Test full request/response cycles through real endpoints
+- Unit: Test business logic in isolation
+
 ## Dependencies
 
 Tasks depend on each other as specified.
@@ -110,6 +117,10 @@ Tasks depend on each other as specified.
 
 - [ ] T001 Create project files
 - [ ] T002 Implement core logic
+
+Done conditions for T001:
+- Verify: service starts without panicking
+- Verify: GET /api/features returns 200 with empty list
 
 ## Dependencies
 

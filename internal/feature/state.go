@@ -64,7 +64,9 @@ var GateDefinitions = []GateDefinition{
 		RequiredArts: []ArtifactType{ArtifactPlanMD, ArtifactTasksMD},
 		ValidationDescs: []string{
 			"plan.md addresses all acceptance criteria from acceptance.md",
+			"plan.md includes a test strategy section with testing levels for each component",
 			"tasks.md contains specific file paths for implementation",
+			"tasks.md includes done conditions with specific verifiable assertions",
 			"dependencies between tasks are explicit",
 		},
 	},

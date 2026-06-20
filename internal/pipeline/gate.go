@@ -84,6 +84,22 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		}
 		return strings.Contains(content, "##") && len(content) > 100
 
+	case strings.Contains(desc, "test strategy section"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "test strategy") || strings.Contains(lower, "testing level") || strings.Contains(lower, "smoke test") || strings.Contains(lower, "integration test")
+
+	case strings.Contains(desc, "done conditions with specific"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTasksMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "done condition") || strings.Contains(lower, "verify") || strings.Contains(lower, "assert") || strings.Contains(lower, "expected")
+
 	case strings.Contains(desc, "tasks.md contains"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTasksMD)
 		if err != nil {
