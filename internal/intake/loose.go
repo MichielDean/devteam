@@ -45,10 +45,7 @@ func (li *LooseIdeaIntake) Submit(title string, description string, priority int
 		}
 	}
 
-	f.Status = feature.StatusInProgress
-	f.PhaseStates[feature.PhaseInception].Status = feature.StatusInProgress
-	now := time.Now()
-	f.PhaseStates[feature.PhaseInception].StartedAt = &now
+	f.Start()
 
 	provider := spec.NewSpecProvider(li.baseDir)
 	if err := provider.SaveFeatureState(f); err != nil {

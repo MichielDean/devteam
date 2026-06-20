@@ -50,10 +50,7 @@ func (es *ExternalSpecIntake) Submit(title string, documentContent string, prior
 		}
 	}
 
-	f.Status = feature.StatusInProgress
-	f.PhaseStates[feature.PhaseInception].Status = feature.StatusInProgress
-	now := time.Now()
-	f.PhaseStates[feature.PhaseInception].StartedAt = &now
+	f.Start()
 
 	provider := spec.NewSpecProvider(es.baseDir)
 	if err := provider.SaveFeatureState(f); err != nil {

@@ -87,8 +87,8 @@ func TestPipelineRunPhase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Advance to inception first
-	f.AdvanceTo(feature.PhaseInception)
+	// Start the feature (moves to inception)
+	f.Start()
 	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}

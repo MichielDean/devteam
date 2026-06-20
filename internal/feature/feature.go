@@ -7,16 +7,17 @@ import (
 )
 
 type Feature struct {
-	ID           string                `yaml:"id" json:"id"`
-	Title        string                `yaml:"title" json:"title"`
-	Status       Status                `yaml:"status" json:"status"`
-	Priority     int                   `yaml:"priority" json:"priority"`
-	IntakePath   IntakePath            `yaml:"intake_path" json:"intake_path"`
-	SpecDir      string                `yaml:"spec_dir" json:"spec_dir"`
-	CreatedAt    time.Time             `yaml:"created_at" json:"created_at"`
-	UpdatedAt    time.Time             `yaml:"updated_at" json:"updated_at"`
-	Dependencies []string              `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
-	Repos        []RepoRef             `yaml:"repos,omitempty" json:"repos,omitempty"`
+	ID            string                `yaml:"id" json:"id"`
+	Title         string                `yaml:"title" json:"title"`
+	Current       Phase                 `yaml:"current_phase" json:"current_phase"`
+	Status        Status                `yaml:"status" json:"status"`
+	Priority      int                   `yaml:"priority" json:"priority"`
+	IntakePath    IntakePath            `yaml:"intake_path" json:"intake_path"`
+	SpecDir       string                `yaml:"spec_dir" json:"spec_dir"`
+	CreatedAt     time.Time            `yaml:"created_at" json:"created_at"`
+	UpdatedAt     time.Time            `yaml:"updated_at" json:"updated_at"`
+	Dependencies []string             `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	Repos         []RepoRef            `yaml:"repos,omitempty" json:"repos,omitempty"`
 	PhaseStates  map[Phase]*PhaseState `yaml:"phase_states" json:"phase_states"`
 }
 
@@ -61,6 +62,7 @@ func NewFeature(id, title string, priority int, intakePath IntakePath) *Feature 
 	f := &Feature{
 		ID:          id,
 		Title:       title,
+		Current:     PhaseInception,
 		Status:      StatusDraft,
 		Priority:    priority,
 		IntakePath:  intakePath,
@@ -79,94 +81,58 @@ func NewFeature(id, title string, priority int, intakePath IntakePath) *Feature 
 }
 
 func (f *Feature) CurrentPhase() Phase {
-	phases := AllPhases()
-	// Find the first phase that is in_progress or gate_blocked
-	for _, phase := range phases {
-		ps, ok := f.PhaseStates[phase]
-		if !ok {
-			continue
-		}
-		if ps.Status == StatusInProgress || ps.Status == StatusGateBlocked {
-			return phase
-		}
-	}
-	// Find the last passed phase and return the next one
-	lastPassedIdx := -1
-	for i, phase := range phases {
-		ps, ok := f.PhaseStates[phase]
-		if !ok {
-			continue
-		}
-		if ps.Status == StatusPassed {
-			lastPassedIdx = i
-		}
-	}
-	// If phases have passed, the current phase is the one after the last passed
-	if lastPassedIdx >= 0 && lastPassedIdx < len(phases)-1 {
-		return phases[lastPassedIdx+1]
-	}
-	// If all phases passed, feature is done
-	if lastPassedIdx == len(phases)-1 {
-		return phases[lastPassedIdx]
-	}
-	// Nothing has started yet — feature is in draft
-	return PhaseInception
+	return f.Current
+}
+
+func (f *Feature) Start() {
+	now := time.Now()
+	f.Current = PhaseInception
+	f.Status = StatusInProgress
+	f.PhaseStates[PhaseInception].Status = StatusInProgress
+	f.PhaseStates[PhaseInception].StartedAt = &now
+	f.UpdatedAt = now
 }
 
 func (f *Feature) AdvanceTo(phase Phase) error {
-	current := f.CurrentPhase()
-	// If inception phase has passed and we're advancing to planning, allow it
-	// regardless of top-level status
-	if f.Status == StatusDraft {
-		if phase == PhaseInception {
-			now := time.Now()
-			if ps, ok := f.PhaseStates[PhaseInception]; ok && ps.Status == StatusDraft {
-				ps.Status = StatusInProgress
-				ps.StartedAt = &now
-			}
-			f.Status = StatusInProgress
-			f.UpdatedAt = now
-			return nil
+	phases := AllPhases()
+	currentIdx := -1
+	targetIdx := -1
+	for i, p := range phases {
+		if p == f.Current {
+			currentIdx = i
 		}
-		// If inception already passed (gate evaluated) but top-level status wasn't updated
-		if ps, ok := f.PhaseStates[PhaseInception]; ok && ps.Status == StatusPassed {
-			f.Status = StatusInProgress
-			if !ValidateTransition(PhaseInception, phase) {
-				return fmt.Errorf("cannot advance from inception to %s: invalid transition", phase)
-			}
-			now := time.Now()
-			ps.Status = StatusPassed
-			ps.CompletedAt = &now
-			f.PhaseStates[phase].Status = StatusInProgress
-			f.PhaseStates[phase].StartedAt = &now
-			f.UpdatedAt = now
-			return nil
+		if p == phase {
+			targetIdx = i
 		}
-		return fmt.Errorf("first advance must be to inception, not %s", phase)
 	}
-	// For subsequent advances, must go to the next phase
-	if !ValidateTransition(current, phase) {
-		return fmt.Errorf("cannot advance from %s to %s: invalid transition", current, phase)
+	if currentIdx < 0 {
+		return fmt.Errorf("current phase %s not found in phase list", f.Current)
+	}
+	if targetIdx < 0 {
+		return fmt.Errorf("target phase %s not found in phase list", phase)
+	}
+	if targetIdx != currentIdx+1 {
+		return fmt.Errorf("can only advance one phase at a time: current=%s target=%s", f.Current, phase)
 	}
 	now := time.Now()
-	if ps, ok := f.PhaseStates[current]; ok {
+	if ps, ok := f.PhaseStates[f.Current]; ok {
 		ps.Status = StatusPassed
 		ps.CompletedAt = &now
 	}
 	f.PhaseStates[phase].Status = StatusInProgress
 	f.PhaseStates[phase].StartedAt = &now
+	f.Current = phase
 	f.Status = StatusInProgress
 	f.UpdatedAt = now
 	return nil
 }
 
 func (f *Feature) RecirculateTo(phase Phase) error {
-	current := f.CurrentPhase()
 	phases := AllPhases()
 	currentIdx := -1
 	targetIdx := -1
 	for i, p := range phases {
-		if p == current {
+		if p == f.Current {
 			currentIdx = i
 		}
 		if p == phase {
@@ -174,32 +140,31 @@ func (f *Feature) RecirculateTo(phase Phase) error {
 		}
 	}
 	if currentIdx < 0 || targetIdx < 0 {
-		return fmt.Errorf("invalid phase in recirculation: current=%s target=%s", current, phase)
+		return fmt.Errorf("invalid phase in recirculation: current=%s target=%s", f.Current, phase)
 	}
 	if targetIdx >= currentIdx {
-		return fmt.Errorf("cannot recirculate forward: current=%s target=%s", current, phase)
+		return fmt.Errorf("cannot recirculate forward: current=%s target=%s", f.Current, phase)
 	}
 	now := time.Now()
-	// Mark the current phase as recirculated
-	if ps, ok := f.PhaseStates[current]; ok {
+	if ps, ok := f.PhaseStates[f.Current]; ok {
 		ps.Status = StatusRecirculated
 		ps.CompletedAt = &now
 	}
-	// Reset all phases between target+1 and current (inclusive of current) to draft
-	// The current phase itself was already marked as Recirculated above,
-	// so we only reset the intermediate phases
-	for i := targetIdx + 1; i < currentIdx; i++ {
+	for i := targetIdx + 1; i <= currentIdx; i++ {
 		p := phases[i]
 		if ps, ok := f.PhaseStates[p]; ok {
-			ps.Status = StatusDraft
-			ps.GateResult = nil
-			ps.Artifacts = nil
-			ps.StartedAt = nil
-			ps.CompletedAt = nil
+			if p != f.Current {
+				ps.Status = StatusDraft
+				ps.GateResult = nil
+				ps.Artifacts = nil
+				ps.StartedAt = nil
+				ps.CompletedAt = nil
+			}
 		}
 	}
 	f.PhaseStates[phase].Status = StatusInProgress
 	f.PhaseStates[phase].StartedAt = &now
+	f.Current = phase
 	f.Status = StatusRecirculated
 	f.UpdatedAt = now
 	return nil
@@ -213,11 +178,11 @@ func (f *Feature) Cancel() {
 
 func (f *Feature) MarkDone() {
 	now := time.Now()
-	lastPhase := PhaseDelivery
-	if ps, ok := f.PhaseStates[lastPhase]; ok {
+	if ps, ok := f.PhaseStates[PhaseDelivery]; ok {
 		ps.Status = StatusPassed
 		ps.CompletedAt = &now
 	}
+	f.Current = PhaseDelivery
 	f.Status = StatusDone
 	f.UpdatedAt = now
 }

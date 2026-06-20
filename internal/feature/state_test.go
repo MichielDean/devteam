@@ -46,6 +46,9 @@ func TestNewFeature(t *testing.T) {
 	if f.Status != StatusDraft {
 		t.Errorf("expected status draft, got %s", f.Status)
 	}
+	if f.Current != PhaseInception {
+		t.Errorf("expected current phase inception, got %s", f.Current)
+	}
 	if f.Priority != 2 {
 		t.Errorf("expected priority 2, got %d", f.Priority)
 	}
@@ -57,15 +60,25 @@ func TestNewFeature(t *testing.T) {
 	}
 }
 
-func TestAdvanceTo(t *testing.T) {
+func TestStartAndAdvance(t *testing.T) {
 	f := NewFeature("001-test", "Test Feature", 2, IntakeLooseIdea)
-	err := f.AdvanceTo(PhaseInception) // draft -> inception
-	if err != nil {
-		t.Fatalf("unexpected error advancing to inception: %v", err)
+	f.Start()
+	if f.Current != PhaseInception {
+		t.Fatalf("expected current phase inception after Start, got %s", f.Current)
 	}
-	err = f.AdvanceTo(PhasePlanning) // inception -> planning
+	if f.Status != StatusInProgress {
+		t.Fatalf("expected status in_progress after Start, got %s", f.Status)
+	}
+	if f.PhaseStates[PhaseInception].Status != StatusInProgress {
+		t.Errorf("expected inception to be in_progress, got %s", f.PhaseStates[PhaseInception].Status)
+	}
+
+	err := f.AdvanceTo(PhasePlanning)
 	if err != nil {
 		t.Fatalf("unexpected error advancing to planning: %v", err)
+	}
+	if f.Current != PhasePlanning {
+		t.Errorf("expected current phase planning, got %s", f.Current)
 	}
 	if f.PhaseStates[PhaseInception].Status != StatusPassed {
 		t.Errorf("expected inception to be passed, got %s", f.PhaseStates[PhaseInception].Status)
@@ -77,16 +90,22 @@ func TestAdvanceTo(t *testing.T) {
 
 func TestAdvanceToInvalid(t *testing.T) {
 	f := NewFeature("001-test", "Test Feature", 2, IntakeLooseIdea)
-	// Can't skip phases: advancing from draft to review should fail
+	f.Start()
+	// Can't skip phases
 	err := f.AdvanceTo(PhaseReview)
 	if err == nil {
 		t.Fatal("expected error when skipping phases, got nil")
+	}
+	// Can't advance to the same phase
+	err = f.AdvanceTo(PhaseInception)
+	if err == nil {
+		t.Fatal("expected error when advancing to same phase, got nil")
 	}
 }
 
 func TestRecirculateTo(t *testing.T) {
 	f := NewFeature("001-test", "Test Feature", 2, IntakeLooseIdea)
-	f.AdvanceTo(PhaseInception)
+	f.Start()
 	f.AdvanceTo(PhasePlanning)
 	f.AdvanceTo(PhaseConstruction)
 	f.AdvanceTo(PhaseReview)
@@ -94,6 +113,9 @@ func TestRecirculateTo(t *testing.T) {
 	err := f.RecirculateTo(PhaseConstruction)
 	if err != nil {
 		t.Fatalf("unexpected error recirculating: %v", err)
+	}
+	if f.Current != PhaseConstruction {
+		t.Errorf("expected current phase construction after recirculation, got %s", f.Current)
 	}
 	if f.PhaseStates[PhaseReview].Status != StatusRecirculated {
 		t.Errorf("expected review to be recirculated, got %s", f.PhaseStates[PhaseReview].Status)
@@ -105,9 +127,10 @@ func TestRecirculateTo(t *testing.T) {
 
 func TestRecirculateForwardFails(t *testing.T) {
 	f := NewFeature("001-test", "Test Feature", 2, IntakeLooseIdea)
+	f.Start()
 	err := f.RecirculateTo(PhasePlanning)
 	if err == nil {
-		t.Fatal("expected error when recirculating forward, got nil")
+		t.Fatal("expected error when recirculating forward from inception, got nil")
 	}
 }
 
@@ -121,7 +144,7 @@ func TestCancel(t *testing.T) {
 
 func TestMarkDone(t *testing.T) {
 	f := NewFeature("001-test", "Test Feature", 2, IntakeLooseIdea)
-	f.AdvanceTo(PhaseInception)
+	f.Start()
 	f.AdvanceTo(PhasePlanning)
 	f.AdvanceTo(PhaseConstruction)
 	f.AdvanceTo(PhaseReview)
@@ -130,6 +153,9 @@ func TestMarkDone(t *testing.T) {
 	f.MarkDone()
 	if f.Status != StatusDone {
 		t.Errorf("expected status done, got %s", f.Status)
+	}
+	if f.Current != PhaseDelivery {
+		t.Errorf("expected current phase delivery, got %s", f.Current)
 	}
 }
 
