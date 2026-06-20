@@ -76,6 +76,7 @@ var GateDefinitions = []GateDefinition{
 			"code compiles in every affected repository",
 			"no placeholder or stub code remains",
 			"each repository's changes are independently buildable",
+			"service starts and responds to HTTP requests without panicking",
 		},
 	},
 	{
@@ -96,6 +97,8 @@ var GateDefinitions = []GateDefinition{
 			"every acceptance criterion has at least one test",
 			"all critical-path tests pass",
 			"failed tests have reproduction steps",
+			"smoke tests verify the service starts and responds without panics",
+			"integration tests exercise full HTTP request/response cycles",
 		},
 	},
 	{

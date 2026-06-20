@@ -99,13 +99,16 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		return strings.Contains(content, "depend") || strings.Contains(content, "Depend") || strings.Contains(content, "Prerequisite")
 
 	case strings.Contains(desc, "code compiles"):
-		return true
+		return ge.checkBuildCompiles(f)
 
 	case strings.Contains(desc, "no placeholder"):
-		return true
+		return ge.checkNoPlaceholders(f)
 
 	case strings.Contains(desc, "independently buildable"):
-		return true
+		return ge.checkBuildCompiles(f)
+
+	case strings.Contains(desc, "service starts and responds"):
+		return ge.checkServiceStarts(f)
 
 	case strings.Contains(desc, "acceptance criterion"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
@@ -130,6 +133,22 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 			return strings.Contains(content, "security") || strings.Contains(content, "Security")
 		}
 		return true
+
+	case strings.Contains(desc, "smoke tests verify"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "smoke") && (strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "no panic") || strings.Contains(lower, "responds to"))
+
+	case strings.Contains(desc, "integration tests exercise"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "integration") && (strings.Contains(lower, "http") || strings.Contains(lower, "endpoint") || strings.Contains(lower, "request") || strings.Contains(lower, "response cycle"))
 
 	case strings.Contains(desc, "test"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
@@ -157,4 +176,31 @@ func (ge *GateEvaluator) checkMessage(desc string, passed bool, f *feature.Featu
 		return fmt.Sprintf("✓ %s", desc)
 	}
 	return fmt.Sprintf("✗ %s (phase: %s, feature: %s)", desc, f.CurrentPhase(), f.ID)
+}
+
+func (ge *GateEvaluator) checkBuildCompiles(f *feature.Feature) bool {
+	content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+	if err != nil {
+		return false
+	}
+	lower := strings.ToLower(content)
+	return strings.Contains(lower, "compiles") || strings.Contains(lower, "build") || strings.Contains(lower, "go build") || strings.Contains(lower, "make") || strings.Contains(lower, "npm run build")
+}
+
+func (ge *GateEvaluator) checkNoPlaceholders(f *feature.Feature) bool {
+	content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+	if err != nil {
+		return false
+	}
+	lower := strings.ToLower(content)
+	return !strings.Contains(lower, "placeholder") && !strings.Contains(lower, "stub") && !strings.Contains(lower, "todo")
+}
+
+func (ge *GateEvaluator) checkServiceStarts(f *feature.Feature) bool {
+	content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+	if err != nil {
+		return false
+	}
+	lower := strings.ToLower(content)
+	return (strings.Contains(lower, "smoke") || strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "playwright")) && strings.Contains(lower, "no panic")
 }

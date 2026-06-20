@@ -48,3 +48,7 @@ Your implementation is ready for review when:
 3. Basic linting/typechecking passes
 4. No placeholder/stub code remains (no TODO, FIXME, HACK)
 5. Each repo's changes are independently buildable
+6. **The service starts and responds to HTTP requests without panicking** — run it, hit it with curl, verify no nil pointer crashes
+7. **JSON responses have arrays as `[]` not `null`** — empty collections must serialize as empty arrays, not null
+8. **Error responses return proper HTTP status codes** — 404 for missing resources, 400 for bad input, 409 for conflicts
+9. **Middleware chain works end-to-end** — CORS headers, recovery middleware, logging

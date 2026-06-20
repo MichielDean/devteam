@@ -324,4 +324,83 @@ func TestSmokeCreateAndGetFeature(t *testing.T) {
 	if getResp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", getResp.StatusCode)
 	}
+
+	var detail FeatureDetailResponse
+	if err := json.NewDecoder(getResp.Body).Decode(&detail); err != nil {
+		t.Fatalf("failed to decode feature detail: %v", err)
+	}
+
+	if len(detail.PhaseStates) != 6 {
+		t.Errorf("expected 6 phase states, got %d", len(detail.PhaseStates))
+	}
+
+	for phase, state := range detail.PhaseStates {
+		if state.Artifacts == nil {
+			t.Errorf("phase %s: artifacts should be [], got null", phase)
+		}
+		if state.GateResult != nil && state.GateResult.Checks == nil {
+			t.Errorf("phase %s: gate_result.checks should be [], got null", phase)
+		}
+	}
+
+	if detail.Dependencies == nil {
+		t.Error("dependencies should be [], got null")
+	}
+	if detail.Repos == nil {
+		t.Error("repos should be [], got null")
+	}
+}
+
+func TestIntegrationJSONArraysNeverNull(t *testing.T) {
+	_, tmpDir := setupTestServer(t)
+
+	cfg := &config.Config{
+		Pipeline: config.PipelineConfig{
+			Phases: []config.PhaseConfig{
+				{Name: "inception", Roles: []string{"pm"}},
+				{Name: "planning", Roles: []string{"architect"}},
+				{Name: "construction", Roles: []string{"developer"}},
+				{Name: "review", Roles: []string{"reviewer"}},
+				{Name: "testing", Roles: []string{"tester"}},
+				{Name: "delivery", Roles: []string{"ops"}},
+			},
+		},
+	}
+
+	sp := spec.NewSpecProvider(tmpDir)
+	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	s := NewServer(":0", sp, pipe, nil)
+
+	ts := httptest.NewServer(s.httpServer.Handler)
+	defer ts.Close()
+
+	createBody := `{"type":"loose_idea","title":"Array Check","description":"Testing arrays are never null","priority":2}`
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var created FeatureDetailResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+
+	raw, err := json.Marshal(created)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	nullChecks := []string{
+		`"artifacts":null`,
+		`"checks":null`,
+		`"missing_arts":null`,
+		`"dependencies":null`,
+		`"repos":null`,
+	}
+	for _, bad := range nullChecks {
+		if strings.Contains(string(raw), bad) {
+			t.Errorf("response contains %s — arrays should be [] not null", bad)
+		}
+	}
 }

@@ -51,8 +51,10 @@ You operate during the **Review** phase. Load AIDLC functional design and build/
 
 The review is complete when:
 
-1. Every acceptance criterion has been checked
-2. Every finding has quoted evidence
-3. "No issues found" includes evidence of what was verified, not just absence of findings
-4. Security review is complete (if priority-1 feature)
-5. Constitution compliance is verified
+1. Every acceptance criterion has been checked with quoted evidence
+2. "No issues found" includes evidence of what was verified, not just absence of findings
+3. Security review is complete (if priority-1 feature)
+4. Constitution compliance is verified
+5. Null pointer safety verified — every dereferenced pointer, every JSON array field that should be `[]` not `null`, every map/slice that could be nil
+6. Error paths verified — what happens when the database is empty, when an ID doesn't exist, when input is malformed
+7. Middleware chain verified — recovery middleware catches panics, CORS headers are present, security headers are set
