@@ -1,34 +1,37 @@
 id: 002-dev-team-web-ui
 title: Dev Team Web UI
+current_phase: construction
 status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/002-dev-team-web-ui/
 created_at: 2026-06-20T00:00:00Z
-updated_at: 2026-06-20T12:00:00Z
+updated_at: 2026-06-20T12:35:50.393001388-06:00
 repos:
-  - name: devteam
-    url: git@github.com:MichielDean/devteam.git
-    branch: feature/002-dev-team-web-ui
+    - name: devteam
+      url: git@github.com:MichielDean/devteam.git
+      branch: feature/002-dev-team-web-ui
 phase_states:
-  inception:
-    phase: inception
-    status: passed
-    started_at: 2026-06-20T10:41:29Z
-    completed_at: 2026-06-20T10:48:53Z
-  planning:
-    phase: planning
-    status: in_progress
-    started_at: 2026-06-20T12:00:00Z
-  construction:
-    phase: construction
-    status: draft
-  review:
-    phase: review
-    status: draft
-  testing:
-    phase: testing
-    status: draft
-  delivery:
-    phase: delivery
-    status: draft
+    construction:
+        phase: construction
+        status: in_progress
+        started_at: 2026-06-20T12:35:50.393001388-06:00
+    delivery:
+        phase: delivery
+        status: draft
+    inception:
+        phase: inception
+        status: passed
+        started_at: 2026-06-20T10:41:29Z
+        completed_at: 2026-06-20T10:48:53Z
+    planning:
+        phase: planning
+        status: passed
+        started_at: 2026-06-20T12:00:00Z
+        completed_at: 2026-06-20T12:35:50.393001388-06:00
+    review:
+        phase: review
+        status: draft
+    testing:
+        phase: testing
+        status: draft
