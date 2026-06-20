@@ -10,10 +10,10 @@ Add a web UI to the existing Dev Team CLI binary, exposing a REST API under `/ap
 
 ## Technical Context
 
-**Language/Version**: Go 1.23+ (backend), TypeScript 5+ with React 19 (frontend)
+**Language/Version**: Go 1.26+ (backend; go.mod specifies 1.26.1), TypeScript 5+ with React 19 (frontend)
 
 **Primary Dependencies**:
-- Backend: Go standard library `net/http`, `encoding/json`, `embed`, existing `internal/` packages (pipeline, feature, spec, role, intake, config, repo, rules)
+- Backend: Go standard library `net/http`, `encoding/json`, `embed`, `gopkg.in/yaml.v3` (existing), `github.com/fsnotify/fsnotify` (new — for SSE file watching), existing `internal/` packages (pipeline, feature, spec, role, intake, config, repo, rules)
 - Frontend: Vite 6+, React 19, React Router 7, React Query (TanStack Query v5), Tailwind CSS v4, react-markdown, rehype-highlight
 
 **Storage**: `.devteam-state.yaml` files on disk (same as CLI). No database. Single source of truth.
@@ -41,7 +41,7 @@ Add a web UI to the existing Dev Team CLI binary, exposing a REST API under `/ap
 | V. Proof-of-Work Gates | PASS | Gate evaluation exposed via API, UI shows results |
 | VI. Cross-Repo Coherence | PASS | UI displays repos.yaml; no multi-repo changes needed |
 | VII. Self-Bootstrap | PASS | Feature 002 is the platform's own web UI |
-| VIII. Go, Minimal Dependencies | PASS | Backend uses only stdlib; frontend bundled into binary |
+| VIII. Go, Minimal Dependencies | PASS | Backend uses stdlib + fsnotify (file watching); frontend bundled into binary |
 | IX. AIDLC Phase Governance | PASS | Same rules, same gates, same orchestrator |
 | X. Learn From Cistern | PASS | Structured context, real-time progress, mechanical gates |
 
@@ -49,7 +49,9 @@ Add a web UI to the existing Dev Team CLI binary, exposing a REST API under `/ap
 
 ### Existing Entities (No Schema Changes)
 
-The web UI reads and writes the same `Feature`, `PhaseState`, `Artifact`, `GateResult`, and `RepoRef` types already defined in `internal/feature/`. No database schema changes are needed.
+The web UI reads and writes the same `Feature`, `PhaseState`, `Artifact`, `GateResult`, and `RepoRef` types already defined in `internal/feature/`. These types already have `json` and `yaml` struct tags. No database schema changes are needed.
+
+**Note on ExternalSpecIntake**: `intake.ExternalSpecIntake.Submit()` returns `(*DecompositionResult, error)`, not `(*Feature, error)`. The `DecompositionResult` struct contains `Features []*Feature` and `Dependencies map[string][]string`. The API handler must extract the primary feature from this result, as external spec intake can decompose into multiple features. For the initial UI, we treat the first feature as the primary one.
 
 ### New API DTOs (internal/api/dto.go)
 
@@ -221,9 +223,9 @@ internal/
 │   ├── handler_sse_test.go      # SSE handler tests
 │   └── dto_test.go              # DTO conversion tests
 ├── config/                      # EXISTING — no changes expected
-├── feature/                     # EXISTING — may add JSON tags or helper methods
-│   ├── feature.go               # MODIFIED — add JSON tags to exported types, add IsTerminal() helper
-│   ├── types.go                 # MODIFIED — add String() methods on Phase/Status/ArtifactType, add ValidPhases for API validation
+├── feature/                     # EXISTING — add helper methods for API serialization
+│   ├── feature.go               # MODIFIED — add IsTerminal() helper method (JSON tags already present)
+│   ├── types.go                 # EXISTING — already has String(), ParsePhase(), AllPhases(), ValidPhaseNames(), IsValidPhase(), ArtifactAPIPathToType()
 │   ├── state.go                 # EXISTING — no changes expected
 │   └── ...
 ├── intake/                      # EXISTING — no changes expected (already programmatic)
@@ -233,8 +235,8 @@ internal/
 ├── repo/                        # EXISTING — no changes expected
 ├── role/                        # EXISTING — no changes expected
 ├── rules/                       # EXISTING — no changes expected
-└── spec/                        # EXISTING — may add helper methods
-    ├── provider.go              # MODIFIED — add ListFeaturesSorted(), ReadArtifactContent() helpers
+└── spec/                        # EXISTING — methods already exist, verify coverage
+    ├── provider.go              # EXISTING — ListFeaturesSorted(), ReadArtifactContent(), ArtifactPath() already available
     └── ...
 
 ui/                              # NEW — Frontend SPA
@@ -271,7 +273,7 @@ ui/                              # NEW — Frontend SPA
     └── types/
         └── index.ts              # TypeScript interfaces matching API responses
 
-go.mod                           # MODIFIED — no new Go deps (stdlib only)
+go.mod                           # MODIFIED — add github.com/fsnotify/fsnotify dependency
 ```
 
 **Structure Decision**: Web application structure — `internal/api/` for backend HTTP handlers, `ui/` for frontend SPA. The Go binary serves both via `embed.FS` for static assets and `http.ServeMux` for API routing.
@@ -442,8 +444,9 @@ POST /api/features/:id/process
 
 ### Implementation
 
-- **File watching**: Use `fsnotify` to watch `.devteam-state.yaml` for changes. When the file changes, parse the new state and broadcast events to all registered SSE clients.
-- **Channel registry**: A map of feature IDs to slices of `chan SSEEvent`. When a client connects, register a channel; when processing emits an event, broadcast to all channels for that feature.
+- **File watching**: Use `fsnotify` to watch `.devteam-state.yaml` files for changes. When the file changes, parse the new state and broadcast events to all registered SSE clients. This is the primary mechanism for detecting CLI-triggered state changes.
+- **Direct event emission**: When the API itself triggers a state change (create, advance, recirculate, cancel, run, process), it reads the updated state immediately and broadcasts events — no need to wait for file watcher notification.
+- **Channel registry**: A `sync.Map`-based registry maps feature IDs to slices of `chan SSEEvent`. When a client connects via SSE, register a channel; when processing emits an event, broadcast to all channels for that feature. The SSE handler in `internal/api/handler_sse.go` converts `pipeline.ProcessEvent` to wire-format SSE events.
 - **Reconnection**: Clients auto-reconnect via `EventSource` API. Server sends periodic keep-alive comments (every 30s) to prevent proxy timeouts.
 - **Cleanup**: When a client disconnects, remove the channel from the registry. Use `context.Context` cancellation for goroutine cleanup.
 
@@ -451,7 +454,19 @@ POST /api/features/:id/process
 
 ```go
 // internal/pipeline/pipeline.go — new method
-func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh chan<- SSEEvent) error
+// ProcessAsync runs the autonomous processing loop, emitting events to the provided channel.
+// The event type is defined in the pipeline package (not the api package) to avoid circular imports.
+func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh chan<- ProcessEvent) error
+
+// ProcessEvent is defined in the pipeline package, not the api package.
+// The API layer's SSE handler converts ProcessEvent to SSE-formatted events.
+type ProcessEvent struct {
+    Type      string          // "phase_change", "gate_result", "agent_dispatch", "agent_complete", "processing_complete", "error"
+    FeatureID string
+    Phase     feature.Phase
+    Data      json.RawMessage // event-specific payload
+    Timestamp time.Time
+}
 ```
 
 This method runs the autonomous processing loop in a goroutine:
@@ -462,6 +477,8 @@ This method runs the autonomous processing loop in a goroutine:
 5. On gate fail: recirculate → emit `phase_change`
 6. On completion: emit `processing_complete`
 7. On error: emit `error` event
+
+**Active processing registry**: A `sync.Map` in the API server tracks feature IDs currently being processed. When `ProcessAsync` starts, it registers the feature ID; when it finishes or errors, it removes the entry. This enables the 409 Conflict response for duplicate processing attempts.
 
 ## Frontend Architecture
 
@@ -632,17 +649,18 @@ curl -X POST http://localhost:8080/api/features \
 
 ### Items Flagged for Clarification
 
-1. **Concurrent file access**: When both CLI and API write to `.devteam-state.yaml`, there's a race condition. The API should use file locking (e.g., `flock` on Unix) or compare-and-swap to prevent data loss. This needs explicit handling in `handler_pipeline.go`.
+1. **Concurrent file access**: When both CLI and API write to `.devteam-state.yaml`, there's a race condition. The API should use file locking (e.g., `flock` on Unix) or compare-and-swap to prevent data loss. This needs explicit handling in `handler_pipeline.go`. The existing `SpecProvider.SaveFeatureState()` writes the YAML atomically (write to temp file, rename), which provides some safety, but concurrent reads during writes may see partial state.
 
-2. **Processing goroutine lifecycle**: When `POST /api/features/:id/process` starts a goroutine, how is it tracked? The server needs a registry of active processing goroutines so it can:
-   - Return 409 Conflict if processing is already in progress
-   - Cancel goroutines on server shutdown
-   - Clean up goroutines that outlive their feature
+2. **Processing goroutine lifecycle**: When `POST /api/features/:id/process` starts a goroutine, how is it tracked? The server uses a `sync.Map` of feature IDs to track active processing. This enables: 409 Conflict responses for duplicate attempts, context cancellation on server shutdown (via `context.WithCancel`), and cleanup of goroutines that complete or error.
 
-3. **SSE channel cleanup**: When does a feature's SSE channel registry get cleaned up? When all clients disconnect? After processing completes? Both? The spec says "multiple concurrent SSE connections for the same feature" are supported — need a channel-per-feature model with subscriber management.
+3. **SSE channel cleanup**: A feature's SSE channel registry is cleaned up when all clients disconnect. When processing completes, the server sends a `processing_complete` event and then a server-side close after a brief delay (5s) to allow clients to receive the final event. Channels are removed from the registry on client disconnect (detected via `http.Request.Context()` cancellation).
 
-4. **Artifact type `docs`**: The `docs` artifact type maps to a directory, not a file. The API response for artifact content should handle this — either return a 404, return a listing, or return a zipped response. The spec says "404 if not yet generated" but `docs` is a directory. Decision: return the directory listing as markdown, or return 404 if the directory doesn't exist.
+4. **Artifact type `docs`**: The `docs` artifact type maps to a directory, not a file. Decision: if the `docs/` directory exists, return a markdown listing of its contents (file names with links). If it doesn't exist, return 404. This matches the spec's "404 if not yet generated" requirement while providing useful content when docs are available.
 
-5. **Feature creation does NOT auto-start processing**: The spec is clear on this — creating a feature sets it to `in_progress` in `inception` phase, but the user must explicitly click "Run Phase" or "Process". This means the `POST /api/features` handler should call `intake.Submit()` but NOT call `pipeline.RunPhaseWithAgent()`.
+5. **Feature creation does NOT auto-start processing**: The spec is clear on this — creating a feature sets it to `in_progress` in `inception` phase, but the user must explicitly click "Run Phase" or "Process". The `POST /api/features` handler calls `intake.Submit()` but does NOT call `pipeline.RunPhaseWithAgent()`.
 
 6. **Priority validation range**: The spec says 1-3. The existing `Feature` struct uses `Priority int` without validation. The API handler must enforce the 1-3 range and default to 2.
+
+7. **ExternalSpecIntake returns DecompositionResult**: Unlike `LooseIdeaIntake.Submit()` which returns a single `*Feature`, `ExternalSpecIntake.Submit()` returns `(*DecompositionResult, error)` where `DecompositionResult` contains `Features []*Feature`. For the API, we extract the first (primary) feature from the result and return it. Future enhancement could support multi-feature decomposition.
+
+8. **Duplicate title handling**: The spec says "return 409 Conflict" for duplicate titles, but also says "the UI warns about potential duplicates by matching the submitted title against existing feature titles" and "offers to proceed or cancel." This implies 409 is a warning, not a blocking error. Decision: the API returns 409 with `{ "error": "duplicate_title", "details": "..." }` and the client can choose to re-submit with a different title or force-submit. The API does not currently support a "force" flag — the client simply resubmits with a unique title.

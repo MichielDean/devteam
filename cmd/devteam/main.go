@@ -553,7 +553,7 @@ func handleProcess(baseDir string, cfg *config.Config) {
 
 		nextPhase := phases[runPhaseIdx+1]
 		fmt.Printf("\nGate passed! Advancing from %s to %s.\n", result.Phase, nextPhase)
-		f, err = p.AdvanceFeature(f)
+		f, err = p.AdvanceFeatureFrom(f, result.Phase)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error advancing: %v\n", err)
 			os.Exit(1)

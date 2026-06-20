@@ -32,10 +32,11 @@ description: "Task list for Dev Team Web UI implementation"
 - [ ] T001 [P] [INFRA] Create Go API server framework in `internal/api/server.go` — HTTP server with `http.ServeMux` routing, `-http` flag parsing in `cmd/devteam/main.go`, `embed.FS` for static assets, SPA catch-all handler
 - [ ] T002 [P] [INFRA] Create DTO types and conversion helpers in `internal/api/dto.go` — `CreateFeatureRequest`, `RecirculateRequest`, `FeatureListResponse`, `FeatureDetailResponse`, `FeatureSummary`, `PhaseStateResponse`, `ArtifactResponse`, `GateResultResponse`, `ErrorResponse`, SSE event types. Add `ToResponse()` methods that convert `feature.*` types to DTOs
 - [ ] T003 [P] [INFRA] Create middleware in `internal/api/middleware.go` — CORS middleware (allow all origins for local dev), request logging, panic recovery, security headers (CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy), request ID
-- [ ] T004 [P] [INFRA] Add JSON tags and helper methods to `internal/feature/feature.go` — Add `json:"..."` struct tags to `Feature`, `PhaseState`, `Artifact`, `GateResult`, `CheckResult`, `RepoRef`. Add `IsTerminal() bool` method on `Feature`. Add `String()` methods on `Phase`, `Status`, `ArtifactType` in `internal/feature/types.go`
-- [ ] T005 [INFRA] Add helper methods to `internal/spec/provider.go` — `ReadArtifactContent(featureID, artType)` to read artifact file content as string, `ListFeaturesSorted()` to return features sorted by updated_at descending. Add `ArtifactTypeToAPIPath()` mapping function
-- [ ] T006 [INFRA] Add `ProcessAsync` method to `internal/pipeline/pipeline.go` — Method that runs autonomous processing in a goroutine, emitting SSE events to a channel. Method signature: `ProcessAsync(ctx context.Context, f *feature.Feature, eventCh chan<- SSEEvent) error`. Tracks active processing goroutines in a sync.Map to prevent duplicate processing
+- [ ] T004 [P] [INFRA] Add helper method to `internal/feature/feature.go` — Add `IsTerminal() bool` method on `Feature` (returns true if Status is Done or Cancelled). Note: JSON tags already exist on all exported types — verify they produce correct API serialization. In `internal/feature/types.go`, verify `AllPhases()`, `ValidPhaseNames()`, `IsValidPhase()`, `ParsePhase()`, `String()`, and `ArtifactAPIPathToType()` are sufficient for API validation needs
+- [ ] T005 [P] [INFRA] Verify helper methods in `internal/spec/provider.go` — Confirm `ListFeaturesSorted()`, `ReadArtifactContent()`, `ReadArtifact()`, `ArtifactPath()`, `ArtifactExists()`, and `ValidateArtifacts()` are available and sufficient for API handler needs. Note: these methods already exist; only add new helpers if gaps are found
+- [ ] T006 [INFRA] Add `ProcessAsync` method to `internal/pipeline/pipeline.go` — Method that runs autonomous processing in a goroutine, emitting events to a channel. Method signature: `ProcessAsync(ctx context.Context, f *feature.Feature, eventCh chan<- ProcessEvent) error`. Define `ProcessEvent` struct in the pipeline package (not api package) with fields: Type (string), FeatureID (string), Phase (feature.Phase), Data (json.RawMessage), Timestamp (time.Time). The API layer converts ProcessEvent to SSE-formatted events. Tracks active processing goroutines via a `sync.Map` keyed by feature ID to prevent duplicate processing. Uses `context.WithCancel` for graceful shutdown
 - [ ] T007 [P] [INFRA] Create frontend project scaffold in `ui/` — Initialize Vite + React 19 + TypeScript project with `package.json`, `vite.config.ts` (proxy `/api` to `:8080`), `tsconfig.json`, `tailwind.config.ts`, `postcss.config.js`, `index.html`. Add dependencies: react-router, @tanstack/react-query, react-markdown, rehype-highlight
+- [ ] T007b [P] [INFRA] Add `github.com/fsnotify/fsnotify` dependency to `go.mod` — Run `go get github.com/fsnotify/fsnotify` to add the file-watching library needed by the SSE handler for detecting `.devteam-state.yaml` changes
 - [ ] T008 [P] [INFRA] Create TypeScript types in `ui/src/types/index.ts` — Interfaces matching all API response DTOs: `Feature`, `FeatureSummary`, `FeatureDetail`, `PhaseState`, `Artifact`, `GateResult`, `CheckResult`, `RepoRef`, `CreateFeatureRequest`, `RecirculateRequest`, `ErrorResponse`, SSE event types
 - [ ] T009 [P] [INFRA] Create API client in `ui/src/api/client.ts` — Fetch wrapper functions for all API endpoints: `listFeatures()`, `getFeature(id)`, `createFeature(req)`, `runPhase(id)`, `advanceFeature(id)`, `recirculateFeature(id, targetPhase)`, `cancelFeature(id)`, `processFeature(id)`, `evaluateGate(id)`, `getArtifact(id, type)`. Include error handling and response typing
 - [ ] T010 [P] [INFRA] Create React Query provider and hooks in `ui/src/hooks/useFeatures.ts` and `ui/src/hooks/useFeature.ts` — `useFeatures()` returns cached feature list, `useFeature(id)` returns cached feature detail, both with automatic refetching and cache invalidation
@@ -55,7 +56,7 @@ description: "Task list for Dev Team Web UI implementation"
 
 ### Backend for US1
 
-- [ ] T014 [US1] Implement `CreateFeature` handler in `internal/api/handler.go` — Handle `POST /api/features`. Parse `CreateFeatureRequest` JSON body. Validate: title required + max 200 chars, description required for loose_idea + max 10000 chars, priority 1-3 defaulting to 2. For loose_idea: call `intake.NewLooseIdeaIntake().Submit()`. For external_spec: decode base64 file_content, call `intake.NewExternalSpecIntake().Submit()`. Check for duplicate title (case-insensitive) — return 409 Conflict if match found. Return 201 Created with `FeatureDetailResponse`
+- [ ] T014 [US1] Implement `CreateFeature` handler in `internal/api/handler.go` — Handle `POST /api/features`. Parse `CreateFeatureRequest` JSON body. Validate: title required + max 200 chars, description required for loose_idea + max 10000 chars, priority 1-3 defaulting to 2. For loose_idea: call `intake.NewLooseIdeaIntake(baseDir).Submit(title, desc, priority, repos)` — returns `*Feature`. For external_spec: decode base64 file_content, call `intake.NewExternalSpecIntake(baseDir).Submit(title, content, priority, repos)` — returns `(*DecompositionResult, error)`; extract primary feature from `DecompositionResult.Features[0]`. Check for duplicate title (case-insensitive) — return 409 Conflict with `{ "error": "duplicate_title", "details": "..." }`. Return 201 Created with `FeatureDetailResponse`
 - [ ] T015 [US1] Implement `ListFeatures` handler in `internal/api/handler.go` — Handle `GET /api/features`. Call `pipeline.ListFeatures()`, convert each to `FeatureSummary`, return `FeatureListResponse`. Sort by `updated_at` descending
 - [ ] T016 [US1] Implement `GetFeature` handler in `internal/api/handler.go` — Handle `GET /api/features/:id`. Call `pipeline.GetFeature(id)`, convert to `FeatureDetailResponse`. Return 404 if not found
 - [ ] T017 [US1] Wire routes in `internal/api/server.go` — Register all handlers on `http.ServeMux`: `GET /api/features`, `POST /api/features`, `GET /api/features/:id`. Add middleware chain (CORS, logging, recovery, security headers). Add `-http` flag to `cmd/devteam/main.go` that starts the HTTP server
@@ -210,7 +211,7 @@ description: "Task list for Dev Team Web UI implementation"
 
 ### Parallel Opportunities
 
-- T001, T002, T003, T007, T008 can all run in parallel (different files, no dependencies)
+- T001, T002, T003, T007, T007b, T008 can all run in parallel (different files, no dependencies)
 - T004, T005, T006 can run in parallel with each other (different packages)
 - T012, T013 can run in parallel (different components)
 - US1 backend (T014-T017) and US1 frontend (T018-T021) can start in parallel once infrastructure is done
@@ -265,3 +266,72 @@ With multiple developers:
 - **Critical design decision**: Feature creation does NOT auto-start processing. The user must explicitly click "Run Phase" or "Process"
 - **Critical design decision**: SSE uses file watching on `.devteam-state.yaml`, not instrumentation of pipeline code, so CLI-triggered changes are also visible in the UI
 - **Critical design decision**: The Go binary is self-contained — frontend is embedded via `embed.FS` and served from `/`
+- **Critical design decision**: `ExternalSpecIntake.Submit()` returns `(*DecompositionResult, error)`, not `(*Feature, error)`. The API handler must extract the primary feature from `DecompositionResult.Features[0]`
+- **Critical design decision**: `pipeline.ProcessEvent` is defined in the pipeline package (not api) to avoid circular imports. The API SSE handler converts ProcessEvent to wire-format SSE events
+
+---
+
+## Acceptance Criteria Traceability
+
+Every acceptance criterion from acceptance.md maps to one or more tasks:
+
+| AC | Description | Task(s) |
+|---|---|---|
+| AC-001 | Submit loose idea via POST /api/features | T014, T018 |
+| AC-002 | View generated artifacts after inception | T027, T028, T029 |
+| AC-003 | Submit external spec with file upload | T014, T018 |
+| AC-004 | Validation: empty description rejected | T014, T018 |
+| AC-005 | Validation: description max 10,000 chars | T014, T018 |
+| AC-006 | Duplicate title warning (409 response) | T014, T018 |
+| AC-007 | Priority selector defaults to 2 | T014, T018 |
+| AC-008 | Validation: title max 200 chars | T014, T018 |
+| AC-009 | Validation: empty title rejected | T014, T018 |
+| AC-010 | API: priority out of range returns 400 | T014 |
+| AC-011 | Dashboard shows all features | T015, T019, T020 |
+| AC-012 | Dashboard updates within 5s via SSE | T022, T023, T024 |
+| AC-013 | Gate results shown per check | T034, T037 |
+| AC-014 | Sortable columns on dashboard | T020 |
+| AC-015 | "Connection lost" banner on SSE disconnect | T025 |
+| AC-016 | Empty state with CTA | T021 |
+| AC-017 | Feature detail shows all artifacts | T027, T029 |
+| AC-018 | Artifact content rendered as markdown | T028 |
+| AC-019 | Syntax highlighting for Go, YAML, shell | T028 |
+| AC-020 | "Not yet generated" placeholder | T028, T029 |
+| AC-021 | Advance button moves feature to next phase | T031, T036 |
+| AC-022 | Advance disabled when gate not passed | T036 |
+| AC-023 | Recirculate sends feature to earlier phase | T032, T036 |
+| AC-024 | Cancel confirmation dialog | T033, T036 |
+| AC-025 | Process disabled when already processing | T038, T036 |
+| AC-026 | Run Phase dispatches agent | T030, T036 |
+| AC-027 | Evaluate Gate shows results | T034, T036 |
+| AC-028 | Terminal features hide Cancel/Advance | T036 |
+| AC-029 | Delivery+passed gate shows "Mark Done" | T036 |
+| AC-030 | Process triggers autonomous pipeline | T038, T039 |
+| AC-031 | Processing shows recirculation on gate fail | T039 |
+| AC-032 | Processing shows done summary | T039 |
+| AC-033 | Processing shows elapsed time after 30s | T039 |
+| AC-034 | SSE events reflected within 5s | T022, T023, T024, T039 |
+| AC-035 | 375px viewport usable | T041 |
+| AC-036 | Dark mode toggle functional | T042 |
+| AC-037 | Navigation under 200ms | T043 |
+| AC-038 | URL-based routing restores view | T043 |
+| AC-039 | Success toast notifications | T045 |
+| AC-040 | Error toast notifications | T045 |
+| AC-041 | Loading spinners/skeletons | T044 |
+| AC-042 | POST /api/features returns 201 | T014 |
+| AC-043 | POST /api/features empty desc returns 400 | T014 |
+| AC-044 | POST /api/features empty title returns 400 | T014 |
+| AC-045 | POST /api/features title >200 chars returns 400 | T014 |
+| AC-046 | POST /api/features priority out of range returns 400 | T014 |
+| AC-047 | POST /api/features/:id/process already processing returns 409 | T038 |
+| AC-048 | GET /api/features/:id not found returns 404 | T016 |
+| AC-049 | POST /api/features/:id/recirculate invalid phase returns 400 | T032 |
+| AC-050 | POST /api/features/:id/recirculate forward phase returns 400 | T032 |
+| AC-051 | API does not expose secrets or internal paths | T035 |
+| AC-052 | SSE sends phase_change within 5s | T022, T023 |
+| AC-053 | SSE sends processing_complete | T022, T023 |
+| AC-054 | POST /api/features/:id/cancel already cancelled returns 400 | T033 |
+| AC-055 | POST /api/features/:id/cancel done returns 400 | T033 |
+| AC-056 | POST /api/features/:id/advance at delivery returns 400 | T031 |
+| AC-057 | GET /api/features/:id/artifacts/:type not found returns 404 | T027 |
+| AC-058 | Multiple SSE clients receive same events | T022 |

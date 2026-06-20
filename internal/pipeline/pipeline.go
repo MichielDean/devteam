@@ -184,24 +184,49 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 }
 
 func (p *Pipeline) AdvanceFeature(f *feature.Feature) (*feature.Feature, error) {
-	currentPhase := f.CurrentPhase()
+	fromPhase := f.CurrentPhase()
 	phases := feature.AllPhases()
-	currentIdx := -1
+	fromIdx := -1
 	for i, phase := range phases {
-		if phase == currentPhase {
-			currentIdx = i
+		if phase == fromPhase {
+			fromIdx = i
 			break
 		}
 	}
-	if currentIdx < 0 {
-		return nil, fmt.Errorf("current phase %s not found", currentPhase)
+	if fromIdx < 0 {
+		return nil, fmt.Errorf("current phase %s not found", fromPhase)
 	}
-	if currentIdx >= len(phases)-1 {
-		return nil, fmt.Errorf("already at final phase %s, use MarkDone to complete", currentPhase)
+	if fromIdx >= len(phases)-1 {
+		return nil, fmt.Errorf("already at final phase %s, use MarkDone to complete", fromPhase)
 	}
-	nextPhase := phases[currentIdx+1]
+	nextPhase := phases[fromIdx+1]
 	if err := f.AdvanceTo(nextPhase); err != nil {
-		return nil, fmt.Errorf("advancing from %s to %s: %w", currentPhase, nextPhase, err)
+		return nil, fmt.Errorf("advancing from %s to %s: %w", fromPhase, nextPhase, err)
+	}
+	if err := p.specProvider.SaveFeatureState(f); err != nil {
+		return nil, fmt.Errorf("saving feature state: %w", err)
+	}
+	return f, nil
+}
+
+func (p *Pipeline) AdvanceFeatureFrom(f *feature.Feature, fromPhase feature.Phase) (*feature.Feature, error) {
+	phases := feature.AllPhases()
+	fromIdx := -1
+	for i, phase := range phases {
+		if phase == fromPhase {
+			fromIdx = i
+			break
+		}
+	}
+	if fromIdx < 0 {
+		return nil, fmt.Errorf("phase %s not found", fromPhase)
+	}
+	if fromIdx >= len(phases)-1 {
+		return nil, fmt.Errorf("already at final phase %s, use MarkDone to complete", fromPhase)
+	}
+	nextPhase := phases[fromIdx+1]
+	if err := f.AdvanceTo(nextPhase); err != nil {
+		return nil, fmt.Errorf("advancing from %s to %s: %w", fromPhase, nextPhase, err)
 	}
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
 		return nil, fmt.Errorf("saving feature state: %w", err)
