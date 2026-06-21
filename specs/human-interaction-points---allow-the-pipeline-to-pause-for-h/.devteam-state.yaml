@@ -6,7 +6,7 @@ priority: 1
 intake_path: external_spec
 spec_dir: specs/human-interaction-points---allow-the-pipeline-to-pause-for-h/
 created_at: 2026-06-20T20:14:10.650903092-06:00
-updated_at: 2026-06-20T22:21:29.486290706-06:00
+updated_at: 2026-06-20T22:36:47.114675486-06:00
 phase_states:
     construction:
         phase: construction
@@ -21,9 +21,9 @@ phase_states:
                 - name: tests compile without errors
                   passed: true
                   message: ✓ tests compile without errors
-            evaluated_at: 2026-06-20T22:21:28.141068705-06:00
-        started_at: 2026-06-20T22:12:35.299527776-06:00
-        completed_at: 2026-06-20T22:21:29.486290706-06:00
+            evaluated_at: 2026-06-20T22:36:45.855928789-06:00
+        started_at: 2026-06-20T22:28:11.71410345-06:00
+        completed_at: 2026-06-20T22:36:47.114675486-06:00
     delivery:
         phase: delivery
         status: draft
@@ -78,7 +78,7 @@ phase_states:
     review:
         phase: review
         status: in_progress
-        started_at: 2026-06-20T22:21:29.486290706-06:00
+        started_at: 2026-06-20T22:36:47.114675486-06:00
     testing:
         phase: testing
         status: recirculated
@@ -110,6 +110,9 @@ phase_states:
                 - name: failed tests have reproduction steps
                   passed: true
                   message: ✓ failed tests have reproduction steps
-            evaluated_at: 2026-06-20T21:44:41.078335922-06:00
-        started_at: 2026-06-20T21:39:49.670854301-06:00
-        completed_at: 2026-06-20T21:44:41.081363105-06:00
+                - name: go test suite passes
+                  passed: true
+                  message: ✓ go test suite passes
+            evaluated_at: 2026-06-20T22:28:07.439014452-06:00
+        started_at: 2026-06-20T22:25:14.720802732-06:00
+        completed_at: 2026-06-20T22:28:11.712981553-06:00

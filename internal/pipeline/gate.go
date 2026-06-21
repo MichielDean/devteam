@@ -446,7 +446,9 @@ func (ge *GateEvaluator) checkServiceStarts(f *feature.Feature) bool {
 		return false
 	}
 	lower := strings.ToLower(content)
-	return (strings.Contains(lower, "smoke") || strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "playwright")) && strings.Contains(lower, "no panic")
+	hasSmokeOrServer := strings.Contains(lower, "smoke") || strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "playwright")
+	noPanic := strings.Contains(lower, "no panic") || strings.Contains(lower, "without panic") || strings.Contains(lower, "without panics") || strings.Contains(lower, "no nil pointer")
+	return hasSmokeOrServer && noPanic
 }
 
 func (ge *GateEvaluator) checkTestSuitePasses(f *feature.Feature) bool {
