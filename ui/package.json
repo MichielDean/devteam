@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed""
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.80.0",
