@@ -94,6 +94,9 @@ func (f *Feature) Start() {
 }
 
 func (f *Feature) AdvanceTo(phase Phase) error {
+	if f.Status == StatusWaitingHuman {
+		return fmt.Errorf("cannot advance feature in waiting_for_human status")
+	}
 	phases := AllPhases()
 	currentIdx := -1
 	targetIdx := -1
