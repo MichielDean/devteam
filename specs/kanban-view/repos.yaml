@@ -1,0 +1,16 @@
+feature_id: kanban-view
+# Repositories affected by the kanban-view feature.
+# This feature is a UI-only change to the Dev Team web app. It adds a Kanban
+# board view over the existing GET /api/features response. No backend changes,
+# no new endpoints, no DTO changes — therefore only the devteam repo is in scope.
+repos:
+  - name: devteam
+    url: https://github.com/MichielDean/devteam
+    branch: main
+    scope: ui-only
+    notes: >
+      Adds a KanbanBoard page/component under ui/src/, a view-toggle navigation
+      affordance on the Dashboard, and Playwright e2e tests under ui/e2e/.
+      Reuses the existing GET /api/features endpoint, FeatureCard component,
+      and react-query ['features'] cache. No changes to internal/api/,
+      internal/feature/, or the Go binary.

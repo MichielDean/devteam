@@ -1,0 +1,74 @@
+id: kanban-view
+title: Kanban view
+current_phase: inception
+status: in_progress
+priority: 1
+intake_path: loose_idea
+spec_dir: specs/kanban-view/
+created_at: 2026-06-21T16:53:19.013093897-06:00
+updated_at: 2026-06-21T16:53:19.01325893-06:00
+phase_states:
+    construction:
+        phase: construction
+        status: draft
+    delivery:
+        phase: delivery
+        status: draft
+    inception:
+        phase: inception
+        status: passed
+        gate_result:
+            phase: inception
+            passed: true
+            checks:
+                - name: artifact_spec_md_exists
+                  passed: true
+                  message: artifact spec_md present at /home/lobsterdog/source/devteam/specs/kanban-view/spec.md
+                - name: artifact_acceptance_md_exists
+                  passed: true
+                  message: artifact acceptance_md present at /home/lobsterdog/source/devteam/specs/kanban-view/acceptance.md
+                - name: artifact_repos_yaml_exists
+                  passed: true
+                  message: artifact repos_yaml present at /home/lobsterdog/source/devteam/specs/kanban-view/repos.yaml
+                - name: spec.md contains at least one user story with priority
+                  passed: true
+                  message: ✓ spec.md contains at least one user story with priority
+                - name: spec.md contains functional requirements traced to user stories
+                  passed: true
+                  message: ✓ spec.md contains functional requirements traced to user stories
+                - name: spec.md contains error scenarios with specific HTTP status codes
+                  passed: true
+                  message: ✓ spec.md contains error scenarios with specific HTTP status codes
+                - name: spec.md contains empty state behavior for collections
+                  passed: true
+                  message: ✓ spec.md contains empty state behavior for collections
+                - name: spec.md contains assumptions marked with [ASSUMPTION:]
+                  passed: true
+                  message: ✓ spec.md contains assumptions marked with [ASSUMPTION:]
+                - name: spec.md contains constraint register with source references
+                  passed: true
+                  message: ✓ spec.md contains constraint register with source references
+                - name: acceptance.md contains at least one verifiable criterion per user story
+                  passed: true
+                  message: ✓ acceptance.md contains at least one verifiable criterion per user story
+                - name: acceptance.md criteria follow Given/When/Then format with test level
+                  passed: true
+                  message: ✓ acceptance.md criteria follow Given/When/Then format with test level
+                - name: acceptance.md contains constraint-derived criteria referencing CON- IDs
+                  passed: true
+                  message: ✓ acceptance.md contains constraint-derived criteria referencing CON- IDs
+                - name: repos.yaml identifies at least one affected repository
+                  passed: true
+                  message: ✓ repos.yaml identifies at least one affected repository
+            evaluated_at: 2026-06-21T16:59:21.091963777-06:00
+        started_at: 2026-06-21T16:53:19.013642417-06:00
+        completed_at: 2026-06-21T16:53:19.013642417-06:00
+    planning:
+        phase: planning
+        status: draft
+    review:
+        phase: review
+        status: draft
+    testing:
+        phase: testing
+        status: draft
