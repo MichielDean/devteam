@@ -29,6 +29,7 @@ export interface FeatureDetail {
   dependencies: string[];
   repos: RepoRef[];
   is_processing: boolean;
+  processing_mode: string;
 }
 
 export interface PhaseState {

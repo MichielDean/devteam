@@ -34,14 +34,21 @@ export default function FeatureDetail() {
   });
 
   const [isProcessing, setIsProcessing] = useState(feature?.is_processing ?? false);
-  const [processingMode, setProcessingMode] = useState<'autopilot' | 'single-phase' | null>(null);
+  const [processingMode, setProcessingMode] = useState<'autopilot' | 'single-phase' | null>(
+    (feature?.processing_mode as 'autopilot' | 'single-phase' | null) ?? null
+  );
 
-  // Sync isProcessing from server response (handles page refresh)
+  // Sync isProcessing and processingMode from server response (handles page refresh)
   useEffect(() => {
     if (feature) {
       setIsProcessing(feature.is_processing);
+      if (feature.processing_mode === 'autopilot' || feature.processing_mode === 'single-phase') {
+        setProcessingMode(feature.processing_mode);
+      } else if (!feature.is_processing) {
+        setProcessingMode(null);
+      }
     }
-  }, [feature?.is_processing]);
+  }, [feature?.is_processing, feature?.processing_mode]);
 
   useEffect(() => {
     if (!lastEvent) return;
