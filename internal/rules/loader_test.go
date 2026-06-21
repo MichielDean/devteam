@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/MichielDean/devteam/internal/config"
 )
 
 func TestRuleLoaderPhaseRules(t *testing.T) {
@@ -152,6 +154,75 @@ func TestRuleLoaderBuildContextWithExtensions(t *testing.T) {
 
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
+}
+
+func TestPluginRulesPhaseScoped(t *testing.T) {
+	tmpDir := setupTestRules(t)
+
+	for _, role := range []string{"developer", "reviewer"} {
+		roleDir := filepath.Join(tmpDir, "roles", role)
+		if err := os.MkdirAll(roleDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(roleDir, "INSTRUCTIONS.md"), []byte("# "+role+"\n\nTest."), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	pluginDir := filepath.Join(tmpDir, "plugins", "ponytail")
+	if err := os.MkdirAll(pluginDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	rulesContent := "# Ponytail\n\nLazy senior dev mode. The ladder: YAGNI first."
+	if err := os.WriteFile(filepath.Join(pluginDir, "rules.md"), []byte(rulesContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Plugins: map[string]config.PluginConfig{
+			"ponytail": {
+				Source: "https://github.com/DietrichGebert/ponytail",
+				Phases: []string{"construction"},
+				Roles:  []string{"developer"},
+				Mode:   "full",
+			},
+		},
+	}
+
+	rl := NewRuleLoaderWithConfig(tmpDir, cfg)
+
+	t.Run("construction developer gets plugin", func(t *testing.T) {
+		ctx, err := rl.BuildContext("construction", "developer", 1)
+		if err != nil {
+			t.Fatalf("BuildContext() error: %v", err)
+		}
+		if !contains(ctx, "Ponytail") {
+			t.Error("construction/developer context missing ponytail plugin")
+		}
+		if !contains(ctx, "YAGNI") {
+			t.Error("construction/developer context missing YAGNI rule")
+		}
+	})
+
+	t.Run("construction reviewer does not get plugin", func(t *testing.T) {
+		ctx, err := rl.BuildContext("construction", "reviewer", 1)
+		if err != nil {
+			t.Fatalf("BuildContext() error: %v", err)
+		}
+		if contains(ctx, "Ponytail") {
+			t.Error("construction/reviewer context should not include ponytail plugin")
+		}
+	})
+
+	t.Run("inception pm does not get plugin", func(t *testing.T) {
+		ctx, err := rl.BuildContext("inception", "pm", 1)
+		if err != nil {
+			t.Fatalf("BuildContext() error: %v", err)
+		}
+		if contains(ctx, "Ponytail") {
+			t.Error("inception/pm context should not include ponytail plugin")
+		}
+	})
 }
 
 func setupTestRules(t *testing.T) string {

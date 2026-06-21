@@ -12,6 +12,7 @@ type Config struct {
 	Pipeline   PipelineConfig             `yaml:"pipeline"`
 	Roles      map[string]RoleConfig      `yaml:"roles"`
 	Extensions map[string]ExtensionConfig `yaml:"extensions"`
+	Plugins    map[string]PluginConfig     `yaml:"plugins"`
 	Intake     IntakeConfig               `yaml:"intake"`
 	SpecRepo   SpecRepoConfig             `yaml:"spec_repo"`
 }
@@ -48,6 +49,13 @@ type ExtensionConfig struct {
 	OptIn           bool   `yaml:"opt_in"`
 	LoadForPriority []int  `yaml:"load_for_priority"`
 	Rules           string `yaml:"rules"`
+}
+
+type PluginConfig struct {
+	Source string   `yaml:"source"`
+	Phases []string `yaml:"phases"`
+	Roles  []string `yaml:"roles"`
+	Mode   string   `yaml:"mode"`
 }
 
 type IntakeConfig struct {

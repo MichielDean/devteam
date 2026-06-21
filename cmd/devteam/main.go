@@ -18,6 +18,7 @@ import (
 	devinit "github.com/MichielDean/devteam/internal/init"
 	"github.com/MichielDean/devteam/internal/intake"
 	"github.com/MichielDean/devteam/internal/pipeline"
+	"github.com/MichielDean/devteam/internal/plugins"
 	"github.com/MichielDean/devteam/internal/spec"
 )
 
@@ -105,6 +106,8 @@ func main() {
 		handleGate(baseDir, cfg)
 	case "recirculate":
 		handleRecirculate(baseDir, cfg)
+	case "plugin":
+		handlePlugin(baseDir, cfg)
 	case "bootstrap":
 		handleBootstrap(baseDir, cfg)
 	default:
@@ -388,6 +391,55 @@ func handleRecirculate(baseDir string, cfg *config.Config) {
 	fmt.Printf("Current phase: %s\n", f.CurrentPhase())
 	fmt.Printf("Status: %s\n", f.Status)
 	fmt.Println("\nRun 'devteam run <feature-id>' to re-execute this phase.")
+}
+
+func handlePlugin(baseDir string, cfg *config.Config) {
+	if len(os.Args) < 3 {
+		fmt.Fprintf(os.Stderr, "Usage: devteam plugin <command>\n\n")
+		fmt.Fprintf(os.Stderr, "Commands:\n")
+		fmt.Fprintf(os.Stderr, "  update    Fetch latest plugin rules from upstream sources\n")
+		fmt.Fprintf(os.Stderr, "  list      Show configured plugins and their status\n")
+		os.Exit(1)
+	}
+
+	switch os.Args[2] {
+	case "update":
+		handlePluginUpdate(baseDir, cfg)
+	case "list":
+		handlePluginList(baseDir, cfg)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown plugin command: %s\n", os.Args[2])
+		fmt.Fprintf(os.Stderr, "Use 'update' or 'list'\n")
+		os.Exit(1)
+	}
+}
+
+func handlePluginUpdate(baseDir string, cfg *config.Config) {
+	updater := plugins.NewUpdater(cfg, baseDir)
+	if err := updater.UpdateAll(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "error updating plugins: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("All plugins updated.")
+}
+
+func handlePluginList(baseDir string, cfg *config.Config) {
+	if len(cfg.Plugins) == 0 {
+		fmt.Println("No plugins configured.")
+		return
+	}
+	fmt.Println("Configured plugins:")
+	fmt.Println(strings.Repeat("-", 70))
+	for name, plugin := range cfg.Plugins {
+		rules, err := plugins.LoadCachedRules(baseDir, name)
+		status := "installed"
+		if err != nil {
+			status = "not installed (run 'devteam plugin update')"
+		} else {
+			_ = rules
+		}
+		fmt.Printf("  %-20s  phases: %-20s  roles: %-12s  %s\n", name, strings.Join(plugin.Phases, ","), strings.Join(plugin.Roles, ","), status)
+	}
 }
 
 func handleBootstrap(baseDir string, cfg *config.Config) {
@@ -688,6 +740,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  advance      Advance feature to next phase after gate passes\n")
 	fmt.Fprintf(os.Stderr, "  gate         Evaluate the current phase gate for a feature\n")
 	fmt.Fprintf(os.Stderr, "  recirculate  Send a feature back to an earlier phase\n")
+	fmt.Fprintf(os.Stderr, "  plugin       Manage pipeline plugins (update, list)\n")
 	fmt.Fprintf(os.Stderr, "  init        Initialize a new devteam project (scaffolds directory structure)\n")
 	fmt.Fprintf(os.Stderr, "  status       Show current pipeline status for all features\n")
 	fmt.Fprintf(os.Stderr, "  bootstrap    Self-bootstrap: process spec 001 through the pipeline\n")
