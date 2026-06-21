@@ -2,9 +2,21 @@
 
 ## Purpose
 
-Verify that what was built actually works in a running system. Not just that code compiles or unit tests pass.
+Verify that what was built actually works in a running system. Not just that code compiles or unit tests pass. **For standard implementations, verify conformance against the standard's test vectors — not just the developer's interpretation.**
 
-Your defining question: **"Is this test real enough?"**
+Your defining question: **"Is this test real enough? And does it test the standard's requirements, not just the developer's interpretation?"**
+
+## Step 0: Constraint Register Review — MANDATORY FIRST STEP
+
+Before writing any tests, read the constraint register from spec.md. Every constraint needs a test. Every negative test vector needs a conformance test.
+
+For each constraint:
+1. Read the constraint (e.g., "CON-001: wire-format failures return Invalid, never throw")
+2. Design a test that would FAIL if the constraint is violated
+3. If the constraint has a negative test vector, write a conformance test using that vector
+4. If the constraint applies to multiple components, write tests for ALL components
+
+This step produces the conformance test suite — tests that verify the implementation against the standard, not against the developer's interpretation.
 
 ## Step 1: Spec-Implementation Drift Verification
 
@@ -22,6 +34,32 @@ Document any drift. If the implementation doesn't match the spec, that's a findi
 
 ## Step 2: Determine Testing Levels
 
+### Level 0: Conformance Tests (REQUIRED FOR STANDARD IMPLEMENTATIONS)
+
+For features that implement a standard, RFC, or protocol, conformance tests are mandatory. These test the implementation against the standard's test vectors, not the developer's interpretation.
+
+**What**: Every negative test vector from the constraint register gets a test. Every positive vector gets a test.
+
+**How**:
+- Load the test vector's input
+- Feed it to the implementation
+- Verify the exact expected response (error code, result type, no exception)
+- If the implementation throws where the vector expects a rejection result, the test FAILS
+
+**Example**:
+```java
+@Test
+void vector024_unquotedKeyid_rejectedNotThrows() {
+    var input = loadVector("negative/024-unquoted-string-param.json");
+    var result = verifier.verify(input);
+    // Must return Invalid, NOT throw
+    assertThat(result).isInstanceOf(VerificationResult.Invalid.class);
+    assertThat(((Invalid) result).errorCode()).isEqualTo("signature_input_malformed");
+}
+```
+
+**Why this matters**: PR #32 had 226 passing tests and 11 correctness bugs. The tests passed because they tested the developer's interpretation. Conformance tests test the standard's requirements. This is the single biggest quality improvement for standard implementations.
+
 ### Level 1: Smoke Tests (ALWAYS REQUIRED)
 Start the service. Hit every endpoint. Verify no panics, no crashes, no nil pointers.
 
@@ -36,15 +74,16 @@ Business logic in isolation. State machine transitions. Serialization.
 
 ### Test Selection Matrix
 
-| What changed | Smoke | Integration | E2E | Unit |
-|---|---|---|---|---|
-| HTTP API handlers | **YES** | **YES** | — | YES |
-| Frontend/UI components | **YES** | **YES** | **YES** | YES |
-| State machine logic | YES | — | — | **YES** |
-| Gate evaluator | YES | — | — | **YES** |
-| CLI commands | **YES** | — | — | YES |
-| Middleware/auth | **YES** | **YES** | — | YES |
-| Database operations | **YES** | **YES** | — | YES |
+| What changed | Level 0 Conformance | Level 1 Smoke | Level 2 Integration | Level 3 E2E | Level 4 Unit |
+|---|---|---|---|---|---|
+| Standard/RFC implementation | **YES** | **YES** | **YES** | — | YES |
+| HTTP API handlers | — | **YES** | **YES** | — | YES |
+| Frontend/UI components | — | **YES** | **YES** | **YES** | YES |
+| State machine logic | — | YES | — | — | **YES** |
+| Gate evaluator | — | YES | — | — | **YES** |
+| CLI commands | — | **YES** | — | — | YES |
+| Middleware/auth | — | **YES** | **YES** | — | YES |
+| Database operations | — | **YES** | **YES** | — | YES |
 
 ## Step 3: Write and Execute Smoke Tests
 
@@ -231,6 +270,9 @@ When testing agent-generated code, specifically verify:
 3. **Phantom methods**: Verify the code compiles AND runs (methods exist, types match)
 4. **Over-engineering**: Check line counts. If the API server is 3x the test suite, something's wrong
 5. **Missing error paths**: Test 404, 400, 409, empty state, malformed input
+6. **Constraint violations**: For every constraint in the register, write a test that would fail if violated
+7. **Multi-component inconsistency**: If a constraint applies to N components, test it in ALL N
+8. **Language-specific footguns**: Test modulo edge cases, nil map writes, negative repeat counts, integer overflow
 
 ## Step 8: Proof of Work
 
@@ -257,15 +299,19 @@ A test report that says "all tests pass" without reproducible commands is not a 
 ## Quality Gate
 
 Testing is complete when:
-1. `go test ./...` passes — no test failures, no test compile errors
-2. `npm test` or `npx playwright test` passes (if `ui/` directory exists with `playwright.config.ts`)
-3. Smoke tests pass: service starts, every endpoint returns expected status codes
-4. Integration tests pass: full HTTP cycles work, JSON shapes match contract ([] not null)
-5. E2E tests pass (if UI changed): frontend loads, renders data, no console errors
-6. State machine verified: all valid transitions work, invalid transitions rejected
-6. Spec drift checked: every user story in spec has a corresponding test
-7. Every acceptance criterion has at least one test
-8. No nil pointer panics, no null-vs-empty-array mismatches, no untested error paths
+1. **Conformance tests pass** — every negative test vector from the constraint register verified
+2. `go test ./...` passes — no test failures, no test compile errors
+3. `npm test` or `npx playwright test` passes (if `ui/` directory exists with `playwright.config.ts`)
+4. Smoke tests pass: service starts, every endpoint returns expected status codes
+5. Integration tests pass: full HTTP cycles work, JSON shapes match contract ([] not null)
+6. E2E tests pass (if UI changed): frontend loads, renders data, no console errors
+7. State machine verified: all valid transitions work, invalid transitions rejected
+8. Spec drift checked: every user story in spec has a corresponding test
+9. **Every constraint in the register has at least one test** that would fail if violated
+10. Every acceptance criterion has at least one test
+11. No nil pointer panics, no null-vs-empty-array mismatches, no untested error paths
+12. **Multi-component constraints tested across ALL components**
+13. **Language-specific footguns tested**
 
 ## Findings Have No Severity Tiers
 

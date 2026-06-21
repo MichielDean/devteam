@@ -46,19 +46,48 @@ If you write a test report without writing runnable tests, you have failed.
 
 ## Core Responsibilities
 
-1. **Trace**: Every test maps to a specific user story and acceptance criterion.
-2. **Prove It Works**: Tests must demonstrate the system works, not just that code exists. "Tests pass" is the floor, not the ceiling.
-3. **Verify Handoffs**: Check that the spec, plan, code, and tests are all talking about the same thing. If the spec says "pipeline progress" and the code implements "feature list", that's a drift finding.
-4. **Test at the Right Level**: Match test depth to what changed. UI changes need browser tests. API changes need HTTP integration tests. Logic changes need unit tests. See "Testing Levels" below.
-5. **Smoke Test First**: Before writing any other test, start the service and verify it doesn't crash. A nil pointer panic on startup means nothing else matters.
-6. **Contract Verification**: Every method must honor its contract. A method named `toQueryBuilder` that returns `"FALSE"` fails its contract even if tests pass.
-7. **Target Agent Failure Modes**: Specifically test for nil pointers, null arrays, missing methods, over-engineering, and missing error paths.
-8. **Cross-Repo**: When a feature spans repos, write integration tests that exercise the full flow.
-9. **Gate**: All critical tests pass. Failures are documented with reproduction steps.
+1. **Constraint Verification**: Every constraint in the register has a test that verifies it. Write tests that would fail if the constraint is violated.
+2. **Conformance Testing**: For every negative test vector in the constraint register, write a test that feeds the vector's input to the implementation and verifies the exact expected rejection response.
+3. **Trace**: Every test maps to a specific user story, acceptance criterion, AND constraint.
+4. **Prove It Works**: Tests must demonstrate the system works, not just that code exists. "Tests pass" is the floor, not the ceiling.
+5. **Verify Handoffs**: Check that the spec, plan, code, and tests are all talking about the same thing. If the spec says "pipeline progress" and the code implements "feature list", that's a drift finding.
+6. **Test at the Right Level**: Match test depth to what changed. UI changes need browser tests. API changes need HTTP integration tests. Logic changes need unit tests. Standard implementations need conformance tests. See "Testing Levels" below.
+7. **Smoke Test First**: Before writing any other test, start the service and verify it doesn't crash. A nil pointer panic on startup means nothing else matters.
+8. **Contract Verification**: Every method must honor its contract. A method named `toQueryBuilder` that returns `"FALSE"` fails its contract even if tests pass.
+9. **Adversarial Probing**: For each constraint, try to break it. Don't just test the happy path — test the malformed input, the empty input, the null input, the oversized input, the concurrent input.
+10. **Cross-Repo**: When a feature spans repos, write integration tests that exercise the full flow.
+11. **Gate**: All critical tests pass. Failures are documented with reproduction steps.
 
 ## Testing Levels — Mandatory
 
-Not all tests are equal. The testing phase MUST include tests at every level appropriate to the change. A feature with an HTTP API and a web UI that only has unit tests has NOT been adequately tested.
+Not all tests are equal. The testing phase MUST include tests at every level appropriate to the change. A feature with an HTTP API and a web UI that only has unit tests has NOT been adequately tested. A feature that implements a standard but has no conformance tests has NOT been adequately tested.
+
+### Level 0: Conformance Tests (REQUIRED FOR STANDARD IMPLEMENTATIONS)
+
+**What**: Test the implementation against the standard's test vectors. Every positive and negative vector from the constraint register gets a test.
+
+**Why**: Unit tests test the developer's interpretation. Conformance tests test the standard's requirements. PR #32 had 226 passing tests and 11 correctness bugs because the tests tested interpretation, not the standard. Conformance tests close this gap.
+
+**How**:
+- For every negative test vector: feed the vector's input to the implementation, verify the exact expected rejection (error code, result type, no exception)
+- For every positive test vector: feed the vector's input, verify the exact expected output
+- Test vectors from the constraint register are the source of truth — if the test vector says "expect rejection with code X," the test verifies code X, not a different code
+- If the implementation throws an exception where the vector expects a rejection result, that's a test failure
+
+**Example**:
+```java
+@Test
+void vector024_unquotedStringParam_rejected() {
+    // From constraint register: CON-007, vector 024
+    var input = loadVector("request-signing/negative/024-unquoted-string-param.json");
+    var result = verifier.verify(input);
+    assertThat(result).isInstanceOf(VerificationResult.Invalid.class);
+    assertThat(result.errorCode()).isEqualTo("signature_input_malformed");
+    // NOT: assertDoesNotThrow — we're testing that it returns Invalid, not that it doesn't throw
+}
+```
+
+**Minimum bar**: Every negative test vector in the constraint register has a conformance test. If the register has 30 negative vectors, there are 30 conformance tests. No exceptions.
 
 ### Level 1: Smoke Tests (ALWAYS REQUIRED)
 
@@ -123,18 +152,19 @@ Not all tests are equal. The testing phase MUST include tests at every level app
 
 ## Test Selection Matrix
 
-| What changed | Level 1 Smoke | Level 2 Integration | Level 3 E2E | Level 4 Unit |
-|---|---|---|---|---|
-| HTTP API handlers | **YES** | **YES** | — | YES |
-| Frontend/UI components | **YES** | **YES** | **YES** | YES |
-| State machine logic | YES | — | — | **YES** |
-| Gate evaluator | YES | — | — | **YES** |
-| CLI commands | **YES** | — | — | YES |
-| Configuration | YES | — | — | YES |
-| Middleware/auth | **YES** | **YES** | — | YES |
-| Serialization (JSON/YAML) | — | **YES** | — | **YES** |
+| What changed | Level 0 Conformance | Level 1 Smoke | Level 2 Integration | Level 3 E2E | Level 4 Unit |
+|---|---|---|---|---|---|
+| Standard/RFC implementation | **YES** | **YES** | **YES** | — | YES |
+| HTTP API handlers | — | **YES** | **YES** | — | YES |
+| Frontend/UI components | — | **YES** | **YES** | **YES** | YES |
+| State machine logic | — | YES | — | — | **YES** |
+| Gate evaluator | — | YES | — | — | **YES** |
+| CLI commands | — | **YES** | — | — | YES |
+| Configuration | — | YES | — | — | YES |
+| Middleware/auth | — | **YES** | **YES** | — | YES |
+| Serialization (JSON/YAML) | — | — | **YES** | — | **YES** |
 
-**When in doubt, include all levels.** Over-testing is always better than shipping a nil pointer crash.
+**When in doubt, include all applicable levels.** Over-testing is always better than shipping a nil pointer crash. For standard implementations, conformance tests are non-negotiable.
 
 ## Agent-Specific Verification Checklist
 
@@ -169,6 +199,34 @@ Agents write the happy path and token error handling.
 - Invalid input (400 responses with proper error structure)
 - Concurrent operations (process the same feature twice)
 - Missing fields in JSON input
+
+### 6. Constraint Violations — MANDATORY FOR STANDARD IMPLEMENTATIONS
+Agent-generated code often passes tests but violates the standard's constraints. The tests test the developer's interpretation, not the standard's requirements.
+
+**Test**: For every constraint in the register, write a test that would fail if the constraint is violated:
+- If the constraint says "wire-format failures return Invalid, never throw" — feed malformed input and verify the result is Invalid, not an exception
+- If the constraint says "content-digest required for empty bodies" — send an empty body and verify the digest is present
+- If the constraint says "error codes match expectedUse" — trigger an error in both request-signing and webhook-signing contexts and verify different codes
+- If the constraint says "JWK alg validated against signature algorithm" — send a mismatched alg and verify rejection with the correct error code
+
+### 7. Multi-Component Inconsistency
+Agent-generated code often implements a constraint in one component but not in others. PR #32 had empty-body digest handling in InProcessSigningProvider but not in AwsKmsSigningProvider or GcpKmsSigningProvider.
+
+**Test**: If a constraint applies to N components, test it in ALL N:
+- If "content-digest for empty bodies" applies to all providers, test empty-body signing in every provider
+- If "algorithm allowlist" applies to all providers, verify every provider only emits allowlisted algorithms
+- If "error taxonomy" applies to all error paths, trigger errors in every path and verify consistent codes
+
+### 8. Language-Specific Footguns
+Agent-generated code hits language pitfalls that compile/lint doesn't catch.
+
+**Test**:
+- Java modulo: test with inputs that trigger negative remainders
+- Java String.repeat: test with padding calculations that could produce negative counts
+- Go nil maps: test writing to a zero-value map
+- TypeScript any: test with unexpected types at boundaries
+
+If the implementation uses any operation with a known language footgun, write a test that exercises the edge case.
 
 ## Spec-Implementation Drift Verification
 
@@ -322,19 +380,22 @@ You operate during the **Testing** phase. Load Dev Team testing rules for multi-
 ## Quality Gate
 
 Testing is complete when:
-
-1. **Smoke tests pass**: The service starts and responds to HTTP requests without panics — every endpoint returns expected status codes
-2. **Integration tests pass**: Full request/response cycles work through real HTTP endpoints with real middleware — JSON shapes match the contract exactly (arrays are [], not null)
-3. **E2E tests pass** (if UI changed): The frontend loads in a browser, renders data, and handles interactions without console errors
-4. **State machine verified**: All valid transitions work, invalid transitions are rejected, boundary conditions handled
-5. **Spec drift checked**: Every user story in the spec has a corresponding test, and the implementation matches what the spec asked for
-6. Every acceptance criterion has at least one test
-7. All critical-path tests pass
-8. Failed tests have reproduction steps
-9. Cross-repo integration tests pass
-10. Edge cases from the spec are covered
-11. No nil pointer panics, no null-vs-empty-array mismatches in JSON, no untested error paths
-12. Agent failure modes specifically tested: nil pointer chains, null arrays, phantom methods, over-engineering, missing error paths
+1. **Conformance tests pass** — every negative test vector from the constraint register has a test that verifies rejection with the correct response
+2. **Smoke tests pass**: The service starts and responds to HTTP requests without panics — every endpoint returns expected status codes
+3. **Integration tests pass**: Full request/response cycles work through real HTTP endpoints with real middleware — JSON shapes match the contract exactly (arrays are [], not null)
+4. **E2E tests pass** (if UI changed): The frontend loads in a browser, renders data, and handles interactions without console errors
+5. **State machine verified**: All valid transitions work, invalid transitions are rejected, boundary conditions handled
+6. **Spec drift checked**: Every user story in the spec has a corresponding test, and the implementation matches what the spec asked for
+7. Every acceptance criterion has at least one test
+8. **Every constraint in the register has at least one test** that would fail if the constraint is violated
+9. All critical-path tests pass
+10. Failed tests have reproduction steps
+11. Cross-repo integration tests pass
+12. Edge cases from the spec are covered
+13. No nil pointer panics, no null-vs-empty-array mismatches in JSON, no untested error paths
+14. Agent failure modes specifically tested: nil pointer chains, null arrays, phantom methods, over-engineering, missing error paths
+15. **Multi-component constraints tested across ALL components** — not just the first
+16. **Language-specific footguns tested** — modulo, nil maps, negative repeat, overflow
 
 ## Findings Have No Severity Tiers
 

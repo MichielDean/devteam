@@ -61,28 +61,38 @@ The pipeline loads phase-appropriate rules for each role during dispatch. Extens
 
 - **resiliency** (mandatory for P1, recommended for P2): Timeout patterns, retry with backoff, circuit breaker design, graceful degradation, panic recovery. Code-level patterns with Go examples.
 
+- **deep-review** (mandatory for P1, recommended for P2): Deep spec-compliance verification for standard/RFC implementations. Forces source discovery, constraint registers, execution path tracing, conformance testing, and cross-component consistency verification. Prevents the "226 passing tests, 11 correctness bugs" problem where tests validate the developer's interpretation instead of the standard's requirements.
+
 ## Quality at Every Phase
 
 ### Inception (PM)
+- **Source discovery: read all governing RFCs, standards, and test vectors** (mandatory before writing constraints)
+- **Constraint register: every constraint from every source enumerated** with source reference and verification method
 - Request type and complexity classification
 - Structured requirements analysis with completeness check
 - Error scenarios and empty states explicitly covered in spec
 - Assumptions documented with [ASSUMPTION: ...] markers
 - Brownfield workspace analysis (when working on existing code)
-- Acceptance criteria specify test level (smoke, integration, e2e, unit)
-- Gate: spec.md + acceptance.md + repos.yaml exist with verifiable criteria
+- Acceptance criteria specify test level (smoke, integration, e2e, unit, conformance)
+- **Negative conformance vectors converted to acceptance criteria**
+- Gate: spec.md + acceptance.md + repos.yaml exist with constraint register and verifiable criteria
 
 ### Planning (Architect)
+- **Constraint verification map: every constraint traces to a design decision and verification checkpoint**
+- **Cross-component consistency matrix: every shared value verified across producers and consumers**
 - Application architecture: component identification, interfaces, dependencies
 - Data model: entities, relationships, state transitions
-- API contracts: endpoints, request/response schemas, error responses
+- API contracts: endpoints, request/response schemas, error responses with exact codes from the standard's taxonomy
 - NFR design: performance, security, scalability, reliability considerations
-- Task decomposition with explicit file paths, done conditions, and test levels
-- Agent failure mode checks specified for AI-generated code
-- Gate: plan.md + tasks.md exist with test strategy and done conditions
+- Task decomposition with explicit file paths, done conditions, test levels, and constraint references
+- Agent failure mode checks specified for AI-generated code, including parsing-safety and multi-component consistency
+- **Negative case design for every constraint with a negative test vector**
+- Gate: plan.md + tasks.md exist with constraint map, consistency matrix, test strategy and done conditions
 
 ### Construction (Developer)
 - Context loading: read spec, plan, tasks, and existing code before implementing
+- **Constraint compliance: every task satisfies its referenced constraints**
+- **Multi-component consistency: constraints applied to multiple components implemented in ALL of them**
 - Task-by-task implementation following dependency order
 - Brownfield vs greenfield patterns (modify in-place vs create new)
 - Self-verification protocol: start service, hit endpoints, verify no panics
@@ -91,22 +101,30 @@ The pipeline loads phase-appropriate rules for each role during dispatch. Extens
 - Gate: code compiles, service starts, no stubs, independently buildable
 
 ### Review (Reviewer)
+- **Constraint register review: every constraint checked with execution path trace and quoted evidence** (mandatory first step)
 - Spec-implementation drift check: does the plan cover every user story?
 - Every acceptance criterion checked with quoted evidence
+- **Every negative test vector verified** — implementation rejects each with correct response
+- **Cross-component consistency verified** across all producers and consumers
 - Over-engineering check: is the implementation the minimum needed?
-- Missing error paths check: 400, 404, 409, empty states
+- Missing error paths check: 400, 404, 409, empty states, malformed input
 - Null pointer safety verified
+- **Language-specific footguns checked** — modulo, nil maps, negative repeat, overflow
 - Middleware chain verified end-to-end
 - Gate: review-report.md exists with evidence, no critical findings unresolved
 
 ### Testing (Tester)
+- **Conformance tests: every negative test vector from the constraint register verified** (Level 0, mandatory for standard implementations)
+- **Constraint tests: every constraint has a test that would fail if violated**
+- **Multi-component constraint tests: constraints tested across ALL components**
 - Spec-implementation drift verification before writing tests
-- 4-level testing: smoke (always), integration (API changes), e2e (UI changes), unit (logic)
+- 4-level testing: smoke (always), integration (API changes), e2e (UI changes), unit (logic), conformance (standard implementations)
 - Proof of work: name files, methods, assertions verified
 - State machine transition verification
+- **Language-specific footgun tests** — modulo, nil maps, negative repeat, overflow
 - Agent failure mode checklist
 - Anti-fake-report requirements
-- Gate: test-report.md exists, all critical tests pass, smoke + integration tests verify real system
+- Gate: test-report.md exists, all critical tests pass, conformance tests pass, smoke + integration tests verify real system
 
 ### Delivery (Ops)
 - API documentation for every endpoint

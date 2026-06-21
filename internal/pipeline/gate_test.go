@@ -49,12 +49,12 @@ func TestGateEvaluator_InceptionGate_AllArtifactsPresent(t *testing.T) {
 	}
 
 	for _, art := range feature.RequiredArtifactsForPhase(feature.PhaseInception) {
-		content := []byte("# Spec\n\n## User Stories\n\n- US-001: User can create features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]")
+		content := []byte("# Spec\n\n## User Stories\n\n- US-001: User can create features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]\n\n## Constraint Register\n\n| ID | Source | Type | Constraint | Verification |\n|----|--------|------|------------|-------------|\n| CON-001 | RFC 9421 | correctness | Wire-format failures return Invalid | Negative vector test |")
 		if art == feature.ArtifactReposYAML {
 			content = []byte("feature: 001-test\nrepos:\n  - name: devteam\n    branch: feature/001-test")
 		}
 		if art == feature.ArtifactAcceptanceMD {
-			content = []byte("# Acceptance Criteria\n\n- AC-001: Given a valid request, when creating a feature, then it returns 201\n  Test level: integration\n  Verification: POST /api/features with valid data returns 201")
+			content = []byte("# Acceptance Criteria\n\n- AC-001: Given a valid request, when creating a feature, then it returns 201\n  Test level: integration\n  Verification: POST /api/features with valid data returns 201\n- AC-CON-001: Given malformed input, when processed, then returns Invalid\n  Source: CON-001 (RFC 9421)")
 		}
 		if err := writer.WriteArtifact(f.ID, art, content); err != nil {
 			t.Fatal(err)
@@ -129,6 +129,18 @@ Each component requires specific testing levels:
 - JSON arrays are [] not null for collection fields
 - Recovery middleware is first in chain
 
+## Constraint Verification Map
+
+| CON-ID | Design Decision | Component | Verification |
+|--------|-----------------|-----------|-------------|
+| CON-001 | All parse failures caught | Verifier | Negative vector test |
+
+## Cross-Component Consistency Matrix
+
+| Shared Value | Producer | Consumer | Consistent |
+|--------------|----------|----------|-----------|
+| Algorithm IDs | All providers | Verifier | YES |
+
 ## Dependencies
 
 Tasks depend on each other as specified.
@@ -144,6 +156,7 @@ Done conditions for T001:
 - Verify: service starts without panicking
 - Verify: GET /api/features returns 200 with empty list
 
+Constraints: CON-001
 Test level: smoke, integration
 
 ## Dependencies
@@ -184,12 +197,12 @@ func TestGateEvaluator_AdvanceFeature(t *testing.T) {
 	}
 
 	for _, art := range feature.RequiredArtifactsForPhase(feature.PhaseInception) {
-		content := []byte("# Spec\n\n## User Stories\n\n- US-001: User can create features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]")
+		content := []byte("# Spec\n\n## User Stories\n\n- US-001: User can create features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]\n\n## Constraint Register\n\n| ID | Source | Type | Constraint | Verification |\n|----|--------|------|------------|-------------|\n| CON-001 | RFC 9421 | correctness | Wire-format failures return Invalid | Negative vector test |")
 		if art == feature.ArtifactReposYAML {
 			content = []byte("feature: 001-test\nrepos:\n  - name: devteam\n    branch: feature/001-test")
 		}
 		if art == feature.ArtifactAcceptanceMD {
-			content = []byte("# Acceptance Criteria\n\n- AC-001: Given a valid request, when creating a feature, then it returns 201\n  Test level: integration\n  Verification: POST /api/features with valid data returns 201")
+			content = []byte("# Acceptance Criteria\n\n- AC-001: Given a valid request, when creating a feature, then it returns 201\n  Test level: integration\n  Verification: POST /api/features with valid data returns 201\n- AC-CON-001: Given malformed input, when processed, then returns Invalid\n  Source: CON-001 (RFC 9421)")
 		}
 		if err := writer.WriteArtifact(f.ID, art, content); err != nil {
 			t.Fatal(err)

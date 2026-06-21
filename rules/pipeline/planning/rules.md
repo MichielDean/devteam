@@ -2,28 +2,64 @@
 
 ## Purpose
 
-Design the technical approach with enough specificity that the Developer can implement without making architectural decisions on the fly. Quality starts here — if the plan doesn't specify test strategy and done conditions, the Developer will guess.
+Design the technical approach with enough specificity that the Developer can implement without making architectural decisions on the fly. Quality starts here — if the plan doesn't specify test strategy and done conditions, the Developer will guess. **Every constraint from the PM's register must have a design decision and a verification checkpoint.**
 
 ## Architect Responsibilities
 
 1. **Validate**: Confirm the spec is technically feasible
-2. **Plan**: Create plan.md with technical context and test strategy
-3. **Decompose**: Break the spec into implementable tasks in tasks.md with done conditions
-4. **Scope**: Identify which repos need changes
+2. **Constraint Verification**: Map every constraint to a design decision and verification checkpoint
+3. **Cross-Component Consistency**: Verify producer/consumer agreement across all components
+4. **Plan**: Create plan.md with technical context, constraint map, consistency matrix, and test strategy
+5. **Decompose**: Break the spec into implementable tasks in tasks.md with done conditions and constraint references
+6. **Scope**: Identify which repos need changes
 
-## Step 1: Validate the Spec
+## Step 1: Validate the Spec — Including Constraints
 
 Before planning, confirm the spec is implementable:
 
 1. **Completeness check**: Are all functional requirements traceable to user stories?
-2. **Consistency check**: Do any requirements contradict each other?
-3. **Feasibility check**: Can this be built with the stated technology stack?
-4. **Edge case check**: Are error scenarios and empty states defined?
-5. **Ambiguity check**: Are there any [NEEDS CLARIFICATION] or [ASSUMPTION] markers that need resolution?
+2. **Constraint register check**: Does the constraint register exist? Is every constraint addressable?
+3. **Consistency check**: Do any requirements contradict each other?
+4. **Feasibility check**: Can this be built with the stated technology stack?
+5. **Edge case check**: Are error scenarios, empty states, and malformed input paths defined?
+6. **Negative vector check**: Is every negative test vector from the constraint register converted to an acceptance criterion?
+7. **Ambiguity check**: Are there any [NEEDS CLARIFICATION] or [ASSUMPTION] markers that need resolution?
 
 If the spec has unresolved ambiguities that affect architecture, resolve them before planning. Document any assumptions you make.
 
-## Step 2: Design the Application Architecture
+## Step 2: Build the Constraint Verification Map
+
+For every constraint in the PM's register, the architect produces a design decision:
+
+```
+| CON-ID | Design Decision | Component(s) | Verification Checkpoint | Test Type |
+|--------|-----------------|--------------|------------------------|-----------|
+| CON-001 | All parse failures caught and wrapped in Invalid result | Rfc9421Verifier | Negative vector 024 test | Conformance |
+| CON-003 | Content-Digest computed for byte[0] in ALL providers | All signing providers | Empty-body test per provider | Integration |
+```
+
+**If a constraint applies to multiple components (e.g., "all providers must handle empty bodies"), the design decision must address ALL components, not just one.** The most common multi-component bug is implementing a constraint in one place and forgetting the others.
+
+### Constraint Application Analysis
+
+For each constraint, ask:
+- Does this apply to one component or many?
+- If many, list ALL components it applies to
+- Verify the design decision covers each one explicitly
+- The cross-component consistency matrix must confirm this
+
+## Step 3: Build the Cross-Component Consistency Matrix
+
+For features with multiple components, trace every shared value:
+
+1. **List all shared values** — algorithm identifiers, error codes, data formats, signature formats, digest formats
+2. **For each, identify the producer(s) and consumer(s)**
+3. **Verify they agree** — if the producer emits X, the consumer must accept X
+4. **If they don't agree, that's a finding** — the plan must resolve the inconsistency
+
+This catches bugs like: KMS providers emit P-384 signatures but the verifier's allowlist doesn't include P-384. The architect must catch this before the developer writes code.
+
+## Step 4: Design the Application Architecture
 
 ### Component Identification
 
@@ -145,9 +181,11 @@ Break the spec into implementable tasks following these principles:
 
 1. **One task, one purpose**: Each task should do one thing well
 2. **Explicit file paths**: Every task names the exact files it will create or modify
-3. **Traceable to requirements**: Each task references the user stories and acceptance criteria it satisfies
-4. **Dependency order**: Tasks that depend on others are clearly marked
-5. **Done conditions**: Each task has specific, verifiable completion criteria
+3. **Traceable to requirements**: Each task references the user stories, acceptance criteria, AND constraints it satisfies
+4. **Constraint coverage**: Every constraint from the register is addressed by at least one task
+5. **Dependency order**: Tasks that depend on others are clearly marked
+6. **Done conditions**: Each task has specific, verifiable completion criteria
+7. **Multi-component tasks**: If a constraint applies to multiple components, either one task covers all of them (with explicit per-component done conditions) or separate tasks exist for each component
 
 ### Task Template
 
@@ -225,12 +263,17 @@ Quality checkpoints:
 ## Quality Gate
 
 The plan is ready when:
-1. Every task has a specific file path
-2. Every task has a done condition with specific verifiable assertions
-3. Test strategy section exists for each component
-4. Cross-repo boundaries are defined with contracts
-5. Dependencies between tasks are explicit
-6. API contracts specify success and error responses
-7. Data model includes entities, relationships, and state transitions
-8. Component design identifies responsibilities, interfaces, and dependencies
-9. NFR considerations are addressed (performance, security, scalability, reliability as applicable)
+1. **Constraint verification map exists** — every constraint from the register has a design decision and verification checkpoint
+2. **Cross-component consistency matrix exists** — every shared value verified across producers and consumers
+3. Every task has a specific file path
+4. Every task has a done condition with specific verifiable assertions
+5. **Every task references the constraints it addresses** (or justifies having none)
+6. Test strategy section exists for each component, including conformance tests for negative vectors
+7. Cross-repo boundaries are defined with contracts
+8. Dependencies between tasks are explicit
+9. API contracts specify success and error responses with exact error codes from the standard's taxonomy
+10. Data model includes entities, relationships, and state transitions
+11. Component design identifies responsibilities, interfaces, and dependencies
+12. NFR considerations are addressed (performance, security, scalability, reliability as applicable)
+13. **Negative case design exists** for every constraint with a negative test vector
+14. **Multi-component constraints verified** — if a constraint applies to N components, all N are addressed
