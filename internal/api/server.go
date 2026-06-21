@@ -23,6 +23,7 @@ type Server struct {
 	specProvider  *spec.SpecProvider
 	activeProcess sync.Map
 	sseClients    sync.Map
+	sseBuffers    sync.Map // featureID -> []*SSEMessage (recent events for late joiners)
 	baseDir       string
 	staticFS      fs.FS
 	questionStore feature.QuestionStore
@@ -226,16 +227,29 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
+	// Set activeProcess before responding so the UI knows it's processing
+	s.activeProcess.Store(f.ID, "autopilot")
+
+	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
 
 	// Auto-start inception phase in the background
 	go func() {
+		defer s.activeProcess.Delete(f.ID)
 		ctx := context.Background()
 		eventCh := make(chan pipeline.ProcessEvent, 100)
 
+		// Immediate feedback: work has started
+		s.broadcastSSE(f.ID, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, f.ID, f.Current))
+		s.broadcastSSE(f.ID, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched","message":"Starting inception — this may take a few minutes"}`, f.ID, f.Current, s.pipeline.PrimaryRole(f.Current)))
+
+		onOutput := func(line string, isStderr bool) {
+			escaped, _ := json.Marshal(line)
+			s.broadcastSSE(f.ID, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, f.ID, string(escaped), isStderr))
+		}
+
 		done := make(chan error, 1)
 		go func() {
-			done <- s.pipeline.ProcessAsync(ctx, f, eventCh)
+			done <- s.pipeline.ProcessAsync(ctx, f, eventCh, onOutput)
 			close(eventCh)
 		}()
 
@@ -265,7 +279,7 @@ func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
 }
 
 func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
@@ -291,7 +305,7 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
+	writeJSON(w, http.StatusAccepted, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
 
 	go func() {
 		defer s.activeProcess.Delete(id)
@@ -372,7 +386,7 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusInternalServerError, "internal_error", "Failed to save feature state")
 				return
 			}
-			writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
+			writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
 			return
 		}
 		writeError(w, http.StatusBadRequest, "validation_error", "Feature is at the final phase (delivery) and the gate has not passed")
@@ -398,7 +412,7 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
 }
 
 func (s *Server) recirculateFeature(w http.ResponseWriter, r *http.Request) {
@@ -447,7 +461,7 @@ func (s *Server) recirculateFeature(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
 }
 
 func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {
@@ -478,7 +492,7 @@ func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
 }
 
 func (s *Server) evaluateGate(w http.ResponseWriter, r *http.Request) {
@@ -528,7 +542,7 @@ func (s *Server) processFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
 
 	go func() {
 		defer s.activeProcess.Delete(id)
@@ -644,6 +658,23 @@ func (s *Server) streamFeature(w http.ResponseWriter, r *http.Request) {
 	s.addSSEClient(id, ch)
 	defer s.removeSSEClient(id, ch)
 
+	// Replay buffered events for late joiners (page refresh, etc.)
+	if buf, ok := s.sseBuffers.Load(id); ok {
+		if buffer, ok := buf.(*[]*SSEMessage); ok && len(*buffer) > 0 {
+			for _, msg := range *buffer {
+				fmt.Fprintf(w, "event: %s\ndata: %s\n\n", msg.EventType, msg.Data)
+			}
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		}
+	}
+
+	// Clear buffer when processing is done
+	if !s.IsProcessing(id) {
+		s.sseBuffers.Delete(id)
+	}
+
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
@@ -713,6 +744,15 @@ func (s *Server) removeSSEClient(featureID string, ch chan SSEMessage) {
 }
 
 func (s *Server) broadcastSSE(featureID string, eventType string, data string) {
+	// Buffer the event for late joiners
+	buf, _ := s.sseBuffers.LoadOrStore(featureID, &[]*SSEMessage{})
+	buffer := buf.(*[]*SSEMessage)
+	*buffer = append(*buffer, &SSEMessage{EventType: eventType, Data: data})
+	// Keep last 200 events
+	if len(*buffer) > 200 {
+		*buffer = (*buffer)[len(*buffer)-200:]
+	}
+
 	channels, _ := s.sseClients.Load(featureID + ":channels")
 	if channelsList, ok := channels.([]chan SSEMessage); ok {
 		msg := SSEMessage{EventType: eventType, Data: data}
