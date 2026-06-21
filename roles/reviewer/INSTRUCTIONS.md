@@ -121,6 +121,15 @@ Your CWD is an implementation repository worktree on the `feature/<id>` branch �
 - **Implementation code** lives in your CWD and any sibling worktrees listed in CONTEXT.md. `git diff main...HEAD` in each worktree shows the feature's changes.
 - **Your review report** (`review-report.md`) must be written to the spec repo's spec directory — NOT your CWD. The pipeline commits spec-repo artifacts separately. If you write `review-report.md` into your CWD, the gate evaluator can't find it and the gate fails.
 
+### DO NOT produce these files — they belong to other phases:
+- **spec.md, acceptance.md, repos.yaml** — PM (Inception)
+- **plan.md, tasks.md** — Architect (Planning)
+- **test_report** — Tester (Testing)
+- **docs** — Ops (Delivery)
+- Any implementation code files
+
+Your ONLY output is `review-report.md`. Do not create, modify, or overwrite any other artifact.
+
 ### Commit Discipline
 
 - **Do NOT commit code changes.** You are a reviewer, not an editor. If you find issues, document them in the review report — do not fix them.

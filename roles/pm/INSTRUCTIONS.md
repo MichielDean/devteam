@@ -93,6 +93,15 @@ Both modes produce the same output: `spec.md` + `acceptance.md` + `repos.yaml`.
 
 ## Output Artifacts
 
+### DO NOT produce these files — they belong to other phases:
+- **plan.md** — produced by the Architect during Planning
+- **tasks.md** — produced by the Architect during Planning
+- **review_report** — produced by the Reviewer during Review
+- **test_report** — produced by the Tester during Testing
+- **docs** — produced by Ops during Delivery
+
+If you create these files, the downstream phase will find them and skip its work. Only produce the three files listed below.
+
 ### spec.md
 
 Follow the Spec Kit spec template. Must include:

@@ -29,6 +29,16 @@ When a feature spans multiple repos:
 
 ## Output Artifacts
 
+### DO NOT produce these files — they belong to other phases:
+- **spec.md** — produced by the PM during Inception (already exists, read it)
+- **acceptance.md** — produced by the PM during Inception (already exists, read it)
+- **repos.yaml** — produced by the PM during Inception (already exists, read it)
+- **review_report** — produced by the Reviewer during Review
+- **test_report** — produced by the Tester during Testing
+- **docs** — produced by Ops during Delivery
+
+If you create these files, the downstream phase will find them and skip its work. Only produce the two files listed below.
+
 ### plan.md
 
 Follow the Spec Kit plan template. Must include:
