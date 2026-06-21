@@ -225,6 +225,40 @@ func TestPluginRulesPhaseScoped(t *testing.T) {
 	})
 }
 
+func TestPluginRulesFromUpstreamCache(t *testing.T) {
+	baseDir, _ := os.Getwd()
+	rulesPath := filepath.Join(baseDir, "..", "..", "plugins", "ponytail", "rules.md")
+	data, err := os.ReadFile(rulesPath)
+	if err != nil {
+		t.Skipf("ponytail plugin not cached (run 'devteam plugin update'): %v", err)
+	}
+	rules := string(data)
+
+	t.Run("cached rules contain ponytail ladder", func(t *testing.T) {
+		if !contains(rules, "YAGNI") {
+			t.Error("cached rules missing YAGNI")
+		}
+		if !contains(rules, "ladder") {
+			t.Error("cached rules missing ladder")
+		}
+		if !contains(rules, "lazy") {
+			t.Error("cached rules missing lazy")
+		}
+	})
+
+	t.Run("cached rules contain safety boundaries", func(t *testing.T) {
+		if !contains(rules, "trust boundaries") || !contains(rules, "data loss") {
+			t.Error("cached rules missing safety boundaries (trust boundaries, data loss)")
+		}
+	})
+
+	t.Run("cached rules contain intensity levels", func(t *testing.T) {
+		if !contains(rules, "lite") || !contains(rules, "full") || !contains(rules, "ultra") {
+			t.Error("cached rules missing intensity levels (lite, full, ultra)")
+		}
+	})
+}
+
 func setupTestRules(t *testing.T) string {
 	t.Helper()
 	tmpDir := t.TempDir()
