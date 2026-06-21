@@ -11,9 +11,13 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: process.env.SERVER_BINARY || '~/go/bin/devteam -http :8766',
-    port: parseInt(process.env.SERVER_PORT || '8766'),
+    // Binary loads devteam.yaml from its working directory; repo root holds the
+    // config, so cd there before launching. Port matches baseURL below.
+    command: process.env.SERVER_BINARY || 'cd .. && ~/go/bin/devteam -http :8765',
+    port: parseInt(process.env.SERVER_PORT || '8765'),
+    // Reuse the systemd-managed devteam-web.service when present (production-ish
+    // local install). Set START_SERVER=1 to force a fresh process.
     reuseExistingServer: !process.env.START_SERVER,
-    timeout: 10000,
+    timeout: 15000,
   },
 });
