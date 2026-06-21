@@ -13,6 +13,7 @@ export interface FeatureSummary {
 
 export interface FeatureListResponse {
   features: FeatureSummary[];
+  total_count: number;
 }
 
 export interface FeatureDetail {

@@ -34,11 +34,23 @@ export default function Dashboard() {
   });
 
   const features: FeatureSummary[] = data?.features ?? [];
+  const totalCount = data?.total_count ?? 0;
 
   return (
     <div data-testid="dashboard-page">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Features</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Features</h2>
+          {!isLoading && !error && (
+            <span
+              data-testid="feature-count-badge"
+              aria-label={`Total features: ${totalCount}`}
+              className="inline-flex items-center justify-center min-w-[2.5rem] h-6 px-2 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs font-bold"
+            >
+              {totalCount}
+            </span>
+          )}
+        </div>
         <button
           onClick={() => setShowIntakeForm(true)}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"

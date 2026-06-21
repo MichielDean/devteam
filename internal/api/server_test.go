@@ -67,6 +67,101 @@ func TestListFeaturesEmpty(t *testing.T) {
 	if len(features) != 0 {
 		t.Errorf("expected empty features list, got %d", len(features))
 	}
+
+	if resp["total_count"] != float64(0) {
+		t.Errorf("expected total_count 0, got %v", resp["total_count"])
+	}
+}
+
+func TestListFeaturesTotalCountPopulated(t *testing.T) {
+	_, tmpDir := setupTestServer(t)
+
+	cfg := &config.Config{
+		Pipeline: config.PipelineConfig{
+			Phases: []config.PhaseConfig{
+				{Name: "inception", Roles: []string{"pm"}},
+				{Name: "planning", Roles: []string{"architect"}},
+				{Name: "construction", Roles: []string{"developer"}},
+				{Name: "review", Roles: []string{"reviewer"}},
+				{Name: "testing", Roles: []string{"tester"}},
+				{Name: "delivery", Roles: []string{"ops"}},
+			},
+		},
+	}
+
+	sp := spec.NewSpecProvider(tmpDir)
+	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+
+	ts := httptest.NewServer(s.httpServer.Handler)
+	defer ts.Close()
+
+	for i := 0; i < 3; i++ {
+		createBody := `{"type":"loose_idea","title":"Populated ` + string(rune('A'+i)) + `","description":"desc","priority":2}`
+		resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+		if err != nil {
+			t.Fatalf("POST /api/features failed: %v", err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected 201, got %d", resp.StatusCode)
+		}
+	}
+
+	listResp, err := http.Get(ts.URL + "/api/features")
+	if err != nil {
+		t.Fatalf("GET /api/features failed: %v", err)
+	}
+	defer listResp.Body.Close()
+
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", listResp.StatusCode)
+	}
+
+	var resp map[string]interface{}
+	if err := json.NewDecoder(listResp.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["total_count"] != float64(3) {
+		t.Errorf("expected total_count 3, got %v", resp["total_count"])
+	}
+
+	features, ok := resp["features"].([]interface{})
+	if !ok {
+		t.Fatal("expected features to be an array")
+	}
+	if len(features) != 3 {
+		t.Errorf("expected 3 features, got %d", len(features))
+	}
+
+	if resp["total_count"] != float64(len(features)) {
+		t.Errorf("total_count %v != len(features) %d", resp["total_count"], len(features))
+	}
+}
+
+func TestErrorResponseShape(t *testing.T) {
+	// FR-003: error responses must NOT contain total_count. ErrorResponse encodes
+	// only `error` and `details`, so a 500 body never carries total_count.
+	raw, err := json.Marshal(ErrorResponse{Error: "internal_error", Details: "Failed to list features"})
+	if err != nil {
+		t.Fatalf("failed to marshal ErrorResponse: %v", err)
+	}
+
+	if strings.Contains(string(raw), "total_count") {
+		t.Errorf("error response must not contain total_count, got: %s", raw)
+	}
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if _, exists := decoded["total_count"]; exists {
+		t.Error("error response must not have total_count key")
+	}
+	if _, exists := decoded["error"]; !exists {
+		t.Error("error response must have error key")
+	}
 }
 
 func TestGetFeatureNotFound(t *testing.T) {
@@ -349,6 +444,33 @@ func TestSmokeCreateAndGetFeature(t *testing.T) {
 	}
 	if detail.Repos == nil {
 		t.Error("repos should be [], got null")
+	}
+
+	// Verify total_count on the features list after creating one feature
+	listResp, err := http.Get(ts.URL + "/api/features")
+	if err != nil {
+		t.Fatalf("GET /api/features failed: %v", err)
+	}
+	defer listResp.Body.Close()
+
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", listResp.StatusCode)
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(listResp.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode list response: %v", err)
+	}
+
+	if body["total_count"] != float64(1) {
+		t.Errorf("expected total_count 1, got %v", body["total_count"])
+	}
+	features, ok := body["features"].([]interface{})
+	if !ok {
+		t.Fatal("expected features to be an array")
+	}
+	if len(features) != 1 {
+		t.Errorf("expected 1 feature, got %d", len(features))
 	}
 }
 
