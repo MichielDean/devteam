@@ -1,0 +1,11 @@
+# Repository Registry — kanban-view-for-dev-team
+
+feature_id: kanban-view-for-dev-team
+priority: P1
+
+repos:
+  - name: devteam
+    url: git@github.com:MichielDean/devteam.git
+    branch: kanban-view-for-dev-team
+    description: Dev Team platform — orchestrator, roles, specs, web UI. This feature adds a Kanban view to the existing dashboard (feature 002).
+    primary: true

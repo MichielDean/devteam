@@ -1,0 +1,29 @@
+id: kanban-view-for-dev-team
+title: Kanban view for dev team.
+current_phase: inception
+status: in_progress
+priority: 1
+intake_path: loose_idea
+spec_dir: specs/kanban-view-for-dev-team/
+created_at: 2026-06-21T16:05:03.015354966-06:00
+updated_at: 2026-06-21T16:05:03.015486401-06:00
+phase_states:
+    construction:
+        phase: construction
+        status: draft
+    delivery:
+        phase: delivery
+        status: draft
+    inception:
+        phase: inception
+        status: in_progress
+        started_at: 2026-06-21T16:05:03.015486401-06:00
+    planning:
+        phase: planning
+        status: draft
+    review:
+        phase: review
+        status: draft
+    testing:
+        phase: testing
+        status: draft
