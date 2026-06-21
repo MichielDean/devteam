@@ -7,17 +7,17 @@ import (
 )
 
 type Feature struct {
-	ID            string                `yaml:"id" json:"id"`
-	Title         string                `yaml:"title" json:"title"`
-	Current       Phase                 `yaml:"current_phase" json:"current_phase"`
-	Status        Status                `yaml:"status" json:"status"`
-	Priority      int                   `yaml:"priority" json:"priority"`
-	IntakePath    IntakePath            `yaml:"intake_path" json:"intake_path"`
-	SpecDir       string                `yaml:"spec_dir" json:"spec_dir"`
-	CreatedAt     time.Time            `yaml:"created_at" json:"created_at"`
-	UpdatedAt     time.Time            `yaml:"updated_at" json:"updated_at"`
-	Dependencies []string             `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
-	Repos         []RepoRef            `yaml:"repos,omitempty" json:"repos,omitempty"`
+	ID           string                `yaml:"id" json:"id"`
+	Title        string                `yaml:"title" json:"title"`
+	Current      Phase                 `yaml:"current_phase" json:"current_phase"`
+	Status       Status                `yaml:"status" json:"status"`
+	Priority     int                   `yaml:"priority" json:"priority"`
+	IntakePath   IntakePath            `yaml:"intake_path" json:"intake_path"`
+	SpecDir      string                `yaml:"spec_dir" json:"spec_dir"`
+	CreatedAt    time.Time             `yaml:"created_at" json:"created_at"`
+	UpdatedAt    time.Time             `yaml:"updated_at" json:"updated_at"`
+	Dependencies []string              `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	Repos        []RepoRef             `yaml:"repos,omitempty" json:"repos,omitempty"`
 	PhaseStates  map[Phase]*PhaseState `yaml:"phase_states" json:"phase_states"`
 }
 

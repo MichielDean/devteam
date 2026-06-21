@@ -5,14 +5,22 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/MichielDean/devteam/internal/config"
+	"github.com/MichielDean/devteam/internal/plugins"
 )
 
 type RuleLoader struct {
 	baseDir string
+	config  *config.Config
 }
 
 func NewRuleLoader(baseDir string) *RuleLoader {
 	return &RuleLoader{baseDir: baseDir}
+}
+
+func NewRuleLoaderWithConfig(baseDir string, cfg *config.Config) *RuleLoader {
+	return &RuleLoader{baseDir: baseDir, config: cfg}
 }
 
 func (rl *RuleLoader) PhaseRules(phase string) ([]string, error) {
@@ -48,6 +56,44 @@ func (rl *RuleLoader) ExtensionRules(extensionName string) (string, error) {
 		return mds[0], nil
 	}
 	return "", fmt.Errorf("extension %s not found", extensionName)
+}
+
+func (rl *RuleLoader) PluginRules(phase string, roleName string) (string, error) {
+	if rl.config == nil || rl.config.Plugins == nil {
+		return "", nil
+	}
+	var parts []string
+	for name, plugin := range rl.config.Plugins {
+		phaseMatch := len(plugin.Phases) == 0
+		for _, p := range plugin.Phases {
+			if p == phase {
+				phaseMatch = true
+				break
+			}
+		}
+		if !phaseMatch {
+			continue
+		}
+		roleMatch := len(plugin.Roles) == 0
+		for _, r := range plugin.Roles {
+			if r == roleName {
+				roleMatch = true
+				break
+			}
+		}
+		if !roleMatch {
+			continue
+		}
+		pluginRules, err := plugins.LoadCachedRules(rl.baseDir, name)
+		if err != nil {
+			continue
+		}
+		parts = append(parts, pluginRules)
+	}
+	if len(parts) == 0 {
+		return "", nil
+	}
+	return strings.Join(parts, "\n\n---\n\n"), nil
 }
 
 func (rl *RuleLoader) BuildContext(phase string, roleName string, priority int) (string, error) {
@@ -92,6 +138,13 @@ func (rl *RuleLoader) BuildContext(phase string, roleName string, priority int) 
 		extRules, err := rl.ExtensionRules("security")
 		if err == nil {
 			parts = append(parts, "=== Extension: security ===\n"+extRules)
+		}
+	}
+
+	if rl.config != nil {
+		pluginRules, err := rl.PluginRules(phase, roleName)
+		if err == nil && pluginRules != "" {
+			parts = append(parts, "=== Plugin: Lazy Senior Dev Mode (Ponytail) ===\n"+pluginRules)
 		}
 	}
 

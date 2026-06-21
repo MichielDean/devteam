@@ -1,0 +1,10 @@
+[    5427ms] [ERROR] Failed to load resource: net::ERR_INCOMPLETE_CHUNKED_ENCODING @ http://localhost:8785/api/features/ui-e2e-feature/stream:0
+[    6429ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8785/api/features/ui-e2e-feature/stream:0
+[    8430ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8785/api/features/ui-e2e-feature/stream:0
+[   12431ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8785/api/features/ui-e2e-feature/stream:0
+[   20432ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8785/api/features/ui-e2e-feature/stream:0
+[   36434ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8785/api/features/ui-e2e-feature/stream:0
+[   66435ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8785/api/features/ui-e2e-feature/stream:0
+[   96436ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8785/api/features/ui-e2e-feature/stream:0
+[  126438ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8785/api/features/ui-e2e-feature/stream:0
+[  156440ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8785/api/features/ui-e2e-feature/stream:0

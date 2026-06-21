@@ -9,59 +9,59 @@ import (
 
 func TestQuestionValidation(t *testing.T) {
 	tests := []struct {
-		name    string
+		name     string
 		question Question
-		wantErr string
+		wantErr  string
 	}{
 		{
-			name: "valid clarification question",
+			name:     "valid clarification question",
 			question: Question{Phase: "inception", Role: "pm", Question: "What is the target audience?", Type: "clarification"},
-			wantErr: "",
+			wantErr:  "",
 		},
 		{
-			name: "valid decision question with options",
+			name:     "valid decision question with options",
 			question: Question{Phase: "planning", Role: "architect", Question: "Which approach?", Type: "decision", Options: []string{"A", "B"}},
-			wantErr: "",
+			wantErr:  "",
 		},
 		{
-			name: "valid priority question",
+			name:     "valid priority question",
 			question: Question{Phase: "inception", Role: "pm", Question: "What priority?", Type: "priority"},
-			wantErr: "",
+			wantErr:  "",
 		},
 		{
-			name: "empty question text",
+			name:     "empty question text",
 			question: Question{Phase: "inception", Role: "pm", Question: "", Type: "clarification"},
-			wantErr: "question is required",
+			wantErr:  "question is required",
 		},
 		{
-			name: "question too long",
+			name:     "question too long",
 			question: Question{Phase: "inception", Role: "pm", Question: string(make([]byte, 2001)), Type: "clarification"},
-			wantErr: "question must be 1-2000 characters",
+			wantErr:  "question must be 1-2000 characters",
 		},
 		{
-			name: "invalid phase",
+			name:     "invalid phase",
 			question: Question{Phase: "construction", Role: "pm", Question: "What?", Type: "clarification"},
-			wantErr: "phase must be one of: inception, planning",
+			wantErr:  "phase must be one of: inception, planning",
 		},
 		{
-			name: "invalid role",
+			name:     "invalid role",
 			question: Question{Phase: "inception", Role: "developer", Question: "What?", Type: "clarification"},
-			wantErr: "role must be one of: pm, architect",
+			wantErr:  "role must be one of: pm, architect",
 		},
 		{
-			name: "invalid type",
+			name:     "invalid type",
 			question: Question{Phase: "inception", Role: "pm", Question: "What?", Type: "invalid"},
-			wantErr: "type must be one of: clarification, decision, priority",
+			wantErr:  "type must be one of: clarification, decision, priority",
 		},
 		{
-			name: "too many options",
+			name:     "too many options",
 			question: Question{Phase: "inception", Role: "pm", Question: "What?", Type: "clarification", Options: make([]string, 11)},
-			wantErr: "options must have at most 10 items",
+			wantErr:  "options must have at most 10 items",
 		},
 		{
-			name: "option too long",
+			name:     "option too long",
 			question: Question{Phase: "inception", Role: "pm", Question: "What?", Type: "clarification", Options: []string{string(make([]byte, 501))}},
-			wantErr: "each option must be 1-500 characters",
+			wantErr:  "each option must be 1-500 characters",
 		},
 	}
 
@@ -80,14 +80,14 @@ func TestQuestionValidation(t *testing.T) {
 
 func TestQuestionIDGeneration(t *testing.T) {
 	tests := []struct {
-		name      string
-		existing  []*Question
-		wantID    string
+		name     string
+		existing []*Question
+		wantID   string
 	}{
 		{
-			name:      "first question gets Q-001",
-			existing:  nil,
-			wantID:    "Q-001",
+			name:     "first question gets Q-001",
+			existing: nil,
+			wantID:   "Q-001",
 		},
 		{
 			name: "second question gets Q-002",
@@ -872,8 +872,8 @@ func TestBuildHumanResponsesContext(t *testing.T) {
 				},
 			},
 			timeoutMinutes: 30,
-			wantEmpty:    false,
-			wantContains: []string{"Q-001", "What is the target?", "Internal developers", "human input"},
+			wantEmpty:      false,
+			wantContains:   []string{"Q-001", "What is the target?", "Internal developers", "human input"},
 		},
 		{
 			name: "assumed question shows auto-assumed source",
@@ -886,8 +886,8 @@ func TestBuildHumanResponsesContext(t *testing.T) {
 				},
 			},
 			timeoutMinutes: 30,
-			wantEmpty:    false,
-			wantContains:  []string{"Q-001", "Which approach?", "REST API", "auto-assumed", "30 minutes"},
+			wantEmpty:      false,
+			wantContains:   []string{"Q-001", "Which approach?", "REST API", "auto-assumed", "30 minutes"},
 		},
 		{
 			name: "mixed answered and assumed questions",
@@ -906,8 +906,8 @@ func TestBuildHumanResponsesContext(t *testing.T) {
 				},
 			},
 			timeoutMinutes: 30,
-			wantEmpty:    false,
-			wantContains:  []string{"Q-001", "human input", "Q-002", "auto-assumed"},
+			wantEmpty:      false,
+			wantContains:   []string{"Q-001", "human input", "Q-002", "auto-assumed"},
 		},
 		{
 			name: "pending questions are not included in responses",
@@ -919,7 +919,7 @@ func TestBuildHumanResponsesContext(t *testing.T) {
 				},
 			},
 			timeoutMinutes: 30,
-			wantEmpty: true,
+			wantEmpty:      true,
 		},
 	}
 

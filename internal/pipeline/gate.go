@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/MichielDean/devteam/internal/feature"
@@ -11,7 +12,8 @@ import (
 )
 
 type GateEvaluator struct {
-	specProvider *spec.SpecProvider
+	specProvider     *spec.SpecProvider
+	lastCheckOutput string
 }
 
 func NewGateEvaluator(specProvider *spec.SpecProvider) *GateEvaluator {
@@ -195,7 +197,10 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		return strings.Contains(content, "depend") || strings.Contains(content, "Depend") || strings.Contains(content, "Prerequisite")
 
 	case strings.Contains(desc, "code compiles"):
-		return ge.checkBuildCompiles(f)
+		return ge.checkBuildCompiles(f) && ge.checkVetPasses(f)
+
+	case strings.Contains(desc, "tests compile"):
+		return ge.checkVetPasses(f)
 
 	case strings.Contains(desc, "JSON arrays"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
@@ -218,6 +223,9 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 
 	case strings.Contains(desc, "independently buildable"):
 		return ge.checkBuildCompiles(f)
+
+	case strings.Contains(desc, "tests compile without errors"):
+		return ge.checkVetPasses(f)
 
 	case strings.Contains(desc, "service starts and responds"):
 		return ge.checkServiceStarts(f)
@@ -302,6 +310,9 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "smoke") && (strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "no panic") || strings.Contains(lower, "responds to"))
 
+	case strings.Contains(desc, "go test suite passes"):
+		return ge.checkTestSuitePasses(f)
+
 	case strings.Contains(desc, "integration tests exercise"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
 		if err != nil {
@@ -365,7 +376,18 @@ func (ge *GateEvaluator) checkMessage(desc string, passed bool, f *feature.Featu
 	if passed {
 		return fmt.Sprintf("✓ %s", desc)
 	}
-	return fmt.Sprintf("✗ %s (phase: %s, feature: %s)", desc, f.CurrentPhase(), f.ID)
+	msg := fmt.Sprintf("✗ %s (phase: %s, feature: %s)", desc, f.CurrentPhase(), f.ID)
+	if ge.lastCheckOutput != "" {
+		lines := strings.Split(ge.lastCheckOutput, "\n")
+		maxLines := 10
+		if len(lines) > maxLines {
+			msg += "\n" + strings.Join(lines[:maxLines], "\n") + fmt.Sprintf("\n... (%d more lines)", len(lines)-maxLines)
+		} else {
+			msg += "\n" + ge.lastCheckOutput
+		}
+		ge.lastCheckOutput = ""
+	}
+	return msg
 }
 
 func (ge *GateEvaluator) checkBuildCompiles(f *feature.Feature) bool {
@@ -378,9 +400,36 @@ func (ge *GateEvaluator) checkBuildCompiles(f *feature.Feature) bool {
 	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		ge.lastCheckOutput = string(output)
 		return false
 	}
-	return len(output) == 0 || !strings.Contains(string(output), "error")
+	if len(output) > 0 && strings.Contains(string(output), "error") {
+		ge.lastCheckOutput = string(output)
+		return false
+	}
+	ge.lastCheckOutput = ""
+	return true
+}
+
+func (ge *GateEvaluator) checkVetPasses(f *feature.Feature) bool {
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		goPath = "/usr/local/go/bin/go"
+	}
+	cmd := exec.Command(goPath, "vet", "./...")
+	cmd.Dir = ge.specProvider.BaseDir()
+	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		ge.lastCheckOutput = string(output)
+		return false
+	}
+	if strings.Contains(string(output), "vet:") {
+		ge.lastCheckOutput = string(output)
+		return false
+	}
+	ge.lastCheckOutput = ""
+	return true
 }
 
 func (ge *GateEvaluator) checkNoPlaceholders(f *feature.Feature) bool {
@@ -398,5 +447,80 @@ func (ge *GateEvaluator) checkServiceStarts(f *feature.Feature) bool {
 		return false
 	}
 	lower := strings.ToLower(content)
-	return (strings.Contains(lower, "smoke") || strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "playwright")) && strings.Contains(lower, "no panic")
+	hasSmokeOrServer := strings.Contains(lower, "smoke") || strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "playwright")
+	noPanic := strings.Contains(lower, "no panic") || strings.Contains(lower, "without panic") || strings.Contains(lower, "without panics") || strings.Contains(lower, "no nil pointer")
+	return hasSmokeOrServer && noPanic
+}
+
+func (ge *GateEvaluator) checkTestSuitePasses(f *feature.Feature) bool {
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		goPath = "/usr/local/go/bin/go"
+	}
+	cmd := exec.Command(goPath, "test", "./...", "-count=1", "-timeout", "120s")
+	cmd.Dir = ge.specProvider.BaseDir()
+	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		ge.lastCheckOutput = string(output)
+		return false
+	}
+	if strings.Contains(string(output), "FAIL") {
+		ge.lastCheckOutput = string(output)
+		return false
+	}
+
+	if !ge.checkFrontendTests(f) {
+		return false
+	}
+
+	ge.lastCheckOutput = ""
+	return true
+}
+
+func (ge *GateEvaluator) checkFrontendTests(f *feature.Feature) bool {
+	uiDir := filepath.Join(ge.specProvider.BaseDir(), "ui")
+	if _, err := os.Stat(uiDir); os.IsNotExist(err) {
+		return true
+	}
+
+	packageJSON := filepath.Join(uiDir, "package.json")
+	if _, err := os.Stat(packageJSON); os.IsNotExist(err) {
+		return true
+	}
+
+	nodeModules := filepath.Join(uiDir, "node_modules")
+	if _, err := os.Stat(nodeModules); os.IsNotExist(err) {
+		if err := exec.Command("npm", "install", "--prefix", uiDir).Run(); err != nil {
+			ge.lastCheckOutput = fmt.Sprintf("npm install failed: %v", err)
+			return false
+		}
+	}
+
+	playwrightConfig := filepath.Join(uiDir, "playwright.config.ts")
+	if _, err := os.Stat(playwrightConfig); err != nil {
+		return true
+	}
+
+	npxPath, err := exec.LookPath("npx")
+	if err != nil {
+		return true
+	}
+
+	cmd := exec.Command(npxPath, "playwright", "test", "--reporter=list")
+	cmd.Dir = uiDir
+	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin",
+		"CI=true",
+		"BASE_URL=http://localhost:8765",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		ge.lastCheckOutput = fmt.Sprintf("Playwright tests failed:\n%s", string(output))
+		return false
+	}
+	if strings.Contains(string(output), "failed") {
+		ge.lastCheckOutput = fmt.Sprintf("Playwright tests had failures:\n%s", string(output))
+		return false
+	}
+	return true
 }

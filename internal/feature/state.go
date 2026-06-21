@@ -86,6 +86,7 @@ var GateDefinitions = []GateDefinition{
 		RequiredArts: []ArtifactType{},
 		ValidationDescs: []string{
 			"code compiles and runs without panicking",
+			"tests compile without errors",
 		},
 	},
 	{
@@ -114,6 +115,7 @@ var GateDefinitions = []GateDefinition{
 			"spec-implementation drift checked",
 			"no nil pointer panics or null-vs-empty-array mismatches",
 			"failed tests have reproduction steps",
+			"go test suite passes",
 		},
 	},
 	{

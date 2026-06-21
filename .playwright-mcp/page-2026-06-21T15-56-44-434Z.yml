@@ -1,0 +1,64 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - heading "Dev Team" [level=1] [ref=e6]
+      - button "Switch to dark mode" [ref=e7]:
+        - img [ref=e8]
+  - main [ref=e10]:
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - heading "Features" [level=2] [ref=e14]
+          - 'generic "Total features: 0" [ref=e15]': "0"
+        - button "+ New Feature" [ref=e16]
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: "Sort by:"
+          - button "Phase ↕" [ref=e20]
+          - button "Priority ↕" [ref=e21]
+          - button "Status ↕" [ref=e22]
+          - button "Updated ↓" [ref=e23]
+        - generic [ref=e24]:
+          - link "1 Human Interaction Points - allow the pipeline to pause for human input at decision points in inception and planning phases human-interaction-po... In Progress Delivery P1 - Critical Updated 6/21/2026" [ref=e25] [cursor=pointer]:
+            - /url: /features/human-interaction-points---allow-the-pipeline-to-pause-for-h
+            - link "1" [ref=e26]:
+              - /url: /features/human-interaction-points---allow-the-pipeline-to-pause-for-h
+            - generic [ref=e27]:
+              - heading "Human Interaction Points - allow the pipeline to pause for human input at decision points in inception and planning phases" [level=3] [ref=e28]
+              - generic [ref=e29]: human-interaction-po...
+            - generic [ref=e30]:
+              - generic [ref=e31]: In Progress
+              - generic [ref=e32]: Delivery
+              - generic [ref=e33]: P1 - Critical
+            - generic [ref=e34]: Updated 6/21/2026
+          - link "Feature Spec Count Badge - show total count of feature specs on the features list page. Add total_count field to GET /api/features response. Show a badge on the UI. No new endpoints needed. feature-spec-count-b... Recirculated Construction P2 - Medium ✓ Gate passed Updated 6/21/2026" [ref=e35] [cursor=pointer]:
+            - /url: /features/feature-spec-count-badge---show-total-count-of-feature-specs
+            - generic [ref=e36]:
+              - heading "Feature Spec Count Badge - show total count of feature specs on the features list page. Add total_count field to GET /api/features response. Show a badge on the UI. No new endpoints needed." [level=3] [ref=e37]
+              - generic [ref=e38]: feature-spec-count-b...
+            - generic [ref=e39]:
+              - generic [ref=e40]: Recirculated
+              - generic [ref=e41]: Construction
+              - generic [ref=e42]: P2 - Medium
+            - generic [ref=e44]: ✓ Gate passed
+            - generic [ref=e45]: Updated 6/21/2026
+          - link "Dev Team Web UI 002-dev-team-web-ui Done Delivery P1 - Critical ✓ Gate passed Updated 6/20/2026" [ref=e46] [cursor=pointer]:
+            - /url: /features/002-dev-team-web-ui
+            - generic [ref=e47]:
+              - heading "Dev Team Web UI" [level=3] [ref=e48]
+              - generic [ref=e49]: 002-dev-team-web-ui
+            - generic [ref=e50]:
+              - generic [ref=e51]: Done
+              - generic [ref=e52]: Delivery
+              - generic [ref=e53]: P1 - Critical
+            - generic [ref=e55]: ✓ Gate passed
+            - generic [ref=e56]: Updated 6/20/2026
+          - link "Dev Team Platform 001-dev-team-platfor... In Progress P1 - Critical Updated 6/18/2026" [ref=e57] [cursor=pointer]:
+            - /url: /features/001-dev-team-platform
+            - generic [ref=e58]:
+              - heading "Dev Team Platform" [level=3] [ref=e59]
+              - generic [ref=e60]: 001-dev-team-platfor...
+            - generic [ref=e61]:
+              - generic [ref=e62]: In Progress
+              - generic [ref=e64]: P1 - Critical
+            - generic [ref=e65]: Updated 6/18/2026

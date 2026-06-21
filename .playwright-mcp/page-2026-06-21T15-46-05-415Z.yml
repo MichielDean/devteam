@@ -1,0 +1,109 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - heading "Dev Team" [level=1] [ref=e6]
+      - button "Switch to dark mode" [ref=e7]:
+        - img [ref=e8]
+  - main [ref=e10]:
+    - generic [ref=e48]:
+      - link "← Back to Dashboard" [ref=e50] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - heading "UI E2E Feature" [level=1] [ref=e54]
+            - paragraph [ref=e55]: ui-e2e-feature
+          - generic [ref=e56]:
+            - generic [ref=e57]: Waiting for Human
+            - generic [ref=e58]: P1 - Critical
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - text: Phase
+            - paragraph [ref=e61]: Inception
+          - generic [ref=e62]:
+            - text: Intake
+            - paragraph [ref=e63]: Loose Idea
+          - generic [ref=e64]:
+            - text: Created
+            - paragraph [ref=e65]: 6/21/2026
+          - generic [ref=e66]:
+            - text: Updated
+            - paragraph [ref=e67]: 6/21/2026
+      - generic [ref=e68]:
+        - heading "Pipeline Progress" [level=3] [ref=e69]
+        - generic [ref=e70]:
+          - generic [ref=e72]:
+            - generic [ref=e73]: ⟳
+            - generic [ref=e74]: Inception
+          - generic [ref=e77]:
+            - generic [ref=e78]: "2"
+            - generic [ref=e79]: Planning
+          - generic [ref=e82]:
+            - generic [ref=e83]: "3"
+            - generic [ref=e84]: Construction
+          - generic [ref=e87]:
+            - generic [ref=e88]: "4"
+            - generic [ref=e89]: Review
+          - generic [ref=e92]:
+            - generic [ref=e93]: "5"
+            - generic [ref=e94]: Testing
+          - generic [ref=e97]:
+            - generic [ref=e98]: "6"
+            - generic [ref=e99]: Delivery
+      - generic [ref=e100]:
+        - heading "Actions" [level=3] [ref=e101]
+        - generic [ref=e102]:
+          - button "Run Phase" [ref=e103]
+          - button "Evaluate Gate" [ref=e104]
+          - button "Advance" [disabled] [ref=e105]
+          - button "Cancel" [ref=e106]
+          - button "Process" [ref=e107]
+      - generic [ref=e108]:
+        - heading "Questions" [level=3] [ref=e109]
+        - paragraph [ref=e111]: ⏳ This feature is waiting for your input. Please answer the questions below.
+        - generic [ref=e112]:
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - generic [ref=e115]: clarification
+              - generic [ref=e116]: inception · pm
+            - paragraph [ref=e117]: Q1?
+            - generic [ref=e118]:
+              - button "optA" [active] [ref=e119]
+              - button "optB" [ref=e120]
+            - generic [ref=e121]:
+              - textbox "Type your answer..." [ref=e122]: optA
+              - button "Submit" [ref=e123]
+          - generic [ref=e124]:
+            - generic [ref=e125]:
+              - generic [ref=e126]: clarification
+              - generic [ref=e127]: inception · pm
+            - paragraph [ref=e128]: Q2?
+            - generic [ref=e129]:
+              - button "optA" [ref=e130]
+              - button "optB" [ref=e131]
+            - generic [ref=e132]:
+              - textbox "Type your answer..." [ref=e133]
+              - button "Submit" [disabled] [ref=e134]
+          - generic [ref=e135]:
+            - generic [ref=e136]:
+              - generic [ref=e137]: clarification
+              - generic [ref=e138]: inception · pm
+            - paragraph [ref=e139]: Q3?
+            - generic [ref=e140]:
+              - button "optA" [ref=e141]
+              - button "optB" [ref=e142]
+            - generic [ref=e143]:
+              - textbox "Type your answer..." [ref=e144]
+              - button "Submit" [disabled] [ref=e145]
+      - generic [ref=e146]:
+        - heading "Artifacts" [level=3] [ref=e147]
+        - generic [ref=e149]:
+          - button "Input—" [disabled] [ref=e150]
+          - button "Specification—" [disabled] [ref=e151]
+          - button "Acceptance Criteria—" [disabled] [ref=e152]
+          - button "Repositories—" [disabled] [ref=e153]
+          - button "Plan—" [disabled] [ref=e154]
+          - button "Tasks—" [disabled] [ref=e155]
+          - button "Review Report—" [disabled] [ref=e156]
+          - button "Test Report—" [disabled] [ref=e157]
+          - button "Documentation—" [disabled] [ref=e158]

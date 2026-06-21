@@ -1,0 +1,79 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - heading "Dev Team" [level=1] [ref=e6]
+      - button "Switch to dark mode" [ref=e7]:
+        - img [ref=e8]
+  - main [ref=e10]:
+    - generic [ref=e68]:
+      - link "← Back to Dashboard" [ref=e70] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - generic [ref=e73]:
+            - heading "Human Interaction Points - allow the pipeline to pause for human input at decision points in inception and planning phases" [level=1] [ref=e74]
+            - paragraph [ref=e75]: human-interaction-points---allow-the-pipeline-to-pause-for-h
+          - generic [ref=e76]:
+            - generic [ref=e77]: In Progress
+            - generic [ref=e78]: P1 - Critical
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - text: Phase
+            - paragraph [ref=e81]: Delivery
+          - generic [ref=e82]:
+            - text: Intake
+            - paragraph [ref=e83]: External Spec
+          - generic [ref=e84]:
+            - text: Created
+            - paragraph [ref=e85]: 6/20/2026
+          - generic [ref=e86]:
+            - text: Updated
+            - paragraph [ref=e87]: 6/21/2026
+      - generic [ref=e88]:
+        - heading "Pipeline Progress" [level=3] [ref=e89]
+        - generic [ref=e90]:
+          - generic [ref=e92]:
+            - generic [ref=e93]: ✓
+            - generic [ref=e94]: Inception
+          - generic [ref=e97]:
+            - generic [ref=e98]: ✓
+            - generic [ref=e99]: Planning
+          - generic [ref=e102]:
+            - generic [ref=e103]: ✓
+            - generic [ref=e104]: Construction
+          - generic [ref=e107]:
+            - generic [ref=e108]: ✓
+            - generic [ref=e109]: Review
+          - generic [ref=e112]:
+            - generic [ref=e113]: ✓
+            - generic [ref=e114]: Testing
+          - generic [ref=e117]:
+            - generic [ref=e118]: ⟳
+            - generic [ref=e119]: Delivery
+      - generic [ref=e120]:
+        - heading "Actions" [level=3] [ref=e121]
+        - generic [ref=e122]:
+          - button "Run Phase" [ref=e123]
+          - button "Evaluate Gate" [ref=e124]
+          - button "Advance" [disabled] [ref=e125]
+          - combobox [ref=e126]:
+            - option "Recirculate to..." [selected]
+            - option "Inception"
+            - option "Planning"
+            - option "Construction"
+            - option "Review"
+            - option "Testing"
+          - button "Cancel" [ref=e127]
+          - button "Process" [ref=e128]
+      - generic [ref=e129]:
+        - heading "Artifacts" [level=3] [ref=e130]
+        - generic [ref=e132]:
+          - button "Input—" [disabled] [ref=e133]
+          - button "Specification—" [disabled] [ref=e134]
+          - button "Acceptance Criteria—" [disabled] [ref=e135]
+          - button "Repositories—" [disabled] [ref=e136]
+          - button "Plan—" [disabled] [ref=e137]
+          - button "Tasks—" [disabled] [ref=e138]
+          - button "Review Report—" [disabled] [ref=e139]
+          - button "Test Report—" [disabled] [ref=e140]
+          - button "Documentation—" [disabled] [ref=e141]

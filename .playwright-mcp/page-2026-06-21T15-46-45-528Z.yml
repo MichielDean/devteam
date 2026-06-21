@@ -1,0 +1,103 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - heading "Dev Team" [level=1] [ref=e6]
+      - button "Switch to dark mode" [ref=e7]:
+        - img [ref=e8]
+  - main [ref=e10]:
+    - generic [ref=e11]:
+      - link "← Back to Dashboard" [ref=e13] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - heading "UI E2E Feature" [level=1] [ref=e17]
+            - paragraph [ref=e18]: ui-e2e-feature
+          - generic [ref=e19]:
+            - generic [ref=e20]: Waiting for Human
+            - generic [ref=e21]: P1 - Critical
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - text: Phase
+            - paragraph [ref=e24]: Inception
+          - generic [ref=e25]:
+            - text: Intake
+            - paragraph [ref=e26]: Loose Idea
+          - generic [ref=e27]:
+            - text: Created
+            - paragraph [ref=e28]: 6/21/2026
+          - generic [ref=e29]:
+            - text: Updated
+            - paragraph [ref=e30]: 6/21/2026
+      - generic [ref=e31]:
+        - heading "Pipeline Progress" [level=3] [ref=e32]
+        - generic [ref=e33]:
+          - generic [ref=e35]:
+            - generic [ref=e36]: ⟳
+            - generic [ref=e37]: Inception
+          - generic [ref=e40]:
+            - generic [ref=e41]: "2"
+            - generic [ref=e42]: Planning
+          - generic [ref=e45]:
+            - generic [ref=e46]: "3"
+            - generic [ref=e47]: Construction
+          - generic [ref=e50]:
+            - generic [ref=e51]: "4"
+            - generic [ref=e52]: Review
+          - generic [ref=e55]:
+            - generic [ref=e56]: "5"
+            - generic [ref=e57]: Testing
+          - generic [ref=e60]:
+            - generic [ref=e61]: "6"
+            - generic [ref=e62]: Delivery
+      - generic [ref=e63]:
+        - heading "Actions" [level=3] [ref=e64]
+        - generic [ref=e65]:
+          - button "Run Phase" [ref=e66]
+          - button "Evaluate Gate" [ref=e67]
+          - button "Advance" [disabled] [ref=e68]
+          - button "Cancel" [ref=e69]
+          - button "Process" [ref=e70]
+      - generic [ref=e71]:
+        - heading "Questions" [level=3] [ref=e72]
+        - paragraph [ref=e74]: ⏳ This feature is waiting for your input. Please answer the questions below.
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - generic [ref=e77]:
+              - generic [ref=e78]:
+                - generic [ref=e79]: clarification
+                - generic [ref=e80]: inception · pm
+              - generic [ref=e81]: ✓
+            - paragraph [ref=e82]: Q1?
+            - paragraph [ref=e84]: optA
+          - generic [ref=e85]:
+            - generic [ref=e86]:
+              - generic [ref=e87]:
+                - generic [ref=e88]: clarification
+                - generic [ref=e89]: inception · pm
+              - generic [ref=e90]: ✓
+            - paragraph [ref=e91]: Q2?
+            - paragraph [ref=e93]: <script>alert(1)</script>
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - generic [ref=e96]: clarification
+              - generic [ref=e97]: inception · pm
+            - paragraph [ref=e98]: Q3?
+            - generic [ref=e99]:
+              - button "optA" [ref=e100]
+              - button "optB" [ref=e101]
+            - generic [ref=e102]:
+              - textbox "Type your answer..." [ref=e103]
+              - button "Submit" [disabled] [ref=e104]
+      - generic [ref=e105]:
+        - heading "Artifacts" [level=3] [ref=e106]
+        - generic [ref=e108]:
+          - button "Input—" [disabled] [ref=e109]
+          - button "Specification—" [disabled] [ref=e110]
+          - button "Acceptance Criteria—" [disabled] [ref=e111]
+          - button "Repositories—" [disabled] [ref=e112]
+          - button "Plan—" [disabled] [ref=e113]
+          - button "Tasks—" [disabled] [ref=e114]
+          - button "Review Report—" [disabled] [ref=e115]
+          - button "Test Report—" [disabled] [ref=e116]
+          - button "Documentation—" [disabled] [ref=e117]
