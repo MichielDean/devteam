@@ -16,16 +16,16 @@ interface ProcessStep {
 }
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
-  phase_change: 'Phase changed',
-  gate_result: 'Gate evaluated',
-  agent_dispatch: 'Agent started work',
-  agent_complete: 'Agent finished work',
-  processing_complete: 'Pipeline complete',
-  phase_complete: 'Phase complete',
-  error: 'Error',
-  waiting_for_human: 'Paused for input',
+  phase_change: 'Step changed',
+  gate_result: 'Quality check',
+  agent_dispatch: 'Started work',
+  agent_complete: 'Finished work',
+  processing_complete: 'All done!',
+  phase_complete: 'Step complete',
+  error: 'Something went wrong',
+  waiting_for_human: 'Waiting for your input',
   questions_answered: 'All questions answered',
-  questions_assumed: 'Questions auto-assumed',
+  questions_assumed: 'Questions auto-answered',
 };
 
 export default function ProcessView({ featureId, mode }: ProcessViewProps) {
@@ -79,10 +79,10 @@ export default function ProcessView({ featureId, mode }: ProcessViewProps) {
           )}
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {isComplete
-              ? (mode === 'single-phase' ? 'Phase Complete' : 'Pipeline Complete')
+              ? (mode === 'single-phase' ? 'Step Complete' : 'All Done!')
               : mode === 'single-phase'
-              ? `Running Phase — ${currentPhaseLabel}`
-              : `Autopilot Running — ${currentPhaseLabel}`}
+              ? `Working on ${currentPhaseLabel}`
+              : `Running Everything — ${currentPhaseLabel}`}
           </h3>
         </div>
         {!isComplete && elapsed && (
@@ -95,7 +95,7 @@ export default function ProcessView({ featureId, mode }: ProcessViewProps) {
       {!isComplete && steps.length === 0 && (
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-          <span>{mode === 'single-phase' ? 'Starting phase...' : 'Starting autopilot...'}</span>
+          <span>{mode === 'single-phase' ? 'Starting...' : 'Starting everything...'}</span>
         </div>
       )}
 

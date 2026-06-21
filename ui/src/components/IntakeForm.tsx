@@ -202,7 +202,7 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
           </button>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          After creation, use Autopilot on the feature page to run the full pipeline hands-free.
+          Inception starts automatically after creation — you'll see it working on the next page.
         </p>
       </form>
     </div>
