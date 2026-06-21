@@ -12,7 +12,7 @@ export default function PhaseTimeline({ phases, currentPhase, phaseStates }: Pha
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="phase-timeline">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pipeline Progress</h3>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Progress</h3>
       <div className="flex items-center justify-between overflow-x-auto pb-2">
         {phases.map((phase, index) => {
           const state = phaseStates[phase];

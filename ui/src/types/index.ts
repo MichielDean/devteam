@@ -177,6 +177,36 @@ export const PHASE_LABELS: Record<PhaseName, string> = {
   delivery: 'Delivery',
 };
 
+// User-friendly action verb for each phase — what the user is actually doing
+export const PHASE_ACTIONS: Record<PhaseName, string> = {
+  inception: 'Start Inception',
+  planning: 'Start Planning',
+  construction: 'Start Construction',
+  review: 'Start Review',
+  testing: 'Start Testing',
+  delivery: 'Start Delivery',
+};
+
+// User-friendly description of each phase — what happens when you run it
+export const PHASE_DESCRIPTIONS: Record<PhaseName, string> = {
+  inception: 'Turn your idea into a clear specification with requirements and acceptance criteria',
+  planning: 'Design the technical approach — architecture, tasks, and test strategy',
+  construction: 'Write the code according to the plan',
+  review: 'Adversarial review against acceptance criteria to catch gaps',
+  testing: 'Verify everything works — smoke tests, integration tests, unit tests',
+  delivery: 'Ship it — documentation, PR, and deployment verification',
+};
+
+// What each phase produces — shown to the user so they know what to expect
+export const PHASE_OUTPUTS: Record<PhaseName, string> = {
+  inception: 'Specification, acceptance criteria, and repository list',
+  planning: 'Technical plan, task breakdown, and test strategy',
+  construction: 'Working code implementation',
+  review: 'Review report identifying any gaps or issues',
+  testing: 'Test report verifying all acceptance criteria pass',
+  delivery: 'Documentation, changelog, and deployment verification',
+};
+
 export const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
   in_progress: 'In Progress',

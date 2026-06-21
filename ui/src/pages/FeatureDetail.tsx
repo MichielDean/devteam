@@ -5,7 +5,7 @@ import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature
 import { useSSE } from '../hooks/useSSE';
 import { useToast } from '../components/Toast';
 import type { FeatureDetail, PhaseName } from '../types';
-import { PHASES, PHASE_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '../types';
+import { PHASES, PHASE_LABELS, PHASE_ACTIONS, PHASE_DESCRIPTIONS, PHASE_OUTPUTS, STATUS_LABELS, PRIORITY_LABELS } from '../types';
 import PhaseTimeline from '../components/PhaseTimeline';
 import ArtifactViewer from '../components/ArtifactViewer';
 import GateResult from '../components/GateResult';
@@ -55,15 +55,15 @@ export default function FeatureDetail() {
       setIsProcessing(true);
       setProcessingMode('single-phase');
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Phase execution started — watch the progress below');
+      addToast('success', `${PHASE_LABELS[currentPhase as PhaseName] || 'Step'} started — watch the progress below`);
     },
     onError: (err: Error) => {
       setIsProcessing(false);
       setProcessingMode(null);
       if (err.message.includes('already')) {
-        addToast('error', 'Feature is already being processed');
+        addToast('error', 'This feature is already being worked on');
       } else {
-        addToast('error', `Failed to run phase: ${err.message}`);
+        addToast('error', `Failed to start: ${err.message}`);
       }
     },
   });
@@ -72,10 +72,10 @@ export default function FeatureDetail() {
     mutationFn: () => advanceFeature(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Advanced to next phase');
+      addToast('success', `Moved to ${nextPhaseLabel || 'next step'}`);
     },
     onError: (err: Error) => {
-      if (err instanceof Error) addToast('error', `Failed to advance: ${err.message}`);
+      if (err instanceof Error) addToast('error', `Couldn't move forward: ${err.message}`);
     },
   });
 
@@ -83,9 +83,9 @@ export default function FeatureDetail() {
     mutationFn: (targetPhase: string) => recirculateFeature(id!, targetPhase),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Feature recirculated');
+      addToast('success', 'Went back to redo that step');
     },
-    onError: (err: Error) => addToast('error', `Failed to recirculate: ${err.message}`),
+    onError: (err: Error) => addToast('error', `Failed to redo: ${err.message}`),
   });
 
   const cancelMutation = useMutation({
@@ -103,14 +103,14 @@ export default function FeatureDetail() {
       setIsProcessing(true);
       setProcessingMode('autopilot');
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Autopilot started — sit back and watch');
+      addToast('success', 'Running everything automatically — sit back and watch');
     },
     onError: (err: Error) => {
       setProcessingMode(null);
       if (err.message.includes('already')) {
-        addToast('error', 'Feature is already being processed');
+        addToast('error', 'This feature is already being worked on');
       } else {
-        addToast('error', `Failed to start autopilot: ${err.message}`);
+        addToast('error', `Couldn't start: ${err.message}`);
       }
     },
   });
@@ -119,9 +119,9 @@ export default function FeatureDetail() {
     mutationFn: () => evaluateGate(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Gate evaluated');
+      addToast('success', 'Quality check complete');
     },
-    onError: (err: Error) => addToast('error', `Failed to evaluate gate: ${err.message}`),
+    onError: (err: Error) => addToast('error', `Quality check failed: ${err.message}`),
   });
 
   if (isLoading) {
@@ -156,14 +156,7 @@ export default function FeatureDetail() {
   const isDeliveryPassed = currentPhase === 'delivery' && gatePassed;
   const showProcessView = isProcessing || processMutation.isPending;
 
-  const phaseDescriptions: Record<string, string> = {
-    inception: 'Clarify the idea and produce a specification',
-    planning: 'Design the technical approach and task breakdown',
-    construction: 'Implement the code according to the plan',
-    review: 'Adversarial review against acceptance criteria',
-    testing: 'Verify everything works — smoke, integration, unit tests',
-    delivery: 'Ship it — documentation, PR, deployment verification',
-  };
+  const phaseDescriptions = PHASE_DESCRIPTIONS;
 
   const nextPhase = currentPhaseIndex < PHASES.length - 1 ? PHASES[currentPhaseIndex + 1] : null;
   const nextPhaseLabel = nextPhase ? PHASE_LABELS[nextPhase] : null;
@@ -253,34 +246,39 @@ export default function FeatureDetail() {
             </span>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               {feature.status === 'waiting_for_human'
-                ? 'Waiting for your input'
+                ? 'We need your input to continue'
                 : isDeliveryPassed
-                ? 'Pipeline complete'
-                : `Now in ${PHASE_LABELS[currentPhase as PhaseName] || currentPhase}`}
+                ? 'All done!'
+                : `Working on ${PHASE_LABELS[currentPhase as PhaseName] || currentPhase}`}
             </h3>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4" data-testid="phase-description">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2" data-testid="phase-description">
             {feature.status === 'waiting_for_human'
-              ? 'Answer the questions below so the pipeline can continue.'
+              ? 'Answer the questions below so we can keep going.'
               : isDeliveryPassed
-              ? 'All gates passed. Feature is ready to mark done.'
-              : phaseDescriptions[currentPhase] || 'Working on this phase.'}
+              ? 'All steps are complete. This feature is ready.'
+              : phaseDescriptions[currentPhase as PhaseName] || 'Working on this step.'}
           </p>
+          {!feature.status.match('waiting_for_human|done|cancelled') && !isDeliveryPassed && (
+            <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+              This step produces: {PHASE_OUTPUTS[currentPhase as PhaseName] || 'deliverables'}
+            </p>
+          )}
 
           {/* Gate status line */}
           {currentPhaseState?.gate_result && (
             <div className="flex items-center gap-2 text-sm mb-4" data-testid="gate-status-line">
               {currentPhaseState.gate_result.passed ? (
                 <>
-                  <span className="text-green-600 dark:text-green-400 font-medium">✓ Gate passed</span>
+                  <span className="text-green-600 dark:text-green-400 font-medium">✓ Quality check passed</span>
                   {nextPhaseLabel && (
                     <span className="text-gray-500 dark:text-gray-400">
-                      — ready to advance to {nextPhaseLabel}
+                      — ready to move to {nextPhaseLabel}
                     </span>
                   )}
                 </>
               ) : (
-                <span className="text-red-600 dark:text-red-400 font-medium">✗ Gate failed — needs recirculation or manual fix</span>
+                <span className="text-red-600 dark:text-red-400 font-medium">✗ Quality check failed — this step needs to be redone or fixed</span>
               )}
             </div>
           )}
@@ -292,22 +290,22 @@ export default function FeatureDetail() {
                 onClick={() => processMutation.mutate()}
                 disabled={processMutation.isPending || isProcessing}
                 className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold shadow-sm border-2 border-indigo-400 dark:border-indigo-400"
-                title={isProcessing ? 'Pipeline is running autonomously' : 'Run the entire pipeline: each phase, gate check, and auto-advance until delivery or max recirculations.'}
+                title={isProcessing ? 'Work is in progress...' : 'Run all steps automatically: inception through delivery. Hands-off until done.'}
                 data-testid="process-button"
               >
                 {isProcessing ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
-                    Autopilot Running...
+                    Working...
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
-                    ▶ Start Autopilot
+                    ▶ Run Everything Automatically
                   </span>
                 )}
               </button>
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                Runs every phase automatically: dispatch agent → evaluate gate → advance or recirculate. Hands-off until done.
+                Runs every step from start to finish: inception, planning, construction, review, testing, and delivery — all hands-off.
               </p>
             </div>
           )}
@@ -333,27 +331,27 @@ export default function FeatureDetail() {
           {/* Advanced manual controls (collapsible) */}
           <details className="mt-4" data-testid="advanced-controls">
             <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none">
-              Manual controls (step-by-step)
+              Step-by-step controls
             </summary>
             <div className="mt-3 flex flex-wrap gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => runPhaseMutation.mutate()}
                 disabled={runPhaseMutation.isPending}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                title="Run only the current phase's agent and evaluate its gate. You'll need to advance manually."
+                title={`Run only the current step (${PHASE_LABELS[currentPhase as PhaseName]}) and check if it passes. You'll need to advance manually.`}
                 data-testid="run-phase-button"
               >
-                Run Current Phase
+                {PHASE_ACTIONS[currentPhase as PhaseName] || 'Run Current Step'}
               </button>
 
               <button
                 onClick={() => gateMutation.mutate()}
                 disabled={gateMutation.isPending}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                title="Check whether the current phase meets its quality criteria."
+                title="Check whether this step meets its quality bar."
                 data-testid="evaluate-gate-button"
               >
-                Evaluate Gate
+                Check Quality
               </button>
 
               {!isDeliveryPassed && (
@@ -361,10 +359,10 @@ export default function FeatureDetail() {
                   onClick={() => advanceMutation.mutate()}
                   disabled={!gatePassed || advanceMutation.isPending}
                   className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                  title={!gatePassed ? 'Gate has not passed — evaluate the gate first' : 'Move to the next phase'}
+                  title={!gatePassed ? 'Quality check hasn\'t passed yet — run "Check Quality" first' : `Move to the next step: ${nextPhaseLabel}`}
                   data-testid="advance-button"
                 >
-                  Advance
+                  {nextPhaseLabel ? `Go to ${nextPhaseLabel}` : 'Advance'}
                 </button>
               )}
 
@@ -373,16 +371,16 @@ export default function FeatureDetail() {
                   className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                   defaultValue=""
                   onChange={(e) => {
-                    if (e.target.value && window.confirm(`Recirculate to ${PHASE_LABELS[e.target.value as PhaseName]}?`)) {
+                    if (e.target.value && window.confirm(`Go back to ${PHASE_LABELS[e.target.value as PhaseName]} and redo that step?`)) {
                       recirculateMutation.mutate(e.target.value);
                     }
                   }}
                   data-testid="recirculate-select"
                 >
-                  <option value="">Recirculate to...</option>
+                  <option value="">Redo a step...</option>
                   {recirculationTargets.map((phase) => (
                     <option key={phase} value={phase}>
-                      {PHASE_LABELS[phase]}
+                      Redo {PHASE_LABELS[phase]}
                     </option>
                   ))}
                 </select>
