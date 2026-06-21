@@ -23,18 +23,15 @@ export default function FeatureDetail() {
     enabled: !!id,
   });
 
-  // SSE connection for real-time updates
   const { connected: sseConnected, lastEvent } = useSSE(id ?? null);
-  void sseConnected; // Used for connection status banner
+  void sseConnected;
 
-  // Fetch questions for this feature
   const { data: questions = [] } = useQuery({
     queryKey: ['questions', id!],
     queryFn: () => listQuestions(id!),
     enabled: !!id,
   });
 
-  // Show ProcessView when processing is active (feature in_progress with recent process event)
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
@@ -46,7 +43,6 @@ export default function FeatureDetail() {
     }
   }, [lastEvent]);
 
-  // Mutations for pipeline actions
   const runPhaseMutation = useMutation({
     mutationFn: () => runPhase(id!),
     onSuccess: () => {
@@ -60,7 +56,7 @@ export default function FeatureDetail() {
     mutationFn: () => advanceFeature(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Feature advanced to next phase');
+      addToast('success', 'Advanced to next phase');
     },
     onError: (err: Error) => {
       if (err instanceof Error) addToast('error', `Failed to advance: ${err.message}`);
@@ -89,19 +85,16 @@ export default function FeatureDetail() {
     mutationFn: () => processFeature(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Processing started');
+      addToast('success', 'Autopilot started — sit back and watch');
     },
     onError: (err: Error) => {
       if (err.message.includes('already')) {
         addToast('error', 'Feature is already being processed');
       } else {
-        addToast('error', `Failed to start processing: ${err.message}`);
+        addToast('error', `Failed to start autopilot: ${err.message}`);
       }
     },
   });
-
-  // Show ProcessView during active processing or mutation
-  const showProcessView = isProcessing || processMutation.isPending;
 
   const gateMutation = useMutation({
     mutationFn: () => evaluateGate(id!),
@@ -129,7 +122,7 @@ export default function FeatureDetail() {
           The feature you're looking for doesn't exist.
         </p>
         <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-          ← Back to Dashboard
+          &larr; Back to Dashboard
         </Link>
       </div>
     );
@@ -139,19 +132,28 @@ export default function FeatureDetail() {
   const currentPhase = feature.current_phase as PhaseName;
   const currentPhaseState = feature.phase_states[currentPhase];
   const gatePassed = currentPhaseState?.gate_result?.passed ?? false;
-
-  // Determine available recirculation targets (phases earlier than current)
   const currentPhaseIndex = PHASES.indexOf(currentPhase);
   const recirculationTargets = PHASES.slice(0, currentPhaseIndex > 0 ? currentPhaseIndex : 0);
-
-  // Determine if at delivery with passed gate
   const isDeliveryPassed = currentPhase === 'delivery' && gatePassed;
+  const showProcessView = isProcessing || processMutation.isPending;
+
+  const phaseDescriptions: Record<string, string> = {
+    inception: 'Clarify the idea and produce a specification',
+    planning: 'Design the technical approach and task breakdown',
+    construction: 'Implement the code according to the plan',
+    review: 'Adversarial review against acceptance criteria',
+    testing: 'Verify everything works — smoke, integration, unit tests',
+    delivery: 'Ship it — documentation, PR, deployment verification',
+  };
+
+  const nextPhase = currentPhaseIndex < PHASES.length - 1 ? PHASES[currentPhaseIndex + 1] : null;
+  const nextPhaseLabel = nextPhase ? PHASE_LABELS[nextPhase] : null;
 
   return (
     <div data-testid="feature-detail-page">
       <div className="mb-6">
         <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
-          ← Back to Dashboard
+          &larr; Back to Dashboard
         </Link>
       </div>
 
@@ -175,6 +177,8 @@ export default function FeatureDetail() {
                   ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                   : feature.status === 'in_progress'
                   ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                  : feature.status === 'waiting_for_human'
+                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
                   : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
               }`}
               data-testid="feature-status"
@@ -192,7 +196,7 @@ export default function FeatureDetail() {
 
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
           <div>
-            <span className="text-gray-500 dark:text-gray-400">Phase</span>
+            <span className="text-gray-500 dark:text-gray-400">Current Phase</span>
             <p className="font-medium text-gray-900 dark:text-white" data-testid="feature-phase">
               {PHASE_LABELS[currentPhase as PhaseName] || currentPhase}
             </p>
@@ -221,96 +225,190 @@ export default function FeatureDetail() {
       {/* Phase Timeline */}
       <PhaseTimeline phases={PHASES} currentPhase={currentPhase} phaseStates={feature.phase_states} />
 
+      {/* Current Phase Context */}
+      {!isTerminal && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="current-phase-context">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">
+              {feature.status === 'waiting_for_human' ? '🙋' : '⚙️'}
+            </span>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {feature.status === 'waiting_for_human'
+                ? 'Waiting for your input'
+                : isDeliveryPassed
+                ? 'Pipeline complete'
+                : `Now in ${PHASE_LABELS[currentPhase as PhaseName] || currentPhase}`}
+            </h3>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4" data-testid="phase-description">
+            {feature.status === 'waiting_for_human'
+              ? 'Answer the questions below so the pipeline can continue.'
+              : isDeliveryPassed
+              ? 'All gates passed. Feature is ready to mark done.'
+              : phaseDescriptions[currentPhase] || 'Working on this phase.'}
+          </p>
+
+          {/* Gate status line */}
+          {currentPhaseState?.gate_result && (
+            <div className="flex items-center gap-2 text-sm mb-4" data-testid="gate-status-line">
+              {currentPhaseState.gate_result.passed ? (
+                <>
+                  <span className="text-green-600 dark:text-green-400 font-medium">✓ Gate passed</span>
+                  {nextPhaseLabel && (
+                    <span className="text-gray-500 dark:text-gray-400">
+                      — ready to advance to {nextPhaseLabel}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-red-600 dark:text-red-400 font-medium">✗ Gate failed — needs recirculation or manual fix</span>
+              )}
+            </div>
+          )}
+
+          {/* Primary Action: Autopilot */}
+          {!isDeliveryPassed && feature.status !== 'waiting_for_human' && (
+            <div className="mb-4" data-testid="primary-action">
+              <button
+                onClick={() => processMutation.mutate()}
+                disabled={processMutation.isPending || isProcessing}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold shadow-sm border-2 border-indigo-400 dark:border-indigo-400"
+                title={isProcessing ? 'Pipeline is running autonomously' : 'Run the entire pipeline: each phase, gate check, and auto-advance until delivery or max recirculations.'}
+                data-testid="process-button"
+              >
+                {isProcessing ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                    Autopilot Running...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    ▶ Start Autopilot
+                  </span>
+                )}
+              </button>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Runs every phase automatically: dispatch agent → evaluate gate → advance or recirculate. Hands-off until done.
+              </p>
+            </div>
+          )}
+
+          {/* Waiting for human actions */}
+          {feature.status === 'waiting_for_human' && (
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="waiting-banner">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                Answer the questions below. The pipeline will resume automatically once all questions are answered.
+              </p>
+            </div>
+          )}
+
+          {/* Delivery complete action */}
+          {isDeliveryPassed && (
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg" data-testid="delivery-complete-banner">
+              <p className="text-sm text-green-800 dark:text-green-200 font-medium">
+                ✓ All phases complete. Feature is ready.
+              </p>
+            </div>
+          )}
+
+          {/* Advanced manual controls (collapsible) */}
+          <details className="mt-4" data-testid="advanced-controls">
+            <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none">
+              Manual controls (step-by-step)
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => runPhaseMutation.mutate()}
+                disabled={runPhaseMutation.isPending}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                title="Run only the current phase's agent and evaluate its gate. You'll need to advance manually."
+                data-testid="run-phase-button"
+              >
+                Run Current Phase
+              </button>
+
+              <button
+                onClick={() => gateMutation.mutate()}
+                disabled={gateMutation.isPending}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                title="Check whether the current phase meets its quality criteria."
+                data-testid="evaluate-gate-button"
+              >
+                Evaluate Gate
+              </button>
+
+              {!isDeliveryPassed && (
+                <button
+                  onClick={() => advanceMutation.mutate()}
+                  disabled={!gatePassed || advanceMutation.isPending}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                  title={!gatePassed ? 'Gate has not passed — evaluate the gate first' : 'Move to the next phase'}
+                  data-testid="advance-button"
+                >
+                  Advance
+                </button>
+              )}
+
+              {recirculationTargets.length > 0 && (
+                <select
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value && window.confirm(`Recirculate to ${PHASE_LABELS[e.target.value as PhaseName]}?`)) {
+                      recirculateMutation.mutate(e.target.value);
+                    }
+                  }}
+                  data-testid="recirculate-select"
+                >
+                  <option value="">Recirculate to...</option>
+                  {recirculationTargets.map((phase) => (
+                    <option key={phase} value={phase}>
+                      {PHASE_LABELS[phase]}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to cancel this feature?')) {
+                    cancelMutation.mutate();
+                  }
+                }}
+                disabled={cancelMutation.isPending}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                data-testid="cancel-button"
+              >
+                Cancel
+              </button>
+            </div>
+          </details>
+        </div>
+      )}
+
+      {/* Terminal state banner */}
+      {isTerminal && (
+        <div className={`rounded-lg shadow p-6 mb-6 ${
+          feature.status === 'done'
+            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+            : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+        }`} data-testid="terminal-banner">
+          <h3 className={`text-lg font-semibold ${
+            feature.status === 'done' ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'
+          }`}>
+            {feature.status === 'done' ? '✓ Feature Complete' : '✗ Feature Cancelled'}
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            {feature.status === 'done'
+              ? 'This feature has passed all pipeline phases and is delivered.'
+              : 'This feature was cancelled and will not proceed further.'}
+          </p>
+        </div>
+      )}
+
       {/* Process View (shown during processing) */}
       {showProcessView && feature.status === 'in_progress' && (
         <ProcessView featureId={feature.id} />
-      )}
-
-      {/* Action Buttons */}
-      {!isTerminal && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions</h3>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => runPhaseMutation.mutate()}
-              disabled={runPhaseMutation.isPending}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-              data-testid="run-phase-button"
-            >
-              Run Phase
-            </button>
-
-            <button
-              onClick={() => gateMutation.mutate()}
-              disabled={gateMutation.isPending}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-              data-testid="evaluate-gate-button"
-            >
-              Evaluate Gate
-            </button>
-
-            {!isDeliveryPassed && (
-              <button
-                onClick={() => advanceMutation.mutate()}
-                disabled={!gatePassed || advanceMutation.isPending}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                title={!gatePassed ? 'Gate has not passed' : 'Advance to next phase'}
-                data-testid="advance-button"
-              >
-                Advance
-              </button>
-            )}
-
-            {isDeliveryPassed && (
-              <span className="px-4 py-2 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-lg text-sm font-medium" data-testid="mark-done-indicator">
-                ✓ Ready to Mark Done
-              </span>
-            )}
-
-            {recirculationTargets.length > 0 && (
-              <select
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                defaultValue=""
-                onChange={(e) => {
-                  if (e.target.value && window.confirm(`Recirculate to ${PHASE_LABELS[e.target.value as PhaseName]}?`)) {
-                    recirculateMutation.mutate(e.target.value);
-                  }
-                }}
-                data-testid="recirculate-select"
-              >
-                <option value="">Recirculate to...</option>
-                {recirculationTargets.map((phase) => (
-                  <option key={phase} value={phase}>
-                    {PHASE_LABELS[phase]}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <button
-              onClick={() => {
-                if (window.confirm('Are you sure you want to cancel this feature?')) {
-                  cancelMutation.mutate();
-                }
-              }}
-              disabled={cancelMutation.isPending}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-              data-testid="cancel-button"
-            >
-              Cancel
-            </button>
-
-            <button
-              onClick={() => processMutation.mutate()}
-              disabled={processMutation.isPending || isProcessing}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-              title={isProcessing ? 'Feature is already being processed' : 'Process entire pipeline'}
-              data-testid="process-button"
-            >
-              {isProcessing ? 'Processing...' : 'Process'}
-            </button>
-          </div>
-        </div>
       )}
 
       {/* Gate Results */}
@@ -325,7 +423,7 @@ export default function FeatureDetail() {
           {feature.status === 'waiting_for_human' && (
             <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="waiting-for-human-banner">
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                ⏳ This feature is waiting for your input. Please answer the questions below.
+                The pipeline is paused. Answer the questions below so it can continue.
               </p>
             </div>
           )}
