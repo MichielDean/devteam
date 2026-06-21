@@ -287,6 +287,27 @@ func (p *Pipeline) PushPhaseChanges(f *feature.Feature, phase feature.Phase) err
 	return p.gitClient.CommitAndPush(branchName, message)
 }
 
+// cleanPhaseArtifacts removes artifacts from the current phase's spec directory
+// before running the phase. This ensures the agent starts fresh and doesn't
+// skip work because it finds existing artifacts from a previous run.
+func (p *Pipeline) cleanPhaseArtifacts(f *feature.Feature, phase feature.Phase) {
+	gateDef := feature.GetGateDefinition(phase)
+	if gateDef == nil {
+		return
+	}
+
+	for _, artType := range gateDef.RequiredArts {
+		path := p.specProvider.ArtifactPath(f.ID, artType)
+		if _, err := os.Stat(path); err == nil {
+			if err := os.Remove(path); err != nil {
+				log.Printf("warning: could not remove existing artifact %s: %v", path, err)
+			} else {
+				log.Printf("cleanPhaseArtifacts: removed existing %s for phase %s", artType, phase)
+			}
+		}
+	}
+}
+
 func (p *Pipeline) RunPhase(f *feature.Feature) (*feature.PhaseState, error) {
 	currentPhase := f.CurrentPhase()
 	phaseConfig, err := p.getPhaseConfig(currentPhase)
@@ -379,6 +400,9 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 	if gateFailureContent, err := os.ReadFile(gateFailurePath); err == nil {
 		contextStr = contextStr + "\n\n---\n\n# Gate Failure (Previous Attempt)\n\n" + string(gateFailureContent)
 	}
+
+	// Clean artifacts from any previous run of this phase so the agent starts fresh
+	p.cleanPhaseArtifacts(f, currentPhase)
 
 	var roleResults []*role.DispatchResult
 	for _, roleName := range roles {
