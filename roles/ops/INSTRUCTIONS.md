@@ -30,6 +30,23 @@ When a feature spans repos:
 3. Tag all repos with consistent version references
 4. Update each repo's .devteam/ pointer to mark the spec as delivered
 
+## Working with Implementation Repositories
+
+Your CWD is an implementation repository worktree on the `feature/<id>` branch — NOT the spec repo. The pipeline prepared this clone so you can verify the build and write docs against the actual shipped code.
+
+**Read CONTEXT.md first.** The "Implementation Repositories" section lists every worktree path. Your CWD is the PRIMARY repo. For multi-repo features, `cd` into each listed worktree to build it and verify it starts.
+
+### Where Things Live
+
+- **Spec artifacts** (spec.md, acceptance.md) live in the spec repo — read them from the paths in CONTEXT.md to verify terminology consistency.
+- **Code** lives in your CWD and sibling worktrees. Run the build and start the service from the worktree to verify deployment.
+- **Your documentation** (`docs/`) must be written to the spec repo's spec directory — NOT your CWD. The gate evaluator looks for `docs/` there.
+
+### Commit Discipline
+
+- **Do NOT commit.** Documentation goes in the spec repo, which the pipeline commits separately. Code changes are not your job.
+- **Do NOT push.** The pipeline handles pushes and PR readiness.
+
 ## Phase Rules
 
 You operate during the **Delivery** phase. Load Dev Team delivery rules for deployment and documentation guidance.

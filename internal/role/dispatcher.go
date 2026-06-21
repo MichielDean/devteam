@@ -18,6 +18,16 @@ type DispatchRequest struct {
 	Role      string
 	Context   string
 	Timeout   time.Duration
+	// WorkingDir overrides the Dispatcher's default working directory for
+	// this dispatch. When set, the agent process is started with this as
+	// its CWD. When empty, the Dispatcher's workingDir is used.
+	//
+	// This is how Dev Team routes agents to the correct repo: spec-only
+	// phases (inception, planning) dispatch with WorkingDir = spec repo;
+	// impl phases (construction, review, testing, delivery) dispatch with
+	// WorkingDir = the prepared implementation repo worktree so the agent
+	// writes code into the right tree and commits land on feature/<id>.
+	WorkingDir string
 }
 
 type DispatchResult struct {
@@ -49,8 +59,19 @@ func (d *Dispatcher) WithTimeout(timeout time.Duration) *Dispatcher {
 	return d
 }
 
+// dispatchWorkingDir returns the CWD for an agent process: req.WorkingDir
+// if set, otherwise the Dispatcher's default workingDir. This is how the
+// pipeline routes agents to the correct repo (spec repo vs impl repo
+// worktree) without instantiating a new Dispatcher per dispatch.
+func (d *Dispatcher) dispatchWorkingDir(req DispatchRequest) string {
+	if req.WorkingDir != "" {
+		return req.WorkingDir
+	}
+	return d.workingDir
+}
+
 type OutputLine struct {
-	Line      string
+	Line     string
 	IsStderr bool
 }
 
@@ -88,7 +109,14 @@ func (d *Dispatcher) dispatchDirect(ctx context.Context, req DispatchRequest, li
 	defer os.RemoveAll(contextDir)
 
 	agentMDPath := filepath.Join(contextDir, "agents", req.Role+".md")
-	shortPrompt := "Read CONTEXT.md for your task and begin work. Follow the instructions in " + filepath.Base(agentMDPath)
+	// Use absolute paths so the agent can find CONTEXT.md and its agent.md
+	// regardless of its CWD. When the dispatcher's workingDir was always
+	// the spec repo, a bare "CONTEXT.md" worked because the file lived in
+	// the CWD. Now that impl phases dispatch with CWD = an impl repo
+	// worktree, the bare name would point at the impl repo (which has no
+	// CONTEXT.md). Absolute path is robust either way.
+	contextMDPath := filepath.Join(contextDir, "CONTEXT.md")
+	shortPrompt := "Read " + contextMDPath + " for your task and begin work. Follow the instructions in " + agentMDPath
 
 	args := []string{
 		"run",
@@ -103,7 +131,7 @@ func (d *Dispatcher) dispatchDirect(ctx context.Context, req DispatchRequest, li
 	}
 
 	cmd := exec.CommandContext(ctx, cmdPath, args...)
-	cmd.Dir = d.workingDir
+	cmd.Dir = d.dispatchWorkingDir(req)
 	cmd.Env = append(os.Environ(),
 		"OPENCODE_SERVER_USERNAME=",
 		"OPENCODE_SERVER_PASSWORD=",
@@ -272,7 +300,7 @@ func buildAgentMD(req DispatchRequest) string {
 	b.WriteString(fmt.Sprintf("Feature: %s\n", req.FeatureID))
 	b.WriteString(fmt.Sprintf("Phase: %s\n\n", req.Phase))
 	b.WriteString("Your task: Execute your role for this phase. Produce the required artifacts.\n\n")
-	b.WriteString("Read CONTEXT.md in the working directory for the full context including spec artifacts, AIDLC rules, and feature state.\n")
+	b.WriteString("Read CONTEXT.md (provided via OPENCODE_CONFIG_DIR) for the full context including spec artifacts, AIDLC rules, feature state, and implementation repository worktree paths.\n")
 	return b.String()
 }
 

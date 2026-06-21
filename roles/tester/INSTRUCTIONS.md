@@ -373,6 +373,24 @@ When a feature spans repos:
 - End-to-end tests exercise the full user story across all repos
 - Test data is consistent across repos
 
+## Working with Implementation Repositories
+
+Your CWD is an implementation repository worktree on the `feature/<id>` branch — NOT the spec repo. The pipeline prepared this clone so you can run tests against the actual code that will ship.
+
+**Read CONTEXT.md first.** The "Implementation Repositories" section lists every worktree path. Your CWD is the PRIMARY repo. For multi-repo features, `cd` into each listed worktree to run its tests.
+
+### Where Things Live
+
+- **Spec artifacts** (spec.md, acceptance.md, plan.md, tasks.md) live in the spec repo — read them from the paths in CONTEXT.md, not from your CWD.
+- **Implementation code and tests** live in your CWD and sibling worktrees. Write tests in the appropriate repo's worktree (next to the code they test).
+- **Your test report** (`test-report.md`) must be written to the spec repo's spec directory — NOT your CWD. The gate evaluator looks for it there. If you write it into your CWD, the gate fails.
+
+### Commit Discipline
+
+- **Commit new test files** with `git add -A && git commit -m "test(<feature-id>): ..."` in each repo's worktree. The pipeline pushes after the gate passes.
+- **Do NOT push.** The pipeline handles pushes.
+- **Do NOT modify the feature branch** or switch branches — the pipeline needs the worktree on `feature/<id>` to push.
+
 ## Phase Rules
 
 You operate during the **Testing** phase. Load Dev Team testing rules for multi-level verification.

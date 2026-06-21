@@ -12,6 +12,7 @@ import (
 	"github.com/MichielDean/devteam/internal/config"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/gitops"
+	"github.com/MichielDean/devteam/internal/repo"
 	"github.com/MichielDean/devteam/internal/role"
 	"github.com/MichielDean/devteam/internal/rules"
 	"github.com/MichielDean/devteam/internal/spec"
@@ -26,6 +27,7 @@ type Pipeline struct {
 	dispatcher    *role.Dispatcher
 	questionStore feature.QuestionStore
 	gitClient     *gitops.GitClient
+	repoManager   *repo.Manager
 }
 
 // Dispatcher returns the role dispatcher (for tmux session management).
@@ -44,6 +46,7 @@ func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline 
 		dispatcher:    role.NewDispatcher(baseDir),
 		questionStore: feature.NewFileQuestionStore(baseDir),
 		gitClient:     gitops.NewGitClient(baseDir),
+		repoManager:   repo.NewManager(baseDir),
 	}
 }
 
@@ -58,21 +61,22 @@ func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecProvid
 		dispatcher:    dispatcher,
 		questionStore: feature.NewFileQuestionStore(baseDir),
 		gitClient:     gitops.NewGitClient(baseDir),
+		repoManager:   repo.NewManager(baseDir),
 	}
 }
 
 func NewPipelineWithQuestionStore(cfg *config.Config, specProvider *spec.SpecProvider, questionStore feature.QuestionStore) *Pipeline {
 	baseDir := specProvider.BaseDir()
-	dispatcher := role.NewDispatcher(baseDir)
 	return &Pipeline{
 		config:        cfg,
 		specProvider:  specProvider,
 		specWriter:    spec.NewSpecWriter(baseDir),
 		ruleLoader:    rules.NewRuleLoaderWithConfig(baseDir, cfg),
 		roleLoader:    role.NewRoleLoader(baseDir),
-		dispatcher:    dispatcher,
+		dispatcher:    role.NewDispatcher(baseDir),
 		questionStore: questionStore,
 		gitClient:     gitops.NewGitClient(baseDir),
+		repoManager:   repo.NewManager(baseDir),
 	}
 }
 
@@ -98,13 +102,6 @@ func (p *Pipeline) CreateFeatureBranch(f *feature.Feature) (string, error) {
 	return branchName, nil
 }
 
-// PushPhaseChanges commits and pushes all changes for a completed phase.
-func (p *Pipeline) PushPhaseChanges(f *feature.Feature, phase feature.Phase) error {
-	branchName := "feat/" + f.ID
-	message := fmt.Sprintf("%s: complete %s phase for %s", phase, f.ID, phase)
-	return p.gitClient.CommitAndPush(branchName, message)
-}
-
 // MarkPRReady converts the draft PR to ready for review.
 func (p *Pipeline) MarkPRReady(f *feature.Feature) error {
 	branchName := "feat/" + f.ID
@@ -113,6 +110,181 @@ func (p *Pipeline) MarkPRReady(f *feature.Feature) error {
 	}
 	log.Printf("Marked PR ready for review for feature %s", f.ID)
 	return nil
+}
+
+// PrepareImplRepos clones every repo declared in the feature's repos.yaml
+// into a per-feature worktree (worktrees/<featureID>/<repoName>) and creates
+// the feature/<featureID> branch in each. The resulting work dirs are
+// persisted on the feature (PreparedRepos) so subsequent impl phases
+// (review, testing, delivery) reuse the same clones without re-preparing.
+//
+// This is the fix for the "changes lost in branch ether" bug: agents were
+// dispatched with CWD = the spec repo, so code they wrote landed in the
+// spec repo (or nowhere). Now impl phases dispatch with CWD = a prepared
+// impl repo worktree, and PushPhaseChanges pushes each repo's feature
+// branch to its own origin.
+//
+// Safe to call multiple times: if PreparedRepos is already populated and
+// the directories still exist, it's a no-op. Call this at the start of
+// the construction phase (after inception has produced repos.yaml).
+func (p *Pipeline) PrepareImplRepos(f *feature.Feature) error {
+	if len(f.PreparedRepos) > 0 && p.preparedReposExist(f) {
+		log.Printf("PrepareImplRepos: %s already has %d prepared repo(s), reusing", f.ID, len(f.PreparedRepos))
+		return nil
+	}
+
+	refs, err := p.specProvider.LoadFeatureRepos(f.ID)
+	if err != nil {
+		return fmt.Errorf("loading repos.yaml for %s: %w", f.ID, err)
+	}
+	if len(refs) == 0 {
+		log.Printf("PrepareImplRepos: %s has no repos.yaml entries — feature touches only the spec repo", f.ID)
+		f.PreparedRepos = nil
+		return p.specProvider.SaveFeatureState(f)
+	}
+
+	workDirs, err := p.repoManager.PrepareRepos(refs, f.ID)
+	if err != nil {
+		return fmt.Errorf("preparing impl repos for %s: %w", f.ID, err)
+	}
+
+	prepared := make([]feature.PreparedRepo, 0, len(workDirs))
+	for _, wd := range workDirs {
+		prepared = append(prepared, feature.PreparedRepo{
+			Name:   wd.Name,
+			URL:    wd.URL,
+			Dir:    wd.Dir,
+			Branch: wd.Branch,
+		})
+	}
+	f.PreparedRepos = prepared
+	if err := p.specProvider.SaveFeatureState(f); err != nil {
+		return fmt.Errorf("saving prepared repos on feature state: %w", err)
+	}
+	log.Printf("PrepareImplRepos: prepared %d repo(s) for %s", len(prepared), f.ID)
+	return nil
+}
+
+// preparedReposExist returns true if every persisted PreparedRepo still has
+// a .git directory on disk. Used to decide whether PrepareImplRepos can
+// skip re-cloning.
+func (p *Pipeline) preparedReposExist(f *feature.Feature) bool {
+	for _, pr := range f.PreparedRepos {
+		if _, err := os.Stat(filepath.Join(pr.Dir, ".git")); err != nil {
+			return false
+		}
+	}
+	return len(f.PreparedRepos) > 0
+}
+
+// CleanupImplRepos removes the per-feature worktrees for a feature. Call
+// after a feature is merged or cancelled to avoid accumulating clones.
+// Errors are logged, not returned — cleanup is best-effort.
+func (p *Pipeline) CleanupImplRepos(f *feature.Feature) {
+	if err := p.repoManager.RemoveAllWorktreesFor(f.ID); err != nil {
+		log.Printf("warning: could not remove impl repo worktrees for %s: %v", f.ID, err)
+	}
+	f.PreparedRepos = nil
+	_ = p.specProvider.SaveFeatureState(f)
+}
+
+// dispatchWorkingDirForPhase returns the CWD an agent should run in for the
+// given phase. Spec-only phases (inception, planning) run in the spec repo
+// so the agent can read/write spec artifacts. Impl phases (construction,
+// review, testing, delivery) run in the first prepared impl repo worktree
+// so the agent's code changes land in the right tree.
+//
+// For multi-repo features, the first prepared repo is used as the primary
+// CWD and all repo paths are injected into CONTEXT.md so the agent can
+// cd into other repos as needed. Multi-repo dispatch (one agent per repo)
+// is a future enhancement; the current design covers the common
+// single-impl-repo case correctly and gives the agent enough context to
+// handle multi-repo manually.
+func (p *Pipeline) dispatchWorkingDirForPhase(f *feature.Feature, phase feature.Phase) string {
+	switch phase {
+	case feature.PhaseConstruction, feature.PhaseReview, feature.PhaseTesting, feature.PhaseDelivery:
+		if len(f.PreparedRepos) > 0 {
+			return f.PreparedRepos[0].Dir
+		}
+	}
+	return p.specProvider.BaseDir()
+}
+
+// implRepoContext returns a CONTEXT.md fragment describing the prepared
+// impl repo worktrees so agents know where to write code and which branch
+// they're on. Empty for spec-only phases (inception, planning) — those
+// phases don't touch impl repos, so injecting worktree paths would just
+// confuse the PM/Architect.
+func (p *Pipeline) implRepoContext(f *feature.Feature, phase feature.Phase) string {
+	if len(f.PreparedRepos) == 0 {
+		return ""
+	}
+	if !p.isImplPhase(phase) {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n\n---\n\n# Implementation Repositories\n\n")
+	b.WriteString("Code changes for this feature must land in the following repository worktrees. Each is already cloned and on the feature branch — DO NOT re-clone, re-branch, or push to main.\n\n")
+	for i, pr := range f.PreparedRepos {
+		flag := ""
+		if i == 0 && p.isImplPhase(phase) {
+			flag = " (PRIMARY — your CWD)"
+		}
+		b.WriteString(fmt.Sprintf("- **%s**%s\n  - Path: `%s`\n  - Branch: `%s` (do not switch branches)\n  - Origin: %s\n", pr.Name, flag, pr.Dir, pr.Branch, pr.URL))
+	}
+	b.WriteString("\n## Commit Discipline\n\n")
+	b.WriteString("- Commit changes in the worktree(s) above. The pipeline will push `")
+	b.WriteString(repo.FeatureBranchName(f.ID))
+	b.WriteString("` to each repo's origin after the phase gate passes.\n")
+	b.WriteString("- Do NOT push directly. Do NOT open PRs manually. The pipeline handles push + PR.\n")
+	b.WriteString("- Do NOT commit to `main`. Only commit on the feature branch checked out in each worktree.\n")
+	b.WriteString("- If the feature spans multiple repos, commit to each repo's worktree with a consistent message referencing the feature ID.\n")
+	return b.String()
+}
+
+func (p *Pipeline) isImplPhase(phase feature.Phase) bool {
+	switch phase {
+	case feature.PhaseConstruction, feature.PhaseReview, feature.PhaseTesting, feature.PhaseDelivery:
+		return true
+	}
+	return false
+}
+
+// PushPhaseChanges commits and pushes all changes for a completed phase.
+// For features with prepared impl repos, commits and pushes each repo's
+// feature branch to its own origin. For spec-only features (no repos.yaml),
+// falls back to committing/pushing the spec repo's feature branch via
+// gitClient (legacy behavior).
+func (p *Pipeline) PushPhaseChanges(f *feature.Feature, phase feature.Phase) error {
+	message := fmt.Sprintf("%s: complete %s phase for %s", phase, f.ID, phase)
+
+	if len(f.PreparedRepos) > 0 {
+		workDirs := make([]*repo.RepoWorkDir, 0, len(f.PreparedRepos))
+		for _, pr := range f.PreparedRepos {
+			workDirs = append(workDirs, &repo.RepoWorkDir{
+				Name:   pr.Name,
+				URL:    pr.URL,
+				Dir:    pr.Dir,
+				Branch: pr.Branch,
+			})
+		}
+		if err := p.repoManager.CommitAcrossRepos(workDirs, f.ID); err != nil {
+			return fmt.Errorf("committing across impl repos: %w", err)
+		}
+		if err := p.repoManager.PushAcrossRepos(workDirs, f.ID); err != nil {
+			return fmt.Errorf("pushing across impl repos: %w", err)
+		}
+		// Also commit/push spec repo state (CONTEXT.md, state file, etc).
+		branchName := "feat/" + f.ID
+		if err := p.gitClient.CommitAndPush(branchName, message); err != nil {
+			log.Printf("warning: could not push spec repo state: %v", err)
+		}
+		return nil
+	}
+
+	// Legacy: spec-only feature.
+	branchName := "feat/" + f.ID
+	return p.gitClient.CommitAndPush(branchName, message)
 }
 
 func (p *Pipeline) RunPhase(f *feature.Feature) (*feature.PhaseState, error) {
@@ -222,6 +394,9 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 			promptContext = promptContext + "\n\n---\n\n" + phaseInstruction
 		}
 
+		// Inject impl repo worktree paths so the agent knows where to write.
+		promptContext = promptContext + p.implRepoContext(f, currentPhase)
+
 		contextMD := buildContextMD(f.ID, string(currentPhase), roleName, promptContext)
 		contextPath := filepath.Join(p.specProvider.FeatureDir(f.ID), "CONTEXT.md")
 		if err := os.WriteFile(contextPath, []byte(contextMD), 0644); err != nil {
@@ -229,10 +404,11 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		}
 
 		req := role.DispatchRequest{
-			FeatureID: f.ID,
-			Phase:     string(currentPhase),
-			Role:      roleName,
-			Context:   promptContext,
+			FeatureID:  f.ID,
+			Phase:      string(currentPhase),
+			Role:       roleName,
+			Context:    promptContext,
+			WorkingDir: p.dispatchWorkingDirForPhase(f, currentPhase),
 		}
 
 		result, err := p.dispatcher.Dispatch(ctx, req)
@@ -347,6 +523,9 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 			promptContext = promptContext + "\n\n---\n\n" + phaseInstruction
 		}
 
+		// Inject impl repo worktree paths so the agent knows where to write.
+		promptContext = promptContext + p.implRepoContext(f, currentPhase)
+
 		contextMD := buildContextMD(f.ID, string(currentPhase), roleName, promptContext)
 		contextPath := filepath.Join(p.specProvider.FeatureDir(f.ID), "CONTEXT.md")
 		if err := os.WriteFile(contextPath, []byte(contextMD), 0644); err != nil {
@@ -354,10 +533,11 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		}
 
 		req := role.DispatchRequest{
-			FeatureID: f.ID,
-			Phase:     string(currentPhase),
-			Role:      roleName,
-			Context:   promptContext,
+			FeatureID:  f.ID,
+			Phase:      string(currentPhase),
+			Role:       roleName,
+			Context:    promptContext,
+			WorkingDir: p.dispatchWorkingDirForPhase(f, currentPhase),
 		}
 
 		log.Printf("RunPhaseWithAgentStreaming: dispatching role %s for phase %s", roleName, currentPhase)

@@ -91,6 +91,24 @@ When working across repos:
 - Each repo's changes must be independently buildable at any checkpoint
 - Follow each repo's existing conventions (found in AGENTS.md or CONTRIBUTING.md)
 
+## Working with Implementation Repositories
+
+Your CWD is an implementation repository worktree prepared by the pipeline — NOT the spec repo. The pipeline clones each repo declared in `repos.yaml` into a per-feature worktree on the `feature/<id>` branch and runs you inside it.
+
+**Read CONTEXT.md before writing code.** The "Implementation Repositories" section lists every worktree path and which branch is checked out. Your CWD is the PRIMARY repo (marked with "(PRIMARY — your CWD)"). If the feature spans multiple repos, the other worktrees are listed with their absolute paths — `cd` into them to make changes.
+
+### Commit Discipline — CRITICAL
+
+- **Write code in the prepared worktree(s), not the spec repo.** Your CWD is the right place.
+- **Commit your changes with `git add -A && git commit -m "feat(<feature-id>): ..."`** before declaring the phase complete. The pipeline pushes for you after the gate passes — but it can only push what you've committed.
+- **Do NOT push.** The pipeline handles `git push` to `origin feature/<id>` after the gate passes. If you push directly, you risk pushing incomplete work or bypassing the gate.
+- **Do NOT create branches.** The worktree is already on `feature/<id>`. Switching branches loses your work and breaks the pipeline's push.
+- **Do NOT push to `main`.** Only commit on the feature branch.
+- **Do NOT open PRs.** The pipeline creates the draft PR and marks it ready when delivery completes.
+- **Multi-repo**: commit to each repo's worktree with a consistent message referencing the feature ID. The pipeline pushes each repo independently.
+
+If your CWD has no `.git` directory or the branch is not `feature/<id>`, stop and report it — the pipeline misconfigured your worktree.
+
 ## Working with Specs
 
 - Read spec.md for the what and acceptance.md for verification criteria

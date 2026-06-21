@@ -134,6 +134,22 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 
 		currentPhase := f.Current
 
+		// Prepare impl repo worktrees when entering the construction phase.
+		// Inception produced repos.yaml; we clone each declared repo into a
+		// per-feature worktree on the feature/<id> branch so the developer
+		// (and later reviewer/tester/ops) write code into the right tree.
+		// PrepareImplRepos is idempotent: a no-op if already prepared.
+		if currentPhase == feature.PhaseConstruction {
+			if err := p.PrepareImplRepos(f); err != nil {
+				log.Printf("warning: could not prepare impl repos for %s: %v", f.ID, err)
+				// Continue anyway — spec-only features have no repos to prepare.
+			}
+			// Reload feature to pick up PreparedRepos written by PrepareImplRepos.
+			if reloaded, err := p.GetFeature(f.ID); err == nil {
+				f = reloaded
+			}
+		}
+
 		// Emit agent_dispatch event
 		eventCh <- ProcessEvent{
 			Type:      "agent_dispatch",
@@ -268,10 +284,21 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 		}
 
 		if gr.Passed {
-			// Push phase changes after gate passes
+			// Push phase changes after gate passes. A push failure means
+			// the feature branch on origin is missing commits — the PR
+			// would be incomplete. Treat as a blocking error rather than
+			// a warning so the pipeline doesn't advance silently with
+			// missing changes.
 			if branchCreated {
 				if err := p.PushPhaseChanges(f, currentPhase); err != nil {
-					log.Printf("warning: could not push phase changes: %v", err)
+					eventCh <- ProcessEvent{
+						Type:      "error",
+						FeatureID: f.ID,
+						Phase:     currentPhase,
+						Message:   fmt.Sprintf("Failed to push phase changes: %v", err),
+						Timestamp: time.Now(),
+					}
+					return fmt.Errorf("pushing phase changes for %s phase %s: %w", f.ID, currentPhase, err)
 				}
 			}
 
@@ -288,6 +315,12 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 						log.Printf("warning: could not mark PR ready: %v", err)
 					}
 				}
+
+				// Clean up per-feature impl repo worktrees. The code is on the
+				// remote feature branches now; keeping local clones around
+				// would accumulate disk usage and risk stale-branch confusion
+				// in later features targeting the same repos.
+				p.CleanupImplRepos(f)
 
 				eventCh <- ProcessEvent{
 					Type:      "processing_complete",

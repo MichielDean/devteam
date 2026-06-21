@@ -54,7 +54,11 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	defer os.RemoveAll(contextDir)
 
 	agentMDPath := filepath.Join(contextDir, "agents", req.Role+".md")
-	shortPrompt := "Read CONTEXT.md for your task and begin work. Follow the instructions in " + filepath.Base(agentMDPath)
+	// Absolute paths so the agent finds CONTEXT.md and agent.md regardless
+	// of CWD. Impl phases dispatch with CWD = impl repo worktree, where a
+	// bare "CONTEXT.md" would not exist.
+	contextMDPath := filepath.Join(contextDir, "CONTEXT.md")
+	shortPrompt := "Read " + contextMDPath + " for your task and begin work. Follow the instructions in " + agentMDPath
 
 	cmdPath, err := exec.LookPath("opencode")
 	if err != nil {
@@ -79,8 +83,14 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	// Kill any existing session for this feature
 	m.KillSession(sessionName)
 
+	// CWD for the agent: per-dispatch override if set, else the manager default.
+	workingDir := m.workingDir
+	if req.WorkingDir != "" {
+		workingDir = req.WorkingDir
+	}
+
 	// Build tmux args using Cistern's pattern: -e flags + exec prefix
-	args := []string{"new-session", "-d", "-s", sessionName, "-c", m.workingDir}
+	args := []string{"new-session", "-d", "-s", sessionName, "-c", workingDir}
 
 	// Env vars via -e flags (Cistern pattern)
 	envPairs := []struct{ k, v string }{

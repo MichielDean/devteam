@@ -7,18 +7,34 @@ import (
 )
 
 type Feature struct {
-	ID           string                `yaml:"id" json:"id"`
-	Title        string                `yaml:"title" json:"title"`
-	Current      Phase                 `yaml:"current_phase" json:"current_phase"`
-	Status       Status                `yaml:"status" json:"status"`
-	Priority     int                   `yaml:"priority" json:"priority"`
-	IntakePath   IntakePath            `yaml:"intake_path" json:"intake_path"`
-	SpecDir      string                `yaml:"spec_dir" json:"spec_dir"`
-	CreatedAt    time.Time             `yaml:"created_at" json:"created_at"`
-	UpdatedAt    time.Time             `yaml:"updated_at" json:"updated_at"`
-	Dependencies []string              `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
-	Repos        []RepoRef             `yaml:"repos,omitempty" json:"repos,omitempty"`
-	PhaseStates  map[Phase]*PhaseState `yaml:"phase_states" json:"phase_states"`
+	ID           string     `yaml:"id" json:"id"`
+	Title        string     `yaml:"title" json:"title"`
+	Current      Phase      `yaml:"current_phase" json:"current_phase"`
+	Status       Status     `yaml:"status" json:"status"`
+	Priority     int        `yaml:"priority" json:"priority"`
+	IntakePath   IntakePath `yaml:"intake_path" json:"intake_path"`
+	SpecDir      string     `yaml:"spec_dir" json:"spec_dir"`
+	CreatedAt    time.Time  `yaml:"created_at" json:"created_at"`
+	UpdatedAt    time.Time  `yaml:"updated_at" json:"updated_at"`
+	Dependencies []string   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	Repos        []RepoRef  `yaml:"repos,omitempty" json:"repos,omitempty"`
+	// PreparedRepos records working dirs for impl repos prepared by
+	// Pipeline.PrepareImplRepos. Persisted so later phases (review,
+	// testing, delivery) can dispatch agents to the same worktrees without
+	// re-cloning. Cleared by CleanupImplRepos on feature completion.
+	PreparedRepos []PreparedRepo        `yaml:"prepared_repos,omitempty" json:"prepared_repos,omitempty"`
+	PhaseStates   map[Phase]*PhaseState `yaml:"phase_states" json:"phase_states"`
+}
+
+// PreparedRepo is a persisted record of a prepared implementation repo
+// worktree. It survives across pipeline phases so the same clone is reused
+// for construction, review, testing, and delivery. The Branch is always
+// feature/<featureID> (see repo.FeatureBranchName).
+type PreparedRepo struct {
+	Name   string `yaml:"name" json:"name"`
+	URL    string `yaml:"url" json:"url"`
+	Dir    string `yaml:"dir" json:"dir"`
+	Branch string `yaml:"branch" json:"branch"`
 }
 
 type RepoRef struct {

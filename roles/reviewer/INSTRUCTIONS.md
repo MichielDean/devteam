@@ -109,6 +109,24 @@ When a feature spans repos:
 - Verify cross-repo contracts (API boundaries, data schemas)
 - Check that each repo's changes are consistent with the others
 
+## Working with Implementation Repositories
+
+Your CWD is an implementation repository worktree on the `feature/<id>` branch — NOT the spec repo. The pipeline prepared this clone so you can review the actual code that will ship.
+
+**Read CONTEXT.md first.** The "Implementation Repositories" section lists every worktree path. Your CWD is the PRIMARY repo. For multi-repo features, `cd` into each listed worktree to review its changes.
+
+### What to Review Where
+
+- **Spec artifacts** (spec.md, acceptance.md, plan.md, tasks.md) live in the spec repo — read them from the paths in CONTEXT.md, not from your CWD.
+- **Implementation code** lives in your CWD and any sibling worktrees listed in CONTEXT.md. `git diff main...HEAD` in each worktree shows the feature's changes.
+- **Your review report** (`review-report.md`) must be written to the spec repo's spec directory — NOT your CWD. The pipeline commits spec-repo artifacts separately. If you write `review-report.md` into your CWD, the gate evaluator can't find it and the gate fails.
+
+### Commit Discipline
+
+- **Do NOT commit code changes.** You are a reviewer, not an editor. If you find issues, document them in the review report — do not fix them.
+- **Do NOT push.** The pipeline handles all pushes.
+- **Do NOT modify the feature branch.** Checking out a different branch or rewriting history breaks the pipeline's push.
+
 ## Finding Format
 
 Each finding must include:

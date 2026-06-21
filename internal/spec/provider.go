@@ -215,3 +215,28 @@ func (sp *SpecProvider) currentPhase(featureID string) feature.Phase {
 	}
 	return f.CurrentPhase()
 }
+
+// LoadFeatureRepos reads the feature's repos.yaml and returns the declared
+// RepoRefs. Returns an empty slice (not an error) if repos.yaml is absent
+// — features that only touch the spec repo legitimately have no repos.yaml.
+func (sp *SpecProvider) LoadFeatureRepos(featureID string) ([]feature.RepoRef, error) {
+	path := sp.ArtifactPath(featureID, feature.ArtifactReposYAML)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading repos.yaml for %s: %w", featureID, err)
+	}
+	// repos.yaml uses the same shape as the global repos config but with
+	// feature-specific fields (name, url, branch, scope). We only need
+	// name+url+branch here.
+	var parsed struct {
+		Feature string            `yaml:"feature"`
+		Repos   []feature.RepoRef `yaml:"repos"`
+	}
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("parsing repos.yaml for %s: %w", featureID, err)
+	}
+	return parsed.Repos, nil
+}
