@@ -437,7 +437,7 @@ export default function FeatureDetail() {
 
       {/* Agent Output (shown during processing) */}
       {(showProcessView || feature.status === 'in_progress') && (
-        <AgentOutput featureId={feature.id} />
+        <AgentOutput featureId={feature.id} isProcessing={isProcessing || feature.is_processing} />
       )}
 
       {/* Gate Results */}
