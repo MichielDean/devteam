@@ -561,13 +561,30 @@ func handleProcess(baseDir string, cfg *config.Config) {
 			}
 
 			targetPhase := feature.RecirculationTarget(result.Phase, "gate failed")
-			fmt.Printf("\nGate failed. Recirculating from %s to %s (attempt %d/%d)\n", result.Phase, targetPhase, recirculations, maxRecirculations)
-			fmt.Println("Fixing issues and retrying...")
 
-			f, err = p.RecirculateFeature(f, targetPhase, fmt.Sprintf("gate failed at %s (attempt %d)", result.Phase, recirculations))
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error recirculating: %v\n", err)
-				os.Exit(1)
+			if targetPhase == result.Phase {
+				// Same-phase retry: reset phase state to in_progress without recirculating
+				fmt.Printf("\nGate failed. Retrying %s (attempt %d/%d)\n", result.Phase, recirculations, maxRecirculations)
+				fmt.Println("Fixing issues and retrying...")
+				if ps, ok := f.PhaseStates[result.Phase]; ok {
+					ps.Status = feature.StatusInProgress
+					ps.GateResult = nil
+				}
+				f.Status = feature.StatusInProgress
+				f.UpdatedAt = time.Now()
+				if err := p.SaveFeature(f); err != nil {
+					fmt.Fprintf(os.Stderr, "error saving feature state: %v\n", err)
+					os.Exit(1)
+				}
+			} else {
+				// Recirculate to a different (earlier) phase
+				fmt.Printf("\nGate failed. Recirculating from %s to %s (attempt %d/%d)\n", result.Phase, targetPhase, recirculations, maxRecirculations)
+				fmt.Println("Fixing issues and retrying...")
+				f, err = p.RecirculateFeature(f, targetPhase, fmt.Sprintf("gate failed at %s (attempt %d)", result.Phase, recirculations))
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "error recirculating: %v\n", err)
+					os.Exit(1)
+				}
 			}
 			continue
 		}
