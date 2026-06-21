@@ -30,6 +30,7 @@ export function useSSE(featureId: string | null): UseSSEReturn {
       // Invalidate React Query cache for the relevant feature
       if (data?.feature_id) {
         queryClient.invalidateQueries({ queryKey: ['feature', data.feature_id] });
+        queryClient.invalidateQueries({ queryKey: ['questions', data.feature_id] });
       }
       // Always invalidate the feature list when any state changes
       queryClient.invalidateQueries({ queryKey: ['features'] });
@@ -69,6 +70,9 @@ export function useSSE(featureId: string | null): UseSSEReturn {
     es.addEventListener('processing_complete', (e: MessageEvent) => handleEvent('processing_complete', e));
     es.addEventListener('error', (e: MessageEvent) => handleEvent('error', e));
     es.addEventListener('state_change', (e: MessageEvent) => handleEvent('state_change', e));
+    es.addEventListener('waiting_for_human', (e: MessageEvent) => handleEvent('waiting_for_human', e));
+    es.addEventListener('questions_answered', (e: MessageEvent) => handleEvent('questions_answered', e));
+    es.addEventListener('questions_assumed', (e: MessageEvent) => handleEvent('questions_assumed', e));
   }, [featureId, handleEvent]);
 
   useEffect(() => {
