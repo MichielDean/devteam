@@ -15,11 +15,34 @@ interface OutputLine {
 }
 
 export default function AgentOutput({ featureId }: AgentOutputProps) {
-  const { lastEvent } = useSSE(featureId);
   const [lines, setLines] = useState<OutputLine[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
-  const [, setHasLoadedExisting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pendingLinesRef = useRef<OutputLine[]>([]);
+  const flushTimerRef = useRef<number | null>(null);
+
+  const flushLines = () => {
+    flushTimerRef.current = null;
+    if (pendingLinesRef.current.length === 0) return;
+    setLines((prev) => {
+      const combined = [...prev, ...pendingLinesRef.current];
+      pendingLinesRef.current = [];
+      return combined.length > 500 ? combined.slice(-500) : combined;
+    });
+  };
+
+  const addLine = (line: string, isStderr: boolean) => {
+    pendingLinesRef.current.push({ line, isStderr, timestamp: new Date() });
+    if (flushTimerRef.current === null) {
+      flushTimerRef.current = window.setTimeout(flushLines, 100);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) window.clearTimeout(flushTimerRef.current);
+    };
+  }, []);
 
   // Fetch existing tmux output on mount (for page refresh recovery)
   useEffect(() => {
@@ -32,69 +55,39 @@ export default function AgentOutput({ featureId }: AgentOutputProps) {
         }));
         setLines(existingLines);
       }
-      setHasLoadedExisting(true);
-    }).catch(() => setHasLoadedExisting(true));
+    }).catch(() => {});
   }, [featureId]);
 
-  useEffect(() => {
-    if (!lastEvent) return;
-
-    if (lastEvent.type === 'agent_output') {
-      const data = lastEvent.data as Record<string, unknown>;
+  // Use onEvent callback to capture ALL events in real-time
+  useSSE(featureId, (event) => {
+    if (event.type === 'agent_output') {
+      const data = event.data as Record<string, unknown>;
       const line = (data as Record<string, string>).line ?? '';
       const isStderr = (data as Record<string, boolean>).stderr ?? false;
-      setLines((prev) => [...prev, { line, isStderr, timestamp: new Date() }]);
-    } else if (lastEvent.type === 'agent_dispatch') {
-      setLines((prev) => [...prev, {
-        line: `→ Agent dispatched for ${PHASE_LABELS[(lastEvent.data as Record<string, string>).phase as PhaseName] || (lastEvent.data as Record<string, string>).phase}`,
-        isStderr: false,
-        timestamp: new Date(),
-      }]);
-    } else if (lastEvent.type === 'agent_complete') {
-      const data = lastEvent.data as Record<string, unknown>;
+      addLine(line, isStderr);
+    } else if (event.type === 'agent_dispatch') {
+      const data = event.data as Record<string, string>;
+      addLine(`→ Agent dispatched for ${PHASE_LABELS[data.phase as PhaseName] || data.phase}`, false);
+    } else if (event.type === 'agent_complete') {
+      const data = event.data as Record<string, unknown>;
       const durationMs = (data as Record<string, number>).duration_ms ?? 0;
       const duration = durationMs > 0 ? ` (${Math.round(durationMs / 1000)}s)` : '';
-      setLines((prev) => [...prev, {
-        line: `✓ Agent completed${duration}`,
-        isStderr: false,
-        timestamp: new Date(),
-      }]);
-    } else if (lastEvent.type === 'gate_result') {
-      const data = lastEvent.data as Record<string, unknown>;
-      const passed = (data as Record<string, boolean>).passed;
-      setLines((prev) => [...prev, {
-        line: passed ? '✓ Gate passed' : '✗ Gate failed',
-        isStderr: !passed,
-        timestamp: new Date(),
-      }]);
-    } else if (lastEvent.type === 'phase_change') {
-      const data = lastEvent.data as Record<string, string>;
-      setLines((prev) => [...prev, {
-        line: `Phase changed to ${PHASE_LABELS[data.phase as PhaseName] || data.phase}`,
-        isStderr: false,
-        timestamp: new Date(),
-      }]);
-    } else if (lastEvent.type === 'phase_complete' || lastEvent.type === 'processing_complete') {
-      setLines((prev) => [...prev, {
-        line: lastEvent.type === 'processing_complete' ? '🎉 Pipeline complete' : '✓ Phase complete',
-        isStderr: false,
-        timestamp: new Date(),
-      }]);
-    } else if (lastEvent.type === 'error') {
-      const data = lastEvent.data as Record<string, string>;
-      setLines((prev) => [...prev, {
-        line: `⚠ Error: ${data.message ?? 'Unknown error'}`,
-        isStderr: true,
-        timestamp: new Date(),
-      }]);
-    } else if (lastEvent.type === 'waiting_for_human') {
-      setLines((prev) => [...prev, {
-        line: '🙋 Waiting for human input',
-        isStderr: false,
-        timestamp: new Date(),
-      }]);
+      addLine(`✓ Agent completed${duration}`, false);
+    } else if (event.type === 'gate_result') {
+      const data = event.data as Record<string, boolean>;
+      addLine(data.passed ? '✓ Quality check passed' : '✗ Quality check failed', !data.passed);
+    } else if (event.type === 'phase_change') {
+      const data = event.data as Record<string, string>;
+      addLine(`Step changed to ${PHASE_LABELS[data.phase as PhaseName] || data.phase}`, false);
+    } else if (event.type === 'phase_complete' || event.type === 'processing_complete') {
+      addLine(event.type === 'processing_complete' ? '🎉 All done!' : '✓ Step complete', false);
+    } else if (event.type === 'error') {
+      const data = event.data as Record<string, string>;
+      addLine(`⚠ Error: ${data.message ?? 'Unknown error'}`, true);
+    } else if (event.type === 'waiting_for_human') {
+      addLine('🙋 Waiting for your input', false);
     }
-  }, [lastEvent]);
+  });
 
   useEffect(() => {
     if (scrollRef.current) {

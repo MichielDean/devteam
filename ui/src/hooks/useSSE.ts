@@ -14,18 +14,24 @@ export interface SSEEvent {
   data: unknown;
 }
 
-export function useSSE(featureId: string | null): UseSSEReturn {
+export function useSSE(featureId: string | null, onEvent?: (event: SSEEvent) => void): UseSSEReturn {
   const [connected, setConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const reconnectAttempts = useRef(0);
   const queryClient = useQueryClient();
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
 
   const handleEvent = useCallback((type: SSEEventType | 'state_change', event: MessageEvent) => {
     try {
       const data = JSON.parse(event.data as string);
-      setLastEvent({ type, data });
+      const sseEvent = { type, data };
+      setLastEvent(sseEvent);
+      if (onEventRef.current) {
+        onEventRef.current(sseEvent);
+      }
 
       // Invalidate React Query cache for the relevant feature
       if (data?.feature_id) {
