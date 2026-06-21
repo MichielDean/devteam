@@ -25,14 +25,16 @@ type Server struct {
 	sseClients    sync.Map
 	baseDir       string
 	staticFS      fs.FS
+	questionStore feature.QuestionStore
 }
 
-func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.Pipeline, staticFS fs.FS) *Server {
+func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore) *Server {
 	s := &Server{
-		specProvider: specProvider,
-		pipeline:     pipeline,
-		baseDir:      specProvider.BaseDir(),
-		staticFS:     staticFS,
+		specProvider:  specProvider,
+		pipeline:      pipeline,
+		baseDir:       specProvider.BaseDir(),
+		staticFS:      staticFS,
+		questionStore: questionStore,
 	}
 
 	mux := http.NewServeMux()
@@ -48,6 +50,12 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("GET /api/features/{id}/gate", s.evaluateGate)
 	mux.HandleFunc("GET /api/features/{id}/artifacts/{type}", s.getArtifact)
 	mux.HandleFunc("GET /api/features/{id}/stream", s.streamFeature)
+
+	// Question endpoints
+	mux.HandleFunc("GET /api/features/{id}/questions/pending", s.listPendingQuestions)
+	mux.HandleFunc("GET /api/features/{id}/questions", s.listQuestions)
+	mux.HandleFunc("POST /api/features/{id}/questions", s.createQuestion)
+	mux.HandleFunc("PATCH /api/features/{id}/questions/{questionId}", s.answerQuestion)
 
 	if staticFS != nil {
 		mux.Handle("/", s.spaHandler(staticFS))
@@ -75,7 +83,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
@@ -124,7 +132,7 @@ func (s *Server) listFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := FeaturesToSummaryResponse(features)
+	resp := FeaturesToSummaryResponse(features, s.questionStore)
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -272,6 +280,11 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if f.Status == feature.StatusWaitingHuman {
+		writeError(w, http.StatusBadRequest, "validation_error", "Cannot advance feature in waiting_for_human status")
+		return
+	}
+
 	if f.Current == feature.PhaseDelivery {
 		gr, _ := s.pipeline.EvaluateGate(f)
 		if gr != nil && gr.Passed {
@@ -346,6 +359,13 @@ func (s *Server) recirculateFeature(w http.ResponseWriter, r *http.Request) {
 		log.Printf("error recirculating feature: %v", err)
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to recirculate feature")
 		return
+	}
+
+	// Clear questions when recirculating
+	if s.questionStore != nil {
+		if err := s.questionStore.DeleteQuestionsForFeature(r.Context(), id); err != nil {
+			log.Printf("warning: failed to delete questions for feature %s on recirculate: %v", id, err)
+		}
 	}
 
 	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f))
@@ -599,4 +619,177 @@ func writeJSON(w http.ResponseWriter, code int, data interface{}) {
 
 func writeError(w http.ResponseWriter, code int, errorCode string, details string) {
 	writeJSON(w, code, ErrorResponse{Error: errorCode, Details: details})
+}
+
+// Question API handlers
+
+func (s *Server) listQuestions(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
+		return
+	}
+
+	if _, err := s.pipeline.GetFeature(id); err != nil {
+		writeError(w, http.StatusNotFound, "not_found", fmt.Sprintf("Feature %s not found", id))
+		return
+	}
+
+	questions, err := s.questionStore.ListQuestions(r.Context(), id)
+	if err != nil {
+		log.Printf("error listing questions for feature %s: %v", id, err)
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to list questions")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, QuestionsToResponse(questions))
+}
+
+func (s *Server) listPendingQuestions(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
+		return
+	}
+
+	if _, err := s.pipeline.GetFeature(id); err != nil {
+		writeError(w, http.StatusNotFound, "not_found", fmt.Sprintf("Feature %s not found", id))
+		return
+	}
+
+	questions, err := s.questionStore.ListPendingQuestions(r.Context(), id)
+	if err != nil {
+		log.Printf("error listing pending questions for feature %s: %v", id, err)
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to list pending questions")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, QuestionsToResponse(questions))
+}
+
+func (s *Server) createQuestion(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
+		return
+	}
+
+	if _, err := s.pipeline.GetFeature(id); err != nil {
+		writeError(w, http.StatusNotFound, "not_found", fmt.Sprintf("Feature %s not found", id))
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	var req CreateQuestionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation_error", "Invalid JSON body")
+		return
+	}
+
+	// Validate required fields
+	if strings.TrimSpace(req.Question) == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "question is required")
+		return
+	}
+	if len(req.Question) > 2000 {
+		writeError(w, http.StatusBadRequest, "validation_error", "question must be 1-2000 characters")
+		return
+	}
+	if !feature.ValidQuestionPhases[req.Phase] {
+		writeError(w, http.StatusBadRequest, "validation_error", "phase must be one of: inception, planning")
+		return
+	}
+	if !feature.ValidQuestionRoles[req.Role] {
+		writeError(w, http.StatusBadRequest, "validation_error", "role must be one of: pm, architect")
+		return
+	}
+	if !feature.ValidQuestionTypes[req.Type] {
+		writeError(w, http.StatusBadRequest, "validation_error", "type must be one of: clarification, decision, priority")
+		return
+	}
+	if len(req.Options) > 10 {
+		writeError(w, http.StatusBadRequest, "validation_error", "options must have at most 10 items")
+		return
+	}
+	for _, opt := range req.Options {
+		if len(opt) > 500 {
+			writeError(w, http.StatusBadRequest, "validation_error", "each option must be 1-500 characters")
+			return
+		}
+	}
+
+	q := feature.Question{
+		FeatureID: id,
+		Phase:     req.Phase,
+		Role:      req.Role,
+		Question:  req.Question,
+		Type:      req.Type,
+		Options:   req.Options,
+	}
+	if q.Options == nil {
+		q.Options = []string{}
+	}
+
+	created, err := s.questionStore.CreateQuestion(r.Context(), id, q)
+	if err != nil {
+		log.Printf("error creating question for feature %s: %v", id, err)
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to create question")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, QuestionToResponse(created))
+}
+
+func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	questionId := r.PathValue("questionId")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
+		return
+	}
+	if questionId == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "Question ID is required")
+		return
+	}
+
+	if _, err := s.pipeline.GetFeature(id); err != nil {
+		writeError(w, http.StatusNotFound, "not_found", fmt.Sprintf("Feature %s not found", id))
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	var req AnswerQuestionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation_error", "Invalid JSON body")
+		return
+	}
+
+	answer := strings.TrimSpace(req.Answer)
+	if answer == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "answer must be 1-5000 characters")
+		return
+	}
+	if len(req.Answer) > 5000 {
+		writeError(w, http.StatusBadRequest, "validation_error", "answer must be 1-5000 characters")
+		return
+	}
+
+	updated, err := s.questionStore.AnswerQuestion(r.Context(), id, questionId, answer)
+	if err != nil {
+		if _, ok := err.(*feature.QuestionConflictError); ok {
+			writeError(w, http.StatusConflict, "conflict", err.Error())
+			return
+		}
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, "not_found", fmt.Sprintf("Question %s not found", questionId))
+			return
+		}
+		log.Printf("error answering question %s for feature %s: %v", questionId, id, err)
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to answer question")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, QuestionToResponse(updated))
 }

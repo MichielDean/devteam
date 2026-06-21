@@ -17,7 +17,16 @@ type Config struct {
 }
 
 type PipelineConfig struct {
-	Phases []PhaseConfig `yaml:"phases"`
+	Phases                         []PhaseConfig `yaml:"phases"`
+	HumanInteractionTimeoutMinutes *int          `yaml:"human_interaction_timeout_minutes"`
+}
+
+// GetHumanInteractionTimeoutMinutes returns the configured timeout, defaulting to 30 if not set.
+func (pc *PipelineConfig) GetHumanInteractionTimeoutMinutes() int {
+	if pc.HumanInteractionTimeoutMinutes == nil {
+		return 30
+	}
+	return *pc.HumanInteractionTimeoutMinutes
 }
 
 type PhaseConfig struct {

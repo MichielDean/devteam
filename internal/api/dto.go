@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"time"
 
 	"github.com/MichielDean/devteam/internal/feature"
@@ -25,36 +26,37 @@ type RecirculateRequest struct {
 }
 
 type FeatureSummaryResponse struct {
-	ID           string        `json:"id"`
-	Title        string        `json:"title"`
-	Status       string        `json:"status"`
-	Priority     int           `json:"priority"`
-	CurrentPhase string        `json:"current_phase"`
-	UpdatedAt    time.Time     `json:"updated_at"`
-	GateResult  *GateResultResponse `json:"gate_result,omitempty"`
+	ID                    string              `json:"id"`
+	Title                 string              `json:"title"`
+	Status                string              `json:"status"`
+	Priority              int                 `json:"priority"`
+	CurrentPhase          string              `json:"current_phase"`
+	UpdatedAt             time.Time           `json:"updated_at"`
+	GateResult            *GateResultResponse `json:"gate_result,omitempty"`
+	PendingQuestionsCount int                 `json:"pending_questions_count"`
 }
 
 type FeatureDetailResponse struct {
-	ID            string                       `json:"id"`
-	Title         string                       `json:"title"`
-	Status        string                       `json:"status"`
-	Priority      int                          `json:"priority"`
-	IntakePath    string                       `json:"intake_path"`
-	CurrentPhase  string                       `json:"current_phase"`
-	CreatedAt     time.Time                    `json:"created_at"`
-	UpdatedAt     time.Time                    `json:"updated_at"`
-	PhaseStates   map[string]PhaseStateResponse `json:"phase_states"`
-	Dependencies  []string                     `json:"dependencies"`
-	Repos         []RepoRefResponse            `json:"repos"`
+	ID           string                        `json:"id"`
+	Title        string                        `json:"title"`
+	Status       string                        `json:"status"`
+	Priority     int                           `json:"priority"`
+	IntakePath   string                        `json:"intake_path"`
+	CurrentPhase string                        `json:"current_phase"`
+	CreatedAt    time.Time                     `json:"created_at"`
+	UpdatedAt    time.Time                     `json:"updated_at"`
+	PhaseStates  map[string]PhaseStateResponse `json:"phase_states"`
+	Dependencies []string                      `json:"dependencies"`
+	Repos        []RepoRefResponse             `json:"repos"`
 }
 
 type PhaseStateResponse struct {
-	Phase       string               `json:"phase"`
-	Status      string               `json:"status"`
-	StartedAt   *time.Time           `json:"started_at,omitempty"`
-	CompletedAt *time.Time           `json:"completed_at,omitempty"`
-	Artifacts   []ArtifactResponse   `json:"artifacts"`
-	GateResult  *GateResultResponse  `json:"gate_result,omitempty"`
+	Phase       string              `json:"phase"`
+	Status      string              `json:"status"`
+	StartedAt   *time.Time          `json:"started_at,omitempty"`
+	CompletedAt *time.Time          `json:"completed_at,omitempty"`
+	Artifacts   []ArtifactResponse  `json:"artifacts"`
+	GateResult  *GateResultResponse `json:"gate_result,omitempty"`
 }
 
 type ArtifactResponse struct {
@@ -65,11 +67,11 @@ type ArtifactResponse struct {
 }
 
 type GateResultResponse struct {
-	Phase       string               `json:"phase"`
-	Passed      bool                `json:"passed"`
-	MissingArts []string            `json:"missing_arts"`
+	Phase       string                `json:"phase"`
+	Passed      bool                  `json:"passed"`
+	MissingArts []string              `json:"missing_arts"`
 	Checks      []CheckResultResponse `json:"checks"`
-	EvaluatedAt time.Time           `json:"evaluated_at"`
+	EvaluatedAt time.Time             `json:"evaluated_at"`
 }
 
 type CheckResultResponse struct {
@@ -84,10 +86,21 @@ type RepoRefResponse struct {
 	Branch string `json:"branch"`
 }
 
-func FeaturesToSummaryResponse(features []*feature.Feature) map[string]interface{} {
+func FeaturesToSummaryResponse(features []*feature.Feature, questionStore feature.QuestionStore) map[string]interface{} {
 	summaries := make([]FeatureSummaryResponse, 0, len(features))
 	for _, f := range features {
-		summaries = append(summaries, FeatureToSummaryResponse(f))
+		summary := FeatureToSummaryResponse(f)
+
+		// Populate pending questions count
+		if questionStore != nil {
+			count, err := questionStore.PendingCount(context.Background(), f.ID)
+			if err != nil {
+				count = 0
+			}
+			summary.PendingQuestionsCount = count
+		}
+
+		summaries = append(summaries, summary)
 	}
 	return map[string]interface{}{"features": summaries}
 }
@@ -185,6 +198,74 @@ func GateResultToResponse(gr *feature.GateResult) GateResultResponse {
 		Checks:      checks,
 		EvaluatedAt: gr.EvaluatedAt,
 	}
+}
+
+type QuestionResponse struct {
+	ID         string   `json:"id"`
+	FeatureID  string   `json:"feature_id"`
+	Phase      string   `json:"phase"`
+	Role       string   `json:"role"`
+	Question   string   `json:"question"`
+	Type       string   `json:"type"`
+	Options    []string `json:"options"`
+	Answer     *string  `json:"answer"`
+	Assumption *string  `json:"assumption"`
+	Status     string   `json:"status"`
+	CreatedAt  string   `json:"created_at"`
+	AnsweredAt *string  `json:"answered_at"`
+}
+
+type CreateQuestionRequest struct {
+	Phase    string   `json:"phase"`
+	Role     string   `json:"role"`
+	Question string   `json:"question"`
+	Type     string   `json:"type"`
+	Options  []string `json:"options"`
+}
+
+type AnswerQuestionRequest struct {
+	Answer string `json:"answer"`
+}
+
+func QuestionToResponse(q *feature.Question) QuestionResponse {
+	var options []string
+	if q.Options == nil {
+		options = []string{}
+	} else {
+		options = q.Options
+	}
+
+	var answeredAt *string
+	if q.AnsweredAt != nil {
+		s := q.AnsweredAt.Format(time.RFC3339)
+		answeredAt = &s
+	}
+
+	return QuestionResponse{
+		ID:         q.ID,
+		FeatureID:  q.FeatureID,
+		Phase:      q.Phase,
+		Role:       q.Role,
+		Question:   q.Question,
+		Type:       q.Type,
+		Options:    options,
+		Answer:     q.Answer,
+		Assumption: q.Assumption,
+		Status:     q.Status,
+		CreatedAt:  q.CreatedAt.Format(time.RFC3339),
+		AnsweredAt: answeredAt,
+	}
+}
+
+func QuestionsToResponse(questions []*feature.Question) []QuestionResponse {
+	if questions == nil {
+		return []QuestionResponse{}
+	}
+	result := make([]QuestionResponse, 0, len(questions))
+	for _, q := range questions {
+		result = append(result, QuestionToResponse(q))
+	}
+	return result
 }
 
 func pipelineChecksToAPI(checks []pipeline.CheckResult) []CheckResultResponse {

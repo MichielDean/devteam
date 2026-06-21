@@ -8,6 +8,7 @@ export interface FeatureSummary {
   current_phase: string;
   updated_at: string;
   gate_result: GateResult | null;
+  pending_questions_count: number;
 }
 
 export interface FeatureListResponse {
@@ -172,6 +173,7 @@ export const STATUS_LABELS: Record<string, string> = {
   done: 'Done',
   recirculated: 'Recirculated',
   cancelled: 'Cancelled',
+  waiting_for_human: 'Waiting for Human',
 };
 
 export const PRIORITY_LABELS: Record<number, string> = {
@@ -179,3 +181,31 @@ export const PRIORITY_LABELS: Record<number, string> = {
   2: 'P2 - Medium',
   3: 'P3 - Low',
 };
+
+// Question types
+export interface Question {
+  id: string;
+  feature_id: string;
+  phase: 'inception' | 'planning';
+  role: 'pm' | 'architect';
+  question: string;
+  type: 'clarification' | 'decision' | 'priority';
+  options: string[];
+  answer: string | null;
+  assumption: string | null;
+  status: 'pending' | 'answered' | 'assumed';
+  created_at: string;
+  answered_at: string | null;
+}
+
+export interface CreateQuestionRequest {
+  phase: string;
+  role: string;
+  question: string;
+  type: string;
+  options?: string[];
+}
+
+export interface AnswerQuestionRequest {
+  answer: string;
+}

@@ -41,14 +41,15 @@ func ParsePhase(s string) Phase {
 type Status string
 
 const (
-	StatusDraft        Status = "draft"
-	StatusInProgress   Status = "in_progress"
-	StatusGateBlocked  Status = "gate_blocked"
-	StatusPassed       Status = "passed"
-	StatusFailed       Status = "failed"
-	StatusDone         Status = "done"
-	StatusRecirculated Status = "recirculated"
-	StatusCancelled    Status = "cancelled"
+	StatusDraft         Status = "draft"
+	StatusInProgress    Status = "in_progress"
+	StatusGateBlocked   Status = "gate_blocked"
+	StatusPassed        Status = "passed"
+	StatusFailed        Status = "failed"
+	StatusDone          Status = "done"
+	StatusRecirculated  Status = "recirculated"
+	StatusCancelled     Status = "cancelled"
+	StatusWaitingHuman  Status = "waiting_for_human"
 )
 
 func (s Status) String() string {
