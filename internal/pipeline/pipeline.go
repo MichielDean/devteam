@@ -151,6 +151,12 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		contextStr = contextStr + "\n\n---\n\n" + specContext
 	}
 
+	// Include gate failure details if present (for recirculation context)
+	gateFailurePath := filepath.Join(p.specProvider.FeatureDir(f.ID), "GATE_FAILURE.md")
+	if gateFailureContent, err := os.ReadFile(gateFailurePath); err == nil {
+		contextStr = contextStr + "\n\n---\n\n# Gate Failure (Previous Attempt)\n\n" + string(gateFailureContent)
+	}
+
 	var roleResults []*role.DispatchResult
 	for _, roleName := range roles {
 		roleDef, err := p.roleLoader.Load(roleName)

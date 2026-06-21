@@ -513,8 +513,10 @@ In brownfield projects, match the existing code style:
 After implementing a task (or group of related tasks):
 
 1. **Build the project**: `go build ./...` or equivalent
-2. **Verify build succeeds**: No compilation errors, no warnings that weren't there before
-3. **If build fails**: Read the error message carefully. Fix the reported error, not what you think the error might be. Do NOT rewrite large sections of code to fix a compile error.
+2. **Run go vet**: `go vet ./...` — catches compile errors in test files, unused variables, and other issues that `go build` misses
+3. **Verify both succeed**: No compilation errors, no vet warnings
+4. **If build fails**: Read the error message carefully. Fix the reported error, not what you think the error might be. Do NOT rewrite large sections of code to fix a compile error.
+5. **If vet fails**: The same issues that vet catches will block the construction gate. Fix them before marking complete.
 
 ### Test Execution
 
@@ -539,15 +541,16 @@ After all tasks are complete:
 
 Implementation is ready for review when:
 1. Every task in tasks.md is complete
-2. Code compiles in every affected repo
-3. Service starts and responds to HTTP requests without panicking
-4. JSON arrays are [] not null in all API responses
-5. Error responses have proper HTTP status codes and structure
-6. No placeholder/stub code remains
-7. Each repo's changes are independently buildable
-8. All done conditions from tasks.md are verified
-9. Existing tests (brownfield) still pass
-10. No phantom methods (every method referenced actually exists)
+2. Code compiles in every affected repo (`go build ./...`)
+3. `go vet ./...` passes — no vet warnings (catches test file compile errors, unused vars, etc.)
+4. Service starts and responds to HTTP requests without panicking
+5. JSON arrays are [] not null in all API responses
+6. Error responses have proper HTTP status codes and structure
+7. No placeholder/stub code remains
+8. Each repo's changes are independently buildable
+9. All done conditions from tasks.md are verified
+10. Existing tests (brownfield) still pass
+11. No phantom methods (every method referenced actually exists)
 
 ---
 

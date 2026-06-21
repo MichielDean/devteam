@@ -11,7 +11,8 @@ import (
 )
 
 type GateEvaluator struct {
-	specProvider *spec.SpecProvider
+	specProvider     *spec.SpecProvider
+	lastCheckOutput string
 }
 
 func NewGateEvaluator(specProvider *spec.SpecProvider) *GateEvaluator {
@@ -374,7 +375,18 @@ func (ge *GateEvaluator) checkMessage(desc string, passed bool, f *feature.Featu
 	if passed {
 		return fmt.Sprintf("✓ %s", desc)
 	}
-	return fmt.Sprintf("✗ %s (phase: %s, feature: %s)", desc, f.CurrentPhase(), f.ID)
+	msg := fmt.Sprintf("✗ %s (phase: %s, feature: %s)", desc, f.CurrentPhase(), f.ID)
+	if ge.lastCheckOutput != "" {
+		lines := strings.Split(ge.lastCheckOutput, "\n")
+		maxLines := 10
+		if len(lines) > maxLines {
+			msg += "\n" + strings.Join(lines[:maxLines], "\n") + fmt.Sprintf("\n... (%d more lines)", len(lines)-maxLines)
+		} else {
+			msg += "\n" + ge.lastCheckOutput
+		}
+		ge.lastCheckOutput = ""
+	}
+	return msg
 }
 
 func (ge *GateEvaluator) checkBuildCompiles(f *feature.Feature) bool {
@@ -387,9 +399,15 @@ func (ge *GateEvaluator) checkBuildCompiles(f *feature.Feature) bool {
 	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		ge.lastCheckOutput = string(output)
 		return false
 	}
-	return len(output) == 0 || !strings.Contains(string(output), "error")
+	if len(output) > 0 && strings.Contains(string(output), "error") {
+		ge.lastCheckOutput = string(output)
+		return false
+	}
+	ge.lastCheckOutput = ""
+	return true
 }
 
 func (ge *GateEvaluator) checkVetPasses(f *feature.Feature) bool {
@@ -402,9 +420,15 @@ func (ge *GateEvaluator) checkVetPasses(f *feature.Feature) bool {
 	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		ge.lastCheckOutput = string(output)
 		return false
 	}
-	return !strings.Contains(string(output), "vet:")
+	if strings.Contains(string(output), "vet:") {
+		ge.lastCheckOutput = string(output)
+		return false
+	}
+	ge.lastCheckOutput = ""
+	return true
 }
 
 func (ge *GateEvaluator) checkNoPlaceholders(f *feature.Feature) bool {
@@ -435,7 +459,13 @@ func (ge *GateEvaluator) checkTestSuitePasses(f *feature.Feature) bool {
 	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		ge.lastCheckOutput = string(output)
 		return false
 	}
-	return !strings.Contains(string(output), "FAIL")
+	if strings.Contains(string(output), "FAIL") {
+		ge.lastCheckOutput = string(output)
+		return false
+	}
+	ge.lastCheckOutput = ""
+	return true
 }
