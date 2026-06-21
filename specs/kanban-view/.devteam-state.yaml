@@ -115,9 +115,9 @@ phase_states:
                 - name: dependencies between tasks are explicit
                   passed: true
                   message: ✓ dependencies between tasks are explicit
-            evaluated_at: 2026-06-21T17:21:24.995220663-06:00
-        started_at: 2026-06-21T17:20:05.455442154-06:00
-        completed_at: 2026-06-21T17:20:05.455442154-06:00
+            evaluated_at: 2026-06-21T17:30:09.403011215-06:00
+        started_at: 2026-06-21T17:27:23.365399042-06:00
+        completed_at: 2026-06-21T17:27:23.365399042-06:00
     review:
         phase: review
         status: draft
