@@ -5,6 +5,7 @@ import type { PhaseName } from '../types';
 
 interface ProcessViewProps {
   featureId: string;
+  mode?: 'autopilot' | 'single-phase' | null;
 }
 
 interface ProcessStep {
@@ -27,7 +28,7 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   questions_assumed: 'Questions auto-assumed',
 };
 
-export default function ProcessView({ featureId }: ProcessViewProps) {
+export default function ProcessView({ featureId, mode }: ProcessViewProps) {
   const { lastEvent } = useSSE(featureId);
   const [steps, setSteps] = useState<ProcessStep[]>([]);
   const [startTime] = useState(Date.now());
@@ -77,7 +78,11 @@ export default function ProcessView({ featureId }: ProcessViewProps) {
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
           )}
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {isComplete ? 'Pipeline Complete' : `Autopilot Running — ${currentPhaseLabel}`}
+            {isComplete
+              ? (mode === 'single-phase' ? 'Phase Complete' : 'Pipeline Complete')
+              : mode === 'single-phase'
+              ? `Running Phase — ${currentPhaseLabel}`
+              : `Autopilot Running — ${currentPhaseLabel}`}
           </h3>
         </div>
         {!isComplete && elapsed && (
@@ -90,7 +95,7 @@ export default function ProcessView({ featureId }: ProcessViewProps) {
       {!isComplete && steps.length === 0 && (
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-          <span>Starting autopilot...</span>
+          <span>{mode === 'single-phase' ? 'Starting phase...' : 'Starting autopilot...'}</span>
         </div>
       )}
 

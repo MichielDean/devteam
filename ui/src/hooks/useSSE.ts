@@ -73,12 +73,15 @@ export function useSSE(featureId: string | null): UseSSEReturn {
     es.addEventListener('gate_result', (e: MessageEvent) => handleEvent('gate_result', e));
     es.addEventListener('agent_dispatch', (e: MessageEvent) => handleEvent('agent_dispatch', e));
     es.addEventListener('agent_complete', (e: MessageEvent) => handleEvent('agent_complete', e));
+    es.addEventListener('agent_output', (e: MessageEvent) => handleEvent('agent_output', e));
     es.addEventListener('processing_complete', (e: MessageEvent) => handleEvent('processing_complete', e));
+    es.addEventListener('phase_complete', (e: MessageEvent) => handleEvent('phase_complete', e));
     es.addEventListener('error', (e: MessageEvent) => handleEvent('error', e));
     es.addEventListener('state_change', (e: MessageEvent) => handleEvent('state_change', e));
     es.addEventListener('waiting_for_human', (e: MessageEvent) => handleEvent('waiting_for_human', e));
     es.addEventListener('questions_answered', (e: MessageEvent) => handleEvent('questions_answered', e));
     es.addEventListener('questions_assumed', (e: MessageEvent) => handleEvent('questions_assumed', e));
+    es.addEventListener('question_answered', (e: MessageEvent) => handleEvent('question_answered', e));
   }, [featureId, handleEvent]);
 
   useEffect(() => {

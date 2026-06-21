@@ -34,11 +34,13 @@ export default function FeatureDetail() {
   });
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMode, setProcessingMode] = useState<'autopilot' | 'single-phase' | null>(null);
 
   useEffect(() => {
     if (!lastEvent) return;
     if (lastEvent.type === 'processing_complete' || lastEvent.type === 'error' || lastEvent.type === 'phase_complete') {
       setIsProcessing(false);
+      setProcessingMode(null);
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
       queryClient.invalidateQueries({ queryKey: ['features'] });
     } else if (lastEvent.type === 'agent_dispatch' || lastEvent.type === 'phase_change' || lastEvent.type === 'gate_result') {
@@ -51,11 +53,13 @@ export default function FeatureDetail() {
     mutationFn: () => runPhase(id!),
     onSuccess: () => {
       setIsProcessing(true);
+      setProcessingMode('single-phase');
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
       addToast('success', 'Phase execution started — watch the progress below');
     },
     onError: (err: Error) => {
       setIsProcessing(false);
+      setProcessingMode(null);
       if (err.message.includes('already')) {
         addToast('error', 'Feature is already being processed');
       } else {
@@ -96,10 +100,13 @@ export default function FeatureDetail() {
   const processMutation = useMutation({
     mutationFn: () => processFeature(id!),
     onSuccess: () => {
+      setIsProcessing(true);
+      setProcessingMode('autopilot');
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
       addToast('success', 'Autopilot started — sit back and watch');
     },
     onError: (err: Error) => {
+      setProcessingMode(null);
       if (err.message.includes('already')) {
         addToast('error', 'Feature is already being processed');
       } else {
@@ -420,7 +427,7 @@ export default function FeatureDetail() {
 
       {/* Process View (shown during processing) */}
       {showProcessView && feature.status === 'in_progress' && (
-        <ProcessView featureId={feature.id} />
+        <ProcessView featureId={feature.id} mode={processingMode} />
       )}
 
       {/* Agent Output (shown during processing) */}
@@ -436,11 +443,21 @@ export default function FeatureDetail() {
       {/* Questions Section */}
       {questions.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Questions</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Questions</h3>
+            {feature.status === 'waiting_for_human' && (
+              <span className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                {questions.filter((q) => q.status === 'pending').length} pending
+              </span>
+            )}
+          </div>
           {feature.status === 'waiting_for_human' && (
-            <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="waiting-for-human-banner">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                The pipeline is paused. Answer the questions below so it can continue.
+            <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700 rounded-lg" data-testid="waiting-for-human-banner">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
+                The pipeline is paused waiting for your input.
+              </p>
+              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                Answer all questions below — the pipeline resumes automatically once every question is answered.
               </p>
             </div>
           )}
@@ -450,9 +467,11 @@ export default function FeatureDetail() {
             ))}
           </div>
           {questions.every((q) => q.status !== 'pending') && questions.length > 0 && (
-            <p className="mt-4 text-sm text-green-600 dark:text-green-400" data-testid="all-questions-answered">
-              ✓ All questions answered. Pipeline will resume.
-            </p>
+            <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg" data-testid="all-questions-answered">
+              <p className="text-sm text-green-600 dark:text-green-400 font-medium">
+                ✓ All questions answered. Pipeline will resume automatically.
+              </p>
+            </div>
           )}
         </div>
       )}
