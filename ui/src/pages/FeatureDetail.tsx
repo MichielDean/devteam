@@ -33,8 +33,15 @@ export default function FeatureDetail() {
     enabled: !!id,
   });
 
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(feature?.is_processing ?? false);
   const [processingMode, setProcessingMode] = useState<'autopilot' | 'single-phase' | null>(null);
+
+  // Sync isProcessing from server response (handles page refresh)
+  useEffect(() => {
+    if (feature) {
+      setIsProcessing(feature.is_processing);
+    }
+  }, [feature?.is_processing]);
 
   useEffect(() => {
     if (!lastEvent) return;
