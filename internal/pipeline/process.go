@@ -47,6 +47,22 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 		}
 	}
 
+	// Create feature branch and draft PR at pipeline start
+	branchCreated := false
+	if _, err := p.gitClient.CurrentBranch(); err == nil {
+		// Already on a branch — check if we need to create a feature branch
+		branchName := "feat/" + f.ID
+		if !p.gitClient.HasRemoteBranch(branchName) {
+			if _, err := p.CreateFeatureBranch(f); err != nil {
+				log.Printf("warning: could not create feature branch: %v", err)
+			} else {
+				branchCreated = true
+			}
+		} else {
+			branchCreated = true
+		}
+	}
+
 	now := time.Now()
 
 	// Emit initial phase_change event
@@ -244,11 +260,25 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 		}
 
 		if gr.Passed {
+			// Push phase changes after gate passes
+			if branchCreated {
+				if err := p.PushPhaseChanges(f, currentPhase); err != nil {
+					log.Printf("warning: could not push phase changes: %v", err)
+				}
+			}
+
 			// Check if we've reached delivery
 			if currentPhase == feature.PhaseDelivery {
 				f.MarkDone()
 				if err := p.specProvider.SaveFeatureState(f); err != nil {
 					return fmt.Errorf("marking feature done: %w", err)
+				}
+
+				// Mark draft PR as ready for review
+				if branchCreated {
+					if err := p.MarkPRReady(f); err != nil {
+						log.Printf("warning: could not mark PR ready: %v", err)
+					}
 				}
 
 				eventCh <- ProcessEvent{
