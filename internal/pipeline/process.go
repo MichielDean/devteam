@@ -305,16 +305,35 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 				}
 			}
 
-			f, err = p.RecirculateFeature(f, targetPhase, "gate failed during autonomous processing")
-			if err != nil {
-				eventCh <- ProcessEvent{
-					Type:      "error",
-					FeatureID: f.ID,
-					Phase:     currentPhase,
-					Message:   fmt.Sprintf("Failed to recirculate: %v", err),
-					Timestamp: time.Now(),
+			if targetPhase == currentPhase {
+				// Same-phase retry: reset phase state and stay in place
+				if ps, ok := f.PhaseStates[currentPhase]; ok {
+					ps.Status = feature.StatusRecirculated
+					ps.CompletedAt = nil
 				}
-				return fmt.Errorf("recirculating from %s to %s: %w", currentPhase, targetPhase, err)
+				f.Status = feature.StatusRecirculated
+				if err := p.specProvider.SaveFeatureState(f); err != nil {
+					eventCh <- ProcessEvent{
+						Type:      "error",
+						FeatureID: f.ID,
+						Phase:     currentPhase,
+						Message:   fmt.Sprintf("Failed to save state for same-phase retry: %v", err),
+						Timestamp: time.Now(),
+					}
+					return fmt.Errorf("saving state for same-phase retry on feature %s: %w", f.ID, err)
+				}
+			} else {
+				f, err = p.RecirculateFeature(f, targetPhase, "gate failed during autonomous processing")
+				if err != nil {
+					eventCh <- ProcessEvent{
+						Type:      "error",
+						FeatureID: f.ID,
+						Phase:     currentPhase,
+						Message:   fmt.Sprintf("Failed to recirculate: %v", err),
+						Timestamp: time.Now(),
+					}
+					return fmt.Errorf("recirculating from %s to %s: %w", currentPhase, targetPhase, err)
+				}
 			}
 
 			eventCh <- ProcessEvent{
