@@ -33,6 +33,27 @@ func (s *Server) IsProcessing(id string) bool {
 	return loaded
 }
 
+func (s *Server) ProcessingMode(id string) string {
+	v, loaded := s.activeProcess.Load(id)
+	if !loaded {
+		return ""
+	}
+	mode, _ := v.(string)
+	return mode
+}
+
+// RestoreActiveProcesses scans tmux for active devteam sessions and restores
+// the activeProcess map. Called on server startup.
+func (s *Server) RestoreActiveProcesses() {
+	sessions := s.pipeline.Dispatcher().ListActiveSessions()
+	for featureID := range sessions {
+		s.activeProcess.Store(featureID, "autopilot")
+		log.Printf("restored active process for feature %s from tmux session", featureID)
+	}
+}
+
+// NewServer creates a new API server.
+
 func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore) *Server {
 	s := &Server{
 		specProvider:  specProvider,
@@ -55,6 +76,7 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("GET /api/features/{id}/gate", s.evaluateGate)
 	mux.HandleFunc("GET /api/features/{id}/artifacts/{type}", s.getArtifact)
 	mux.HandleFunc("GET /api/features/{id}/stream", s.streamFeature)
+	mux.HandleFunc("GET /api/features/{id}/output", s.getCapturedOutput)
 
 	// Question endpoints
 	mux.HandleFunc("GET /api/features/{id}/questions/pending", s.listPendingQuestions)
@@ -275,6 +297,7 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 		defer s.activeProcess.Delete(id)
 		ctx := context.Background()
 		currentPhase := f.Current
+		log.Printf("runPhase goroutine started for feature %s, phase %s", id, currentPhase)
 
 		s.broadcastSSE(id, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, id, currentPhase))
 		s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched"}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase)))
@@ -290,6 +313,7 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 			s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","message":"Phase execution failed: %s"}`, id, currentPhase, err.Error()))
 			return
 		}
+		log.Printf("phase %s completed for feature %s in %v", currentPhase, id, result.Duration)
 
 		s.broadcastSSE(id, "agent_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"success","duration_ms":%d}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase), result.Duration.Milliseconds()))
 
@@ -567,6 +591,36 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(content))
+}
+
+func (s *Server) getCapturedOutput(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
+		return
+	}
+
+	if !s.IsProcessing(id) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"is_processing": false,
+			"output":        "",
+		})
+		return
+	}
+
+	output, err := s.pipeline.Dispatcher().CaptureOutput(id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"is_processing": true,
+			"output":        "",
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"is_processing": true,
+		"output":        output,
+	})
 }
 
 func (s *Server) streamFeature(w http.ResponseWriter, r *http.Request) {

@@ -33,12 +33,14 @@ type DispatchResult struct {
 type Dispatcher struct {
 	workingDir string
 	timeout    time.Duration
+	tmux       *TmuxSessionManager
 }
 
 func NewDispatcher(workingDir string) *Dispatcher {
 	return &Dispatcher{
 		workingDir: workingDir,
 		timeout:    0,
+		tmux:       NewTmuxSessionManager(workingDir),
 	}
 }
 
@@ -53,6 +55,15 @@ type OutputLine struct {
 }
 
 func (d *Dispatcher) DispatchStreaming(ctx context.Context, req DispatchRequest, lineCh chan<- OutputLine) (*DispatchResult, error) {
+	// Use tmux for session management and output capture
+	if d.tmux != nil {
+		return d.tmux.DispatchStreaming(ctx, req, lineCh)
+	}
+	return d.dispatchDirect(ctx, req, lineCh)
+}
+
+// dispatchDirect is the fallback without tmux (original pipe-based approach)
+func (d *Dispatcher) dispatchDirect(ctx context.Context, req DispatchRequest, lineCh chan<- OutputLine) (*DispatchResult, error) {
 	start := time.Now()
 	result := &DispatchResult{
 		FeatureID: req.FeatureID,
@@ -172,6 +183,38 @@ func (d *Dispatcher) DispatchStreaming(ctx context.Context, req DispatchRequest,
 
 func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*DispatchResult, error) {
 	return d.DispatchStreaming(ctx, req, nil)
+}
+
+// IsSessionAlive checks if a tmux session exists for the given feature ID.
+func (d *Dispatcher) IsSessionAlive(featureID string) bool {
+	if d.tmux == nil {
+		return false
+	}
+	return d.tmux.IsSessionAlive(d.tmux.SessionName(featureID))
+}
+
+// CaptureOutput returns the current terminal output for a feature's tmux session.
+func (d *Dispatcher) CaptureOutput(featureID string) (string, error) {
+	if d.tmux == nil {
+		return "", fmt.Errorf("tmux not available")
+	}
+	return d.tmux.CaptureOutput(d.tmux.SessionName(featureID))
+}
+
+// ListActiveSessions returns feature IDs that have active tmux sessions.
+func (d *Dispatcher) ListActiveSessions() map[string]string {
+	if d.tmux == nil {
+		return map[string]string{}
+	}
+	return d.tmux.ListActiveSessions()
+}
+
+// KillSession kills the tmux session for a feature.
+func (d *Dispatcher) KillSession(featureID string) error {
+	if d.tmux == nil {
+		return nil
+	}
+	return d.tmux.KillSession(d.tmux.SessionName(featureID))
 }
 
 func (d *Dispatcher) DispatchCrossRepo(ctx context.Context, req DispatchRequest, repoNames []string) (*DispatchResult, error) {

@@ -28,6 +28,11 @@ type Pipeline struct {
 	gitClient     *gitops.GitClient
 }
 
+// Dispatcher returns the role dispatcher (for tmux session management).
+func (p *Pipeline) Dispatcher() *role.Dispatcher {
+	return p.dispatcher
+}
+
 func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline {
 	baseDir := specProvider.BaseDir()
 	return &Pipeline{
@@ -272,6 +277,7 @@ type OutputLineCallback func(line string, isStderr bool)
 // to the callback in real time.
 func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Feature, onOutput OutputLineCallback) (*RunResult, error) {
 	currentPhase := f.CurrentPhase()
+	log.Printf("RunPhaseWithAgentStreaming: starting for phase %s, feature %s", currentPhase, f.ID)
 	phaseConfig, err := p.getPhaseConfig(currentPhase)
 	if err != nil {
 		return nil, err
@@ -281,6 +287,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	if len(roles) == 0 {
 		return nil, fmt.Errorf("no roles configured for phase %s", currentPhase)
 	}
+	log.Printf("RunPhaseWithAgentStreaming: roles=%v", roles)
 
 	now := time.Now()
 	ps, ok := f.PhaseStates[currentPhase]
@@ -353,6 +360,8 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 			Context:   promptContext,
 		}
 
+		log.Printf("RunPhaseWithAgentStreaming: dispatching role %s for phase %s", roleName, currentPhase)
+
 		lineCh := make(chan role.OutputLine, 100)
 		var streamDone chan struct{}
 		if onOutput != nil {
@@ -368,6 +377,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		}
 
 		result, err := p.dispatcher.DispatchStreaming(ctx, req, lineCh)
+		log.Printf("RunPhaseWithAgentStreaming: dispatch returned, err=%v", err)
 		if streamDone != nil {
 			<-streamDone
 		}

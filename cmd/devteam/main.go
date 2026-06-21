@@ -56,6 +56,7 @@ func main() {
 		// If ui/dist doesn't exist, staticFS is nil — API-only mode (no frontend)
 
 		server := api.NewServer(*httpAddr, specProvider, p, staticFS, questionStore)
+		server.RestoreActiveProcesses()
 
 		fmt.Printf("Dev Team Web UI starting on %s\n", *httpAddr)
 		if err := server.Start(); err != nil {

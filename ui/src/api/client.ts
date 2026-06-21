@@ -162,3 +162,8 @@ export async function answerQuestion(featureId: string, questionId: string, answ
 export async function listPendingQuestions(featureId: string): Promise<Question[]> {
   return request<Question[]>(`/features/${featureId}/questions/pending`);
 }
+
+// Get captured tmux output for a feature (for page refresh recovery)
+export async function getCapturedOutput(featureId: string): Promise<{ is_processing: boolean; output: string }> {
+  return request<{ is_processing: boolean; output: string }>(`/features/${featureId}/output`);
+}
