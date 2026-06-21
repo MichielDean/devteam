@@ -7,11 +7,12 @@
 
 ## Summary
 
-- Acceptance criteria: 89 total (AC-001 through AC-089, plus AC-SEC-001 through AC-SEC-003, plus AC-RES-001 and AC-RES-002)
+- Acceptance criteria: 93 total (AC-001 through AC-089, plus AC-SEC-001 through AC-SEC-003, plus AC-RES-001 and AC-RES-002)
 - **MET**: 72
-- **NOT MET**: 10
-- **UNVERIFIABLE (E2E/Integration)**: 7 (require running system, reviewed for code correctness)
-- Findings: 3 critical (needs fixing), 5 required (should fix), 4 noted
+- **NOT MET**: 3 (AC-081, AC-RES-001, AC-RES-002)
+- **MET WITH CAVEAT**: 7 (AC-002, AC-015, AC-021, AC-086, AC-SEC-003, and AC-006/AC-007 validation gap)
+- **UNVERIFIABLE (E2E/Integration)**: 3 (AC-087, AC-088, AC-089 — require running system, reviewed for code correctness)
+- Findings: 4 NEEDS FIXING, 3 SHOULD FIX, 6 NOTED
 
 ---
 
@@ -88,7 +89,7 @@
 #### AC-015: Given a feature in "waiting_for_human" status, when all questions are answered via the API, then the feature status transitions to "in_progress" and the pipeline resumes
 - **Status**: MET (with caveat)
 - **Evidence**: `internal/pipeline/process.go:69-112` — At start of each loop iteration, if `f.Status == feature.StatusWaitingHuman`, checks `PendingCount`. If 0, calls `f.ResumeFromWaitingHuman()` and emits `questions_answered` SSE event. The pipeline then continues the loop, which re-dispatches the agent with human responses in context.
-- **Caveat**: The pipeline loop polls every 5 seconds (line 103). There is no immediate resume on PATCH — the resume happens on the next poll cycle. This is acceptable for an MVP but is a latency concern.
+- **Caveat**: The pipeline loop polls every 5 seconds (line 106). There is no immediate resume on PATCH — the resume happens on the next poll cycle. Additionally, the polling loop has a variable shadowing bug (F-011) where `f` is never updated from disk reloads in the poll path, though this doesn't affect the `pendingCount == 0` check since that queries the store directly.
 
 #### AC-016: Given a feature in construction phase, when the developer dispatch completes, then the feature never enters "waiting_for_human" regardless of questions.json presence
 - **Status**: MET
@@ -479,12 +480,20 @@
 - **Code**: `internal/pipeline/process.go:96-112`
 - **Description**: The ProcessAsync loop polls every 5 seconds to check if questions have been answered. The spec says "the pipeline detects all questions are answered (via API call or SSE event)". The polling approach introduces up to 5 seconds of latency before the pipeline resumes. This is acceptable for MVP but could be improved with a channel-based notification.
 
-### F-008: SSE Broadcasting from Pipeline is Logging-Only
+### F-008: SSE Broadcasting from Pipeline Timeout Goroutine is Logging-Only
 - **Severity**: NEEDS FIXING
 - **Criterion**: FR-006
-- **Code**: `internal/pipeline/process.go:384-389`
-- **Description**: The `broadcastSSE` method on Pipeline is a placeholder that only logs events. The actual SSE broadcasting happens through the `processFeature` handler in the API server. The `waiting_for_human` and `questions_answered` events are emitted via the `eventCh` channel during ProcessAsync, but the `startTimeoutGoroutine` uses `p.broadcastSSE` which only logs. This means timeout-triggered `questions_assumed` events are logged but not pushed to SSE clients. This is a functional gap: when the timeout fires and questions are auto-assumed, the UI will not receive a real-time update. The user would need to manually refresh to see the status change.
-- **Fix**: The timeout goroutine should have access to the event channel or the Server's SSE broadcasting mechanism. Options: (a) pass the eventCh to `startTimeoutGoroutine` and emit the event there, (b) store a reference to the Server in the Pipeline for SSE broadcasting, or (c) use a callback function that the goroutine calls when the timeout fires.
+- **Code**: `internal/pipeline/process.go:425-429` (Pipeline.broadcastSSE), `internal/pipeline/process.go:414` (timeout goroutine call)
+- **Description**: The `broadcastSSE` method on Pipeline (lines 425-429) is a placeholder that only logs events:
+  ```go
+  func (p *Pipeline) broadcastSSE(featureID string, eventType string, data string) {
+      log.Printf("SSE event: type=%s feature=%s data=%s", eventType, featureID, data)
+  }
+  ```
+  The timeout goroutine calls this method at line 414: `p.broadcastSSE(featureID, "questions_assumed", ...)`. The actual SSE broadcasting happens through the `eventCh` channel in `ProcessAsync` (line 85-92 for `questions_answered` events), but the timeout goroutine has no access to this channel. The Server's `broadcastSSE` method (server.go:601-612) does send to SSE clients, but the Pipeline has no reference to it.
+  
+  **Impact**: When a timeout fires and questions are auto-assumed, SSE clients (the UI) will NEVER receive the `questions_assumed` event. The user must manually refresh the page to see that questions were assumed and the feature status changed. The `waiting_for_human` event (line 184-191) and `questions_answered` event (line 85-92) ARE properly sent via `eventCh`, so they reach SSE clients correctly.
+- **Fix**: The timeout goroutine needs access to a mechanism that sends events to SSE clients. Options: (a) pass the `eventCh` channel to `startTimeoutGoroutine` so it can emit events directly, (b) add a reference from Pipeline to Server for SSE broadcasting, or (c) use a callback function pattern.
 
 ### F-009: Missing Resume Pipeline Button
 - **Severity**: NOTED
@@ -498,19 +507,48 @@
 - **Code**: `internal/api/server.go:730-732`
 - **Description**: When creating a question via POST, `q.Options = []string{}` is set if nil. This ensures empty options are `[]` not `null` in JSON. However, the `CreateQuestionRequest` struct uses `[]string` for Options without `omitempty`, so an empty array in the JSON body (`[]`) is preserved, but a missing `options` field results in nil which is then coerced to `[]string{}`. This is correct behavior.
 
-### F-011: Stale Feature Reload in Waiting Loop
-- **Severity**: NOTED
-- **Criterion**: AC-015 (pipeline resume latency)
-- **Code**: `internal/pipeline/process.go:105-109`
-- **Description**: In the `waiting_for_human` polling branch, the reloaded feature `f, err := p.GetFeature(f.ID)` is assigned to a new local variable with `:=` and then explicitly discarded with `_ = f`. The outer `f` variable is never updated. This means the loop continues checking the stale `f` object from the start of the iteration. However, this is functionally correct because: (1) `PendingCount` is called fresh from the store each iteration (line 70), so question status changes ARE detected, and (2) `f.ResumeFromWaitingHuman()` operates on the in-memory `f` which is still in `waiting_for_human` status, which is the correct precondition. The code is misleading and could confuse future maintainers, but it does not produce incorrect behavior.
-- **Fix**: Change `f, err := p.GetFeature(f.ID)` to `f, err = p.GetFeature(f.ID)` (assignment, not declaration) and remove `_ = f`, so the outer `f` is properly updated. This makes the code clearer and ensures feature state is fresh for subsequent checks.
+### F-011: Stale Feature Variable in Polling Loop (BUG)
+- **Severity**: NEEDS FIXING
+- **Criterion**: AC-015
+- **Code**: `internal/pipeline/process.go:108-112`
+- **Description**: In the `waiting_for_human` polling branch, the reloaded feature `f, err := p.GetFeature(f.ID)` uses `:=` which creates a NEW local variable that shadows the outer loop variable `f`. Line 112 then discards it with `_ = f`. The outer `f` variable is NEVER updated from this reload. This means the polling loop always operates on a stale `f` object from before the `waiting_for_human` check. While `PendingCount` (line 73) queries the store directly and DOES detect question status changes, the stale `f` causes problems:
+  1. After `ResumeFromWaitingHuman()` on line 79, the save on line 82 persists the in-memory `f` state, but the reload on line 95 (`f, err = p.GetFeature(f.ID)` — correct `=` assignment) overwrites it. This specific path is OK.
+  2. The polling path (lines 103-114) uses `:=` which shadows and discards. The outer `f` remains stale with `StatusWaitingHuman`, so the next iteration's `f.Status == feature.StatusWaitingHuman` check on line 72 always uses stale state. This WORKS because `PendingCount` is checked from the store each iteration, but the feature state is never refreshed, meaning any other state changes (e.g., a cancel operation from the API) would be invisible to the polling loop.
+- **Fix**: Change line 108 from `f, err :=` to `f, err =` (assignment, not declaration) and remove line 112 (`_ = f`), so the outer `f` is properly updated with reloaded state.
 
-### F-012: Cancel Does Not Clear Questions
-- **Severity**: NOTED
+### F-012: Cancel Does Not Clear Questions (Related: F-013)
+- **Severity**: SHOULD FIX
 - **Criterion**: FR-008
 - **Code**: `internal/api/server.go:374-403`
-- **Description**: When a feature in `waiting_for_human` status is cancelled, the `cancelFeature` handler calls `f.Cancel()` but does NOT call `questionStore.DeleteQuestionsForFeature`. While AC-076 only requires the feature transition to `cancelled` (which is met), the spec's FR-008 says "If a feature is in `waiting_for_human` and the user cancels it, it transitions to `cancelled`" and doesn't explicitly require question deletion on cancel (only on recirculation). However, leaving orphaned questions for a cancelled feature is a data cleanliness concern. The questions won't cause functional issues since the feature is terminal, but they'll remain in the store.
-- **Recommendation**: Add `questionStore.DeleteQuestionsForFeature` call in `cancelFeature` when the feature status is `waiting_for_human`, consistent with how `recirculateFeature` already clears questions.
+- **Description**: When a feature in `waiting_for_human` status is cancelled, the `cancelFeature` handler calls `f.Cancel()` but does NOT call `questionStore.DeleteQuestionsForFeature`. While AC-076 only requires the feature transition to `cancelled` (which is met), the spec's FR-008 says "If a feature is in `waiting_for_human` and the user cancels it, it transitions to `cancelled`" and doesn't explicitly require question deletion on cancel (only on recirculation). However, leaving orphaned questions for a cancelled feature is a data cleanliness concern. The questions won't cause functional issues since the feature is terminal, but they'll remain in the store. Additionally, the timeout goroutine for this feature continues running — see F-013 for details. Also cancel any running timeout goroutine for the feature.
+
+### F-013: Cancel Handler Does Not Delete Questions or Cancel Timeout Goroutine
+- **Severity**: NEEDS FIXING
+- **Criterion**: FR-008, AC-076
+- **Code**: `internal/api/server.go:374-403`
+- **Description**: When a feature in `waiting_for_human` status is cancelled, the `cancelFeature` handler (line 396) calls `f.Cancel()` and saves state, but does NOT: (1) delete questions for the feature, or (2) cancel the running timeout goroutine. This means:
+  1. Orphaned question files remain on disk for a cancelled feature
+  2. The timeout goroutine continues running and will eventually try to auto-assume questions for a cancelled feature, potentially mutating state on a feature that's supposed to be terminal
+  3. When the timeout goroutine fires, it calls `p.GetFeature(featureID)` which loads the now-cancelled feature, checks `f.Status == feature.StatusWaitingHuman` (line 404), and since the status is now `cancelled`, the goroutine exits without doing anything — so there's no data corruption, but there IS a goroutine leak
+- **Fix**: In `cancelFeature`, when the feature status is `waiting_for_human`, also call `questionStore.DeleteQuestionsForFeature` and signal the timeout goroutine to stop (e.g., via a per-feature context cancellation).
+
+### F-014: Race Condition Between Timeout Goroutine and Polling Loop
+- **Severity**: SHOULD FIX
+- **Criterion**: AC-015, AC-021
+- **Code**: `internal/pipeline/process.go:64-116` (polling loop) and `internal/pipeline/process.go:381-418` (timeout goroutine)
+- **Description**: Both the main `ProcessAsync` polling loop (line 77-93) and the `startTimeoutGoroutine` (line 381-418) can attempt to resume a feature from `waiting_for_human` status. If a human answers questions just before the timeout fires, both paths may execute concurrently:
+  1. The polling loop detects `pendingCount == 0` and calls `f.ResumeFromWaitingHuman()` + `SaveFeatureState`
+  2. The timeout goroutine fires, calls `AssumeAllPendingQuestions` (which finds 0 pending questions and returns an empty list), then loads the feature, sees it's no longer `waiting_for_human`, and exits
+  3. The race occurs if both paths detect `waiting_for_human` status simultaneously and both attempt to call `ResumeFromWaitingHuman()` on the same feature object. While `ResumeFromWaitingHuman()` checks `f.Status != StatusWaitingHuman`, the two goroutines operate on different copies of the feature loaded from disk at different times, so both could see `waiting_for_human` status
+- **Current impact**: Low — the second goroutine's `SaveFeatureState` call would overwrite with the same state (`in_progress`), so no data corruption occurs. But the double `questions_answered`/`questions_assumed` SSE events could cause UI confusion.
+- **Fix**: Use a per-feature mutex or context cancellation to ensure only one path can transition the feature out of `waiting_for_human`. The timeout goroutine should check if the feature has already been resumed before proceeding.
+
+### F-015: Answer Validation Checks Raw Length Instead of Trimmed Length
+- **Severity**: NOTED
+- **Criterion**: AC-006, AC-007
+- **Code**: `internal/api/server.go:769-777`
+- **Description**: The empty check uses `strings.TrimSpace(req.Answer)` but the max-length check uses `len(req.Answer)` (before trimming). This means an answer with 5001 leading/trailing spaces would pass the length check but fail the empty check (since trimmed is empty). Conversely, an answer that's 5000 raw characters but only 5 meaningful characters after trimming would be accepted and stored as the 5-character trimmed version. The stored value is the trimmed version, so the effective length limit is inconsistent.
+- **Fix**: Change `len(req.Answer) > 5000` to `len(answer) > 5000` where `answer = strings.TrimSpace(req.Answer)`, so the length check operates on the same value that will be stored.
 
 ---
 
@@ -535,20 +573,22 @@ No — all USs are covered.
 
 ### Spec Drift Check
 The implementation closely follows the spec with the following deviations:
-1. Timeout reset (F-001) is not implemented per spec
-2. Server restart timeout recalculation (F-002) is not implemented per spec
-3. Pipeline SSE broadcasting for timeout events (F-008) logs instead of broadcasting
+1. Timeout reset (F-001) is not implemented per spec — AC-081 explicitly requires resetting timeout on new question addition
+2. Server restart timeout recalculation (F-002) is not implemented per spec — AC-RES-002 requires persisting `waiting_human_since` timestamp
+3. Pipeline SSE broadcasting for timeout events (F-008) logs instead of broadcasting to SSE clients — `Pipeline.broadcastSSE` is a no-op placeholder
+4. Stale feature variable in polling loop (F-011) — the `:=` shadowing on line 108 means external state changes are invisible to the polling loop
+5. Cancel handler doesn't clean up questions or timeout goroutine (F-012, F-013)
 
 ---
 
 ## Over-Engineering Check
 
 The implementation is proportional to the spec. Key files and approximate line counts:
-- `internal/feature/question.go`: 533 lines (includes model, store, detection, context building, status transitions — all spec-required)
-- `internal/api/server.go`: 795 lines (includes existing + ~170 new question handler lines)
-- `internal/pipeline/process.go`: 398 lines (includes question detection, waiting_for_human loop, timeout goroutine)
-- `ui/src/components/QuestionCard.tsx`: 157 lines (clean, spec-aligned)
-- `ui/src/components/QuestionBadge.tsx`: 21 lines (minimal, clean)
+- `internal/feature/question.go`: ~530 lines (includes model, store, detection, context building, status transitions — all spec-required)
+- `internal/api/server.go`: ~795 lines (includes existing + ~170 new question handler lines)
+- `internal/pipeline/process.go`: ~439 lines (includes question detection, waiting_for_human loop, timeout goroutine)
+- `ui/src/components/QuestionCard.tsx`: ~157 lines (clean, spec-aligned)
+- `ui/src/components/QuestionBadge.tsx`: ~21 lines (minimal, clean)
 
 No over-engineering detected. The implementation is the minimum needed for the spec requirements.
 
@@ -556,9 +596,10 @@ No over-engineering detected. The implementation is the minimum needed for the s
 
 ## Missing Implementation
 
-1. **Timeout reset mechanism (AC-081)**: No code to reset the timeout when a new question is added while in `waiting_for_human` status.
-2. **Server restart timeout recalculation (AC-RES-002)**: No persistence of `waiting_for_human` entry timestamp for restart recovery.
-3. **SSE broadcasting for timeout events**: `p.broadcastSSE` is logging-only; timeout-triggered `questions_assumed` events are not pushed to SSE clients.
+1. **Timeout reset mechanism (AC-081)**: No code to reset the timeout when a new question is added while in `waiting_for_human` status. The `POST /api/features/{id}/questions` endpoint (server.go:670-742) does not interact with the timeout goroutine at all.
+2. **Server restart timeout recalculation (AC-RES-002)**: No persistence of `waiting_for_human` entry timestamp for restart recovery. The Feature struct has no `WaitingHumanSince` field, and `.devteam-state.yaml` does not store when the feature entered `waiting_for_human`.
+3. **SSE broadcasting for timeout events (FR-006)**: `Pipeline.broadcastSSE` is a logging-only placeholder (process.go:425-429). The `questions_assumed` event from the timeout goroutine never reaches SSE clients.
+4. **Cancel handler cleanup (FR-008)**: The `cancelFeature` handler (server.go:374-403) does not delete questions or cancel the running timeout goroutine for features in `waiting_for_human` status.
 
 ---
 
@@ -567,17 +608,39 @@ No over-engineering detected. The implementation is the minimum needed for the s
 1. ✅ Every acceptance criterion has been checked with quoted evidence
 2. ✅ "No issues found" includes evidence of what was verified
 3. ✅ Security review is complete (P1 feature)
-4. ✅ Null pointer safety verified — `Answer` and `Assumption` are `*string` with nil checks; `Options` is coerced to `[]string{}` when nil
-5. ✅ Error paths verified — 400, 404, 409 responses are implemented; 500 for store errors
-6. ✅ Middleware chain verified — `recoveryMiddleware → corsMiddleware → mux` order preserved (server.go:64); PATCH added to CORS methods (server.go:86)
+4. ✅ Null pointer safety verified — `Answer` and `Assumption` are `*string` with nil checks in `BuildHumanResponsesContext`; `Options` is coerced to `[]string{}` when nil; `AnsweredAt` is `*time.Time` properly handled
+5. ✅ Error paths verified — 400, 404, 409 responses are implemented; 500 for store errors (see F-003 about 503 deviation)
+6. ✅ Middleware chain verified — `recoveryMiddleware → corsMiddleware → mux` order preserved (server.go:64); PATCH added to CORS methods (server.go:86); `MaxBytesReader` on PATCH body (1MB limit)
 7. ✅ Over-engineering check completed — no unnecessary abstractions or features beyond spec
-8. ✅ Missing implementation check completed — 2 findings (F-001, F-002) that need fixing
-9. ✅ Over-engineering check completed — no unnecessary abstractions or features beyond spec
+8. ✅ Missing implementation check completed — 3 NOT MET criteria (AC-081, AC-RES-001, AC-RES-002)
+9. ⚠️ Concurrency safety verified — race condition between timeout goroutine and polling loop identified (F-014); cancel handler does not clean up goroutine (F-013); stale variable bug in polling loop (F-011)
 
 ---
 
 ## Conclusion
 
-The implementation is solid and covers 72 of 89 acceptance criteria as MET, with 7 requiring runtime verification (E2E/integration tests), and 2 critical findings that need fixing (F-001: timeout reset, F-002: server restart timeout recovery). F-008 (SSE broadcasting from timeout goroutine) is upgraded to NEEDS FIXING as it's a functional gap affecting real-time UI updates. The remaining findings are noted but acceptable for MVP.
+The implementation covers 72 of 93 acceptance criteria as MET, with 3 NOT MET, 7 MET WITH CAVEAT, and 3 requiring runtime verification. The core functionality (question model, API endpoints, status transitions, UI components) is solid and well-implemented.
 
-**Recommendation**: Fix F-001 (timeout reset), F-002 (server restart timeout), and F-008 (SSE broadcasting from timeout goroutine) before proceeding to testing. F-011 (stale feature reload) and F-012 (cancel doesn't clear questions) are minor code quality improvements that should be addressed but are not blocking.
+**Critical findings that MUST be fixed before testing:**
+
+1. **F-001 (NEEDS FIXING)**: Timeout reset not implemented — AC-081 explicitly requires resetting the timeout when a new question is added, but no mechanism exists.
+2. **F-002 (NEEDS FIXING)**: Server restart loses timeout state — AC-RES-002 requires recalculating timeout from original timestamp, but `waiting_for_human_since` is not persisted.
+3. **F-008 (NEEDS FIXING)**: SSE broadcasting from timeout goroutine is logging-only — timeout-triggered `questions_assumed` events never reach SSE clients, creating a functional gap in real-time UI updates.
+4. **F-011 (NEEDS FIXING)**: Stale feature variable in polling loop — `:=` shadowing on line 108 means the outer `f` is never updated from disk reloads, making state changes from external sources (e.g., API cancel) invisible to the polling loop.
+5. **F-013 (NEEDS FIXING)**: Cancel handler doesn't delete questions or cancel timeout goroutine — orphaned questions remain on disk and the timeout goroutine continues running for cancelled features.
+
+**Should fix before testing:**
+
+6. **F-014 (SHOULD FIX)**: Race condition between timeout goroutine and polling loop on `ResumeFromWaitingHuman()` — both paths can attempt to resume the feature simultaneously, potentially causing duplicate SSE events.
+
+**Noted for future improvement:**
+
+7. **F-006**: Answer validation checks raw length, not trimmed length — inconsistent but functionally acceptable.
+8. **F-007**: 5-second polling latency instead of event-driven resume — acceptable for MVP.
+9. **F-009**: No explicit "Resume Pipeline" button — auto-resume works via polling.
+10. **F-010**: Question options nil handling — correctly coerced to empty slice.
+11. **F-012**: Cancel doesn't clear questions — data cleanliness concern, not a functional bug.
+12. **F-003**: Returns 500 instead of 503 for store unavailability — acceptable for MVP.
+13. **F-004**: CORS allows all origins — acceptable per spec for MVP.
+14. **F-005**: Request body size limit is present (1MB) — adequate.
+15. **F-015**: Answer validation checks raw length instead of trimmed length — minor inconsistency.
