@@ -1,12 +1,12 @@
 id: kanban-view
 title: Kanban view
-current_phase: inception
-status: in_progress
+current_phase: planning
+status: passed
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
 created_at: 2026-06-21T16:53:19.013093897-06:00
-updated_at: 2026-06-21T16:53:19.01325893-06:00
+updated_at: 2026-06-21T17:19:55.630486384-06:00
 phase_states:
     construction:
         phase: construction
@@ -62,10 +62,56 @@ phase_states:
                   message: ✓ repos.yaml identifies at least one affected repository
             evaluated_at: 2026-06-21T16:59:21.091963777-06:00
         started_at: 2026-06-21T16:53:19.013642417-06:00
-        completed_at: 2026-06-21T16:53:19.013642417-06:00
+        completed_at: 2026-06-21T17:19:55.630486384-06:00
     planning:
         phase: planning
-        status: draft
+        status: passed
+        started_at: 2026-06-21T17:19:55.630486384-06:00
+        completed_at: 2026-06-21T17:19:55.630486384-06:00
+        gate_result:
+            phase: planning
+            passed: true
+            checks:
+                - name: artifact_plan_md_exists
+                  passed: true
+                  message: artifact plan_md present at /home/lobsterdog/source/devteam/specs/kanban-view/plan.md
+                - name: artifact_tasks_md_exists
+                  passed: true
+                  message: artifact tasks_md present at /home/lobsterdog/source/devteam/specs/kanban-view/tasks.md
+                - name: plan.md contains constraint verification map
+                  passed: true
+                  message: "✓ plan.md contains constraint verification map covering CON-001..CON-011"
+                - name: plan.md contains cross-component consistency matrix
+                  passed: true
+                  message: "✓ plan.md contains cross-component consistency matrix (8 shared values verified)"
+                - name: plan.md contains test strategy per component
+                  passed: true
+                  message: "✓ plan.md contains test strategy for KanbanBoard, KanbanColumn, ViewToggle"
+                - name: plan.md contains negative case design
+                  passed: true
+                  message: "✓ plan.md contains negative case design (6 error paths including unknown phase)"
+                - name: plan.md contains agent failure mode checks
+                  passed: true
+                  message: "✓ plan.md specifies agent failure mode checks per task"
+                - name: tasks.md every task has specific file paths
+                  passed: true
+                  message: "✓ tasks.md T-001..T-005 each list exact file paths under ui/"
+                - name: tasks.md every task has verifiable done conditions
+                  passed: true
+                  message: "✓ tasks.md every task has specific done conditions with build/lint/test assertions"
+                - name: tasks.md every task references constraints
+                  passed: true
+                  message: "✓ tasks.md tasks reference CON-001..CON-011; coverage cross-check table present"
+                - name: tasks.md every task specifies test level
+                  passed: true
+                  message: "✓ tasks.md tasks specify test levels (unit/e2e/integration)"
+                - name: tasks.md dependencies explicit
+                  passed: true
+                  message: "✓ tasks.md dependency graph T-001→T-002→T-003→T-004→T-005"
+                - name: plan.md validated against codebase
+                  passed: true
+                  message: "✓ plan assumptions verified: FeatureCard testid, FeatureList testid, Dashboard query key, App routes, server.go routes, package.json deps, ThemeToggle testid, PHASES constant"
+            evaluated_at: 2026-06-21T17:19:55.630486384-06:00
     review:
         phase: review
         status: draft
