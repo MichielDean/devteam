@@ -38,6 +38,9 @@ type CheckResult struct {
 // If onOutput is not nil, agent output lines are forwarded to it during phase execution.
 func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh chan<- ProcessEvent, onOutput ...OutputLineCallback) error {
 	maxRecirculations := 3
+	if f.Priority == 1 {
+		maxRecirculations = 5
+	}
 	recirculationCount := 0
 
 	// Ensure feature is in progress

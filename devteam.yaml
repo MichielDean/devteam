@@ -94,6 +94,11 @@ extensions:
     load_for_priority: [1]
     rules: rules/aidlc-rule-details/extensions/testing/property-based/property-based-testing.md
 
+  deep_review:
+    opt_in: true
+    load_for_priority: [1]
+    rules: rules/pipeline/extensions/deep-review/rules.md
+
 plugins:
   ponytail:
     source: https://github.com/DietrichGebert/ponytail

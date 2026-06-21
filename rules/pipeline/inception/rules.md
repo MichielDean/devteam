@@ -2,14 +2,67 @@
 
 ## Purpose
 
-Define what to build and why, with enough specificity that the Architect can plan and the Tester can verify.
+Define what to build and why, with enough specificity that the Architect can plan and the Tester can verify. **Every governing standard, RFC, and test vector must be discovered and converted to verifiable constraints before the spec is written.**
 
 ## PM Responsibilities
 
 1. **Intake**: Receive loose ideas and external specs
-2. **Explore**: Ask structured questions to resolve ambiguity
-3. **Clarify**: Fill gaps, resolve contradictions, define edge cases
-4. **Specify**: Produce spec.md, acceptance.md, and repos.yaml
+2. **Source Discovery**: Read all governing RFCs, standards, and test vectors (MANDATORY before writing constraints)
+3. **Constraint Extraction**: Convert every source requirement and test vector into a traceable constraint
+4. **Explore**: Ask structured questions to resolve ambiguity
+5. **Clarify**: Fill gaps, resolve contradictions, define edge cases
+6. **Specify**: Produce spec.md (with constraint register), acceptance.md, and repos.yaml
+
+## Step 0: Source Discovery — MANDATORY FIRST STEP
+
+Before any analysis, the PM discovers every source of truth that governs the feature's behavior. This is non-negotiable — a spec written without reading the governing standards will produce code that "works" but violates the standard.
+
+### Discovery Checklist
+
+1. **Standards and RFCs**: Does the feature implement a protocol? Find the RFC/standard.
+   - Search: HTTP signing → RFC 9421, RFC 9530. OAuth → RFC 6749, 7800, 8252. JWT → RFC 7519. JWK → RFC 7517. JWKS → RFC 7517 §5. Webhooks → Standard Webhooks v1.
+   - Read the relevant sections. Do not assume.
+
+2. **Test vectors and conformance suites**: Does the target repo contain compliance test vectors?
+   - Search the repo for: `compliance/`, `conformance/`, `test-vectors/`, `negative/`, `positive/`, `fixtures/`
+   - Enumerate every negative test vector — each one is a constraint: "Given [this malformed input], the system MUST reject with [this specific response]"
+   - Enumerate every positive test vector — each one is a constraint: "Given [this valid input], the system MUST produce [this specific output]"
+
+3. **Error taxonomies**: Does the standard define error codes?
+   - Search the standard for: error, taxonomy, code, `*_invalid`, `*_rejected`
+   - The spec MUST use these exact codes. Inventing error codes that don't match the standard is a conformance failure.
+
+4. **Security constraints**: Does the standard mandate security behaviors?
+   - HTTPS enforcement, private IP rejection, replay protection, key rotation, algorithm allowlists
+   - Each becomes a constraint with a security acceptance criterion
+
+5. **Internal conventions**: AGENTS.md, CONTRIBUTING.md, existing patterns
+   - The spec must match existing conventions or explicitly justify deviations
+
+### Output: Constraint Register
+
+The constraint register is a section of spec.md. Every constraint is traceable:
+
+```
+## Constraint Register
+
+| ID | Source | Section/Vector | Type | Constraint | Verification Method |
+|----|--------|----------------|------|------------|---------------------|
+| CON-001 | RFC 9421 | §2.5 | correctness | Wire-format failures return Invalid, never throw | Negative vector 024 |
+| CON-002 | RFC 9421 | §2.5 | correctness | Signature-Input parsed semantics preserved, not rebuilt | Negative vector 021 |
+| CON-003 | RFC 9530 | §2 | correctness | Content-Digest required for all signed bodies including empty | Empty-body test |
+| CON-004 | AdCP spec | §D22 | security | JWK alg/kty/crv validated against signature algorithm | Negative vector 025 |
+| CON-005 | AdCP spec | taxonomy | consistency | Error codes match expectedUse (request vs webhook) | Error code test |
+| CON-006 | AdCP vectors | 024 | conformance | Unquoted keyid param rejected | Conformance test |
+| CON-007 | AdCP vectors | 021 | conformance | Duplicate Signature-Input label rejected | Conformance test |
+| CON-008 | GCP KMS docs | signing | correctness | P-256/P-384 use Digest, Ed25519 uses setData | Algorithm-specific test |
+```
+
+**Every constraint MUST have a corresponding acceptance criterion.** No exceptions. If a constraint has no AC, the spec is not complete.
+
+### Why This Step Exists
+
+PR #32 had 226 passing tests and 11 correctness bugs. The tests passed because they tested the developer's interpretation, not the standard's requirements. The constraint register forces the PM to translate the standard into verifiable criteria before anyone writes code. The architect plans against constraints. The developer implements against constraints. The reviewer verifies against constraints. The tester tests against constraints. The constraint register is the single source of truth that prevents drift from the standard.
 
 ## Step 1: Analyze the Request
 
@@ -229,10 +282,15 @@ Include this assessment in the spec's technical context section.
 ## Quality Gate
 
 The spec is ready when:
-1. Every user story has acceptance criteria with test level and verification method
-2. Every functional requirement is testable with specific expected outcomes
-3. Error paths and empty states are explicitly covered
-4. repos.yaml identifies all affected repositories
-5. No [NEEDS CLARIFICATION] markers remain (all resolved or converted to [ASSUMPTION])
-6. Brownfield projects include workspace analysis in technical context
-7. Every entity with state has valid transitions documented
+1. **Source discovery is documented** — every governing RFC, standard, and test vector is referenced
+2. **Constraint register exists** — every constraint from every source is enumerated with source reference and verification method
+3. **Every constraint has an acceptance criterion** — no constraint is unaddressed
+4. Every user story has acceptance criteria with test level and verification method
+5. Every functional requirement is testable with specific expected outcomes
+6. Error paths, empty states, and malformed input paths are explicitly covered
+7. Error codes match the standard's taxonomy (not invented)
+8. repos.yaml identifies all affected repositories
+9. No [NEEDS CLARIFICATION] markers remain (all resolved or converted to [ASSUMPTION])
+10. Brownfield projects include workspace analysis in technical context
+11. Every entity with state has valid transitions documented
+12. **Negative conformance vectors are acceptance criteria** — each negative test vector has an AC that verifies rejection with the exact expected error code

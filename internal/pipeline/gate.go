@@ -97,6 +97,92 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		}
 		return strings.Contains(content, "ASSUMPTION") || strings.Contains(content, "assumption") || strings.Contains(content, "Assumptions")
 
+	case strings.Contains(desc, "constraint register"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactSpecMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "constraint register") || strings.Contains(lower, "con-001") || strings.Contains(lower, "| con-") || strings.Contains(lower, "constraint id")
+
+	case strings.Contains(desc, "constraint-derived criteria"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactAcceptanceMD)
+		if err != nil {
+			return false
+		}
+		return strings.Contains(content, "CON-") || strings.Contains(content, "Source: CON") || strings.Contains(content, "constraint")
+
+	case strings.Contains(desc, "constraint verification map"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "constraint verification") || strings.Contains(lower, "con-") && strings.Contains(lower, "design decision")
+
+	case strings.Contains(desc, "cross-component consistency matrix"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "cross-component") || strings.Contains(lower, "consistency matrix") || strings.Contains(lower, "shared value")
+
+	case strings.Contains(desc, "constraint references"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTasksMD)
+		if err != nil {
+			return false
+		}
+		return strings.Contains(content, "CON-") || strings.Contains(content, "constraint")
+
+	case strings.Contains(desc, "execution path trace"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "trace") || strings.Contains(lower, "execution path") || strings.Contains(lower, "path:") || strings.Contains(lower, "entry:")
+
+	case strings.Contains(desc, "cross-component consistency verified"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "cross-component") || strings.Contains(lower, "consistency") || strings.Contains(lower, "all producers") || strings.Contains(lower, "all providers")
+
+	case strings.Contains(desc, "negative test vectors verified"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "negative") && (strings.Contains(lower, "vector") || strings.Contains(lower, "reject") || strings.Contains(lower, "conformance"))
+
+	case strings.Contains(desc, "every constraint in the register has at least one test"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "constraint") && (strings.Contains(lower, "con-") || strings.Contains(lower, "register") || strings.Contains(lower, "verified"))
+
+	case strings.Contains(desc, "conformance tests verify"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "conformance") || (strings.Contains(lower, "negative") && strings.Contains(lower, "vector"))
+
+	case strings.Contains(desc, "multi-component constraints tested"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "all providers") || strings.Contains(lower, "all components") || strings.Contains(lower, "multi-component") || strings.Contains(lower, "each provider")
+
 	case strings.Contains(desc, "acceptance.md criteria follow Given"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactAcceptanceMD)
 		if err != nil {
