@@ -1,7 +1,7 @@
 id: kanban-view
 title: Kanban view
 current_phase: planning
-status: passed
+status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
@@ -66,8 +66,6 @@ phase_states:
     planning:
         phase: planning
         status: passed
-        started_at: 2026-06-21T17:19:55.630486384-06:00
-        completed_at: 2026-06-21T17:19:55.630486384-06:00
         gate_result:
             phase: planning
             passed: true
@@ -78,40 +76,48 @@ phase_states:
                 - name: artifact_tasks_md_exists
                   passed: true
                   message: artifact tasks_md present at /home/lobsterdog/source/devteam/specs/kanban-view/tasks.md
-                - name: plan.md contains constraint verification map
+                - name: plan.md addresses all acceptance criteria from acceptance.md
                   passed: true
-                  message: "✓ plan.md contains constraint verification map covering CON-001..CON-011"
-                - name: plan.md contains cross-component consistency matrix
+                  message: ✓ plan.md addresses all acceptance criteria from acceptance.md
+                - name: plan.md includes component design with responsibilities and interfaces
                   passed: true
-                  message: "✓ plan.md contains cross-component consistency matrix (8 shared values verified)"
-                - name: plan.md contains test strategy per component
+                  message: ✓ plan.md includes component design with responsibilities and interfaces
+                - name: plan.md includes data model with entities, relationships, and state transitions
                   passed: true
-                  message: "✓ plan.md contains test strategy for KanbanBoard, KanbanColumn, ViewToggle"
-                - name: plan.md contains negative case design
+                  message: ✓ plan.md includes data model with entities, relationships, and state transitions
+                - name: plan.md includes API contracts with request/response schemas and error responses
                   passed: true
-                  message: "✓ plan.md contains negative case design (6 error paths including unknown phase)"
-                - name: plan.md contains agent failure mode checks
+                  message: ✓ plan.md includes API contracts with request/response schemas and error responses
+                - name: plan.md includes test strategy section with testing levels for each component
                   passed: true
-                  message: "✓ plan.md specifies agent failure mode checks per task"
-                - name: tasks.md every task has specific file paths
+                  message: ✓ plan.md includes test strategy section with testing levels for each component
+                - name: plan.md includes agent failure mode checks for AI-generated code
                   passed: true
-                  message: "✓ tasks.md T-001..T-005 each list exact file paths under ui/"
-                - name: tasks.md every task has verifiable done conditions
+                  message: ✓ plan.md includes agent failure mode checks for AI-generated code
+                - name: plan.md includes constraint verification map tracing constraints to design decisions
                   passed: true
-                  message: "✓ tasks.md every task has specific done conditions with build/lint/test assertions"
-                - name: tasks.md every task references constraints
+                  message: ✓ plan.md includes constraint verification map tracing constraints to design decisions
+                - name: plan.md includes cross-component consistency matrix for shared values
                   passed: true
-                  message: "✓ tasks.md tasks reference CON-001..CON-011; coverage cross-check table present"
-                - name: tasks.md every task specifies test level
+                  message: ✓ plan.md includes cross-component consistency matrix for shared values
+                - name: tasks.md contains specific file paths for implementation
                   passed: true
-                  message: "✓ tasks.md tasks specify test levels (unit/e2e/integration)"
-                - name: tasks.md dependencies explicit
+                  message: ✓ tasks.md contains specific file paths for implementation
+                - name: tasks.md includes done conditions with specific verifiable assertions
                   passed: true
-                  message: "✓ tasks.md dependency graph T-001→T-002→T-003→T-004→T-005"
-                - name: plan.md validated against codebase
+                  message: ✓ tasks.md includes done conditions with specific verifiable assertions
+                - name: tasks.md includes test level required for each task
                   passed: true
-                  message: "✓ plan assumptions verified: FeatureCard testid, FeatureList testid, Dashboard query key, App routes, server.go routes, package.json deps, ThemeToggle testid, PHASES constant"
-            evaluated_at: 2026-06-21T17:19:55.630486384-06:00
+                  message: ✓ tasks.md includes test level required for each task
+                - name: tasks.md includes constraint references (CON- IDs) for constrained tasks
+                  passed: true
+                  message: ✓ tasks.md includes constraint references (CON- IDs) for constrained tasks
+                - name: dependencies between tasks are explicit
+                  passed: true
+                  message: ✓ dependencies between tasks are explicit
+            evaluated_at: 2026-06-21T17:21:24.995220663-06:00
+        started_at: 2026-06-21T17:20:05.455442154-06:00
+        completed_at: 2026-06-21T17:20:05.455442154-06:00
     review:
         phase: review
         status: draft
