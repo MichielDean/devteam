@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/MichielDean/devteam/internal/config"
 	"github.com/MichielDean/devteam/internal/feature"
+	"github.com/MichielDean/devteam/internal/gitops"
 	"github.com/MichielDean/devteam/internal/role"
 	"github.com/MichielDean/devteam/internal/rules"
 	"github.com/MichielDean/devteam/internal/spec"
@@ -23,6 +25,7 @@ type Pipeline struct {
 	roleLoader    *role.RoleLoader
 	dispatcher    *role.Dispatcher
 	questionStore feature.QuestionStore
+	gitClient     *gitops.GitClient
 }
 
 func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline {
@@ -35,6 +38,7 @@ func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline 
 		roleLoader:    role.NewRoleLoader(baseDir),
 		dispatcher:    role.NewDispatcher(baseDir),
 		questionStore: feature.NewFileQuestionStore(baseDir),
+		gitClient:     gitops.NewGitClient(baseDir),
 	}
 }
 
@@ -48,6 +52,7 @@ func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecProvid
 		roleLoader:    role.NewRoleLoader(baseDir),
 		dispatcher:    dispatcher,
 		questionStore: feature.NewFileQuestionStore(baseDir),
+		gitClient:     gitops.NewGitClient(baseDir),
 	}
 }
 
@@ -62,7 +67,47 @@ func NewPipelineWithQuestionStore(cfg *config.Config, specProvider *spec.SpecPro
 		roleLoader:    role.NewRoleLoader(baseDir),
 		dispatcher:    dispatcher,
 		questionStore: questionStore,
+		gitClient:     gitops.NewGitClient(baseDir),
 	}
+}
+
+// CreateFeatureBranch creates a feature branch and draft PR for the feature.
+func (p *Pipeline) CreateFeatureBranch(f *feature.Feature) (string, error) {
+	branchName := "feat/" + f.ID
+
+	if err := p.gitClient.CreateBranch(branchName); err != nil {
+		return "", fmt.Errorf("creating feature branch: %w", err)
+	}
+
+	if err := p.gitClient.Push(branchName); err != nil {
+		return "", fmt.Errorf("pushing feature branch: %w", err)
+	}
+
+	prURL, err := p.gitClient.CreatePullRequest(branchName, f.Title, fmt.Sprintf("Feature: %s\n\nSpec: %s\nPriority: %d", f.Title, f.ID, f.Priority))
+	if err != nil {
+		log.Printf("warning: could not create draft PR (may already exist): %v", err)
+		return branchName, nil
+	}
+
+	log.Printf("Created draft PR for feature %s: %s", f.ID, prURL)
+	return branchName, nil
+}
+
+// PushPhaseChanges commits and pushes all changes for a completed phase.
+func (p *Pipeline) PushPhaseChanges(f *feature.Feature, phase feature.Phase) error {
+	branchName := "feat/" + f.ID
+	message := fmt.Sprintf("%s: complete %s phase for %s", phase, f.ID, phase)
+	return p.gitClient.CommitAndPush(branchName, message)
+}
+
+// MarkPRReady converts the draft PR to ready for review.
+func (p *Pipeline) MarkPRReady(f *feature.Feature) error {
+	branchName := "feat/" + f.ID
+	if err := p.gitClient.ReadyPullRequest(branchName); err != nil {
+		return fmt.Errorf("marking PR ready: %w", err)
+	}
+	log.Printf("Marked PR ready for review for feature %s", f.ID)
+	return nil
 }
 
 func (p *Pipeline) RunPhase(f *feature.Feature) (*feature.PhaseState, error) {
@@ -507,7 +552,12 @@ Write documentation to specs/%s/docs/ with:
 - Cross-repo release order (if applicable)
 - Configuration documentation (env vars, config files, dependencies)
 
-Terminology consistency check: documentation must use the same terms as spec.md, not code-internal names.`, featureID, featureID)
+Terminology consistency check: documentation must use the same terms as spec.md, not code-internal names.
+
+Pull request:
+- Commit all changes with a descriptive message referencing the spec
+- Push to the feature branch (feat/%s)
+- The pipeline will create a draft PR automatically and mark it ready when delivery completes`, featureID, featureID, featureID)
 
 	default:
 		return ""

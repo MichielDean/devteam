@@ -1,90 +1,64 @@
 # Configuration — Spec 003: Human Interaction Points
 
-This documents all configuration added or relevant to Spec 003.
+This document describes the configuration introduced by **Spec 003: Human Interaction Points**.
 
 ---
 
-## `devteam.yaml`
+## devteam.yaml
 
-The feature adds one new field under the existing `pipeline` section.
-
-### `pipeline.human_interaction_timeout_minutes`
-
-| Property | Value |
-|---|---|
-| Type | integer (YAML) / `*int` (Go — pointer to distinguish "not set" from "explicitly 0") |
-| Default | `30` (used when the field is absent) |
-| Section | `pipeline` |
-
-Controls how long the pipeline waits for human input before falling back to autonomous mode.
+Spec 003 adds one new field to the `pipeline` section of `devteam.yaml`:
 
 ```yaml
 pipeline:
   human_interaction_timeout_minutes: 30
 ```
 
-#### Behavior by value
+### `pipeline.human_interaction_timeout_minutes`
 
-| Value | Mode | Behavior |
-|---|---|---|
-| positive integer (e.g., `30`) | Interactive with timeout | Feature enters `waiting_for_human`; after N minutes with no human response, all `pending` questions are auto-assumed and the feature resumes. |
-| `0` | Fully autonomous | Questions are still stored, but the feature **never** enters `waiting_for_human`. Assumptions are generated **immediately**. The pipeline does not pause. |
-| `-1` | Interactive, no timeout | Feature enters `waiting_for_human` and waits **indefinitely**. No auto-assume. A human must answer or the feature must be cancelled/recirculated. |
-| absent | Interactive with timeout (default 30) | Treated as if `30` was set. |
+| Property | Value |
+|---|---|
+| Type | integer (pointer — `*int` in Go) |
+| Default | `30` (when field is absent) |
+| Scope | Per-feature timeout, starts when the feature enters `waiting_for_human` status |
+| Reset behavior | Resets when a new question is added while the feature is already in `waiting_for_human` status |
 
-#### Timeout semantics
+| Value | Behavior |
+|---|---|
+| Positive integer (e.g., `30`) | Wait that many minutes for a human response, then auto-assume unanswered questions. |
+| `0` | Fully autonomous mode. Questions are still stored but the feature never enters `waiting_for_human`. Assumptions are immediately generated. |
+| `-1` | Wait indefinitely. No timeout. The feature remains in `waiting_for_human` until a human answers or the feature is cancelled/recirculated. |
+| Field absent | Defaults to 30 minutes. |
 
-- The timeout is **per-feature**, starting when the feature enters `waiting_for_human`.
-- The timeout **resets** if a new question is added while the feature is already in `waiting_for_human`. This avoids premature assumption generation while the human is actively engaging. (Spec assumption.)
-- On server restart, the timeout is recalculated from the feature's `waiting_for_human` timestamp — the timer does not silently restart from zero.
-- Only `pending` questions are assumed on timeout. Already-`answered` questions are left unchanged.
+### Why a pointer type?
 
-#### Pointer-type note (Go implementation detail)
+Go's `yaml.v3` unmarshals a missing integer field as `0` by default. Using `*int` (pointer) lets the config loader distinguish between:
 
-Go's `yaml.v3` unmarshals a missing integer field as the zero value (`0`). To distinguish "field not present in the YAML" (→ use default 30) from "field explicitly set to 0" (→ fully autonomous mode), the Go config struct uses `*int`. A nil pointer means "not set"; a pointer to 0 means "explicitly autonomous". Consumers call `PipelineConfig.GetHumanInteractionTimeoutMinutes()` which returns the resolved integer (defaulting to 30 when nil).
+- **Field not present** (nil pointer → use default 30)
+- **Field explicitly set to 0** (pointer to 0 → fully autonomous mode)
+
+This distinction matters because `0` is a meaningful value (fully autonomous mode), not just "unset".
 
 ---
 
 ## Environment Variables
 
-No new environment variables are introduced by this feature. The Dev Team server is started with the existing `-http` flag:
-
-```bash
-devteam -http :8080
-```
-
-No environment variables are required for human interaction points to function.
+Spec 003 does not introduce any new environment variables. The feature reads its configuration exclusively from `devteam.yaml`.
 
 ---
 
 ## Configuration Files
 
-| File | Purpose | Modified by Spec 003? |
+| File | Purpose | Changed by Spec 003? |
 |---|---|---|
-| `devteam.yaml` | Pipeline, roles, phases, extensions configuration | Yes — added `pipeline.human_interaction_timeout_minutes` |
-| `specs/{feature-id}/.devteam-state.yaml` | Per-feature pipeline state | Yes — features can now have `status: waiting_for_human` |
-| `specs/{feature-id}/questions.json` | Per-feature question store (new) | Yes — new artifact, JSON array of Question objects |
-| `specs/{feature-id}/CONTEXT.md` | Per-feature agent context (regenerated each dispatch) | Yes — may now contain a "Human Responses" section |
+| `devteam.yaml` | Pipeline configuration | Yes — adds `pipeline.human_interaction_timeout_minutes` |
+| `specs/{id}/.devteam-state.yaml` | Per-feature pipeline state | Yes — may now contain `waiting_for_human` status |
+| `specs/{id}/questions.json` | Per-feature question storage | Yes — new file, JSON array of Question objects |
 
----
+### `specs/{id}/questions.json`
 
-## Dependencies
+A JSON array of Question objects. Created when an agent produces questions during inception or planning. Each question has the fields described in the [API reference](api-reference.md#data-model).
 
-No new external dependencies. The feature uses:
-
-- **Backend**: Go standard library, `gopkg.in/yaml.v3` (already in `go.mod`), `encoding/json` (stdlib)
-- **Frontend**: existing React + TypeScript + TanStack Query + TailwindCSS stack (no new npm dependencies)
-- **Storage**: file-based (YAML for feature state, JSON for questions) — no database, consistent with existing patterns
-- **Real-time**: existing SSE mechanism (`broadcastSSE` / `GET /api/features/{id}/stream`)
-
----
-
-## Data Files
-
-### `specs/{feature-id}/questions.json`
-
-A JSON array of Question objects. Created on first question creation; deleted when the feature is recirculated. Each Question object's shape:
-
+Example:
 ```json
 [
   {
@@ -98,34 +72,56 @@ A JSON array of Question objects. Created on first question creation; deleted wh
     "answer": null,
     "assumption": null,
     "status": "pending",
-    "created_at": "2026-06-20T15:30:00-06:00",
+    "created_at": "2026-06-20T15:30:00Z",
     "answered_at": null
   }
 ]
 ```
 
-When a feature has no questions, the file does not exist; the API returns `[]` (not `null`).
-
-### `questions.json` artifact (agent output)
-
-Agents (PM, Architect) produce a `questions.json` artifact in the feature spec directory during their dispatch. This is the **detection input** the pipeline reads after dispatch. It is a JSON array of question *creation requests* (no `id`, `status`, `created_at`, or `answered_at` — those are server-generated):
-
-```json
-[
-  {
-    "phase": "inception",
-    "role": "pm",
-    "question": "What is the target audience?",
-    "type": "clarification",
-    "options": ["Internal developers", "External users"]
-  }
-]
-```
-
-Invalid entries (missing required fields, wrong enum values, `phase` outside `inception`/`planning`) are skipped with a logged warning; valid entries are stored as `pending` questions.
+When the feature has no questions, this file is absent (not an empty array). The API returns `[]` for features with no questions file.
 
 ---
 
-## Database Migrations
+## Dependencies
 
-Not applicable. The Dev Team platform is file-based — there is no database. No migrations are required.
+Spec 003 introduces **no new external dependencies**. It reuses:
+
+- Go standard library (`net/http`, `encoding/json`, `os`, `time`, `sync`)
+- `gopkg.in/yaml.v3` (existing — for config parsing)
+- Existing `internal/feature`, `internal/api`, `internal/pipeline`, `internal/config`, `internal/spec` packages
+
+The frontend reuses the existing React + TypeScript + TanStack Query + Tailwind CSS stack from Spec 002.
+
+---
+
+## Runtime Requirements
+
+- **Go**: 1.26.1+ (unchanged from Spec 002)
+- **Node.js**: 20+ (unchanged from Spec 002, only for frontend build)
+- **Browser**: Latest Chrome, Firefox, Safari, Edge (unchanged from Spec 002)
+- **OS**: Linux, macOS (unchanged)
+
+---
+
+## Verification
+
+To verify the configuration is loaded correctly:
+
+1. Set `human_interaction_timeout_minutes: 5` in `devteam.yaml`.
+2. Start the server: `devteam -http :8080`
+3. Create a question via the API or by running an inception phase that produces a `questions.json` artifact.
+4. Verify the feature enters `waiting_for_human` status.
+5. Wait 5 minutes without answering.
+6. Verify the feature returns to `in_progress` and the questions have `status: "assumed"` with a non-null `assumption` field.
+
+To verify fully autonomous mode:
+
+1. Set `human_interaction_timeout_minutes: 0` in `devteam.yaml`.
+2. Create questions via the API.
+3. Verify the feature does **not** enter `waiting_for_human` and the questions are immediately `assumed`.
+
+To verify indefinite wait:
+
+1. Set `human_interaction_timeout_minutes: -1` in `devteam.yaml`.
+2. Create questions via the API.
+3. Verify the feature enters `waiting_for_human` and remains in that status indefinitely (no auto-assume).

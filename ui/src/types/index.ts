@@ -13,6 +13,7 @@ export interface FeatureSummary {
 
 export interface FeatureListResponse {
   features: FeatureSummary[];
+  total_count: number;
 }
 
 export interface FeatureDetail {
@@ -82,7 +83,16 @@ export interface ErrorResponse {
 }
 
 // SSE Event Types
-export type SSEEventType = 'phase_change' | 'gate_result' | 'agent_dispatch' | 'agent_complete' | 'processing_complete' | 'error' | 'waiting_for_human' | 'questions_answered' | 'questions_assumed';
+export type SSEEventType =
+  | 'phase_change'
+  | 'gate_result'
+  | 'agent_dispatch'
+  | 'agent_complete'
+  | 'processing_complete'
+  | 'error'
+  | 'waiting_for_human'
+  | 'questions_answered'
+  | 'questions_assumed';
 
 export interface PhaseChangeEvent {
   feature_id: string;

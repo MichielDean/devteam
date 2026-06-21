@@ -102,7 +102,7 @@ func FeaturesToSummaryResponse(features []*feature.Feature, questionStore featur
 
 		summaries = append(summaries, summary)
 	}
-	return map[string]interface{}{"features": summaries}
+	return map[string]interface{}{"features": summaries, "total_count": len(summaries)}
 }
 
 func FeatureToSummaryResponse(f *feature.Feature) FeatureSummaryResponse {

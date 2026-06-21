@@ -6,7 +6,7 @@ priority: 1
 intake_path: external_spec
 spec_dir: specs/human-interaction-points---allow-the-pipeline-to-pause-for-h/
 created_at: 2026-06-20T20:14:10.650903092-06:00
-updated_at: 2026-06-20T22:53:41.818105833-06:00
+updated_at: 2026-06-21T10:00:36.974494116-06:00
 phase_states:
     construction:
         phase: construction
@@ -18,12 +18,9 @@ phase_states:
                 - name: code compiles and runs without panicking
                   passed: true
                   message: ✓ code compiles and runs without panicking
-                - name: tests compile without errors
-                  passed: true
-                  message: ✓ tests compile without errors
-            evaluated_at: 2026-06-20T22:36:45.855928789-06:00
-        started_at: 2026-06-20T22:28:11.71410345-06:00
-        completed_at: 2026-06-20T22:36:47.114675486-06:00
+            evaluated_at: 2026-06-21T09:21:21.866589678-06:00
+        started_at: 2026-06-21T09:11:30.314590155-06:00
+        completed_at: 2026-06-21T09:21:22.915557466-06:00
     delivery:
         phase: delivery
         status: passed
@@ -52,9 +49,9 @@ phase_states:
                 - name: service starts and responds to HTTP requests
                   passed: true
                   message: ✓ service starts and responds to HTTP requests
-            evaluated_at: 2026-06-20T22:53:41.816774415-06:00
-        started_at: 2026-06-20T22:44:51.809190029-06:00
-        completed_at: 2026-06-20T22:53:41.818105833-06:00
+            evaluated_at: 2026-06-21T10:00:36.973153762-06:00
+        started_at: 2026-06-21T09:49:49.674945099-06:00
+        completed_at: 2026-06-21T10:00:36.974494116-06:00
     inception:
         phase: inception
         status: passed
@@ -134,9 +131,9 @@ phase_states:
                 - name: missing implementation check completed
                   passed: true
                   message: ✓ missing implementation check completed
-            evaluated_at: 2026-06-20T22:40:57.728203202-06:00
-        started_at: 2026-06-20T22:38:43.501337631-06:00
-        completed_at: 2026-06-20T22:40:57.733875996-06:00
+            evaluated_at: 2026-06-21T09:28:18.451901637-06:00
+        started_at: 2026-06-21T09:21:22.916238726-06:00
+        completed_at: 2026-06-21T09:28:18.454444922-06:00
     testing:
         phase: testing
         status: passed
@@ -168,9 +165,6 @@ phase_states:
                 - name: failed tests have reproduction steps
                   passed: true
                   message: ✓ failed tests have reproduction steps
-                - name: go test suite passes
-                  passed: true
-                  message: ✓ go test suite passes
-            evaluated_at: 2026-06-20T22:44:47.638185304-06:00
-        started_at: 2026-06-20T22:40:57.735061846-06:00
-        completed_at: 2026-06-20T22:44:51.80671527-06:00
+            evaluated_at: 2026-06-21T09:49:49.670645406-06:00
+        started_at: 2026-06-21T09:41:50.186962148-06:00
+        completed_at: 2026-06-21T09:49:49.673691429-06:00

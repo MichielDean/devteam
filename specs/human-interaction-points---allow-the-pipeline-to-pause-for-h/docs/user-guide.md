@@ -1,198 +1,253 @@
 # User Guide — Spec 003: Human Interaction Points
 
-The Dev Team pipeline can run in two modes: **autonomous** (the default, where it runs end-to-end without human input) and **interactive** (where it pauses at decision points so a human can provide input through the web UI).
+This guide explains how a product owner uses the Dev Team web UI to answer questions surfaced by the PM (during inception) and the Architect (during planning). This feature lets the pipeline pause at decision points and incorporate your answers instead of making assumptions.
 
-This feature adds the interactive mode. When a human is available, the pipeline pauses during the **inception** and **planning** phases, surfaces questions through the web UI, and incorporates the human's answers back into the agent context. When no human responds within a configurable timeout, the pipeline falls back to autonomous mode with documented assumptions.
-
-This guide covers every user story in Spec 003 using the terminology defined in the spec.
+The terminology in this guide matches **Spec 003: Human Interaction Points**.
 
 ---
 
-## Concepts
+## Overview
 
-### Question
+The Dev Team pipeline runs autonomously through construction, review, testing, and delivery. But during **inception** and **planning**, the PM and Architect agents may surface questions that benefit from human input — clarifications about requirements, decisions about architecture, and priorities about scope.
 
-A **Question** is a clarification, decision, or priority prompt that an agent (the **PM** during inception, or the **Architect** during planning) surfaces for human input. Each question has:
+When an agent produces questions, the pipeline pauses: the feature enters `waiting_for_human` status, the questions appear on the feature detail page, and you can answer them through the UI. Once you answer all questions (or the timeout expires), the pipeline resumes with your answers injected into the agent's context.
 
-- a **type** — `clarification`, `decision`, or `priority`
-- a **phase** — `inception` or `planning`
-- a **role** — `pm` or `architect`
-- optional **options** — suggested answers the human can click
-- a **status** — `pending`, `answered`, or `assumed`
-
-A question is `pending` until either the human answers it (→ `answered`) or the timeout expires (→ `assumed`). Both terminal states are immutable.
-
-### `waiting_for_human` feature status
-
-When the pipeline detects questions for a feature in the `inception` or `planning` phase, the feature transitions from `in_progress` to `waiting_for_human`. The pipeline pauses. The feature returns to `in_progress` (and the pipeline resumes) when:
-
-- all questions are answered by a human, or
-- the timeout expires and unanswered questions are auto-assumed.
-
-### Timeout
-
-The timeout is configured in `devteam.yaml` under `pipeline.human_interaction_timeout_minutes`:
-
-| Value | Behavior |
-|---|---|
-| `30` (default) | Wait 30 minutes, then auto-assume unanswered questions |
-| positive integer | Wait that many minutes, then auto-assume |
-| `0` | Never pause — fully autonomous. Questions are still stored but the feature never enters `waiting_for_human`; assumptions are generated immediately. |
-| `-1` | Wait indefinitely — no timeout, no auto-assume |
-
-The timeout is per-feature, starting when the feature enters `waiting_for_human`. It resets if a new question is added while the feature is already waiting.
+If you don't respond within the configured timeout, the pipeline falls back to autonomous mode: it documents an assumption for each unanswered question and proceeds with the conservative choice.
 
 ---
 
-## Answering PM Clarification Questions (US-001)
+## US-001: Answer PM Clarification Questions
 
-**When**: a feature is in the **inception** phase and the PM agent has surfaced clarification questions.
+During **inception**, the PM agent may surface clarification questions about ambiguous requirements.
 
-1. Open the Dev Team web UI (Dashboard).
-2. Features with pending questions show a **badge** in the top-right corner of their card showing the pending question count (e.g., "2"). Click the badge (or the feature card) to open the feature detail page.
-3. The **Questions** section shows each pending question as a card with:
-   - the question text
-   - a **type badge** — blue for `clarification`, orange for `decision`, purple for `priority`
-   - the phase and role that generated it (e.g., "inception · pm")
-   - suggested **option buttons** (if the agent provided options) — clicking an option fills the answer field with that option's text
-   - a text input labeled "Type your answer..." and a **Submit** button
-4. Type your answer (or click an option button), then click **Submit**.
-5. The question card updates to a **read-only** state showing your answer with a green checkmark (✓).
-6. When all questions are answered, the section shows "✓ All questions answered. Pipeline will resume." The feature returns to `in_progress` and the pipeline re-dispatches the PM agent with your answers in its context.
+### How to answer
 
-**Empty state**: if a feature has no questions, the Questions section is hidden entirely — no placeholder, no empty state message.
+1. Open the **Dashboard** (`/`).
+2. If a feature has pending questions, a yellow/orange **question badge** appears on its feature card showing the count of pending questions.
+3. Click the feature card (or the badge) to open the **feature detail page**.
+4. The **Questions** section appears with one card per pending question.
+5. Each card shows:
+   - The **question text**.
+   - A **type badge** color-coded by question type:
+     - `clarification` — blue
+     - `decision` — orange
+     - `priority` — purple
+   - The phase and role that generated the question (e.g., `inception · pm`).
+   - **Suggested options** as clickable buttons (if the agent provided any).
+   - A **text input** labeled "Type your answer..." and a **Submit** button.
+6. Either click a suggested option (the option text fills the input) or type your own answer.
+7. Click **Submit**.
+8. The card updates to a **read-only state** with a green checkmark and the answer text. The badge count on the dashboard decreases by one.
 
 ### Error scenarios
 
-| What you did | What happens |
+| Action | Error | What it means |
+|---|---|---|
+| Submit an answer | 409 Conflict `{"error": "conflict", "details": "Question Q-001 is already answered"}` | Someone else already answered this question. Only the first answer wins; refresh the page to see the winning answer. |
+| Submit an answer | 404 Not Found `{"error": "not_found", "details": "Question Q-999 not found"}` | The question ID does not exist. |
+| Submit an empty answer | 400 Bad Request `{"error": "validation_error", "details": "answer must be 1-5000 characters"}` | The answer field cannot be empty. |
+| Submit an answer over 5000 characters | 400 Bad Request (same message as above) | The answer exceeds the 5000-character limit. |
+
+### Empty state
+
+When a feature has no questions, the **Questions** section is completely hidden — no empty state message, no placeholder.
+
+---
+
+## US-002: Review Architect Design Decisions
+
+During **planning**, the Architect agent may surface design decisions as questions with `type: "decision"`.
+
+### How to review
+
+1. Open the feature detail page for a feature in `waiting_for_human` status during planning.
+2. Decision cards appear with the same layout as clarification cards, but the type badge is **orange** (`decision`).
+3. Suggested options are shown as clickable buttons. Clicking an option populates the answer input with the option text.
+4. Review the suggested options or type your own answer.
+5. Click **Submit**.
+6. The card shows your answer in a read-only state with a green checkmark.
+
+### Error scenarios
+
+Same error paths as US-001 (409 Conflict, 404 Not Found, 400 validation errors).
+
+### Empty state
+
+When the Architect surfaces no design decisions, no decision cards are shown and the pipeline proceeds normally without pausing.
+
+---
+
+## US-003: Pipeline Pauses for Human Input
+
+The pipeline automatically pauses when:
+
+1. The PM or Architect agent completes dispatch during **inception** or **planning**.
+2. The agent produced a `questions.json` artifact in the feature's spec directory.
+3. The pipeline detected and stored valid questions.
+4. The feature's `timeout_minutes` configuration is not `0` (which would mean fully autonomous mode).
+
+When these conditions are met, the feature transitions to `waiting_for_human` status, a `waiting_for_human` SSE event is broadcast, and the pipeline waits. The pipeline will not advance, recirculate, or evaluate the gate while the feature is in this status.
+
+### How to resume
+
+- **Answer all questions**: The pipeline detects that all questions are answered, transitions the feature back to `in_progress`, builds a "Human Responses" section for the agent context, and re-dispatches the agent with your answers.
+- **Let the timeout expire**: See US-004.
+- **Cancel the feature**: The feature transitions to `cancelled`.
+- **Recirculate the feature**: The feature transitions to `recirculated`, all questions are deleted, and the re-run may generate new questions with new IDs.
+
+### Attempting to advance
+
+If you click **Advance** on a feature in `waiting_for_human` status, the API returns:
+```json
+{"error": "validation_error", "details": "Cannot advance feature in waiting_for_human status"}
+```
+You must answer the questions (or wait for the timeout) before the pipeline can advance.
+
+### Phases that do not pause
+
+The pipeline **never** pauses for human input during construction, review, testing, or delivery. If an agent in one of those phases happens to produce a `questions.json` artifact, the questions are still stored but the feature does not enter `waiting_for_human`.
+
+---
+
+## US-004: Pipeline Falls Back to Autonomous Mode
+
+If you don't respond within the configured timeout, the pipeline proceeds autonomously with documented assumptions.
+
+### Timeout behavior
+
+1. The timeout starts when the feature enters `waiting_for_human` status.
+2. The timeout resets if a new question is added while the feature is already in `waiting_for_human` status (to avoid premature assumption generation while you are actively engaging).
+3. When the timeout expires, for each pending question:
+   - An assumption is generated.
+   - The question's `status` transitions `pending → assumed`.
+   - The `assumption` field is populated.
+   - The `answered_at` field is set.
+4. The feature transitions back to `in_progress`.
+5. A "Human Responses" section is built with assumptions marked as auto-assumed.
+6. The agent is re-dispatched with the assumptions in context.
+
+### Timeout configuration
+
+The timeout is configured in `devteam.yaml`:
+
+```yaml
+pipeline:
+  human_interaction_timeout_minutes: 30
+```
+
+| Value | Behavior |
 |---|---|
-| Try to answer a question that's already answered | The API returns 409 Conflict: `Question Q-001 is already answered`. The first answer wins. |
-| Try to answer a question that doesn't exist | 404 Not Found: `Question Q-999 not found`. |
-| Submit an empty answer | 400 Bad Request: `answer must be 1-5000 characters`. |
-| Submit an answer over 5000 characters | 400 Bad Request: `answer must be 1-5000 characters`. |
+| `30` (default) | Wait 30 minutes, then auto-assume. |
+| Positive integer | Wait that many minutes, then auto-assume. |
+| `0` | Never pause. Questions are still stored but assumptions are immediately generated. The feature never enters `waiting_for_human`. |
+| `-1` | Wait indefinitely. No timeout. The feature remains in `waiting_for_human` until a human answers or the feature is cancelled/recirculated. |
+| Field absent | Defaults to 30 minutes. |
+
+### What you see after timeout
+
+On the feature detail page, assumed questions show the assumption text in a read-only state with an "auto-assumed" label (instead of the green checkmark used for human-answered questions). The source is labeled `[Source: auto-assumed after timeout of 30 minutes]` in the agent context.
 
 ---
 
-## Reviewing Architect Design Decisions (US-002)
+## US-005: How Agents Create Questions
 
-**When**: a feature is in the **planning** phase and the Architect has surfaced design decisions as questions of type `decision`.
+Agents (PM and Architect) create questions by writing a `questions.json` artifact in the feature's spec directory as part of their dispatch output.
 
-The flow is identical to answering PM clarification questions, with one emphasis: decision questions typically include suggested **option buttons** representing architecture choices, NFR tradeoffs, or scope boundaries. Click an option to populate the answer field, or type your own answer.
+### Detection logic
 
-Once answered, the decision card shows the chosen answer in read-only state with a green checkmark.
+After an agent dispatch completes during inception or planning, the pipeline:
 
-**Empty state**: if no design decisions were surfaced, no decision cards appear and the pipeline proceeds normally.
+1. Checks if `specs/{id}/questions.json` exists.
+2. Parses it as a JSON array of question objects.
+3. Validates each question:
+   - Required fields: `phase`, `role`, `question`, `type`.
+   - `phase` must be `"inception"` or `"planning"`.
+   - `role` must be `"pm"` or `"architect"`.
+   - `type` must be `"clarification"`, `"decision"`, or `"priority"`.
+   - `question` must be non-empty.
+4. Invalid questions are skipped and a warning is logged.
+5. Valid questions are stored with auto-generated IDs (`Q-001`, `Q-002`, ...).
+6. If any valid questions were stored and the timeout is not `0`, the feature enters `waiting_for_human`.
 
----
+### What this means for you
 
-## The Pipeline Pausing for Human Input (US-003)
+You don't need to create questions manually. The PM and Architect agents do it as part of their work. You only need to answer them through the UI.
 
-The pipeline orchestrator checks for a `questions.json` artifact in the feature's spec directory after the PM or Architect agent completes its dispatch, before gate evaluation.
-
-- **If questions exist** and the feature is in `inception` or `planning`: the questions are stored, the feature transitions to `waiting_for_human`, an SSE `waiting_for_human` event is broadcast, and the pipeline pauses.
-- **If questions exist** but the feature is in `construction`, `review`, `testing`, or `delivery`: the questions are stored but the feature does **not** enter `waiting_for_human`. (Only inception and planning support human interaction.)
-- **If no questions exist**: the pipeline proceeds normally to gate evaluation without pausing.
-
-When all questions are answered (or the timeout expires), the feature returns to `in_progress` and the pipeline re-dispatches the current phase's agent with a **Human Responses** section injected into its context.
-
-### Cancelling or recirculating a waiting feature
-
-- **Cancel** a feature in `waiting_for_human`: the feature transitions to `cancelled`.
-- **Recirculate** a feature in `waiting_for_human`: the feature transitions to the target phase and **all existing questions are deleted**. The re-run may generate new questions with new IDs.
-
----
-
-## Falling Back to Autonomous Mode (US-004)
-
-If no human responds within the configured timeout, the pipeline does not stall — it falls back to autonomous mode:
-
-1. For each still-`pending` question, the pipeline generates an **assumption**.
-2. Each such question transitions to `assumed` with the `assumption` field populated and `answered_at` set.
-3. The feature returns to `in_progress`.
-4. The pipeline re-dispatches the agent with a Human Responses section where assumed questions are labeled `[Source: auto-assumed after timeout of N minutes]`.
-
-Already-`answered` questions are left untouched — only `pending` questions are assumed.
-
-**If the timeout mechanism itself fails** (e.g., the background timer goroutine crashes), the feature stays in `waiting_for_human` and an error is logged. This is a safe failure mode: the pipeline will not silently proceed with wrong assumptions; it requires manual intervention.
+The `POST /api/features/{id}/questions` endpoint is also available for programmatic use (e.g., testing or tooling), but in normal operation questions come from agent output.
 
 ---
 
-## How Agents Create Questions (US-005)
+## US-006: Feature List Shows Question Badge
 
-Agents (PM and Architect) create questions during their dispatch by writing a `questions.json` artifact to the feature's spec directory. The file is a JSON array of question objects, each with:
+The Dashboard shows a **question badge** on feature cards that have pending questions.
 
-- `phase` (`inception` or `planning`)
-- `role` (`pm` or `architect`)
-- `question` (1–2000 characters)
-- `type` (`clarification`, `decision`, or `priority`)
-- `options` (optional, 0–10 strings)
+### Badge behavior
 
-After dispatch completes, the pipeline:
+- The badge displays the **count of pending questions** (e.g., "2" for 2 pending questions).
+- Badge color: **yellow/orange** to indicate "needs attention".
+- Badge position: **top-right corner** of the feature card.
+- Clicking the badge navigates to the feature detail page.
+- The badge is **hidden** when:
+  - The feature has no pending questions.
+  - All questions are answered.
+  - The questions API returns an error (graceful degradation — the list still renders, badge is not shown).
 
-1. Reads `questions.json` if it exists.
-2. Validates each question object. **Invalid questions are skipped and a warning is logged** — they do not halt the pipeline.
-3. Stores each valid question with an auto-generated ID (`Q-001`, `Q-002`, ...).
-4. If any valid questions were stored, transitions the feature to `waiting_for_human`.
+### How to use the badge
 
-Invalid-question cases that are skipped with a warning:
-
-- the file is not valid JSON
-- a question is missing a required field
-- a question has `phase: "construction"` (only `inception` and `planning` are valid)
-- a question has an invalid `type` or `role`
+Scan the Dashboard for yellow/orange badges. Each badge tells you a feature is waiting for your input. Click the badge to jump straight to the questions.
 
 ---
 
-## The Question Badge on the Dashboard (US-006)
+## Common Workflows
 
-The Dashboard (feature list page) shows a **badge** on any feature card that has pending questions:
+### Workflow: Answer all questions and let the pipeline resume
 
-- the badge displays the **count** of pending questions (e.g., "3")
-- the badge is yellow/orange, indicating "needs attention"
-- the badge sits in the **top-right corner** of the feature card
-- clicking the badge navigates to the feature detail page
-- the badge is **hidden** when the feature has zero pending questions (it is never shown with "0")
-- when all of a feature's questions are answered, the badge disappears
+1. Open the Dashboard.
+2. See a yellow/orange badge with count "3" on a feature.
+3. Click the badge.
+4. Answer all 3 questions on the feature detail page.
+5. After the last answer, the pipeline detects all questions are answered and auto-resumes. The feature status returns to `in_progress`.
+6. The badge disappears from the Dashboard.
 
-**Graceful degradation**: if the questions API returns an error, the feature list still renders — the badge is simply not shown.
+### Workflow: Ignore questions and let the timeout handle it
 
----
+1. Open the Dashboard.
+2. See a badge on a feature but don't have time to answer.
+3. Do nothing.
+4. After the configured timeout (default 30 minutes), the pipeline auto-assumes all pending questions and resumes.
+5. The badge disappears. The feature detail page shows the assumptions in read-only state with "auto-assumed" labels.
 
-## Human Responses in Agent Context (FR-007)
+### Workflow: Recirculate a feature that is waiting for human input
 
-When the pipeline re-dispatches an agent after human interaction, it injects a **Human Responses** section into the agent's `CONTEXT.md`. The section lists each question with its answer and the source:
-
-```
-=== Human Responses ===
-
-Q-001: What is the target audience for this feature?
-→ Internal developers
-[Source: human input]
-
-Q-002: Should we use WebSocket or SSE?
-→ SSE is sufficient for the MVP
-[Source: auto-assumed after timeout of 30 minutes]
-```
-
-- Answered questions are labeled `[Source: human input]`.
-- Assumed questions are labeled `[Source: auto-assumed after timeout of N minutes]` (with the configured timeout value).
-- Features with no questions do not include a Human Responses section.
-
-This section appears after the role instructions and before the phase-specific instructions, so the agent sees the human's direction before doing its work.
+1. Open the feature detail page for a feature in `waiting_for_human` status.
+2. Click **Recirculate** and select a target phase.
+3. The feature transitions to `recirculated`, all questions are deleted, and the re-run begins.
+4. The re-run may generate new questions with new IDs.
 
 ---
 
-## Security Notes
+## Terminology Reference
 
-This is a single-user local development tool. Per the spec's security assumptions:
-
-- **No authentication** is enforced in MVP. Authentication will be added in a future feature.
-- **Questions and answers are immutable** once terminal: there is no UPDATE or DELETE endpoint for questions or answers. The only mutation is PATCH to answer a `pending` question.
-- **XSS**: question and answer text is stored as-is and rendered as text (not HTML) in the UI, so `<script>` tags in answers are displayed, not executed.
-- **Input validation** runs on every question endpoint (length limits, enum validation, option count limits).
+| Term | Meaning |
+|---|---|
+| **Question** | A clarification or decision surfaced by the PM or Architect for human input. |
+| **Clarification question** | A question with `type: "clarification"`, shown with a blue badge. |
+| **Decision question** | A question with `type: "decision"`, shown with an orange badge. |
+| **Priority question** | A question with `type: "priority"`, shown with a purple badge. |
+| **Pending question** | A question with `status: "pending"` — not yet answered or assumed. |
+| **Answered question** | A question with `status: "answered"` — a human provided an answer. Terminal state. |
+| **Assumed question** | A question with `status: "assumed"` — the timeout expired and the pipeline generated an assumption. Terminal state. |
+| **Waiting for human** | Feature status `waiting_for_human`. The pipeline is paused and waiting for human input. |
+| **Timeout** | The configurable duration (in minutes) the pipeline waits before auto-assuming unanswered questions. |
+| **Question badge** | The yellow/orange count badge shown on feature cards with pending questions. |
+| **Human Responses** | The section injected into the agent's CONTEXT.md when re-dispatching after human interaction. |
 
 ---
 
-## Configuration
+## Reference
 
-See `docs/configuration.md` for the full configuration reference, including the `human_interaction_timeout_minutes` setting and all environment/configuration dependencies.
+- **Spec**: `specs/human-interaction-points---allow-the-pipeline-to-pause-for-h/spec.md`
+- **Acceptance criteria**: `specs/human-interaction-points---allow-the-pipeline-to-pause-for-h/acceptance.md`
+- **API reference**: `specs/human-interaction-points---allow-the-pipeline-to-pause-for-h/docs/api-reference.md`
+- **Changelog**: `specs/human-interaction-points---allow-the-pipeline-to-pause-for-h/docs/changelog.md`
+- **Configuration**: `specs/human-interaction-points---allow-the-pipeline-to-pause-for-h/docs/configuration.md`

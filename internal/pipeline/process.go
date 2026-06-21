@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/MichielDean/devteam/internal/feature"
@@ -47,6 +44,22 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 		f.Start()
 		if err := p.specProvider.SaveFeatureState(f); err != nil {
 			return fmt.Errorf("setting feature to in_progress: %w", err)
+		}
+	}
+
+	// Create feature branch and draft PR at pipeline start
+	branchCreated := false
+	if _, err := p.gitClient.CurrentBranch(); err == nil {
+		// Already on a branch — check if we need to create a feature branch
+		branchName := "feat/" + f.ID
+		if !p.gitClient.HasRemoteBranch(branchName) {
+			if _, err := p.CreateFeatureBranch(f); err != nil {
+				log.Printf("warning: could not create feature branch: %v", err)
+			} else {
+				branchCreated = true
+			}
+		} else {
+			branchCreated = true
 		}
 	}
 
@@ -247,15 +260,25 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 		}
 
 		if gr.Passed {
-			// Clean up gate failure file on success
-			gateFailurePath := filepath.Join(p.specProvider.FeatureDir(f.ID), "GATE_FAILURE.md")
-			os.Remove(gateFailurePath)
+			// Push phase changes after gate passes
+			if branchCreated {
+				if err := p.PushPhaseChanges(f, currentPhase); err != nil {
+					log.Printf("warning: could not push phase changes: %v", err)
+				}
+			}
 
 			// Check if we've reached delivery
 			if currentPhase == feature.PhaseDelivery {
 				f.MarkDone()
 				if err := p.specProvider.SaveFeatureState(f); err != nil {
 					return fmt.Errorf("marking feature done: %w", err)
+				}
+
+				// Mark draft PR as ready for review
+				if branchCreated {
+					if err := p.MarkPRReady(f); err != nil {
+						log.Printf("warning: could not mark PR ready: %v", err)
+					}
 				}
 
 				eventCh <- ProcessEvent{
@@ -302,21 +325,6 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 				return fmt.Errorf("maximum recirculations reached for feature %s", f.ID)
 			}
 
-			// Build gate failure details for agent context
-			var failedChecks []string
-			for _, c := range gr.Checks {
-				if !c.Passed {
-					failedChecks = append(failedChecks, fmt.Sprintf("- %s\n  %s", c.Name, c.Message))
-				}
-			}
-			if len(failedChecks) > 0 {
-				gateFailureMD := fmt.Sprintf("# Gate Failure Report\n\nPhase: %s\nAttempt: %d/%d\n\n## Failed Checks\n\n%s\n\n## Instructions\n\nFix the issues listed above. The failed checks contain specific error details (e.g., compiler errors, vet warnings, test failures). Address each one before proceeding.", currentPhase, recirculationCount, maxRecirculations, strings.Join(failedChecks, "\n\n"))
-				gateFailurePath := filepath.Join(p.specProvider.FeatureDir(f.ID), "GATE_FAILURE.md")
-				if err := os.WriteFile(gateFailurePath, []byte(gateFailureMD), 0644); err != nil {
-					log.Printf("warning: failed to write GATE_FAILURE.md: %v", err)
-				}
-			}
-
 			// Determine recirculation target
 			targetPhase := feature.RecirculationTarget(currentPhase, "gate_failed")
 
@@ -327,35 +335,16 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 				}
 			}
 
-			if targetPhase == currentPhase {
-				// Same-phase retry: reset phase state and stay in place
-				if ps, ok := f.PhaseStates[currentPhase]; ok {
-					ps.Status = feature.StatusRecirculated
-					ps.CompletedAt = nil
+			f, err = p.RecirculateFeature(f, targetPhase, "gate failed during autonomous processing")
+			if err != nil {
+				eventCh <- ProcessEvent{
+					Type:      "error",
+					FeatureID: f.ID,
+					Phase:     currentPhase,
+					Message:   fmt.Sprintf("Failed to recirculate: %v", err),
+					Timestamp: time.Now(),
 				}
-				f.Status = feature.StatusRecirculated
-				if err := p.specProvider.SaveFeatureState(f); err != nil {
-					eventCh <- ProcessEvent{
-						Type:      "error",
-						FeatureID: f.ID,
-						Phase:     currentPhase,
-						Message:   fmt.Sprintf("Failed to save state for same-phase retry: %v", err),
-						Timestamp: time.Now(),
-					}
-					return fmt.Errorf("saving state for same-phase retry on feature %s: %w", f.ID, err)
-				}
-			} else {
-				f, err = p.RecirculateFeature(f, targetPhase, "gate failed during autonomous processing")
-				if err != nil {
-					eventCh <- ProcessEvent{
-						Type:      "error",
-						FeatureID: f.ID,
-						Phase:     currentPhase,
-						Message:   fmt.Sprintf("Failed to recirculate: %v", err),
-						Timestamp: time.Now(),
-					}
-					return fmt.Errorf("recirculating from %s to %s: %w", currentPhase, targetPhase, err)
-				}
+				return fmt.Errorf("recirculating from %s to %s: %w", currentPhase, targetPhase, err)
 			}
 
 			eventCh <- ProcessEvent{

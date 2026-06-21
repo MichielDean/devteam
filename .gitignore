@@ -37,3 +37,6 @@ Thumbs.db
 
 # Build output
 /devteam
+
+# Playwright MCP logs
+.playwright-mcp/

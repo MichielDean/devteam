@@ -13,7 +13,8 @@ test.describe('Dev Team Web UI', () => {
     await page.goto('/');
 
     await expect(page.locator('h2')).toContainText('Features');
-    await expect(page.locator('[data-testid*="feature-card"]')).toHaveCount({ min: 1 });
+    const cardCount = await page.locator('[data-testid*="feature-card"]').count();
+    expect(cardCount).toBeGreaterThanOrEqual(1);
 
     expect(consoleErrors).toEqual([]);
   });
@@ -126,5 +127,78 @@ test.describe('Dev Team Web UI', () => {
 
     const body = await response.json();
     expect(body.error).toBeTruthy();
+  });
+
+  test('feature count badge renders with total count', async ({ page, request }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+
+    await page.goto('/');
+
+    const badge = page.locator('[data-testid="feature-count-badge"]');
+    await expect(badge).toBeVisible();
+
+    const badgeText = (await badge.textContent()) ?? '';
+    expect(badgeText).toMatch(/^\d+$/);
+
+    const apiResp = await request.get('/api/features');
+    expect(apiResp.ok()).toBeTruthy();
+    const body = await apiResp.json();
+    expect(body.total_count).toBe(parseInt(badgeText, 10));
+
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('feature count badge has accessible aria-label', async ({ page }) => {
+    await page.goto('/');
+
+    const badge = page.locator('[data-testid="feature-count-badge"]');
+    await expect(badge).toBeVisible();
+
+    const ariaLabel = await badge.getAttribute('aria-label');
+    expect(ariaLabel).toMatch(/Total features: \d+/);
+  });
+
+  test('feature count badge handles missing total_count defensively', async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+
+    await page.route('**/api/features', async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      delete body.total_count;
+      await route.fulfill({ status: 200, json: body });
+    });
+
+    await page.goto('/');
+
+    // No console errors, no crash — features-error must not appear (it's a 200)
+    await expect(page.locator('[data-testid="features-error"]')).toHaveCount(0);
+
+    // FR-009: badge renders with 0 when total_count missing (defensive default)
+    const badge = page.locator('[data-testid="feature-count-badge"]');
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText('0');
+
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('feature count badge absent on API error', async ({ page }) => {
+    await page.route('**/api/features', route =>
+      route.fulfill({ status: 500, json: { error: 'internal_error', details: 'Failed to list features' } })
+    );
+
+    await page.goto('/');
+
+    await expect(page.locator('[data-testid="features-error"]')).toBeVisible();
+    await expect(page.locator('[data-testid="feature-count-badge"]')).toHaveCount(0);
   });
 });

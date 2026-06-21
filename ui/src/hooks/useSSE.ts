@@ -30,6 +30,7 @@ export function useSSE(featureId: string | null): UseSSEReturn {
       // Invalidate React Query cache for the relevant feature
       if (data?.feature_id) {
         queryClient.invalidateQueries({ queryKey: ['feature', data.feature_id] });
+        queryClient.invalidateQueries({ queryKey: ['questions', data.feature_id] });
       }
       // Always invalidate the feature list when any state changes
       queryClient.invalidateQueries({ queryKey: ['features'] });
