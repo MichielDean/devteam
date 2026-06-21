@@ -21,11 +21,11 @@ test.describe('Dev Team Web UI', () => {
 
   test('feature list handles empty state', async ({ page }) => {
     await page.goto('/');
+    // Wait for the features query to settle so card count is stable.
+    await page.waitForLoadState('networkidle');
     const features = page.locator('[data-testid*="feature-card"]');
     const count = await features.count();
-    if (count > 0) {
-      test.skip();
-    }
+    test.skip(count > 0, 'workspace has features — empty state not exercised');
     await expect(page.locator('text=No features')).toBeVisible();
   });
 
