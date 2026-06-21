@@ -44,12 +44,83 @@ func (s *Server) ProcessingMode(id string) string {
 }
 
 // RestoreActiveProcesses scans tmux for active devteam sessions and restores
-// the activeProcess map. Called on server startup.
+// the activeProcess map. Also detects orphaned features (status: in_progress
+// but no tmux session) and resumes their pipeline. Called on server startup.
 func (s *Server) RestoreActiveProcesses() {
+	// 1. Restore active tmux sessions
 	sessions := s.pipeline.Dispatcher().ListActiveSessions()
 	for featureID := range sessions {
 		s.activeProcess.Store(featureID, "autopilot")
 		log.Printf("restored active process for feature %s from tmux session", featureID)
+	}
+
+	// 2. Find and resume orphaned features (in_progress but no tmux session)
+	s.resumeOrphanedFeatures()
+}
+
+func (s *Server) resumeOrphanedFeatures() {
+	features, err := s.pipeline.ListFeatures()
+	if err != nil {
+		log.Printf("resumeOrphanedFeatures: failed to list features: %v", err)
+		return
+	}
+
+	for _, f := range features {
+		if f.IsTerminal() {
+			continue
+		}
+		if f.Status != "in_progress" {
+			continue
+		}
+
+		// Skip if tmux session is still alive
+		if s.pipeline.Dispatcher().IsSessionAlive(f.ID) {
+			continue
+		}
+
+		// Skip if already in activeProcess
+		if s.IsProcessing(f.ID) {
+			continue
+		}
+
+		log.Printf("resumeOrphanedFeatures: found orphaned feature %s (phase %s, status %s) — resuming pipeline", f.ID, f.Current, f.Status)
+
+		// Resume the pipeline in autopilot mode
+		s.activeProcess.Store(f.ID, "autopilot")
+		go func(featureID string) {
+			defer s.activeProcess.Delete(featureID)
+
+			f, err := s.pipeline.GetFeature(featureID)
+			if err != nil {
+				log.Printf("resumeOrphanedFeatures: failed to reload feature %s: %v", featureID, err)
+				return
+			}
+
+			ctx := context.Background()
+			eventCh := make(chan pipeline.ProcessEvent, 100)
+
+			onOutput := func(line string, isStderr bool) {
+				escaped, _ := json.Marshal(line)
+				s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, featureID, string(escaped), isStderr))
+			}
+
+			done := make(chan error, 1)
+			go func() {
+				done <- s.pipeline.ProcessAsync(ctx, f, eventCh, onOutput)
+				close(eventCh)
+			}()
+
+			for evt := range eventCh {
+				data, _ := json.Marshal(evt)
+				s.broadcastSSE(featureID, string(evt.Type), string(data))
+			}
+
+			if err := <-done; err != nil {
+				log.Printf("resumeOrphanedFeatures: error resuming feature %s: %v", featureID, err)
+			} else {
+				log.Printf("resumeOrphanedFeatures: feature %s pipeline completed", featureID)
+			}
+		}(f.ID)
 	}
 }
 
