@@ -299,41 +299,50 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set activeProcess before responding so the UI knows it's processing
-	s.activeProcess.Store(f.ID, "autopilot")
+	s.activeProcess.Store(f.ID, "single-phase")
 
 	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
 
-	// Auto-start inception phase in the background
+	// Auto-start inception phase only (not full autopilot).
+	// UI-created features should be interactive: run one phase, ask questions,
+	// wait for user to review and advance manually.
 	go func() {
 		defer s.activeProcess.Delete(f.ID)
 		ctx := context.Background()
-		eventCh := make(chan pipeline.ProcessEvent, 100)
+		currentPhase := f.Current
 
 		// Immediate feedback: work has started
-		s.broadcastSSE(f.ID, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, f.ID, f.Current))
-		s.broadcastSSE(f.ID, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched","message":"Starting inception — this may take a few minutes"}`, f.ID, f.Current, s.pipeline.PrimaryRole(f.Current)))
+		s.broadcastSSE(f.ID, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, f.ID, currentPhase))
+		s.broadcastSSE(f.ID, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched","message":"Starting inception — this may take a few minutes"}`, f.ID, currentPhase, s.pipeline.PrimaryRole(currentPhase)))
 
 		onOutput := func(line string, isStderr bool) {
 			escaped, _ := json.Marshal(line)
 			s.broadcastSSE(f.ID, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, f.ID, string(escaped), isStderr))
 		}
 
-		done := make(chan error, 1)
-		go func() {
-			done <- s.pipeline.ProcessAsync(ctx, f, eventCh, onOutput)
-			close(eventCh)
-		}()
-
-		for evt := range eventCh {
-			data, _ := json.Marshal(evt)
-			s.broadcastSSE(f.ID, string(evt.Type), string(data))
+		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput)
+		if err != nil {
+			log.Printf("error running inception for feature %s: %v", f.ID, err)
+			s.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Inception failed: %s"}`, f.ID, err.Error()))
+			return
 		}
 
-		if err := <-done; err != nil {
-			log.Printf("error auto-processing feature %s: %v", f.ID, err)
-			errData, _ := json.Marshal(map[string]string{"message": "Auto-processing failed"})
-			s.broadcastSSE(f.ID, "error", string(errData))
+		// Broadcast gate result
+		if result != nil && result.GateResult != nil {
+			checks := make([]map[string]interface{}, 0, len(result.GateResult.Checks))
+			for _, c := range result.GateResult.Checks {
+				checks = append(checks, map[string]interface{}{
+					"name":    c.Name,
+					"passed":  c.Passed,
+					"message": c.Message,
+				})
+			}
+			checksJSON, _ := json.Marshal(checks)
+			s.broadcastSSE(f.ID, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, f.ID, currentPhase, result.GateResult.Passed, string(checksJSON)))
 		}
+
+		s.broadcastSSE(f.ID, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, f.ID, currentPhase))
+		log.Printf("inception completed for feature %s, gate passed: %v", f.ID, result != nil && result.GateResult != nil && result.GateResult.Passed)
 	}()
 }
 
