@@ -135,7 +135,7 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 			Type:      "agent_dispatch",
 			FeatureID: f.ID,
 			Phase:     currentPhase,
-			Role:      p.primaryRole(currentPhase),
+			Role:      p.PrimaryRole(currentPhase),
 			Status:    "dispatched",
 			Timestamp: time.Now(),
 		}
@@ -158,7 +158,7 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 			Type:       "agent_complete",
 			FeatureID:  f.ID,
 			Phase:      currentPhase,
-			Role:       p.primaryRole(currentPhase),
+			Role:       p.PrimaryRole(currentPhase),
 			Status:     "success",
 			DurationMs: int64(time.Since(now).Milliseconds()),
 			Timestamp:  time.Now(),
@@ -418,8 +418,8 @@ func (p *Pipeline) broadcastSSE(featureID string, eventType string, data string)
 	log.Printf("SSE event: type=%s feature=%s data=%s", eventType, featureID, data)
 }
 
-// primaryRole returns the first role configured for the given phase
-func (p *Pipeline) primaryRole(phase feature.Phase) string {
+// PrimaryRole returns the first role configured for the given phase
+func (p *Pipeline) PrimaryRole(phase feature.Phase) string {
 	phaseConfig, err := p.getPhaseConfig(phase)
 	if err != nil || len(phaseConfig.Roles) == 0 {
 		return string(phase)

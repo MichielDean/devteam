@@ -200,6 +200,29 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f))
+
+	// Auto-start inception phase in the background
+	go func() {
+		ctx := context.Background()
+		eventCh := make(chan pipeline.ProcessEvent, 100)
+
+		done := make(chan error, 1)
+		go func() {
+			done <- s.pipeline.ProcessAsync(ctx, f, eventCh)
+			close(eventCh)
+		}()
+
+		for evt := range eventCh {
+			data, _ := json.Marshal(evt)
+			s.broadcastSSE(f.ID, string(evt.Type), string(data))
+		}
+
+		if err := <-done; err != nil {
+			log.Printf("error auto-processing feature %s: %v", f.ID, err)
+			errData, _ := json.Marshal(map[string]string{"message": "Auto-processing failed"})
+			s.broadcastSSE(f.ID, "error", string(errData))
+		}
+	}()
 }
 
 func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
@@ -236,30 +259,51 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.pipeline.RunPhaseWithAgent(r.Context(), f)
-	if err != nil {
-		log.Printf("error running phase for feature %s: %v", id, err)
-		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to run phase for feature %s", id))
+	if _, loaded := s.activeProcess.LoadOrStore(id, true); loaded {
+		writeError(w, http.StatusConflict, "already_processing", fmt.Sprintf("Feature %s is already being processed", id))
 		return
 	}
 
-	f, err = s.pipeline.GetFeature(id)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to reload feature state")
-		return
-	}
+	writeJSON(w, http.StatusAccepted, FeatureToDetailResponse(f))
 
-	resp := FeatureToDetailResponse(f)
-	if result != nil && result.GateResult != nil {
-		phaseKey := string(f.Current)
-		if ps, ok := resp.PhaseStates[phaseKey]; ok {
-			gr := GateResultToResponse(result.GateResult)
-			ps.GateResult = &gr
-			resp.PhaseStates[phaseKey] = ps
+	go func() {
+		defer s.activeProcess.Delete(id)
+		ctx := context.Background()
+		currentPhase := f.Current
+
+		s.broadcastSSE(id, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, id, currentPhase))
+
+		result, err := s.pipeline.RunPhaseWithAgent(ctx, f)
+		if err != nil {
+			log.Printf("error running phase for feature %s: %v", id, err)
+			s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","message":"Phase execution failed: %s"}`, id, currentPhase, err.Error()))
+			return
 		}
-	}
 
-	writeJSON(w, http.StatusOK, resp)
+		s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"complete"}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase)))
+
+		f, err = s.pipeline.GetFeature(id)
+		if err != nil {
+			log.Printf("error reloading feature %s after phase run: %v", id, err)
+			s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","message":"Failed to reload feature state"}`, id, currentPhase))
+			return
+		}
+
+		if result != nil && result.GateResult != nil {
+			checks := make([]map[string]interface{}, 0, len(result.GateResult.Checks))
+			for _, c := range result.GateResult.Checks {
+				checks = append(checks, map[string]interface{}{
+					"name":    c.Name,
+					"passed":  c.Passed,
+					"message": c.Message,
+				})
+			}
+			checksJSON, _ := json.Marshal(checks)
+			s.broadcastSSE(id, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, id, currentPhase, result.GateResult.Passed, string(checksJSON)))
+		}
+
+		s.broadcastSSE(id, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, id, currentPhase))
+	}()
 }
 
 func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {

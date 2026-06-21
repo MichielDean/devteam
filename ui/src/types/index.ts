@@ -89,6 +89,7 @@ export type SSEEventType =
   | 'agent_dispatch'
   | 'agent_complete'
   | 'processing_complete'
+  | 'phase_complete'
   | 'error'
   | 'waiting_for_human'
   | 'questions_answered'

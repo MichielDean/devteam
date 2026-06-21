@@ -36,20 +36,31 @@ export default function FeatureDetail() {
 
   useEffect(() => {
     if (!lastEvent) return;
-    if (lastEvent.type === 'processing_complete' || lastEvent.type === 'error') {
+    if (lastEvent.type === 'processing_complete' || lastEvent.type === 'error' || lastEvent.type === 'phase_complete') {
       setIsProcessing(false);
-    } else if (lastEvent.type === 'agent_dispatch' || lastEvent.type === 'phase_change') {
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['features'] });
+    } else if (lastEvent.type === 'agent_dispatch' || lastEvent.type === 'phase_change' || lastEvent.type === 'gate_result') {
       setIsProcessing(true);
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
     }
-  }, [lastEvent]);
+  }, [lastEvent, id, queryClient]);
 
   const runPhaseMutation = useMutation({
     mutationFn: () => runPhase(id!),
     onSuccess: () => {
+      setIsProcessing(true);
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Phase execution started');
+      addToast('success', 'Phase execution started — watch the progress below');
     },
-    onError: (err: Error) => addToast('error', `Failed to run phase: ${err.message}`),
+    onError: (err: Error) => {
+      setIsProcessing(false);
+      if (err.message.includes('already')) {
+        addToast('error', 'Feature is already being processed');
+      } else {
+        addToast('error', `Failed to run phase: ${err.message}`);
+      }
+    },
   });
 
   const advanceMutation = useMutation({

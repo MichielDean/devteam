@@ -20,6 +20,7 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   agent_dispatch: 'Agent started work',
   agent_complete: 'Agent finished work',
   processing_complete: 'Pipeline complete',
+  phase_complete: 'Phase complete',
   error: 'Error',
   waiting_for_human: 'Paused for input',
   questions_answered: 'All questions answered',
@@ -46,7 +47,7 @@ export default function ProcessView({ featureId }: ProcessViewProps) {
       },
     ]);
 
-    if (lastEvent.type === 'processing_complete' || lastEvent.type === 'error') {
+    if (lastEvent.type === 'processing_complete' || lastEvent.type === 'error' || lastEvent.type === 'phase_complete') {
       setIsComplete(true);
     }
   }, [lastEvent]);
@@ -113,6 +114,7 @@ export default function ProcessView({ featureId }: ProcessViewProps) {
                 {step.type === 'agent_dispatch' && '📤'}
                 {step.type === 'agent_complete' && '📥'}
                 {step.type === 'processing_complete' && '🎉'}
+                {step.type === 'phase_complete' && '✓'}
                 {step.type === 'error' && '⚠️'}
                 {step.type === 'waiting_for_human' && '🙋'}
                 {step.type === 'questions_answered' && '💬'}
