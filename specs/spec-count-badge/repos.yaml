@@ -1,0 +1,5 @@
+feature_id: spec-count-badge
+repos:
+  - name: devteam
+    url: https://github.com/MichielDean/devteam
+    branch: main
