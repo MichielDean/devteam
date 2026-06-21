@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/MichielDean/devteam/internal/feature"
@@ -367,12 +368,13 @@ func (ge *GateEvaluator) checkMessage(desc string, passed bool, f *feature.Featu
 }
 
 func (ge *GateEvaluator) checkBuildCompiles(f *feature.Feature) bool {
-	content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+	cmd := exec.Command("go", "build", "./...")
+	cmd.Dir = ge.specProvider.BaseDir()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return false
 	}
-	lower := strings.ToLower(content)
-	return strings.Contains(lower, "compiles") || strings.Contains(lower, "build") || strings.Contains(lower, "go build") || strings.Contains(lower, "make") || strings.Contains(lower, "npm run build")
+	return len(output) == 0 || !strings.Contains(string(output), "error")
 }
 
 func (ge *GateEvaluator) checkNoPlaceholders(f *feature.Feature) bool {
