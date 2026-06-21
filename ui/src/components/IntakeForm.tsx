@@ -72,7 +72,7 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="intake-form">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Create New Feature</h3>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">What do you want built?</h3>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Type Toggle */}
@@ -187,10 +187,10 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
           <button
             type="submit"
             disabled={isLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold shadow-sm"
             data-testid="submit-button"
           >
-            {isLoading ? 'Creating...' : 'Create Feature'}
+            {isLoading ? 'Creating...' : 'Create & Start'}
           </button>
           <button
             type="button"
@@ -201,6 +201,9 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
             Cancel
           </button>
         </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          After creation, use Autopilot on the feature page to run the full pipeline hands-free.
+        </p>
       </form>
     </div>
   );
