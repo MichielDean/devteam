@@ -1,11 +1,15 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -471,6 +475,148 @@ func TestSmokeCreateAndGetFeature(t *testing.T) {
 	}
 	if len(features) != 1 {
 		t.Errorf("expected 1 feature, got %d", len(features))
+	}
+}
+
+func TestListFeaturesTotalCountConsistency(t *testing.T) {
+	// AC-012: total_count == len(features) for N in {0, 1, 5, 50}
+	for _, n := range []int{0, 1, 5, 50} {
+		t.Run(fmt.Sprintf("N=%d", n), func(t *testing.T) {
+			tmpDir := t.TempDir()
+			specsDir := filepath.Join(tmpDir, "specs")
+			os.MkdirAll(specsDir, 0755)
+
+			cfg := &config.Config{
+				Pipeline: config.PipelineConfig{
+					Phases: []config.PhaseConfig{
+						{Name: "inception", Roles: []string{"pm"}},
+						{Name: "planning", Roles: []string{"architect"}},
+						{Name: "construction", Roles: []string{"developer"}},
+						{Name: "review", Roles: []string{"reviewer"}},
+						{Name: "testing", Roles: []string{"tester"}},
+						{Name: "delivery", Roles: []string{"ops"}},
+					},
+				},
+			}
+			sp := spec.NewSpecProvider(tmpDir)
+			pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+			s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+			ts := httptest.NewServer(s.httpServer.Handler)
+			defer ts.Close()
+
+			for i := 0; i < n; i++ {
+				body := `{"type":"loose_idea","title":"F` + strconv.Itoa(i) + `","description":"d","priority":2}`
+				resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(body))
+				if err != nil {
+					t.Fatalf("POST failed: %v", err)
+				}
+				if resp.StatusCode != http.StatusCreated {
+					t.Fatalf("expected 201, got %d", resp.StatusCode)
+				}
+				resp.Body.Close()
+			}
+
+			listResp, err := http.Get(ts.URL + "/api/features")
+			if err != nil {
+				t.Fatalf("GET failed: %v", err)
+			}
+			defer listResp.Body.Close()
+			if listResp.StatusCode != http.StatusOK {
+				t.Fatalf("expected 200, got %d", listResp.StatusCode)
+			}
+
+			raw, err := io.ReadAll(listResp.Body)
+			if err != nil {
+				t.Fatalf("read body: %v", err)
+			}
+
+			// Guard against null array regression (FR-005)
+			if bytes.Contains(raw, []byte(`"features":null`)) {
+				t.Errorf("features must be [] not null, body: %s", raw)
+			}
+
+			var resp map[string]interface{}
+			if err := json.Unmarshal(raw, &resp); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+
+			tc, ok := resp["total_count"].(float64)
+			if !ok {
+				t.Fatalf("total_count missing or not a number, got %v", resp["total_count"])
+			}
+			feats := resp["features"].([]interface{})
+			if int(tc) != n {
+				t.Errorf("total_count=%v want %d", tc, n)
+			}
+			if len(feats) != n {
+				t.Errorf("features len=%d want %d", len(feats), n)
+			}
+			if int(tc) != len(feats) {
+				t.Errorf("total_count %v != len(features) %d (FR-004 invariant)", tc, len(feats))
+			}
+		})
+	}
+}
+
+func TestListFeaturesErrorResponseHasNoTotalCount(t *testing.T) {
+	// AC-011: 500 error response must NOT contain total_count. Force a failure
+	// by pointing the SpecProvider at an unreadable directory (chmod 000).
+	tmpDir := t.TempDir()
+	specsDir := filepath.Join(tmpDir, "specs")
+	os.MkdirAll(specsDir, 0755)
+
+	// Make specs dir unreadable to force ReadDir error
+	if err := os.Chmod(specsDir, 0000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	defer os.Chmod(specsDir, 0755)
+
+	cfg := &config.Config{
+		Pipeline: config.PipelineConfig{
+			Phases: []config.PhaseConfig{
+				{Name: "inception", Roles: []string{"pm"}},
+				{Name: "planning", Roles: []string{"architect"}},
+				{Name: "construction", Roles: []string{"developer"}},
+				{Name: "review", Roles: []string{"reviewer"}},
+				{Name: "testing", Roles: []string{"tester"}},
+				{Name: "delivery", Roles: []string{"ops"}},
+			},
+		},
+	}
+	sp := spec.NewSpecProvider(tmpDir)
+	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	ts := httptest.NewServer(s.httpServer.Handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/features")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	if bytes.Contains(body, []byte("total_count")) {
+		t.Errorf("error response must not contain total_count, got: %s", body)
+	}
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if _, exists := decoded["total_count"]; exists {
+		t.Error("error response must not have total_count key")
+	}
+	if _, exists := decoded["error"]; !exists {
+		t.Error("error response must have error key")
 	}
 }
 

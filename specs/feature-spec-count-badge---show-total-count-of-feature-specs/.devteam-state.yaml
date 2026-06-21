@@ -1,29 +1,156 @@
 id: feature-spec-count-badge---show-total-count-of-feature-specs
 title: Feature Spec Count Badge - show total count of feature specs on the features list page. Add total_count field to GET /api/features response. Show a badge on the UI. No new endpoints needed.
-current_phase: inception
+current_phase: testing
 status: in_progress
 priority: 2
 intake_path: loose_idea
 spec_dir: specs/feature-spec-count-badge---show-total-count-of-feature-specs/
 created_at: 2026-06-20T23:31:17.101206004-06:00
-updated_at: 2026-06-20T23:31:17.101347834-06:00
+updated_at: 2026-06-20T23:49:16.354328283-06:00
 phase_states:
     construction:
         phase: construction
-        status: draft
+        status: passed
+        gate_result:
+            phase: construction
+            passed: true
+            checks:
+                - name: code compiles and runs without panicking
+                  passed: true
+                  message: ✓ code compiles and runs without panicking
+                - name: tests compile without errors
+                  passed: true
+                  message: ✓ tests compile without errors
+            evaluated_at: 2026-06-20T23:45:45.292225152-06:00
+        started_at: 2026-06-20T23:37:03.489377599-06:00
+        completed_at: 2026-06-20T23:45:46.624376618-06:00
     delivery:
         phase: delivery
         status: draft
     inception:
         phase: inception
-        status: in_progress
-        started_at: 2026-06-20T23:31:17.101347834-06:00
+        status: passed
+        gate_result:
+            phase: inception
+            passed: true
+            checks:
+                - name: artifact_spec_md_exists
+                  passed: true
+                  message: artifact spec_md present at /home/lobsterdog/source/devteam/specs/feature-spec-count-badge---show-total-count-of-feature-specs/spec.md
+                - name: artifact_acceptance_md_exists
+                  passed: true
+                  message: artifact acceptance_md present at /home/lobsterdog/source/devteam/specs/feature-spec-count-badge---show-total-count-of-feature-specs/acceptance.md
+                - name: artifact_repos_yaml_exists
+                  passed: true
+                  message: artifact repos_yaml present at /home/lobsterdog/source/devteam/specs/feature-spec-count-badge---show-total-count-of-feature-specs/repos.yaml
+                - name: spec.md contains at least one user story with priority
+                  passed: true
+                  message: ✓ spec.md contains at least one user story with priority
+                - name: spec.md contains functional requirements traced to user stories
+                  passed: true
+                  message: ✓ spec.md contains functional requirements traced to user stories
+                - name: spec.md contains error scenarios with specific HTTP status codes
+                  passed: true
+                  message: ✓ spec.md contains error scenarios with specific HTTP status codes
+                - name: spec.md contains empty state behavior for collections
+                  passed: true
+                  message: ✓ spec.md contains empty state behavior for collections
+                - name: spec.md contains assumptions marked with [ASSUMPTION:]
+                  passed: true
+                  message: ✓ spec.md contains assumptions marked with [ASSUMPTION:]
+                - name: acceptance.md contains at least one verifiable criterion per user story
+                  passed: true
+                  message: ✓ acceptance.md contains at least one verifiable criterion per user story
+                - name: acceptance.md criteria follow Given/When/Then format with test level
+                  passed: true
+                  message: ✓ acceptance.md criteria follow Given/When/Then format with test level
+                - name: repos.yaml identifies at least one affected repository
+                  passed: true
+                  message: ✓ repos.yaml identifies at least one affected repository
+            evaluated_at: 2026-06-20T23:36:10.162437395-06:00
+        started_at: 2026-06-20T23:31:20.280553211-06:00
+        completed_at: 2026-06-20T23:36:10.163636472-06:00
     planning:
         phase: planning
-        status: draft
+        status: passed
+        gate_result:
+            phase: planning
+            passed: true
+            checks:
+                - name: artifact_plan_md_exists
+                  passed: true
+                  message: artifact plan_md present at /home/lobsterdog/source/devteam/specs/feature-spec-count-badge---show-total-count-of-feature-specs/plan.md
+                - name: artifact_tasks_md_exists
+                  passed: true
+                  message: artifact tasks_md present at /home/lobsterdog/source/devteam/specs/feature-spec-count-badge---show-total-count-of-feature-specs/tasks.md
+                - name: plan.md addresses all acceptance criteria from acceptance.md
+                  passed: true
+                  message: ✓ plan.md addresses all acceptance criteria from acceptance.md
+                - name: plan.md includes component design with responsibilities and interfaces
+                  passed: true
+                  message: ✓ plan.md includes component design with responsibilities and interfaces
+                - name: plan.md includes data model with entities, relationships, and state transitions
+                  passed: true
+                  message: ✓ plan.md includes data model with entities, relationships, and state transitions
+                - name: plan.md includes API contracts with request/response schemas and error responses
+                  passed: true
+                  message: ✓ plan.md includes API contracts with request/response schemas and error responses
+                - name: plan.md includes test strategy section with testing levels for each component
+                  passed: true
+                  message: ✓ plan.md includes test strategy section with testing levels for each component
+                - name: plan.md includes agent failure mode checks for AI-generated code
+                  passed: true
+                  message: ✓ plan.md includes agent failure mode checks for AI-generated code
+                - name: tasks.md contains specific file paths for implementation
+                  passed: true
+                  message: ✓ tasks.md contains specific file paths for implementation
+                - name: tasks.md includes done conditions with specific verifiable assertions
+                  passed: true
+                  message: ✓ tasks.md includes done conditions with specific verifiable assertions
+                - name: tasks.md includes test level required for each task
+                  passed: true
+                  message: ✓ tasks.md includes test level required for each task
+                - name: dependencies between tasks are explicit
+                  passed: true
+                  message: ✓ dependencies between tasks are explicit
+            evaluated_at: 2026-06-20T23:37:03.486140147-06:00
+        started_at: 2026-06-20T23:36:10.164658013-06:00
+        completed_at: 2026-06-20T23:37:03.488689515-06:00
     review:
         phase: review
-        status: draft
+        status: passed
+        gate_result:
+            phase: review
+            passed: true
+            checks:
+                - name: artifact_review_report_exists
+                  passed: true
+                  message: artifact review_report present at /home/lobsterdog/source/devteam/specs/feature-spec-count-badge---show-total-count-of-feature-specs/review-report.md
+                - name: every acceptance criterion has been reviewed with quoted evidence
+                  passed: true
+                  message: ✓ every acceptance criterion has been reviewed with quoted evidence
+                - name: no critical findings remain unresolved
+                  passed: true
+                  message: ✓ no critical findings remain unresolved
+                - name: security review complete for priority-1 features
+                  passed: true
+                  message: ✓ security review complete for priority-1 features
+                - name: null pointer safety verified
+                  passed: true
+                  message: ✓ null pointer safety verified
+                - name: error paths verified (400, 404, 409, empty state)
+                  passed: true
+                  message: ✓ error paths verified (400, 404, 409, empty state)
+                - name: over-engineering check completed
+                  passed: true
+                  message: ✓ over-engineering check completed
+                - name: missing implementation check completed
+                  passed: true
+                  message: ✓ missing implementation check completed
+            evaluated_at: 2026-06-20T23:49:16.352590361-06:00
+        started_at: 2026-06-20T23:45:46.625210837-06:00
+        completed_at: 2026-06-20T23:49:16.354328283-06:00
     testing:
         phase: testing
-        status: draft
+        status: in_progress
+        started_at: 2026-06-20T23:49:16.354328283-06:00

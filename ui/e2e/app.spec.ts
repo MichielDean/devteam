@@ -13,7 +13,8 @@ test.describe('Dev Team Web UI', () => {
     await page.goto('/');
 
     await expect(page.locator('h2')).toContainText('Features');
-    await expect(page.locator('[data-testid*="feature-card"]')).toHaveCount({ min: 1 });
+    const cardCount = await page.locator('[data-testid*="feature-card"]').count();
+    expect(cardCount).toBeGreaterThanOrEqual(1);
 
     expect(consoleErrors).toEqual([]);
   });
