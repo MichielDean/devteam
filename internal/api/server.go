@@ -380,7 +380,7 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, loaded := s.activeProcess.LoadOrStore(id, true); loaded {
+	if _, loaded := s.activeProcess.LoadOrStore(id, "single-phase"); loaded {
 		writeError(w, http.StatusConflict, "already_processing", fmt.Sprintf("Feature %s is already being processed", id))
 		return
 	}
@@ -611,7 +611,7 @@ func (s *Server) processFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, loaded := s.activeProcess.LoadOrStore(id, true); loaded {
+	if _, loaded := s.activeProcess.LoadOrStore(id, "autopilot"); loaded {
 		writeError(w, http.StatusConflict, "already_processing", fmt.Sprintf("Feature %s is already being processed", id))
 		return
 	}
@@ -1056,7 +1056,7 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if _, loaded := s.activeProcess.LoadOrStore(id, true); loaded {
+		if _, loaded := s.activeProcess.LoadOrStore(id, "autopilot"); loaded {
 			return
 		}
 
