@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { CreateFeatureRequest } from '../types';
 
 interface IntakeFormProps {
-  onSubmit: (req: CreateFeatureRequest) => void;
+  onSubmit: (req: CreateFeatureRequest, startImmediately: boolean) => void;
   onCancel: () => void;
   isLoading: boolean;
 }
@@ -14,6 +14,7 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
   const [priority, setPriority] = useState(2);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [startImmediately, setStartImmediately] = useState(false);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -53,7 +54,7 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
       req.file_content = fileContent;
     }
 
-    onSubmit(req);
+    onSubmit(req, startImmediately);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,11 +187,21 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
         <div className="flex items-center gap-3">
           <button
             type="submit"
+            onClick={() => setStartImmediately(false)}
+            disabled={isLoading}
+            className="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+            data-testid="add-button"
+          >
+            {isLoading && !startImmediately ? 'Adding...' : 'Add'}
+          </button>
+          <button
+            type="submit"
+            onClick={() => setStartImmediately(true)}
             disabled={isLoading}
             className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold shadow-sm"
             data-testid="submit-button"
           >
-            {isLoading ? 'Creating...' : 'Create & Start'}
+            {isLoading && startImmediately ? 'Creating...' : 'Add & Start'}
           </button>
           <button
             type="button"
@@ -202,7 +213,7 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
           </button>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          Inception starts automatically after creation — you'll see it working on the next page.
+          <strong>Add</strong> creates the feature without starting. <strong>Add & Start</strong> begins inception immediately.
         </p>
       </form>
     </div>

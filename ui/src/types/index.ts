@@ -73,6 +73,7 @@ export interface CreateFeatureRequest {
   description: string;
   priority: number;
   file_content?: string; // base64-encoded for external_spec
+  start_immediately?: boolean;
 }
 
 export interface RecirculateRequest {
