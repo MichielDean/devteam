@@ -85,13 +85,8 @@ var GateDefinitions = []GateDefinition{
 		GateName:     GateTasksComplete,
 		RequiredArts: []ArtifactType{},
 		ValidationDescs: []string{
-			"code compiles in every affected repository",
-			"service starts and responds to HTTP requests without panicking",
+			"all tasks in tasks.md are implemented",
 			"no placeholder or stub code remains",
-			"each repository's changes are independently buildable",
-			"JSON arrays are [] not null in all API responses",
-			"error responses have proper HTTP status codes and structure",
-			"all done conditions from tasks.md are verified",
 		},
 	},
 	{

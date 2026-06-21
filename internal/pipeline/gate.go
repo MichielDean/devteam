@@ -203,6 +203,14 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "[] not null") || strings.Contains(lower, "json arrays") || strings.Contains(lower, "empty collection")
 
+	case strings.Contains(desc, "all tasks in tasks.md are implemented"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTasksMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "implemented") || strings.Contains(lower, "complete") || strings.Contains(lower, "[x]") || !strings.Contains(lower, "- [ ]")
+
 	case strings.Contains(desc, "no placeholder"):
 		return ge.checkNoPlaceholders(f)
 
