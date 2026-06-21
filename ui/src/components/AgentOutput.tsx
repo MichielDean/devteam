@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSSE } from '../hooks/useSSE';
 import { getCapturedOutput } from '../api/client';
-import { PHASE_LABELS } from '../types';
-import type { PhaseName } from '../types';
 
 interface AgentOutputProps {
   featureId: string;
+  isProcessing: boolean;
 }
 
 interface OutputLine {
@@ -14,80 +12,54 @@ interface OutputLine {
   timestamp: Date;
 }
 
-export default function AgentOutput({ featureId }: AgentOutputProps) {
+export default function AgentOutput({ featureId, isProcessing }: AgentOutputProps) {
   const [lines, setLines] = useState<OutputLine[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const pendingLinesRef = useRef<OutputLine[]>([]);
-  const flushTimerRef = useRef<number | null>(null);
+  const lastLengthRef = useRef(0);
 
-  const flushLines = () => {
-    flushTimerRef.current = null;
-    if (pendingLinesRef.current.length === 0) return;
-    setLines((prev) => {
-      const combined = [...prev, ...pendingLinesRef.current];
-      pendingLinesRef.current = [];
-      return combined.length > 500 ? combined.slice(-500) : combined;
-    });
-  };
-
-  const addLine = (line: string, isStderr: boolean) => {
-    pendingLinesRef.current.push({ line, isStderr, timestamp: new Date() });
-    if (flushTimerRef.current === null) {
-      flushTimerRef.current = window.setTimeout(flushLines, 100);
-    }
-  };
-
+  // Poll /output endpoint every 2 seconds while processing.
+  // Fetches the full tmux capture-pane output and appends only new lines.
+  // This avoids the multiple-EventSource problem where useSSE events
+  // get split across connections and lost.
   useEffect(() => {
-    return () => {
-      if (flushTimerRef.current) window.clearTimeout(flushTimerRef.current);
-    };
-  }, []);
+    let cancelled = false;
 
-  // Fetch existing tmux output on mount (for page refresh recovery)
-  useEffect(() => {
-    getCapturedOutput(featureId).then((data) => {
-      if (data.output && data.output.trim()) {
-        const existingLines = data.output.split('\n').filter((l) => l.trim()).map((l) => ({
-          line: l,
-          isStderr: false,
-          timestamp: new Date(),
-        }));
-        setLines(existingLines);
+    const poll = async () => {
+      try {
+        const data = await getCapturedOutput(featureId);
+        if (cancelled || !data.output) return;
+
+        const allLines = data.output.split('\n').filter((l) => l.trim());
+        if (allLines.length > lastLengthRef.current) {
+          const newLines = allLines.slice(lastLengthRef.current).map((l) => ({
+            line: l,
+            isStderr: false,
+            timestamp: new Date(),
+          }));
+          setLines((prev) => {
+            const combined = [...prev, ...newLines];
+            return combined.length > 500 ? combined.slice(-500) : combined;
+          });
+          lastLengthRef.current = allLines.length;
+        }
+      } catch {
+        // ignore
       }
-    }).catch(() => {});
-  }, [featureId]);
+    };
 
-  // Use onEvent callback to capture ALL events in real-time
-  useSSE(featureId, (event) => {
-    if (event.type === 'agent_output') {
-      const data = event.data as Record<string, unknown>;
-      const line = (data as Record<string, string>).line ?? '';
-      const isStderr = (data as Record<string, boolean>).stderr ?? false;
-      addLine(line, isStderr);
-    } else if (event.type === 'agent_dispatch') {
-      const data = event.data as Record<string, string>;
-      addLine(`→ Agent dispatched for ${PHASE_LABELS[data.phase as PhaseName] || data.phase}`, false);
-    } else if (event.type === 'agent_complete') {
-      const data = event.data as Record<string, unknown>;
-      const durationMs = (data as Record<string, number>).duration_ms ?? 0;
-      const duration = durationMs > 0 ? ` (${Math.round(durationMs / 1000)}s)` : '';
-      addLine(`✓ Agent completed${duration}`, false);
-    } else if (event.type === 'gate_result') {
-      const data = event.data as Record<string, boolean>;
-      addLine(data.passed ? '✓ Quality check passed' : '✗ Quality check failed', !data.passed);
-    } else if (event.type === 'phase_change') {
-      const data = event.data as Record<string, string>;
-      addLine(`Step changed to ${PHASE_LABELS[data.phase as PhaseName] || data.phase}`, false);
-    } else if (event.type === 'phase_complete' || event.type === 'processing_complete') {
-      addLine(event.type === 'processing_complete' ? '🎉 All done!' : '✓ Step complete', false);
-    } else if (event.type === 'error') {
-      const data = event.data as Record<string, string>;
-      addLine(`⚠ Error: ${data.message ?? 'Unknown error'}`, true);
-    } else if (event.type === 'waiting_for_human') {
-      addLine('🙋 Waiting for your input', false);
+    // Initial fetch
+    poll();
+
+    // Poll every 2 seconds while processing
+    if (isProcessing) {
+      const interval = setInterval(poll, 2000);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
     }
-  });
+  }, [featureId, isProcessing]);
 
   useEffect(() => {
     if (scrollRef.current) {
