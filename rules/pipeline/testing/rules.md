@@ -258,10 +258,11 @@ A test report that says "all tests pass" without reproducible commands is not a 
 
 Testing is complete when:
 1. `go test ./...` passes — no test failures, no test compile errors
-2. Smoke tests pass: service starts, every endpoint returns expected status codes
-3. Integration tests pass: full HTTP cycles work, JSON shapes match contract ([] not null)
-4. E2E tests pass (if UI changed): frontend loads, renders data, no console errors
-5. State machine verified: all valid transitions work, invalid transitions rejected
+2. `npm test` or `npx playwright test` passes (if `ui/` directory exists with `playwright.config.ts`)
+3. Smoke tests pass: service starts, every endpoint returns expected status codes
+4. Integration tests pass: full HTTP cycles work, JSON shapes match contract ([] not null)
+5. E2E tests pass (if UI changed): frontend loads, renders data, no console errors
+6. State machine verified: all valid transitions work, invalid transitions rejected
 6. Spec drift checked: every user story in spec has a corresponding test
 7. Every acceptance criterion has at least one test
 8. No nil pointer panics, no null-vs-empty-array mismatches, no untested error paths

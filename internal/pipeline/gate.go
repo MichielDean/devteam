@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/MichielDean/devteam/internal/feature"
@@ -468,6 +469,58 @@ func (ge *GateEvaluator) checkTestSuitePasses(f *feature.Feature) bool {
 		ge.lastCheckOutput = string(output)
 		return false
 	}
+
+	if !ge.checkFrontendTests(f) {
+		return false
+	}
+
 	ge.lastCheckOutput = ""
+	return true
+}
+
+func (ge *GateEvaluator) checkFrontendTests(f *feature.Feature) bool {
+	uiDir := filepath.Join(ge.specProvider.BaseDir(), "ui")
+	if _, err := os.Stat(uiDir); os.IsNotExist(err) {
+		return true
+	}
+
+	packageJSON := filepath.Join(uiDir, "package.json")
+	if _, err := os.Stat(packageJSON); os.IsNotExist(err) {
+		return true
+	}
+
+	nodeModules := filepath.Join(uiDir, "node_modules")
+	if _, err := os.Stat(nodeModules); os.IsNotExist(err) {
+		if err := exec.Command("npm", "install", "--prefix", uiDir).Run(); err != nil {
+			ge.lastCheckOutput = fmt.Sprintf("npm install failed: %v", err)
+			return false
+		}
+	}
+
+	playwrightConfig := filepath.Join(uiDir, "playwright.config.ts")
+	if _, err := os.Stat(playwrightConfig); err != nil {
+		return true
+	}
+
+	npxPath, err := exec.LookPath("npx")
+	if err != nil {
+		return true
+	}
+
+	cmd := exec.Command(npxPath, "playwright", "test", "--reporter=list")
+	cmd.Dir = uiDir
+	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin",
+		"CI=true",
+		"BASE_URL=http://localhost:8765",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		ge.lastCheckOutput = fmt.Sprintf("Playwright tests failed:\n%s", string(output))
+		return false
+	}
+	if strings.Contains(string(output), "failed") {
+		ge.lastCheckOutput = fmt.Sprintf("Playwright tests had failures:\n%s", string(output))
+		return false
+	}
 	return true
 }
