@@ -88,6 +88,7 @@ export type SSEEventType =
   | 'gate_result'
   | 'agent_dispatch'
   | 'agent_complete'
+  | 'agent_output'
   | 'processing_complete'
   | 'phase_complete'
   | 'error'

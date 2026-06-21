@@ -272,15 +272,21 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 		currentPhase := f.Current
 
 		s.broadcastSSE(id, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, id, currentPhase))
+		s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched"}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase)))
 
-		result, err := s.pipeline.RunPhaseWithAgent(ctx, f)
+		onOutput := func(line string, isStderr bool) {
+			escaped, _ := json.Marshal(line)
+			s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","line":%s,"stderr":%v}`, id, currentPhase, string(escaped), isStderr))
+		}
+
+		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput)
 		if err != nil {
 			log.Printf("error running phase for feature %s: %v", id, err)
 			s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","message":"Phase execution failed: %s"}`, id, currentPhase, err.Error()))
 			return
 		}
 
-		s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"complete"}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase)))
+		s.broadcastSSE(id, "agent_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"success","duration_ms":%d}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase), result.Duration.Milliseconds()))
 
 		f, err = s.pipeline.GetFeature(id)
 		if err != nil {
@@ -500,9 +506,14 @@ func (s *Server) processFeature(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		eventCh := make(chan pipeline.ProcessEvent, 100)
 
+		onOutput := func(line string, isStderr bool) {
+			escaped, _ := json.Marshal(line)
+			s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, id, string(escaped), isStderr))
+		}
+
 		done := make(chan error, 1)
 		go func() {
-			done <- s.pipeline.ProcessAsync(ctx, f, eventCh)
+			done <- s.pipeline.ProcessAsync(ctx, f, eventCh, onOutput)
 			close(eventCh)
 		}()
 

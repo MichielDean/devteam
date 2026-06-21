@@ -35,7 +35,8 @@ type CheckResult struct {
 
 // ProcessAsync runs the autonomous processing loop, emitting events to the provided channel.
 // It loops through phases until delivery or max recirculations, emitting events at each step.
-func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh chan<- ProcessEvent) error {
+// If onOutput is not nil, agent output lines are forwarded to it during phase execution.
+func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh chan<- ProcessEvent, onOutput ...OutputLineCallback) error {
 	maxRecirculations := 3
 	recirculationCount := 0
 
@@ -141,7 +142,11 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 		}
 
 		// Run the phase
-		_, err := p.RunPhaseWithAgent(ctx, f)
+		var outputCb OutputLineCallback
+		if len(onOutput) > 0 {
+			outputCb = onOutput[0]
+		}
+		_, err := p.RunPhaseWithAgentStreaming(ctx, f, outputCb)
 		if err != nil {
 			eventCh <- ProcessEvent{
 				Type:      "error",

@@ -10,6 +10,7 @@ import PhaseTimeline from '../components/PhaseTimeline';
 import ArtifactViewer from '../components/ArtifactViewer';
 import GateResult from '../components/GateResult';
 import ProcessView from '../components/ProcessView';
+import AgentOutput from '../components/AgentOutput';
 import QuestionCard from '../components/QuestionCard';
 
 export default function FeatureDetail() {
@@ -420,6 +421,11 @@ export default function FeatureDetail() {
       {/* Process View (shown during processing) */}
       {showProcessView && feature.status === 'in_progress' && (
         <ProcessView featureId={feature.id} />
+      )}
+
+      {/* Agent Output (shown during processing) */}
+      {(showProcessView || feature.status === 'in_progress') && (
+        <AgentOutput featureId={feature.id} />
       )}
 
       {/* Gate Results */}

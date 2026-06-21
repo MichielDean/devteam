@@ -1,8 +1,10 @@
 package role
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,7 +47,12 @@ func (d *Dispatcher) WithTimeout(timeout time.Duration) *Dispatcher {
 	return d
 }
 
-func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*DispatchResult, error) {
+type OutputLine struct {
+	Line      string
+	IsStderr bool
+}
+
+func (d *Dispatcher) DispatchStreaming(ctx context.Context, req DispatchRequest, lineCh chan<- OutputLine) (*DispatchResult, error) {
 	start := time.Now()
 	result := &DispatchResult{
 		FeatureID: req.FeatureID,
@@ -98,22 +105,73 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Dispat
 		"CT_CATARACTA_NAME="+req.Role,
 	)
 
-	output, err := cmd.CombinedOutput()
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("creating stdout pipe: %w", err)
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("creating stderr pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("starting opencode: %w", err)
+	}
+
+	var outputBuf strings.Builder
+
+	stdoutDone := make(chan struct{})
+	stderrDone := make(chan struct{})
+
+	go func() {
+		defer close(stdoutDone)
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			outputBuf.WriteString(line)
+			outputBuf.WriteByte('\n')
+			if lineCh != nil {
+				lineCh <- OutputLine{Line: line, IsStderr: false}
+			}
+		}
+	}()
+
+	go func() {
+		defer close(stderrDone)
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			outputBuf.WriteString(line)
+			outputBuf.WriteByte('\n')
+			if lineCh != nil {
+				lineCh <- OutputLine{Line: line, IsStderr: true}
+			}
+		}
+	}()
+
+	<-stdoutDone
+	<-stderrDone
+
+	err = cmd.Wait()
 	result.Duration = time.Since(start)
-	result.Output = string(output)
+	result.Output = outputBuf.String()
 
 	if err != nil {
 		result.Success = false
 		if ctx.Err() == context.DeadlineExceeded {
 			result.Error = fmt.Sprintf("opencode run timed out after %v", result.Duration)
 		} else {
-			result.Error = fmt.Sprintf("opencode run failed: %v\noutput: %s", err, truncateOutput(string(output), 500))
+			result.Error = fmt.Sprintf("opencode run failed: %v\noutput: %s", err, truncateOutput(result.Output, 500))
 		}
 		return result, nil
 	}
 
 	result.Success = true
 	return result, nil
+}
+
+func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*DispatchResult, error) {
+	return d.DispatchStreaming(ctx, req, nil)
 }
 
 func (d *Dispatcher) DispatchCrossRepo(ctx context.Context, req DispatchRequest, repoNames []string) (*DispatchResult, error) {
@@ -181,3 +239,6 @@ func truncateOutput(s string, maxLen int) string {
 	}
 	return s[:maxLen] + "... (truncated)"
 }
+
+// Ensure all output is read to prevent pipe hangs
+var _ = io.EOF

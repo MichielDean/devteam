@@ -142,6 +142,7 @@ type RunResult struct {
 	GateResult  *feature.GateResult
 	Advanced    bool
 	Message     string
+	Duration    time.Duration
 }
 
 func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*RunResult, error) {
@@ -254,6 +255,147 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		RoleResults: roleResults,
 		GateResult:  gateResult,
 		Message:     fmt.Sprintf("Phase %s completed. Gate passed: %v", currentPhase, gateResult.Passed),
+		Duration:    time.Since(now),
+	}
+
+	if err := p.specProvider.SaveFeatureState(f); err != nil {
+		return nil, fmt.Errorf("saving feature state: %w", err)
+	}
+
+	return result, nil
+}
+
+// OutputLineCallback is called for each line of agent output during streaming execution.
+type OutputLineCallback func(line string, isStderr bool)
+
+// RunPhaseWithAgentStreaming is the same as RunPhaseWithAgent but streams agent output
+// to the callback in real time.
+func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Feature, onOutput OutputLineCallback) (*RunResult, error) {
+	currentPhase := f.CurrentPhase()
+	phaseConfig, err := p.getPhaseConfig(currentPhase)
+	if err != nil {
+		return nil, err
+	}
+
+	roles := phaseConfig.Roles
+	if len(roles) == 0 {
+		return nil, fmt.Errorf("no roles configured for phase %s", currentPhase)
+	}
+
+	now := time.Now()
+	ps, ok := f.PhaseStates[currentPhase]
+	if !ok {
+		ps = &feature.PhaseState{
+			Phase: currentPhase,
+		}
+		f.PhaseStates[currentPhase] = ps
+	}
+	ps.Status = feature.StatusInProgress
+	ps.StartedAt = &now
+
+	contextStr, err := p.ruleLoader.BuildContext(string(currentPhase), roles[0], f.Priority)
+	if err != nil {
+		return nil, fmt.Errorf("building context for phase %s role %s: %w", currentPhase, roles[0], err)
+	}
+
+	if currentPhase == feature.PhaseInception {
+		inputContent, err := p.specProvider.ReadArtifact(f.ID, feature.ArtifactInputMD)
+		if err == nil && inputContent != "" {
+			contextStr = contextStr + "\n\n---\n\n=== Feature Input ===\n" + inputContent
+		}
+	}
+
+	if p.questionStore != nil {
+		questions, qErr := p.questionStore.ListQuestions(ctx, f.ID)
+		if qErr == nil && len(questions) > 0 {
+			timeoutMinutes := p.config.Pipeline.GetHumanInteractionTimeoutMinutes()
+			humanResponses := feature.BuildHumanResponsesContext(questions, timeoutMinutes)
+			if humanResponses != "" {
+				contextStr = contextStr + humanResponses
+			}
+		}
+	}
+
+	specContext, err := p.specProvider.BuildCrossRepoContext(f.ID, nil)
+	if err == nil && specContext != "" {
+		contextStr = contextStr + "\n\n---\n\n" + specContext
+	}
+
+	gateFailurePath := filepath.Join(p.specProvider.FeatureDir(f.ID), "GATE_FAILURE.md")
+	if gateFailureContent, err := os.ReadFile(gateFailurePath); err == nil {
+		contextStr = contextStr + "\n\n---\n\n# Gate Failure (Previous Attempt)\n\n" + string(gateFailureContent)
+	}
+
+	var roleResults []*role.DispatchResult
+	for _, roleName := range roles {
+		roleDef, err := p.roleLoader.Load(roleName)
+		if err != nil {
+			return nil, fmt.Errorf("loading role %s: %w", roleName, err)
+		}
+
+		promptContext := roleDef.Instructions + "\n\n---\n\n" + contextStr
+
+		phaseInstruction := p.phaseInstruction(currentPhase, f.ID)
+		if phaseInstruction != "" {
+			promptContext = promptContext + "\n\n---\n\n" + phaseInstruction
+		}
+
+		contextMD := buildContextMD(f.ID, string(currentPhase), roleName, promptContext)
+		contextPath := filepath.Join(p.specProvider.FeatureDir(f.ID), "CONTEXT.md")
+		if err := os.WriteFile(contextPath, []byte(contextMD), 0644); err != nil {
+			return nil, fmt.Errorf("writing CONTEXT.md: %w", err)
+		}
+
+		req := role.DispatchRequest{
+			FeatureID: f.ID,
+			Phase:     string(currentPhase),
+			Role:      roleName,
+			Context:   promptContext,
+		}
+
+		lineCh := make(chan role.OutputLine, 100)
+		var streamDone chan struct{}
+		if onOutput != nil {
+			streamDone = make(chan struct{})
+			go func() {
+				defer close(streamDone)
+				for line := range lineCh {
+					onOutput(line.Line, line.IsStderr)
+				}
+			}()
+		} else {
+			close(lineCh)
+		}
+
+		result, err := p.dispatcher.DispatchStreaming(ctx, req, lineCh)
+		if streamDone != nil {
+			<-streamDone
+		}
+		if err != nil {
+			return nil, fmt.Errorf("dispatching role %s for phase %s: %w", roleName, currentPhase, err)
+		}
+		roleResults = append(roleResults, result)
+	}
+
+	gateResult, err := NewGateEvaluator(p.specProvider).EvaluateForPhase(f, currentPhase)
+	if err != nil {
+		return nil, fmt.Errorf("evaluating gate for phase %s: %w", currentPhase, err)
+	}
+
+	ps.GateResult = gateResult
+	if gateResult.Passed {
+		ps.Status = feature.StatusPassed
+		ps.CompletedAt = &now
+	} else {
+		ps.Status = feature.StatusGateBlocked
+	}
+
+	result := &RunResult{
+		Phase:       currentPhase,
+		RoleResults: roleResults,
+		GateResult:  gateResult,
+		Message:     fmt.Sprintf("Phase %s completed. Gate passed: %v", currentPhase, gateResult.Passed),
+		Duration:    time.Since(now),
 	}
 
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
