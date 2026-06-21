@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -368,8 +369,13 @@ func (ge *GateEvaluator) checkMessage(desc string, passed bool, f *feature.Featu
 }
 
 func (ge *GateEvaluator) checkBuildCompiles(f *feature.Feature) bool {
-	cmd := exec.Command("go", "build", "./...")
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		goPath = "/usr/local/go/bin/go"
+	}
+	cmd := exec.Command(goPath, "build", "./...")
 	cmd.Dir = ge.specProvider.BaseDir()
+	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return false
