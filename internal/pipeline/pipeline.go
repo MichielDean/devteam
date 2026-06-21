@@ -443,6 +443,13 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
 
+	// Commit spec artifacts to git after gate passes
+	if gateResult.Passed {
+		if err := p.commitSpecArtifacts(f, currentPhase); err != nil {
+			log.Printf("warning: could not commit spec artifacts for %s phase %s: %v", f.ID, currentPhase, err)
+		}
+	}
+
 	return result, nil
 }
 
@@ -595,7 +602,48 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
 
+	// Commit spec artifacts to git after gate passes.
+	// This ensures specs are tracked and survive branch switches / resets.
+	if gateResult.Passed {
+		if err := p.commitSpecArtifacts(f, currentPhase); err != nil {
+			log.Printf("warning: could not commit spec artifacts for %s phase %s: %v", f.ID, currentPhase, err)
+		}
+	}
+
 	return result, nil
+}
+
+// commitSpecArtifacts commits spec directory changes to git on the current branch.
+// Unlike PushPhaseChanges (which creates feature branches and PRs), this just
+// commits to whatever branch is currently checked out — usually main for spec-only features.
+func (p *Pipeline) commitSpecArtifacts(f *feature.Feature, phase feature.Phase) error {
+	specDir := p.specProvider.FeatureDir(f.ID)
+	relPath, err := filepath.Rel(p.specProvider.BaseDir(), specDir)
+	if err != nil {
+		relPath = specDir
+	}
+
+	// Stage just the spec directory
+	if _, err := p.gitClient.Run("add", relPath); err != nil {
+		return fmt.Errorf("staging spec dir %s: %w", relPath, err)
+	}
+
+	hasChanges, err := p.gitClient.HasStagedChanges()
+	if err != nil {
+		return err
+	}
+	if !hasChanges {
+		log.Printf("commitSpecArtifacts: no changes to commit for %s phase %s", f.ID, phase)
+		return nil
+	}
+
+	message := fmt.Sprintf("spec: %s phase complete for %s", phase, f.ID)
+	if err := p.gitClient.Commit(message); err != nil {
+		return fmt.Errorf("committing spec artifacts: %w", err)
+	}
+
+	log.Printf("commitSpecArtifacts: committed %s phase artifacts for %s", phase, f.ID)
+	return nil
 }
 
 func (p *Pipeline) AdvanceFeature(f *feature.Feature) (*feature.Feature, error) {

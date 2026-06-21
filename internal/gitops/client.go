@@ -21,6 +21,11 @@ func (g *GitClient) run(args ...string) (string, error) {
 	return string(out), err
 }
 
+// Run is the exported version of run for use by other packages.
+func (g *GitClient) Run(args ...string) (string, error) {
+	return g.run(args...)
+}
+
 func (g *GitClient) CurrentBranch() (string, error) {
 	out, err := g.run("branch", "--show-current")
 	if err != nil {
