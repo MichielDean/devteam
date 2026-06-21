@@ -195,7 +195,10 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		return strings.Contains(content, "depend") || strings.Contains(content, "Depend") || strings.Contains(content, "Prerequisite")
 
 	case strings.Contains(desc, "code compiles"):
-		return ge.checkBuildCompiles(f)
+		return ge.checkBuildCompiles(f) && ge.checkVetPasses(f)
+
+	case strings.Contains(desc, "tests compile"):
+		return ge.checkVetPasses(f)
 
 	case strings.Contains(desc, "JSON arrays"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
@@ -218,6 +221,9 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 
 	case strings.Contains(desc, "independently buildable"):
 		return ge.checkBuildCompiles(f)
+
+	case strings.Contains(desc, "tests compile without errors"):
+		return ge.checkVetPasses(f)
 
 	case strings.Contains(desc, "service starts and responds"):
 		return ge.checkServiceStarts(f)
@@ -302,6 +308,9 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "smoke") && (strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "no panic") || strings.Contains(lower, "responds to"))
 
+	case strings.Contains(desc, "go test suite passes"):
+		return ge.checkTestSuitePasses(f)
+
 	case strings.Contains(desc, "integration tests exercise"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
 		if err != nil {
@@ -383,6 +392,21 @@ func (ge *GateEvaluator) checkBuildCompiles(f *feature.Feature) bool {
 	return len(output) == 0 || !strings.Contains(string(output), "error")
 }
 
+func (ge *GateEvaluator) checkVetPasses(f *feature.Feature) bool {
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		goPath = "/usr/local/go/bin/go"
+	}
+	cmd := exec.Command(goPath, "vet", "./...")
+	cmd.Dir = ge.specProvider.BaseDir()
+	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return !strings.Contains(string(output), "vet:")
+}
+
 func (ge *GateEvaluator) checkNoPlaceholders(f *feature.Feature) bool {
 	content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
 	if err != nil {
@@ -399,4 +423,19 @@ func (ge *GateEvaluator) checkServiceStarts(f *feature.Feature) bool {
 	}
 	lower := strings.ToLower(content)
 	return (strings.Contains(lower, "smoke") || strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "playwright")) && strings.Contains(lower, "no panic")
+}
+
+func (ge *GateEvaluator) checkTestSuitePasses(f *feature.Feature) bool {
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		goPath = "/usr/local/go/bin/go"
+	}
+	cmd := exec.Command(goPath, "test", "./...", "-count=1", "-timeout", "120s")
+	cmd.Dir = ge.specProvider.BaseDir()
+	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return !strings.Contains(string(output), "FAIL")
 }

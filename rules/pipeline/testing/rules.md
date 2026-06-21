@@ -257,13 +257,14 @@ A test report that says "all tests pass" without reproducible commands is not a 
 ## Quality Gate
 
 Testing is complete when:
-1. Smoke tests pass: service starts, every endpoint returns expected status codes
-2. Integration tests pass: full HTTP cycles work, JSON shapes match contract ([] not null)
-3. E2E tests pass (if UI changed): frontend loads, renders data, no console errors
-4. State machine verified: all valid transitions work, invalid transitions rejected
-5. Spec drift checked: every user story in spec has a corresponding test
-6. Every acceptance criterion has at least one test
-7. No nil pointer panics, no null-vs-empty-array mismatches, no untested error paths
+1. `go test ./...` passes — no test failures, no test compile errors
+2. Smoke tests pass: service starts, every endpoint returns expected status codes
+3. Integration tests pass: full HTTP cycles work, JSON shapes match contract ([] not null)
+4. E2E tests pass (if UI changed): frontend loads, renders data, no console errors
+5. State machine verified: all valid transitions work, invalid transitions rejected
+6. Spec drift checked: every user story in spec has a corresponding test
+7. Every acceptance criterion has at least one test
+8. No nil pointer panics, no null-vs-empty-array mismatches, no untested error paths
 
 ## Findings Have No Severity Tiers
 
