@@ -590,7 +590,10 @@ func TestIntegrationAnswerConflict(t *testing.T) {
 	defer ts.Close()
 
 	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
 		t.Fatalf("failed to decode feature: %v", err)
@@ -600,7 +603,10 @@ func TestIntegrationAnswerConflict(t *testing.T) {
 
 	// Create a question
 	questionBody := `{"phase":"inception","role":"pm","question":"What is the target?","type":"clarification"}`
-	resp, _ = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	if err != nil {
+		t.Fatalf("POST question failed: %v", err)
+	}
 	var question QuestionResponse
 	if err := json.NewDecoder(resp.Body).Decode(&question); err != nil {
 		t.Fatalf("failed to decode question: %v", err)
@@ -612,7 +618,10 @@ func TestIntegrationAnswerConflict(t *testing.T) {
 	answerBody := `{"answer":"First answer"}`
 	req, _ := http.NewRequest("PATCH", ts.URL+"/api/features/"+featureID+"/questions/"+questionID, strings.NewReader(answerBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH question failed: %v", err)
+	}
 	if err := resp.Body.Close(); err != nil {
 		t.Fatalf("closing first answer response: %v", err)
 	}
@@ -624,7 +633,10 @@ func TestIntegrationAnswerConflict(t *testing.T) {
 	// [T011] Try to answer again — should get 409
 	req, _ = http.NewRequest("PATCH", ts.URL+"/api/features/"+featureID+"/questions/"+questionID, strings.NewReader(`{"answer":"Second answer"}`))
 	req.Header.Set("Content-Type", "application/json")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH question failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusConflict {
@@ -659,7 +671,10 @@ func TestIntegrationAnswerNotFound(t *testing.T) {
 	defer ts.Close()
 
 	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	json.NewDecoder(resp.Body).Decode(&created)
 	resp.Body.Close()
@@ -668,7 +683,10 @@ func TestIntegrationAnswerNotFound(t *testing.T) {
 	// Answer a nonexistent question
 	req, _ := http.NewRequest("PATCH", ts.URL+"/api/features/"+featureID+"/questions/Q-999", strings.NewReader(`{"answer":"test"}`))
 	req.Header.Set("Content-Type", "application/json")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH question failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNotFound {
@@ -697,7 +715,10 @@ func TestIntegrationAnswerEmptyString(t *testing.T) {
 	defer ts.Close()
 
 	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	json.NewDecoder(resp.Body).Decode(&created)
 	resp.Body.Close()
@@ -705,7 +726,10 @@ func TestIntegrationAnswerEmptyString(t *testing.T) {
 
 	// Create question
 	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
-	resp, _ = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	if err != nil {
+		t.Fatalf("POST question failed: %v", err)
+	}
 	var question QuestionResponse
 	json.NewDecoder(resp.Body).Decode(&question)
 	resp.Body.Close()
@@ -714,7 +738,10 @@ func TestIntegrationAnswerEmptyString(t *testing.T) {
 	// Answer with empty string
 	req, _ := http.NewRequest("PATCH", ts.URL+"/api/features/"+featureID+"/questions/"+questionID, strings.NewReader(`{"answer":""}`))
 	req.Header.Set("Content-Type", "application/json")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH question failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusBadRequest {
@@ -749,7 +776,10 @@ func TestIntegrationAnswerTooLong(t *testing.T) {
 	defer ts.Close()
 
 	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	json.NewDecoder(resp.Body).Decode(&created)
 	resp.Body.Close()
@@ -757,7 +787,10 @@ func TestIntegrationAnswerTooLong(t *testing.T) {
 
 	// Create question
 	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
-	resp, _ = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	if err != nil {
+		t.Fatalf("POST question failed: %v", err)
+	}
 	var question QuestionResponse
 	json.NewDecoder(resp.Body).Decode(&question)
 	resp.Body.Close()
@@ -768,7 +801,10 @@ func TestIntegrationAnswerTooLong(t *testing.T) {
 	answerJSON := `{"answer":"` + longAnswer + `"}`
 	req, _ := http.NewRequest("PATCH", ts.URL+"/api/features/"+featureID+"/questions/"+questionID, strings.NewReader(answerJSON))
 	req.Header.Set("Content-Type", "application/json")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH question failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusBadRequest {
@@ -797,7 +833,10 @@ func TestIntegrationListPendingQuestions(t *testing.T) {
 	defer ts.Close()
 
 	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	json.NewDecoder(resp.Body).Decode(&created)
 	resp.Body.Close()
@@ -806,12 +845,18 @@ func TestIntegrationListPendingQuestions(t *testing.T) {
 	// Create 3 questions
 	for i := 0; i < 3; i++ {
 		q := `{"phase":"inception","role":"pm","question":"Question ` + string(rune('A'+i)) + `?","type":"clarification"}`
-		resp, _ := http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(q))
+		resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(q))
+		if err != nil {
+			t.Fatalf("POST question failed: %v", err)
+		}
 		resp.Body.Close()
 	}
 
 	// Get all questions
-	resp, _ = http.Get(ts.URL + "/api/features/" + featureID + "/questions")
+	resp, err = http.Get(ts.URL + "/api/features/" + featureID + "/questions")
+	if err != nil {
+		t.Fatalf("GET questions failed: %v", err)
+	}
 	var allQuestions []QuestionResponse
 	json.NewDecoder(resp.Body).Decode(&allQuestions)
 	resp.Body.Close()
@@ -823,7 +868,10 @@ func TestIntegrationListPendingQuestions(t *testing.T) {
 	http.DefaultClient.Do(req)
 
 	// [T015] GET pending should return only 2 questions
-	resp, _ = http.Get(ts.URL + "/api/features/" + featureID + "/questions/pending")
+	resp, err = http.Get(ts.URL + "/api/features/" + featureID + "/questions/pending")
+	if err != nil {
+		t.Fatalf("GET pending questions failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var pending []QuestionResponse
@@ -848,7 +896,10 @@ func TestIntegrationListPendingQuestions(t *testing.T) {
 		http.DefaultClient.Do(req)
 	}
 
-	resp, _ = http.Get(ts.URL + "/api/features/" + featureID + "/questions/pending")
+	resp, err = http.Get(ts.URL + "/api/features/" + featureID + "/questions/pending")
+	if err != nil {
+		t.Fatalf("GET pending questions failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var emptyPending []QuestionResponse
@@ -888,7 +939,10 @@ func TestIntegrationXSSInAnswer(t *testing.T) {
 	defer ts.Close()
 
 	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	json.NewDecoder(resp.Body).Decode(&created)
 	resp.Body.Close()
@@ -896,7 +950,10 @@ func TestIntegrationXSSInAnswer(t *testing.T) {
 
 	// Create a question
 	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
-	resp, _ = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	if err != nil {
+		t.Fatalf("POST question failed: %v", err)
+	}
 	var question QuestionResponse
 	json.NewDecoder(resp.Body).Decode(&question)
 	resp.Body.Close()
@@ -906,7 +963,10 @@ func TestIntegrationXSSInAnswer(t *testing.T) {
 	answerJSON := `{"answer":"` + strings.ReplaceAll(xssPayload, `"`, `\"`) + `"}`
 	req, _ := http.NewRequest("PATCH", ts.URL+"/api/features/"+featureID+"/questions/"+question.ID, strings.NewReader(answerJSON))
 	req.Header.Set("Content-Type", "application/json")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH question failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -944,7 +1004,10 @@ func TestIntegrationQuestionTooLong(t *testing.T) {
 	defer ts.Close()
 
 	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	json.NewDecoder(resp.Body).Decode(&created)
 	resp.Body.Close()
@@ -953,7 +1016,10 @@ func TestIntegrationQuestionTooLong(t *testing.T) {
 	// Create a question with > 2000 char text
 	longQuestion := strings.Repeat("a", 2001)
 	questionBody := `{"phase":"inception","role":"pm","question":"` + longQuestion + `","type":"clarification"}`
-	resp, _ = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	if err != nil {
+		t.Fatalf("POST question failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusBadRequest {
@@ -990,7 +1056,10 @@ func TestIntegrationAdvanceFromWaitingHumanBlocked(t *testing.T) {
 
 	// Create a question (this is valid because the feature is in_progress in inception)
 	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
-	resp, _ := http.Post(ts.URL+"/api/features/"+f.ID+"/questions", "application/json", strings.NewReader(questionBody))
+	resp, err := http.Post(ts.URL+"/api/features/"+f.ID+"/questions", "application/json", strings.NewReader(questionBody))
+	if err != nil {
+		t.Fatalf("POST question failed: %v", err)
+	}
 	resp.Body.Close()
 
 	// Now manually set feature to waiting_for_human
@@ -1001,7 +1070,10 @@ func TestIntegrationAdvanceFromWaitingHumanBlocked(t *testing.T) {
 	advanceBody := `{}`
 	req, _ := http.NewRequest("POST", ts.URL+"/api/features/"+f.ID+"/advance", strings.NewReader(advanceBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST advance failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusBadRequest {
@@ -1037,14 +1109,20 @@ func TestIntegrationFeatureListIncludesPendingQuestionsCount(t *testing.T) {
 
 	// Create a feature
 	createBody := `{"type":"loose_idea","title":"Badge Test Feature","description":"Testing badge","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
-	resp.Body.Close()
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
 	featureID := created.ID
 
 	// Initially, pending_questions_count should be 0
-	resp, _ = http.Get(ts.URL + "/api/features")
+	resp, err = http.Get(ts.URL + "/api/features")
+	if err != nil {
+		t.Fatalf("GET /api/features failed: %v", err)
+	}
 	defer resp.Body.Close()
 	var listResp map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&listResp)
@@ -1065,12 +1143,18 @@ func TestIntegrationFeatureListIncludesPendingQuestionsCount(t *testing.T) {
 	// Create 2 questions
 	for i := 0; i < 2; i++ {
 		q := `{"phase":"inception","role":"pm","question":"Question ` + string(rune('0'+i)) + `?","type":"clarification"}`
-		resp, _ := http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(q))
+		resp, err := http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(q))
+		if err != nil {
+			t.Fatalf("POST question failed: %v", err)
+		}
 		resp.Body.Close()
 	}
 
 	// Now pending_questions_count should be 2
-	resp, _ = http.Get(ts.URL + "/api/features")
+	resp, err = http.Get(ts.URL + "/api/features")
+	if err != nil {
+		t.Fatalf("GET /api/features failed: %v", err)
+	}
 	defer resp.Body.Close()
 	json.NewDecoder(resp.Body).Decode(&listResp)
 	features = listResp["features"].([]interface{})
@@ -1106,14 +1190,20 @@ func TestIntegrationQuestionEndpointsArraysNeverNull(t *testing.T) {
 	defer ts.Close()
 
 	createBody := `{"type":"loose_idea","title":"Array Test Feature","description":"Testing arrays","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	json.NewDecoder(resp.Body).Decode(&created)
 	resp.Body.Close()
 	featureID := created.ID
 
 	// Test GET /questions with no questions returns []
-	resp, _ = http.Get(ts.URL + "/api/features/" + featureID + "/questions")
+	resp, err = http.Get(ts.URL + "/api/features/" + featureID + "/questions")
+	if err != nil {
+		t.Fatalf("GET /questions failed: %v", err)
+	}
 	defer resp.Body.Close()
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(resp.Body)
@@ -1124,7 +1214,10 @@ func TestIntegrationQuestionEndpointsArraysNeverNull(t *testing.T) {
 	}
 
 	// Test GET /questions/pending with no questions returns []
-	resp, _ = http.Get(ts.URL + "/api/features/" + featureID + "/questions/pending")
+	resp, err = http.Get(ts.URL + "/api/features/" + featureID + "/questions/pending")
+	if err != nil {
+		t.Fatalf("GET /questions/pending failed: %v", err)
+	}
 	defer resp.Body.Close()
 	buf = new(bytes.Buffer)
 	buf.ReadFrom(resp.Body)
@@ -1136,7 +1229,10 @@ func TestIntegrationQuestionEndpointsArraysNeverNull(t *testing.T) {
 
 	// Create a question WITHOUT options and verify options is []
 	questionBody := `{"phase":"inception","role":"pm","question":"No options question?","type":"clarification"}`
-	resp, _ = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	if err != nil {
+		t.Fatalf("POST question failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var q QuestionResponse
@@ -1223,14 +1319,20 @@ func TestIntegrationAnswerAssumedConflict(t *testing.T) {
 
 	// Create a feature and question
 	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
-	resp, _ := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("POST /api/features failed: %v", err)
+	}
 	var created FeatureDetailResponse
 	json.NewDecoder(resp.Body).Decode(&created)
 	resp.Body.Close()
 	featureID := created.ID
 
 	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
-	resp, _ = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
+	if err != nil {
+		t.Fatalf("POST question failed: %v", err)
+	}
 	var question QuestionResponse
 	json.NewDecoder(resp.Body).Decode(&question)
 	resp.Body.Close()
@@ -1243,7 +1345,10 @@ func TestIntegrationAnswerAssumedConflict(t *testing.T) {
 	answerBody := `{"answer":"My answer"}`
 	req, _ := http.NewRequest("PATCH", ts.URL+"/api/features/"+featureID+"/questions/"+question.ID, strings.NewReader(answerBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, _ = http.DefaultClient.Do(req)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH question failed: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusConflict {
