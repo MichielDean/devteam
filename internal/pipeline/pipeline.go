@@ -280,96 +280,199 @@ func (p *Pipeline) phaseInstruction(phase feature.Phase, featureID string) strin
 
 Your task: Explore, clarify, and refine the idea into a structured specification.
 
+Follow the Inception Phase Rules for detailed procedures (request type classification, completeness analysis, error scenario tables, empty state behavior, brownfield analysis). The rules are loaded in your context — use them.
+
 You MUST produce the following artifacts in the spec directory:
 
 1. **spec.md** — Write this file at specs/%s/spec.md with:
    - Feature title and description
-   - User stories with priority (P1, P2, P3) and independent tests
-   - Functional requirements (FR-NNN format)
-   - Success criteria (SC-NNN format, measurable)
-   - Edge cases
-   - Assumptions
+   - User stories with priority (P1, P2, P3) — each with independent test
+   - Functional requirements (FR-NNN format) — each traced to a user story
+   - Key entities and relationships (data model overview)
+   - State transitions for entities with lifecycle (valid transitions and invalid transitions)
+   - Success criteria (SC-NNN format, measurable — "Given X, When Y, Then Z")
+   - Error scenarios table: for each user action, what happens on success AND on each error condition (400, 404, 409, 500)
+   - Empty state behavior: what the API/UI returns when collections are empty (200 with [], not 404)
+   - Assumptions and scope boundaries — flag every assumption with [ASSUMPTION: ...]
+   - No [NEEDS CLARIFICATION] markers may remain — resolve them or convert to assumptions
 
 2. **acceptance.md** — Write this file at specs/%s/acceptance.md with:
    - Acceptance criteria traced to each user story (AC-NNN format)
-   - Each criterion MUST be verifiable (testable, not vague)
-   - Group criteria by user story
+   - Each criterion in format: AC-NNN: Given [precondition], when [action], then [expected result]
+     Test level: [smoke | integration | e2e | unit]
+     Verification: [specific assertion or scenario]
+   - Every user story has at least one criterion per relevant test level
+   - Error paths and empty states explicitly covered
+   - No "should work well" or "should be fast" — only "Given X, When Y, Then Z"
 
 3. **repos.yaml** — Write this file at specs/%s/repos.yaml with:
    - Feature ID
    - List of affected repositories with name, URL, and branch
    - At minimum, the devteam repo itself
 
-Do NOT write placeholder content. Every section must contain real, specific content derived from the feature input. If information is missing, make reasonable assumptions and flag them explicitly.`, featureID, featureID, featureID, featureID)
+Do NOT write placeholder content. Every section must contain real, specific content derived from the feature input. If information is missing, make reasonable assumptions and flag them with [ASSUMPTION: ...].`, featureID, featureID, featureID, featureID)
 
 	case feature.PhasePlanning:
 		return fmt.Sprintf(`You are in the PLANNING phase for feature %s.
 
-Your task: Create a technical implementation plan and task breakdown from the approved spec.
+Your task: Design the technical approach with enough specificity that the Developer can implement without making architectural decisions on the fly.
+
+Follow the Planning Phase Rules for detailed procedures (component identification, data modeling, API contracts, NFR design, task decomposition). The rules are loaded in your context — use them.
 
 You MUST produce the following artifacts:
 
 1. **plan.md** — Write this file at specs/%s/plan.md with:
    - Summary of what is being built
-   - Technical context (language, dependencies, testing)
-   - Component design for each major component
-   - API contracts
-   - Data model
-   - Complexity tracking
+   - Technical context (language, framework, dependencies)
+   - Project structure (where files go)
+   - Component design: for each component, its purpose, responsibilities, interfaces, and dependencies
+   - Data model: entities, attributes, relationships, state transitions, data integrity rules
+   - API contracts: for each endpoint, method, path, request schema, response schema (including error responses)
+   - Test strategy per component: what testing levels are required (smoke, integration, e2e, unit)
+   - Agent failure mode checks: which checks apply to which tasks
+   - NFR considerations: performance, security, scalability, reliability (as applicable)
 
 2. **tasks.md** — Write this file at specs/%s/tasks.md with:
-   - Tasks grouped by phase (not by user story)
-   - Each task has: ID (T001, T002...), [P] for parallelizable, description with exact file paths
+   - Tasks grouped by user story priority (P1 first, then P2, then P3)
+   - Each task has: ID (T001, T002...), description with exact file paths, [P] for parallelizable
+   - Done conditions: specific verifiable assertions (not "implement the API" but "implement the API and verify: service starts, GET /api/features returns 200, POST with missing title returns 400")
    - Dependencies between tasks explicitly stated
-   - Checkpoints between phases
+   - Test level required for each task (smoke, integration, e2e, unit)
+   - Agent failure mode checks per task
 
 The plan MUST address all acceptance criteria from acceptance.md. Every task must reference specific files.`, featureID, featureID, featureID)
 
 	case feature.PhaseConstruction:
 		return fmt.Sprintf(`You are in the CONSTRUCTION phase for feature %s.
 
-Your task: Implement the code according to the plan and tasks.
+Your task: Implement the code according to the plan and tasks, following the Construction Phase Rules for self-verification, brownfield patterns, and agent failure mode checks.
 
-Follow the task list in tasks.md. Implement tasks in order, respecting dependencies. Every function must have a real implementation — no stubs or placeholders.
+Before writing any code:
+1. Read spec.md and acceptance.md — understand what you're building and why
+2. Read plan.md — understand the technical approach and test strategy
+3. Read tasks.md — understand what to implement and in what order
+4. If brownfield: read existing code to understand conventions
 
-After implementation, verify:
-- Code compiles in every affected repository
-- No placeholder or stub code remains
-- Each repository's changes are independently buildable`, featureID)
+Implementation approach:
+- Follow the task list in tasks.md, respecting dependency order
+- Write the minimum code needed to satisfy each task's done conditions
+- If brownfield: modify existing files in-place, follow existing conventions, do NOT create ClassName_modified.go
+- Write tests alongside the code, not after
+
+Self-verification before marking any task complete:
+- Build succeeds, binary runs without panicking
+- Hit each endpoint, verify no nil pointer panics, proper error codes
+- Done conditions from tasks.md are verified
+- No TODO, FIXME, HACK, or placeholder implementations remain
+- JSON arrays are [] not null (marshal zero-value struct to check)
+- Error paths work: 400 for invalid input, 404 for missing resources, 409 for conflicts
+
+Agent failure mode checks:
+- Nil pointer chains: initialize struct fields in correct order
+- Null vs empty arrays: use json:"fieldname" NOT json:"fieldname,omitempty"
+- Recovery middleware first: must be outermost middleware
+- Error response structure: {"error": "code", "details": "message"}
+- No over-engineering: 500 lines is suspicious, 5000 lines is almost certainly wrong
+- No phantom methods: every method called must actually exist
+
+After all tasks are complete:
+- go build ./... must succeed
+- go test ./... must pass
+- Service starts and responds without panicking`, featureID)
 
 	case feature.PhaseReview:
 		return fmt.Sprintf(`You are in the REVIEW phase for feature %s.
 
-Your task: Perform adversarial review against the spec acceptance criteria.
+Your task: Perform adversarial review against the spec acceptance criteria. Follow the Review Phase Rules for the structured review process.
+
+Review process:
+1. Spec review: Compare plan against spec — does every user story have corresponding tasks?
+2. Code review: For each task, verify done conditions with specific evidence
+3. Over-engineering check: Is implementation the minimum needed?
+4. Missing implementation check: Any spec requirements not implemented?
 
 Write your findings to specs/%s/review-report.md with:
-- Each acceptance criterion reviewed with evidence
-- Security findings (especially for P1 features)
-- No critical findings may remain unresolved
-- Quote specific code or spec text as evidence
+- Per-criterion analysis: every AC-NNN from acceptance.md with MET or NOT MET status
+- Quoted evidence: specific code with file path and line number
+- Over-engineering findings: line count vs expected
+- Missing implementation: user stories with no corresponding code
 
-Format: For each AC-NNN, state whether it PASSES or FAILS with evidence.`, featureID, featureID)
+Format for each criterion:
+  AC-NNN: [criterion text]
+  Status: MET or NOT MET
+  Evidence: [file:line] [quoted code or spec text]
+  Explanation: [how the code satisfies or fails the criterion]
+
+Key checks:
+- Null pointer safety: every handler dereferencing pointers, every middleware chain
+- JSON serialization: every slice/map field returns [] not null
+- Error path coverage: 400, 404, 409, empty state, 500 recovery
+- Middleware chain: recovery middleware is outermost, CORS is correct
+- Security (P1): authentication, authorization, input validation, no secrets in logs
+
+No critical findings may remain unresolved.`, featureID, featureID)
 
 	case feature.PhaseTesting:
 		return fmt.Sprintf(`You are in the TESTING phase for feature %s.
 
-Your task: Write and run tests traced to spec requirements.
+Your task: Verify that what was built actually works. Follow the Testing Phase Rules for the structured testing process.
+
+Testing process:
+1. Spec-implementation drift: Compare spec against what was built before writing tests
+2. Determine testing levels needed (smoke always, integration for API, E2E for UI, unit for logic)
+3. Write and execute smoke tests: start service, hit every endpoint, verify no panics
+4. Write and execute integration tests: full HTTP request/response cycles
+5. Write and execute E2E tests (if UI changed): load in browser, verify no console errors
+6. Write and execute unit tests: business logic, state machine transitions, serialization
+7. Agent failure mode verification: nil pointers, null arrays, phantom methods, over-engineering
 
 Write your test report to specs/%s/test-report.md with:
+- Spec-implementation drift findings
+- Smoke test results: which endpoints were hit, what status codes returned
+- Integration test results: which request/response cycles were verified
+- E2E test results (if applicable): which pages were loaded, any console errors
+- Unit test results: which logic was tested in isolation
+- Null/empty checks: which fields verified to return [] not null
+- State machine transitions: which transitions were verified
+- Exact commands to reproduce each test
+- Exact assertions verified
+- Anti-fake-report: specific evidence, not "all tests pass"
+
+Quality gate:
 - Every acceptance criterion has at least one test
-- All critical-path tests pass
-- Failed tests have reproduction steps
-- Test IDs trace to acceptance criteria IDs (AC-NNN)`, featureID, featureID)
+- No nil pointer panics, no null-vs-empty-array mismatches
+- All smoke and integration tests pass
+- ANY failing test is an automatic recirculate`, featureID, featureID)
 
 	case feature.PhaseDelivery:
 		return fmt.Sprintf(`You are in the DELIVERY phase for feature %s.
 
-Your task: Produce documentation matching spec terminology and coordinate release.
+Your task: Ship and document. Follow the Delivery Phase Rules for documentation, release coordination, and deployment verification.
+
+Documentation:
+1. API documentation: for every endpoint in the plan, document method, path, request/response schemas, error responses
+2. User-facing documentation: for every user story in the spec, document using spec terminology
+3. Changelog: reference the spec number in every entry
+
+Cross-repo release:
+- If the feature spans repos, document release order (shared libraries first, consumers second, frontend last)
+- Tag all repos with consistent version references
+
+Deployment verification (ALL must pass before marking delivery complete):
+- Build the binary: go build -o ~/go/bin/devteam ./cmd/devteam/
+- Start the service: verify it starts without panicking
+- Hit the endpoints: verify the API responds correctly
+- Load the UI: verify the frontend renders without console errors
+- Run the test suite: verify all tests pass
 
 Write documentation to specs/%s/docs/ with:
-- Documentation using spec terminology
+- API documentation per endpoint (method, path, request, response, errors)
+- User-facing documentation using spec terminology
 - Changelog referencing the spec number
-- Cross-repo release order documented`, featureID, featureID)
+- Cross-repo release order (if applicable)
+- Configuration documentation (env vars, config files, dependencies)
+
+Terminology consistency check: documentation must use the same terms as spec.md, not code-internal names.`, featureID, featureID)
 
 	default:
 		return ""

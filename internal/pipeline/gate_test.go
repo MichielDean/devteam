@@ -49,12 +49,12 @@ func TestGateEvaluator_InceptionGate_AllArtifactsPresent(t *testing.T) {
 	}
 
 	for _, art := range feature.RequiredArtifactsForPhase(feature.PhaseInception) {
-		content := []byte("# Test spec with user story and acceptance criteria\n\n## Requirements\n\n- FR-001: Test requirement")
+		content := []byte("# Spec\n\n## User Stories\n\n- US-001: User can create features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]")
 		if art == feature.ArtifactReposYAML {
 			content = []byte("feature: 001-test\nrepos:\n  - name: devteam\n    branch: feature/001-test")
 		}
 		if art == feature.ArtifactAcceptanceMD {
-			content = []byte("# Acceptance Criteria\n\n- AC-001: Test criterion")
+			content = []byte("# Acceptance Criteria\n\n- AC-001: Given a valid request, when creating a feature, then it returns 201\n  Test level: integration\n  Verification: POST /api/features with valid data returns 201")
 		}
 		if err := writer.WriteArtifact(f.ID, art, content); err != nil {
 			t.Fatal(err)
@@ -100,12 +100,34 @@ func TestGateEvaluator_PlanningGate(t *testing.T) {
 
 This plan addresses all acceptance criteria with detailed file paths.
 
+## Component Design
+
+- API Server: Handles HTTP requests, manages feature lifecycle
+- Store: Persistence layer for features
+- Component interfaces: HTTP handlers, Store interface
+
+## Data Model
+
+- Feature: id, title, priority, current_phase, status, created_at, updated_at
+- State transitions: draft → inception → planning → construction → review → testing → delivery
+
+## API Contracts
+
+- GET /api/features → 200 [{feature}]
+- POST /api/features → 201 {feature} | 400 {error, details}
+
 ## Test Strategy
 
 Each component requires specific testing levels:
 - Smoke: Verify service starts and responds to HTTP requests
 - Integration: Test full request/response cycles through real endpoints
 - Unit: Test business logic in isolation
+
+## Agent Failure Mode Checks
+
+- Nil pointer ordering verified for initialization code
+- JSON arrays are [] not null for collection fields
+- Recovery middleware is first in chain
 
 ## Dependencies
 
@@ -121,6 +143,8 @@ Tasks depend on each other as specified.
 Done conditions for T001:
 - Verify: service starts without panicking
 - Verify: GET /api/features returns 200 with empty list
+
+Test level: smoke, integration
 
 ## Dependencies
 
@@ -160,12 +184,12 @@ func TestGateEvaluator_AdvanceFeature(t *testing.T) {
 	}
 
 	for _, art := range feature.RequiredArtifactsForPhase(feature.PhaseInception) {
-		content := []byte("# Spec with user story\n\n## Requirements\n\n- FR-001: Test")
+		content := []byte("# Spec\n\n## User Stories\n\n- US-001: User can create features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]")
 		if art == feature.ArtifactReposYAML {
 			content = []byte("feature: 001-test\nrepos:\n  - name: devteam\n    branch: feature/001-test")
 		}
 		if art == feature.ArtifactAcceptanceMD {
-			content = []byte("# Acceptance Criteria\n\n- AC-001: Test criterion")
+			content = []byte("# Acceptance Criteria\n\n- AC-001: Given a valid request, when creating a feature, then it returns 201\n  Test level: integration\n  Verification: POST /api/features with valid data returns 201")
 		}
 		if err := writer.WriteArtifact(f.ID, art, content); err != nil {
 			t.Fatal(err)

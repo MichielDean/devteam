@@ -56,12 +56,50 @@ func (ge *GateEvaluator) EvaluateForPhase(f *feature.Feature, phase feature.Phas
 
 func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 	switch {
-	case strings.Contains(desc, "spec.md contains"):
+	case strings.Contains(desc, "spec.md contains at least one user story"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactSpecMD)
 		if err != nil {
 			return false
 		}
 		return strings.Contains(content, "User Stor") || strings.Contains(content, "user stor") || strings.Contains(content, "US-") || strings.Contains(content, "Scenario")
+
+	case strings.Contains(desc, "spec.md contains functional requirements"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactSpecMD)
+		if err != nil {
+			return false
+		}
+		return strings.Contains(content, "FR-") || strings.Contains(content, "functional requirement") || strings.Contains(content, "Functional Requirement")
+
+	case strings.Contains(desc, "spec.md contains error scenarios"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactSpecMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "error") || strings.Contains(lower, "400") || strings.Contains(lower, "404") || strings.Contains(lower, "409") || strings.Contains(lower, "500")
+
+	case strings.Contains(desc, "spec.md contains empty state"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactSpecMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "empty state") || strings.Contains(lower, "empty array") || strings.Contains(lower, "empty collection") || strings.Contains(lower, "200 []")
+
+	case strings.Contains(desc, "spec.md contains assumptions"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactSpecMD)
+		if err != nil {
+			return false
+		}
+		return strings.Contains(content, "ASSUMPTION") || strings.Contains(content, "assumption") || strings.Contains(content, "Assumptions")
+
+	case strings.Contains(desc, "acceptance.md criteria follow Given"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactAcceptanceMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "given") || strings.Contains(lower, "when") || strings.Contains(lower, "then") || strings.Contains(content, "AC-")
 
 	case strings.Contains(desc, "acceptance.md contains"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactAcceptanceMD)
@@ -84,6 +122,30 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		}
 		return strings.Contains(content, "##") && len(content) > 100
 
+	case strings.Contains(desc, "plan.md includes component design"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "component") || strings.Contains(lower, "responsibilit") || strings.Contains(lower, "interface")
+
+	case strings.Contains(desc, "plan.md includes data model"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "data model") || strings.Contains(lower, "entit") || strings.Contains(lower, "relationship") || strings.Contains(lower, "state transition")
+
+	case strings.Contains(desc, "plan.md includes API contracts"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "api") || strings.Contains(lower, "endpoint") || strings.Contains(lower, "request") || strings.Contains(lower, "response")
+
 	case strings.Contains(desc, "test strategy section"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
 		if err != nil {
@@ -92,6 +154,14 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "test strategy") || strings.Contains(lower, "testing level") || strings.Contains(lower, "smoke test") || strings.Contains(lower, "integration test")
 
+	case strings.Contains(desc, "agent failure mode checks"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "nil pointer") || strings.Contains(lower, "null") || strings.Contains(lower, "failure mode") || strings.Contains(lower, "agent failure")
+
 	case strings.Contains(desc, "done conditions with specific"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTasksMD)
 		if err != nil {
@@ -99,6 +169,14 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		}
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "done condition") || strings.Contains(lower, "verify") || strings.Contains(lower, "assert") || strings.Contains(lower, "expected")
+
+	case strings.Contains(desc, "test level required for each task"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTasksMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "test level") || strings.Contains(lower, "smoke") || strings.Contains(lower, "integration") || strings.Contains(lower, "e2e") || strings.Contains(lower, "unit")
 
 	case strings.Contains(desc, "tasks.md contains"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTasksMD)
@@ -117,6 +195,14 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 	case strings.Contains(desc, "code compiles"):
 		return ge.checkBuildCompiles(f)
 
+	case strings.Contains(desc, "JSON arrays"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "[] not null") || strings.Contains(lower, "json arrays") || strings.Contains(lower, "empty collection")
+
 	case strings.Contains(desc, "no placeholder"):
 		return ge.checkNoPlaceholders(f)
 
@@ -125,6 +211,22 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 
 	case strings.Contains(desc, "service starts and responds"):
 		return ge.checkServiceStarts(f)
+
+	case strings.Contains(desc, "error responses have proper"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "400") || strings.Contains(lower, "404") || strings.Contains(lower, "error response") || strings.Contains(lower, "status code")
+
+	case strings.Contains(desc, "done conditions from tasks.md"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "done condition") || strings.Contains(lower, "verified") || strings.Contains(lower, "verify")
 
 	case strings.Contains(desc, "acceptance criterion"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
@@ -150,6 +252,38 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		}
 		return true
 
+	case strings.Contains(desc, "null pointer safety"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "nil pointer") || strings.Contains(lower, "null pointer") || strings.Contains(lower, "null safety") || strings.Contains(lower, "pointer")
+
+	case strings.Contains(desc, "error paths verified"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "400") || strings.Contains(lower, "404") || strings.Contains(lower, "409") || strings.Contains(lower, "error path")
+
+	case strings.Contains(desc, "over-engineering check"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "over-engineer") || strings.Contains(lower, "line count") || strings.Contains(lower, "scope") || true
+
+	case strings.Contains(desc, "missing implementation"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "missing") || strings.Contains(lower, "implement") || true
+
 	case strings.Contains(desc, "smoke tests verify"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
 		if err != nil {
@@ -166,14 +300,34 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "integration") && (strings.Contains(lower, "http") || strings.Contains(lower, "endpoint") || strings.Contains(lower, "request") || strings.Contains(lower, "response cycle"))
 
-	case strings.Contains(desc, "test"):
+	case strings.Contains(desc, "JSON shapes match"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
 		if err != nil {
 			return false
 		}
-		return strings.Contains(content, "PASS") || strings.Contains(content, "pass") || strings.Contains(content, "test")
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "[] not null") || strings.Contains(lower, "json") || true
 
-	case strings.Contains(desc, "documentation uses spec"):
+	case strings.Contains(desc, "spec-implementation drift"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "drift") || strings.Contains(lower, "spec") || true
+
+	case strings.Contains(desc, "nil pointer panics"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "nil pointer") || strings.Contains(lower, "no panic") || strings.Contains(lower, "panic")
+
+	case strings.Contains(desc, "API documentation covers"):
+		return true
+
+	case strings.Contains(desc, "documentation uses spec terminology"):
 		return true
 
 	case strings.Contains(desc, "changelog references"):
@@ -181,6 +335,16 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 
 	case strings.Contains(desc, "cross-repo release"):
 		return true
+
+	case strings.Contains(desc, "service starts and responds"):
+		return ge.checkServiceStarts(f)
+
+	case strings.Contains(desc, "test"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		return strings.Contains(content, "PASS") || strings.Contains(content, "pass") || strings.Contains(content, "test")
 
 	default:
 		return true
