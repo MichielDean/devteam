@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSSE } from '../hooks/useSSE';
+import { getCapturedOutput } from '../api/client';
 import { PHASE_LABELS } from '../types';
 import type { PhaseName } from '../types';
 
@@ -17,7 +18,23 @@ export default function AgentOutput({ featureId }: AgentOutputProps) {
   const { lastEvent } = useSSE(featureId);
   const [lines, setLines] = useState<OutputLine[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [, setHasLoadedExisting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Fetch existing tmux output on mount (for page refresh recovery)
+  useEffect(() => {
+    getCapturedOutput(featureId).then((data) => {
+      if (data.output && data.output.trim()) {
+        const existingLines = data.output.split('\n').filter((l) => l.trim()).map((l) => ({
+          line: l,
+          isStderr: false,
+          timestamp: new Date(),
+        }));
+        setLines(existingLines);
+      }
+      setHasLoadedExisting(true);
+    }).catch(() => setHasLoadedExisting(true));
+  }, [featureId]);
 
   useEffect(() => {
     if (!lastEvent) return;
