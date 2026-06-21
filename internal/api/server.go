@@ -28,6 +28,11 @@ type Server struct {
 	questionStore feature.QuestionStore
 }
 
+func (s *Server) IsProcessing(id string) bool {
+	_, loaded := s.activeProcess.Load(id)
+	return loaded
+}
+
 func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore) *Server {
 	s := &Server{
 		specProvider:  specProvider,
@@ -199,7 +204,7 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f))
+	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
 
 	// Auto-start inception phase in the background
 	go func() {
@@ -238,7 +243,7 @@ func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
 }
 
 func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
@@ -264,7 +269,7 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, FeatureToDetailResponse(f))
+	writeJSON(w, http.StatusAccepted, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
 
 	go func() {
 		defer s.activeProcess.Delete(id)
@@ -343,7 +348,7 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusInternalServerError, "internal_error", "Failed to save feature state")
 				return
 			}
-			writeJSON(w, http.StatusOK, FeatureToDetailResponse(f))
+			writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
 			return
 		}
 		writeError(w, http.StatusBadRequest, "validation_error", "Feature is at the final phase (delivery) and the gate has not passed")
@@ -369,7 +374,7 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
 }
 
 func (s *Server) recirculateFeature(w http.ResponseWriter, r *http.Request) {
@@ -418,7 +423,7 @@ func (s *Server) recirculateFeature(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
 }
 
 func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {
@@ -449,7 +454,7 @@ func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
 }
 
 func (s *Server) evaluateGate(w http.ResponseWriter, r *http.Request) {
@@ -499,7 +504,7 @@ func (s *Server) processFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID)))
 
 	go func() {
 		defer s.activeProcess.Delete(id)

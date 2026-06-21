@@ -48,6 +48,7 @@ type FeatureDetailResponse struct {
 	PhaseStates  map[string]PhaseStateResponse `json:"phase_states"`
 	Dependencies []string                      `json:"dependencies"`
 	Repos        []RepoRefResponse             `json:"repos"`
+	IsProcessing bool                          `json:"is_processing"`
 }
 
 type PhaseStateResponse struct {
@@ -121,7 +122,7 @@ func FeatureToSummaryResponse(f *feature.Feature) FeatureSummaryResponse {
 	return resp
 }
 
-func FeatureToDetailResponse(f *feature.Feature) FeatureDetailResponse {
+func FeatureToDetailResponse(f *feature.Feature, isProcessing bool) FeatureDetailResponse {
 	phaseStates := make(map[string]PhaseStateResponse)
 	for phase, ps := range f.PhaseStates {
 		resp := PhaseStateResponse{
@@ -172,6 +173,7 @@ func FeatureToDetailResponse(f *feature.Feature) FeatureDetailResponse {
 		PhaseStates:  phaseStates,
 		Dependencies: deps,
 		Repos:        repos,
+		IsProcessing: isProcessing,
 	}
 }
 

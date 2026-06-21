@@ -28,6 +28,7 @@ export interface FeatureDetail {
   phase_states: Record<string, PhaseState>;
   dependencies: string[];
   repos: RepoRef[];
+  is_processing: boolean;
 }
 
 export interface PhaseState {

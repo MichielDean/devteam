@@ -239,7 +239,7 @@ func TestRecoveryMiddleware(t *testing.T) {
 
 func TestFeatureToDetailResponse(t *testing.T) {
 	f := feature.NewFeature("001-test", "Test Feature", 2, feature.IntakeLooseIdea)
-	resp := FeatureToDetailResponse(f)
+	resp := FeatureToDetailResponse(f, false)
 
 	if resp.ID != "001-test" {
 		t.Errorf("expected ID '001-test', got %s", resp.ID)
