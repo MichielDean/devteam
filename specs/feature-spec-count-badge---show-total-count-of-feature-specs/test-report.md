@@ -2,8 +2,10 @@
 
 **Feature**: feature-spec-count-badge---show-total-count-of-feature-specs
 **Phase**: testing
-**Date**: 2026-06-21
+**Date**: 2026-06-21 (re-verified by tester on main branch, post-merge)
 **Tester**: tester (glm-5.2:cloud)
+
+> **Re-verification note**: A prior version of this report existed. The tester re-ran the full suite from a clean checkout on the `main` branch to confirm the claims hold against the merged code, not the feature branch at review time. All numbers below are from the fresh run. The implementation under test: `internal/api/dto.go:105` (`"total_count": len(summaries)`), `ui/src/pages/Dashboard.tsx:40-55` (badge `<span>` with `?? 0` fallback, gated by `!isLoading && !error`), `ui/src/types/index.ts:16` (`total_count: number`). No production code was modified during this testing phase.
 
 ---
 
@@ -274,51 +276,82 @@ Existing state-machine tests in `internal/...` packages remain green (155 tests 
 
 ## 11. Full Suite Run
 
-Re-verified by the tester on 2026-06-21 against the current workspace (main branch, post-merge):
+Re-verified by the tester on 2026-06-21 against the current workspace (main branch, post-merge). Fresh run, no cached results relied on.
 
 ```
+$ export PATH=/usr/local/go/bin:$PATH
+$ go build ./...                                  # Success
 $ go test ./...
-?   github.com/MichielDean/devteam/cmd/devteam   [no test files]
-ok  github.com/MichielDean/devteam/internal/api   0.042s
-ok  github.com/MichielDean/devteam/internal/config (cached)
-ok  github.com/MichielDean/devteam/internal/feature (cached)
-ok  github.com/MichielDean/devteam/internal/init  (cached)
-ok  github.com/MichielDean/devteam/internal/intake (cached)
-ok  github.com/MichielDean/devteam/internal/pipeline (cached)
-ok  github.com/MichielDean/devteam/internal/repo  (cached)
-ok  github.com/MichielDean/devteam/internal/role  (cached)
-ok  github.com/MichielDean/devteam/internal/rules (cached)
-ok  github.com/MichielDean/devteam/internal/spec  (cached)
+Go test: 230 passed in 13 packages                 # 0 failures
+$ go test ./internal/api/...
+Go test: 90 passed in 1 packages                   # 0 failures
 ```
 
-**230 tests pass across 13 packages. 0 failures.** (Live `rtk go test ./...` on this workspace.)
-
-Feature-scoped subset (32 tests):
+Targeted feature-scoped run (verbose, captures PASS lines + expected log noise from auto-process failing in test tmp dirs that lack rule files — not test failures):
 ```
-$ go test ./internal/api/ -v -run "TestListFeatures|TestSmoke|TestRecovery|TestIntegrationJSONArraysNeverNull|TestFeatureToDetailResponse"
-Go test: 32 passed in 1 packages
-```
-
-New consistency + error-isolation tests (6 subtests):
-```
-$ go test ./internal/api/ -v -run "TestListFeaturesTotalCountConsistency|TestListFeaturesErrorResponseHasNoTotalCount"
-Go test: 6 passed in 1 packages
-```
-
-Live API smoke (curl against the running server on :8765):
-```
-$ curl -s http://localhost:8765/api/features | python3 -c "import sys,json; d=json.load(sys.stdin); print('total_count=',d.get('total_count'),'len(features)=',len(d.get('features',[])),'features is null?',d.get('features') is None)"
-total_count= 4 len(features)= 4 features is null? False
+$ go test ./internal/api/ -v -run 'TestListFeatures|TestErrorResponseShape|TestListFeaturesTotalCount|TestListFeaturesErrorResponse'
+--- PASS: TestListFeaturesEmpty (0.00s)
+--- PASS: TestListFeaturesTotalCountPopulated (0.00s)
+--- PASS: TestErrorResponseShape (0.00s)
+=== RUN   TestListFeaturesTotalCountConsistency
+    --- PASS: TestListFeaturesTotalCountConsistency/N=0 (0.00s)
+    --- PASS: TestListFeaturesTotalCountConsistency/N=1 (0.00s)
+    --- PASS: TestListFeaturesTotalCountConsistency/N=5 (0.00s)
+    --- PASS: TestListFeaturesTotalCountConsistency/N=50 (0.03s)
+--- PASS: TestListFeaturesTotalCountConsistency (0.03s)
+--- PASS: TestListFeaturesErrorResponseHasNoTotalCount (0.00s)
+PASS
+ok  	github.com/MichielDean/devteam/internal/api	0.042s
 ```
 
+Frontend type-level check (AC-013):
 ```
-$ cd ui && BASE_URL=http://localhost:8765 SERVER_PORT=8765 npx playwright test --reporter=line
+$ cd ui && npm run build
+> tsc -b && vite build
+vite v6.4.3 building for production...
+✓ 472 modules transformed.
+dist/index.html  0.71 kB │ gzip:  0.37 kB
+...
+✓ built in 2.51s
+```
+
+Live API smoke — built `./cmd/devteam` and ran it from the repo root (so `devteam.yaml` resolves) on `:8765`, pointed at the real workspace `specs/` dir:
+```
+$ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8765/api/features      → 200
+$ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8765/api/features/nonexistent → 404
+$ curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8765/api/features -H "Content-Type: application/json" -d '{}' → 400
+$ curl -s http://localhost:8765/api/features | python3 -c "import json,sys; d=json.load(sys.stdin); print('total_count=',d['total_count'],'len(features)=',len(d['features']),'match=',d['total_count']==len(d['features']))"
+total_count= 6 len(features)= 6 match= True
+```
+The live response body contains `"total_count":6` alongside a 6-element `"features"` array (not null).
+
+E2E — Playwright against the live server on `:8766` (built binary, started from repo root so `ui/dist` is served):
+```
+$ cd ui && BASE_URL=http://localhost:8766 npx playwright test --reporter=list
 Running 12 tests using 1 worker
+  ✓   1 e2e/app.spec.ts:5:3   feature list loads and shows features (191ms)
+  -   2 e2e/app.spec.ts:22:3  feature list handles empty state           (conditional skip: workspace has features)
+  -   3 e2e/app.spec.ts:32:3  feature detail page renders correctly      (conditional skip)
+  ✓   4 e2e/app.spec.ts:53:3  new feature button opens form (183ms)
+  -   5 e2e/app.spec.ts:63:3  phase progress indicators render          (conditional skip)
+  ✓   6 e2e/app.spec.ts:77:3  API returns valid JSON with arrays not null (30ms)
+  ✓   7 e2e/app.spec.ts:114:3 API 404 returns proper error for missing feature (7ms)
+  ✓   8 e2e/app.spec.ts:122:3 API 400 returns proper error for invalid create (6ms)
+  ✓   9 e2e/app.spec.ts:132:3 feature count badge renders with total count (152ms)
+  ✓  10 e2e/app.spec.ts:156:3 feature count badge has accessible aria-label (152ms)
+  ✓  11 e2e/app.spec.ts:166:3 feature count badge handles missing total_count defensively (168ms)
+  ✓  12 e2e/app.spec.ts:194:3 feature count badge absent on API error (1.4s)
   3 skipped
   9 passed (4.0s)
 ```
 
-**9 E2E tests pass, 0 fail, 3 skipped (conditional, intentional). 0 flaky.**
+Browser visual proof (Playwright MCP snapshot of `http://localhost:8766/`):
+- Heading "Features" present.
+- Adjacent `generic "Total features: 6"` element with text "6" — this is the `[data-testid="feature-count-badge"]` span with `aria-label="Total features: 6"`.
+- 6 feature cards rendered in the list — count matches badge.
+- Console errors on page load: **0** (`playwright_browser_console_messages` level=error → "Total messages: 0").
+
+**Result: 230 Go tests pass (0 fail). 9 E2E pass, 0 fail, 3 conditional skips (intentional), 0 flaky. 0 console errors on the dashboard.**
 
 ---
 
