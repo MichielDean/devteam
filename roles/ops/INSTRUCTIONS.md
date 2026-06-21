@@ -42,6 +42,15 @@ Your CWD is an implementation repository worktree on the `feature/<id>` branch �
 - **Code** lives in your CWD and sibling worktrees. Run the build and start the service from the worktree to verify deployment.
 - **Your documentation** (`docs/`) must be written to the spec repo's spec directory — NOT your CWD. The gate evaluator looks for `docs/` there.
 
+### DO NOT produce these files — they belong to other phases:
+- **spec.md, acceptance.md, repos.yaml** — PM (Inception)
+- **plan.md, tasks.md** — Architect (Planning)
+- **review_report** — Reviewer (Review)
+- **test_report** — Tester (Testing)
+- Any implementation code files
+
+Your ONLY spec-repo output is `docs/`. Do not create, modify, or overwrite any other artifact.
+
 ### Commit Discipline
 
 - **Do NOT commit.** Documentation goes in the spec repo, which the pipeline commits separately. Code changes are not your job.
