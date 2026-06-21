@@ -1,0 +1,13 @@
+# Repository Scope: Feature Spec Count Badge
+
+feature_id: feature-spec-count-badge---show-total-count-of-feature-specs
+
+# This feature touches only the devteam repo (backend DTO + frontend SPA).
+# No cross-repo coordination required.
+
+repos:
+  devteam:
+    url: git@github.com:MichielDean/devteam.git
+    branch: main
+    description: Dev Team platform — orchestrator, roles, specs, and configuration. Backend changes in internal/api/dto.go and frontend changes in ui/src.
+    primary: true

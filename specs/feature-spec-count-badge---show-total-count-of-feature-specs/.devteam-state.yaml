@@ -1,0 +1,29 @@
+id: feature-spec-count-badge---show-total-count-of-feature-specs
+title: Feature Spec Count Badge - show total count of feature specs on the features list page. Add total_count field to GET /api/features response. Show a badge on the UI. No new endpoints needed.
+current_phase: inception
+status: in_progress
+priority: 2
+intake_path: loose_idea
+spec_dir: specs/feature-spec-count-badge---show-total-count-of-feature-specs/
+created_at: 2026-06-20T23:31:17.101206004-06:00
+updated_at: 2026-06-20T23:31:17.101347834-06:00
+phase_states:
+    construction:
+        phase: construction
+        status: draft
+    delivery:
+        phase: delivery
+        status: draft
+    inception:
+        phase: inception
+        status: in_progress
+        started_at: 2026-06-20T23:31:17.101347834-06:00
+    planning:
+        phase: planning
+        status: draft
+    review:
+        phase: review
+        status: draft
+    testing:
+        phase: testing
+        status: draft
