@@ -20,11 +20,18 @@ export default function Dashboard() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (req: CreateFeatureRequest) => createFeature(req),
-    onSuccess: (data) => {
+    mutationFn: ({ req, startImmediately }: { req: CreateFeatureRequest; startImmediately: boolean }) => {
+      req.start_immediately = startImmediately;
+      return createFeature(req);
+    },
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['features'] });
       setShowIntakeForm(false);
-      addToast('success', 'Feature created — inception starting automatically');
+      if (variables.startImmediately) {
+        addToast('success', 'Feature created — inception starting');
+      } else {
+        addToast('success', 'Feature created');
+      }
       navigate(`/features/${data.id}`);
     },
     onError: (err: Error) => {
@@ -65,7 +72,7 @@ export default function Dashboard() {
 
       {showIntakeForm && (
         <IntakeForm
-          onSubmit={(req) => createMutation.mutate(req)}
+          onSubmit={(req, startImmediately) => createMutation.mutate({ req, startImmediately })}
           onCancel={() => setShowIntakeForm(false)}
           isLoading={createMutation.isPending}
         />

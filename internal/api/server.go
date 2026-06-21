@@ -308,10 +308,18 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set activeProcess before responding so the UI knows it's processing
-	s.activeProcess.Store(f.ID, "single-phase")
+	// Set activeProcess before responding so the UI knows it's processing (only if starting)
+	if req.StartImmediately {
+		s.activeProcess.Store(f.ID, "single-phase")
+	}
 
 	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
+
+	// Only auto-start inception if requested. Otherwise, just create the feature
+	// and let the user start it manually from the feature page.
+	if !req.StartImmediately {
+		return
+	}
 
 	// Auto-start inception phase only (not full autopilot).
 	// UI-created features should be interactive: run one phase, ask questions,

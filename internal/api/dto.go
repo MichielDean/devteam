@@ -14,11 +14,12 @@ type ErrorResponse struct {
 }
 
 type CreateFeatureRequest struct {
-	Type        string `json:"type"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Priority    int    `json:"priority"`
-	FileContent string `json:"file_content,omitempty"`
+	Type            string `json:"type"`
+	Title           string `json:"title"`
+	Description     string `json:"description"`
+	Priority        int    `json:"priority"`
+	FileContent     string `json:"file_content,omitempty"`
+	StartImmediately bool  `json:"start_immediately,omitempty"`
 }
 
 type RecirculateRequest struct {

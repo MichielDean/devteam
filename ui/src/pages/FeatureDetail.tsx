@@ -352,10 +352,14 @@ export default function FeatureDetail() {
                 onClick={() => runPhaseMutation.mutate()}
                 disabled={runPhaseMutation.isPending}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                title={`Run only the current step (${PHASE_LABELS[currentPhase as PhaseName]}) and check if it passes. You'll need to advance manually.`}
+                title={currentPhaseState?.gate_result
+                  ? `Re-run ${PHASE_LABELS[currentPhase as PhaseName]} — this will overwrite existing artifacts`
+                  : `Run only the current step (${PHASE_LABELS[currentPhase as PhaseName]}) and check if it passes. You'll need to advance manually.`}
                 data-testid="run-phase-button"
               >
-                {PHASE_ACTIONS[currentPhase as PhaseName] || 'Run Current Step'}
+                {currentPhaseState?.gate_result
+                  ? `Re-run ${PHASE_LABELS[currentPhase as PhaseName]}`
+                  : PHASE_ACTIONS[currentPhase as PhaseName] || 'Run Current Step'}
               </button>
 
               <button
