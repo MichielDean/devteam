@@ -65,11 +65,22 @@ export async function createFeature(req: CreateFeatureRequest): Promise<FeatureD
   });
 }
 
-// Run phase
+// Run phase (async - returns 202 Accepted immediately)
 export async function runPhase(id: string): Promise<FeatureDetail> {
-  return request<FeatureDetail>(`/features/${id}/run`, {
+  const response = await fetch(`${API_BASE}/features/${id}/run`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
   });
+
+  if (!response.ok) {
+    const errorData: ErrorResponse = await response.json().catch(() => ({
+      error: 'unknown_error',
+      details: response.statusText,
+    }));
+    throw new ApiError(response.status, errorData.error, errorData.details);
+  }
+
+  return response.json();
 }
 
 // Advance feature

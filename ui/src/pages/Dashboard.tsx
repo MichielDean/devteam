@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listFeatures, createFeature, ApiError } from '../api/client';
 import { useToast } from '../components/Toast';
@@ -11,6 +12,7 @@ export default function Dashboard() {
   const [showIntakeForm, setShowIntakeForm] = useState(false);
   const queryClient = useQueryClient();
   const { addToast } = useToast();
+  const navigate = useNavigate();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['features'],
@@ -19,10 +21,11 @@ export default function Dashboard() {
 
   const createMutation = useMutation({
     mutationFn: (req: CreateFeatureRequest) => createFeature(req),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['features'] });
       setShowIntakeForm(false);
-      addToast('success', 'Feature created successfully');
+      addToast('success', 'Feature created — inception starting automatically');
+      navigate(`/features/${data.id}`);
     },
     onError: (err: Error) => {
       if (err instanceof ApiError && err.code === 'duplicate_title') {
