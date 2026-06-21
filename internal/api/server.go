@@ -83,10 +83,11 @@ func (s *Server) resumeOrphanedFeatures() {
 			continue
 		}
 
-		log.Printf("resumeOrphanedFeatures: found orphaned feature %s (phase %s, status %s) — resuming pipeline", f.ID, f.Current, f.Status)
+		log.Printf("resumeOrphanedFeatures: found orphaned feature %s (phase %s, status %s) — resuming current phase", f.ID, f.Current, f.Status)
 
-		// Resume the pipeline in autopilot mode
-		s.activeProcess.Store(f.ID, "autopilot")
+		// Resume in single-phase mode — run current phase only, then stop.
+		// Don't auto-advance; user advances manually through the UI.
+		s.activeProcess.Store(f.ID, "single-phase")
 		go func(featureID string) {
 			defer s.activeProcess.Delete(featureID)
 
@@ -97,29 +98,38 @@ func (s *Server) resumeOrphanedFeatures() {
 			}
 
 			ctx := context.Background()
-			eventCh := make(chan pipeline.ProcessEvent, 100)
+			currentPhase := f.Current
+
+			s.broadcastSSE(featureID, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, featureID, currentPhase))
+			s.broadcastSSE(featureID, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched","message":"Resuming %s"}`, featureID, currentPhase, s.pipeline.PrimaryRole(currentPhase), currentPhase))
 
 			onOutput := func(line string, isStderr bool) {
 				escaped, _ := json.Marshal(line)
 				s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, featureID, string(escaped), isStderr))
 			}
 
-			done := make(chan error, 1)
-			go func() {
-				done <- s.pipeline.ProcessAsync(ctx, f, eventCh, onOutput)
-				close(eventCh)
-			}()
-
-			for evt := range eventCh {
-				data, _ := json.Marshal(evt)
-				s.broadcastSSE(featureID, string(evt.Type), string(data))
-			}
-
-			if err := <-done; err != nil {
+			result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput)
+			if err != nil {
 				log.Printf("resumeOrphanedFeatures: error resuming feature %s: %v", featureID, err)
-			} else {
-				log.Printf("resumeOrphanedFeatures: feature %s pipeline completed", featureID)
+				s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Resume failed: %s"}`, featureID, err.Error()))
+				return
 			}
+
+			if result != nil && result.GateResult != nil {
+				checks := make([]map[string]interface{}, 0, len(result.GateResult.Checks))
+				for _, c := range result.GateResult.Checks {
+					checks = append(checks, map[string]interface{}{
+						"name":    c.Name,
+						"passed":  c.Passed,
+						"message": c.Message,
+					})
+				}
+				checksJSON, _ := json.Marshal(checks)
+				s.broadcastSSE(featureID, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, featureID, currentPhase, result.GateResult.Passed, string(checksJSON)))
+			}
+
+			s.broadcastSSE(featureID, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, featureID, currentPhase))
+			log.Printf("resumeOrphanedFeatures: feature %s phase %s completed", featureID, currentPhase)
 		}(f.ID)
 	}
 }
