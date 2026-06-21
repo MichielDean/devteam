@@ -73,6 +73,14 @@ func (rl *RuleLoader) BuildContext(phase string, roleName string, priority int) 
 		parts = append(parts, "=== Phase Rules ===\n"+strings.Join(phaseRules, "\n\n"))
 	}
 
+	alwaysExtensions := []string{"error-recovery", "overconfidence-prevention"}
+	for _, ext := range alwaysExtensions {
+		extRules, err := rl.ExtensionRules(ext)
+		if err == nil {
+			parts = append(parts, fmt.Sprintf("=== Extension: %s ===\n%s", ext, extRules))
+		}
+	}
+
 	if priority == 1 {
 		for _, ext := range []string{"security", "resiliency"} {
 			extRules, err := rl.ExtensionRules(ext)
@@ -81,9 +89,9 @@ func (rl *RuleLoader) BuildContext(phase string, roleName string, priority int) 
 			}
 		}
 	} else if priority == 2 {
-		extRules, err := rl.ExtensionRules("resiliency")
+		extRules, err := rl.ExtensionRules("security")
 		if err == nil {
-			parts = append(parts, "=== Extension: resiliency ===\n"+extRules)
+			parts = append(parts, "=== Extension: security ===\n"+extRules)
 		}
 	}
 

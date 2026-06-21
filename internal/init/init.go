@@ -88,13 +88,23 @@ pipeline:
   extensions:
     security:
       opt_in: true
-      load_for_priority: [1]
+      load_for_priority: [1, 2]
       rules: rules/pipeline/extensions/security/rules.md
 
     resiliency:
       opt_in: true
-      load_for_priority: [1, 2]
+      load_for_priority: [1]
       rules: rules/pipeline/extensions/resiliency/rules.md
+
+    error-recovery:
+      opt_in: false
+      always_on: true
+      rules: rules/pipeline/extensions/error-recovery/rules.md
+
+    overconfidence-prevention:
+      opt_in: false
+      always_on: true
+      rules: rules/pipeline/extensions/overconfidence-prevention/rules.md
 
 intake:
   loose_idea:
@@ -145,6 +155,8 @@ func (init *Initializer) Init() error {
 		filepath.Join(init.baseDir, "rules", "pipeline", "delivery"),
 		filepath.Join(init.baseDir, "rules", "pipeline", "extensions", "security"),
 		filepath.Join(init.baseDir, "rules", "pipeline", "extensions", "resiliency"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "extensions", "error-recovery"),
+		filepath.Join(init.baseDir, "rules", "pipeline", "extensions", "overconfidence-prevention"),
 		filepath.Join(init.baseDir, "constitution"),
 	}
 
@@ -346,7 +358,7 @@ Before passing the delivery gate, you MUST ensure:
 
 	coreWorkflow := filepath.Join(init.baseDir, "rules", "pipeline", "core-workflow.md")
 	if _, err := os.Stat(coreWorkflow); os.IsNotExist(err) {
-		content := "# AIDLC Core Workflow\n\nThis directory should contain the AIDLC core workflow rules.\nSee https://github.com/MichielDean/devteam for the full rule set.\n"
+		content := "# Dev Team Pipeline Governance\n\nThis directory should contain the Dev Team pipeline rules.\nSee https://github.com/MichielDean/devteam for the full rule set.\n"
 		if err := os.WriteFile(coreWorkflow, []byte(content), 0644); err != nil {
 			return fmt.Errorf("writing core-workflow.md: %w", err)
 		}

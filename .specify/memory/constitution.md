@@ -34,7 +34,10 @@ The orchestrator is a Go binary. No Python runtime dependency for the core pipel
 
 ## IX. Pipeline Governance
 
-Phase-appropriate rules govern each role's behavior. Inception rules guide the PM. Planning rules guide the Architect (including test strategy). Construction rules guide the Developer (including self-verification). Review rules guide the Reviewer. Testing rules guide the Tester (including 4-level testing). Delivery rules guide the Ops. Security and resiliency extensions load for priority-1 features. The rules are markdown files injected into agent context, not code.
+Phase-appropriate rules govern each role's behavior. Inception rules guide the PM. Planning rules guide the Architect (including test strategy). Construction rules guide the Developer (including self-verification). Review rules guide the Reviewer. Testing rules guide the Tester (including 4-level testing). Delivery rules guide the Ops. Extensions provide deeper guidance:
+- Security and resiliency extensions load for priority-1 features (security also for priority-2)
+- Error-recovery and overconfidence-prevention extensions load for all features (always-on)
+- The rules are markdown files injected into agent context, not code.
 
 Quality is baked into every phase, not bolted on at the end:
 - PM writes acceptance criteria with test levels
@@ -49,4 +52,4 @@ Structured context beats freeform descriptions. Role identity must be clear and 
 
 ---
 
-**Version**: 1.0 | **Ratified**: 2026-06-19 | **Last Amended**: 2026-06-19
+**Version**: 1.1 | **Ratified**: 2026-06-19 | **Last Amended**: 2026-06-20

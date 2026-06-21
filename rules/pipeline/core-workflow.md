@@ -26,13 +26,19 @@ It's designed for autonomous multi-agent execution with quality baked in at ever
 
 ## Extension Loading
 
-The pipeline loads phase-appropriate rules for each role during dispatch. Extensions (security, resiliency, testing) are loaded based on feature priority:
+The pipeline loads phase-appropriate rules for each role during dispatch. Extensions provide deeper guidance beyond the phase rules:
 
-- **P1 features**: Security and resiliency extensions are mandatory
-- **P2 features**: Security extension is recommended
-- **P3 features**: No mandatory extensions
+### Always-On Extensions (loaded for all priorities)
 
-Extensions are in `rules/pipeline/extensions/`.
+- **error-recovery**: What to do when things go wrong — phase-specific recovery patterns, when to fix vs when to recirculate, conservative defaults for uncertain situations. Adapted from AIDLC's error handling but designed for autonomous agents (no "wait for human approval" gates).
+
+- **overconfidence-prevention**: Anti-patterns for the systematic LLM tendency to skip questions, make assumptions, and proceed with incomplete information. Adapted from AIDLC's overconfidence prevention but redesigned for autonomous pipeline context — instead of "ask the user," the pattern is "document the assumption and make the conservative choice."
+
+### Priority-Based Extensions
+
+- **security** (mandatory for P1, recommended for P2): Threat modeling, input validation patterns, authentication architecture, security testing scenarios. OWASP Top 10 coverage.
+
+- **resiliency** (mandatory for P1, recommended for P2): Timeout patterns, retry with backoff, circuit breaker design, graceful degradation, panic recovery. Code-level patterns with Go examples.
 
 ## Quality at Every Phase
 

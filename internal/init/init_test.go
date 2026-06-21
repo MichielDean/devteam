@@ -31,6 +31,8 @@ func TestInit_CreatesDirectoryStructure(t *testing.T) {
 		"rules/pipeline/delivery",
 		"rules/pipeline/extensions/security",
 		"rules/pipeline/extensions/resiliency",
+		"rules/pipeline/extensions/error-recovery",
+		"rules/pipeline/extensions/overconfidence-prevention",
 		"constitution",
 	}
 
