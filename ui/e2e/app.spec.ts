@@ -183,12 +183,10 @@ test.describe('Dev Team Web UI', () => {
     // No console errors, no crash — features-error must not appear (it's a 200)
     await expect(page.locator('[data-testid="features-error"]')).toHaveCount(0);
 
+    // FR-009: badge renders with 0 when total_count missing (defensive default)
     const badge = page.locator('[data-testid="feature-count-badge"]');
-    const badgeCount = await badge.count();
-    if (badgeCount > 0) {
-      const text = await badge.textContent();
-      expect(text).toBe('0');
-    }
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText('0');
 
     expect(consoleErrors).toEqual([]);
   });
