@@ -31,7 +31,7 @@ func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline 
 		config:        cfg,
 		specProvider:  specProvider,
 		specWriter:    spec.NewSpecWriter(baseDir),
-		ruleLoader:    rules.NewRuleLoader(baseDir),
+		ruleLoader:    rules.NewRuleLoaderWithConfig(baseDir, cfg),
 		roleLoader:    role.NewRoleLoader(baseDir),
 		dispatcher:    role.NewDispatcher(baseDir),
 		questionStore: feature.NewFileQuestionStore(baseDir),
@@ -44,7 +44,7 @@ func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecProvid
 		config:        cfg,
 		specProvider:  specProvider,
 		specWriter:    spec.NewSpecWriter(baseDir),
-		ruleLoader:    rules.NewRuleLoader(baseDir),
+		ruleLoader:    rules.NewRuleLoaderWithConfig(baseDir, cfg),
 		roleLoader:    role.NewRoleLoader(baseDir),
 		dispatcher:    dispatcher,
 		questionStore: feature.NewFileQuestionStore(baseDir),
@@ -58,7 +58,7 @@ func NewPipelineWithQuestionStore(cfg *config.Config, specProvider *spec.SpecPro
 		config:        cfg,
 		specProvider:  specProvider,
 		specWriter:    spec.NewSpecWriter(baseDir),
-		ruleLoader:    rules.NewRuleLoader(baseDir),
+		ruleLoader:    rules.NewRuleLoaderWithConfig(baseDir, cfg),
 		roleLoader:    role.NewRoleLoader(baseDir),
 		dispatcher:    dispatcher,
 		questionStore: questionStore,
@@ -149,6 +149,12 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 	specContext, err := p.specProvider.BuildCrossRepoContext(f.ID, nil)
 	if err == nil && specContext != "" {
 		contextStr = contextStr + "\n\n---\n\n" + specContext
+	}
+
+	// Include gate failure details if present (for recirculation context)
+	gateFailurePath := filepath.Join(p.specProvider.FeatureDir(f.ID), "GATE_FAILURE.md")
+	if gateFailureContent, err := os.ReadFile(gateFailurePath); err == nil {
+		contextStr = contextStr + "\n\n---\n\n# Gate Failure (Previous Attempt)\n\n" + string(gateFailureContent)
 	}
 
 	var roleResults []*role.DispatchResult

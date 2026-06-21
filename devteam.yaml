@@ -94,6 +94,13 @@ extensions:
     load_for_priority: [1]
     rules: rules/aidlc-rule-details/extensions/testing/property-based/property-based-testing.md
 
+plugins:
+  ponytail:
+    source: https://github.com/DietrichGebert/ponytail
+    phases: [construction]
+    roles: [developer]
+    mode: full
+
 intake:
   loose_idea:
     description: Rough idea, sentence, or vague description. PM explores and refines into structured spec.
