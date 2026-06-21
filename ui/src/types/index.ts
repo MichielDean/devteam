@@ -94,7 +94,8 @@ export type SSEEventType =
   | 'error'
   | 'waiting_for_human'
   | 'questions_answered'
-  | 'questions_assumed';
+  | 'questions_assumed'
+  | 'question_answered';
 
 export interface PhaseChangeEvent {
   feature_id: string;

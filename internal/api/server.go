@@ -847,4 +847,65 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, QuestionToResponse(updated))
+
+	// Broadcast SSE event for the answer
+	answerData, _ := json.Marshal(map[string]string{
+		"feature_id": id,
+		"question_id": questionId,
+		"status":      "answered",
+	})
+	s.broadcastSSE(id, "question_answered", string(answerData))
+
+	// Check if all questions are answered — if so, auto-resume the pipeline
+	go func() {
+		pending, err := s.questionStore.PendingCount(context.Background(), id)
+		if err != nil {
+			log.Printf("error checking pending count for feature %s: %v", id, err)
+			return
+		}
+		if pending > 0 {
+			return
+		}
+
+		f, err := s.pipeline.GetFeature(id)
+		if err != nil {
+			log.Printf("error reloading feature %s after question answered: %v", id, err)
+			return
+		}
+
+		if f.Status != feature.StatusWaitingHuman {
+			return
+		}
+
+		if _, loaded := s.activeProcess.LoadOrStore(id, true); loaded {
+			return
+		}
+
+		log.Printf("all questions answered for feature %s, auto-resuming pipeline", id)
+		ctx := context.Background()
+		eventCh := make(chan pipeline.ProcessEvent, 100)
+
+		onOutput := func(line string, isStderr bool) {
+			escaped, _ := json.Marshal(line)
+			s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, id, string(escaped), isStderr))
+		}
+
+		done := make(chan error, 1)
+		go func() {
+			done <- s.pipeline.ProcessAsync(ctx, f, eventCh, onOutput)
+			close(eventCh)
+		}()
+
+		for evt := range eventCh {
+			data, _ := json.Marshal(evt)
+			s.broadcastSSE(id, string(evt.Type), string(data))
+		}
+
+		if err := <-done; err != nil {
+			log.Printf("error resuming feature %s: %v", id, err)
+			errData, _ := json.Marshal(map[string]string{"message": "Pipeline resume failed"})
+			s.broadcastSSE(id, "error", string(errData))
+		}
+		s.activeProcess.Delete(id)
+	}()
 }
