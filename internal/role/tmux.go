@@ -208,7 +208,10 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 					outputBuf.WriteString(line)
 					outputBuf.WriteByte('\n')
 					if lineCh != nil {
-						lineCh <- OutputLine{Line: line, IsStderr: false}
+						select {
+						case lineCh <- OutputLine{Line: line, IsStderr: false}:
+						default:
+						}
 					}
 				}
 			}

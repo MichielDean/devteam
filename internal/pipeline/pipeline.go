@@ -372,11 +372,14 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 					onOutput(line.Line, line.IsStderr)
 				}
 			}()
-		} else {
-			close(lineCh)
 		}
 
+		// Always close lineCh after dispatch returns so the reader goroutine (if any) exits
 		result, err := p.dispatcher.DispatchStreaming(ctx, req, lineCh)
+		close(lineCh)
+		if streamDone != nil {
+			<-streamDone
+		}
 		log.Printf("RunPhaseWithAgentStreaming: dispatch returned, err=%v", err)
 		if streamDone != nil {
 			<-streamDone
