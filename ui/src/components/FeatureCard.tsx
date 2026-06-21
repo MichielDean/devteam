@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import type { FeatureSummary } from '../types';
 import { STATUS_LABELS, PHASE_LABELS, PRIORITY_LABELS } from '../types';
 import type { PhaseName } from '../types';
+import QuestionBadge from './QuestionBadge';
 
 interface FeatureCardProps {
   feature: FeatureSummary;
@@ -21,14 +22,18 @@ export default function FeatureCard({ feature }: FeatureCardProps) {
     passed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
     failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     recirculated: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+    waiting_for_human: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   };
 
   return (
     <Link
       to={`/features/${feature.id}`}
-      className="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow border border-gray-200 dark:border-gray-700 p-4"
+      className="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow border border-gray-200 dark:border-gray-700 p-4 relative"
       data-testid={`feature-card-${feature.id}`}
     >
+      {feature.pending_questions_count > 0 && (
+        <QuestionBadge featureId={feature.id} count={feature.pending_questions_count} />
+      )}
       <div className="flex items-start justify-between mb-2">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate" data-testid="feature-card-title">
           {feature.title}

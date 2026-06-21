@@ -16,35 +16,52 @@ import (
 )
 
 type Pipeline struct {
-	config       *config.Config
-	specProvider *spec.SpecProvider
-	specWriter   *spec.SpecWriter
-	ruleLoader   *rules.RuleLoader
-	roleLoader   *role.RoleLoader
-	dispatcher   *role.Dispatcher
+	config        *config.Config
+	specProvider  *spec.SpecProvider
+	specWriter    *spec.SpecWriter
+	ruleLoader    *rules.RuleLoader
+	roleLoader    *role.RoleLoader
+	dispatcher    *role.Dispatcher
+	questionStore feature.QuestionStore
 }
 
 func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline {
 	baseDir := specProvider.BaseDir()
 	return &Pipeline{
-		config:       cfg,
-		specProvider: specProvider,
-		specWriter:   spec.NewSpecWriter(baseDir),
-		ruleLoader:   rules.NewRuleLoader(baseDir),
-		roleLoader:   role.NewRoleLoader(baseDir),
-		dispatcher:   role.NewDispatcher(baseDir),
+		config:        cfg,
+		specProvider:  specProvider,
+		specWriter:    spec.NewSpecWriter(baseDir),
+		ruleLoader:    rules.NewRuleLoader(baseDir),
+		roleLoader:    role.NewRoleLoader(baseDir),
+		dispatcher:    role.NewDispatcher(baseDir),
+		questionStore: feature.NewFileQuestionStore(baseDir),
 	}
 }
 
 func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecProvider, dispatcher *role.Dispatcher) *Pipeline {
 	baseDir := specProvider.BaseDir()
 	return &Pipeline{
-		config:       cfg,
-		specProvider: specProvider,
-		specWriter:   spec.NewSpecWriter(baseDir),
-		ruleLoader:   rules.NewRuleLoader(baseDir),
-		roleLoader:   role.NewRoleLoader(baseDir),
-		dispatcher:   dispatcher,
+		config:        cfg,
+		specProvider:  specProvider,
+		specWriter:    spec.NewSpecWriter(baseDir),
+		ruleLoader:    rules.NewRuleLoader(baseDir),
+		roleLoader:    role.NewRoleLoader(baseDir),
+		dispatcher:    dispatcher,
+		questionStore: feature.NewFileQuestionStore(baseDir),
+	}
+}
+
+func NewPipelineWithQuestionStore(cfg *config.Config, specProvider *spec.SpecProvider, questionStore feature.QuestionStore) *Pipeline {
+	baseDir := specProvider.BaseDir()
+	dispatcher := role.NewDispatcher(baseDir)
+	return &Pipeline{
+		config:        cfg,
+		specProvider:  specProvider,
+		specWriter:    spec.NewSpecWriter(baseDir),
+		ruleLoader:    rules.NewRuleLoader(baseDir),
+		roleLoader:    role.NewRoleLoader(baseDir),
+		dispatcher:    dispatcher,
+		questionStore: questionStore,
 	}
 }
 
@@ -114,6 +131,18 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		inputContent, err := p.specProvider.ReadArtifact(f.ID, feature.ArtifactInputMD)
 		if err == nil && inputContent != "" {
 			contextStr = contextStr + "\n\n---\n\n=== Feature Input ===\n" + inputContent
+		}
+	}
+
+	// Inject human responses if there are answered/assumed questions
+	if p.questionStore != nil {
+		questions, qErr := p.questionStore.ListQuestions(ctx, f.ID)
+		if qErr == nil && len(questions) > 0 {
+			timeoutMinutes := p.config.Pipeline.GetHumanInteractionTimeoutMinutes()
+			humanResponses := feature.BuildHumanResponsesContext(questions, timeoutMinutes)
+			if humanResponses != "" {
+				contextStr = contextStr + humanResponses
+			}
 		}
 	}
 

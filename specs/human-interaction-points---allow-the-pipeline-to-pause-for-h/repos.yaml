@@ -1,0 +1,21 @@
+feature_id: "003-human-interaction-points"
+feature_title: "Human Interaction Points — Allow the pipeline to pause for human input"
+repos:
+  - name: "devteam"
+    url: "https://github.com/lobsterdog/devteam"
+    branch: "main"
+    scope: |
+      - internal/feature/: Add "waiting_for_human" status, question model, state transitions
+      - internal/api/server.go: Add question CRUD endpoints (GET, POST, PATCH, GET pending)
+      - internal/api/dto.go: Add question request/response DTOs
+      - internal/pipeline/pipeline.go: Add question detection after dispatch, timeout handling, context injection
+      - internal/pipeline/question.go: New file — question detection, storage, timeout logic
+      - internal/rules/loader.go: Add "Human Responses" section to BuildContext
+      - internal/feature/types.go: Add ArtifactQuestionsJSON artifact type, StatusWaitingHuman
+      - internal/feature/state.go: Add waiting_for_human transition rules
+      - ui/src/api/client.ts: Add question API functions
+      - ui/src/pages/FeatureDetail.tsx: Add question card display and answer input
+      - ui/src/components/QuestionCard.tsx: New component for question display
+      - ui/src/components/QuestionBadge.tsx: New component for feature list badge
+      - ui/src/types/index.ts: Add Question types
+      - devteam.yaml: Add human_interaction_timeout_minutes config

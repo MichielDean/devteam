@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, processFeature, evaluateGate } from '../api/client';
+import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, processFeature, evaluateGate, listQuestions } from '../api/client';
 import { useSSE } from '../hooks/useSSE';
 import { useToast } from '../components/Toast';
 import type { FeatureDetail, PhaseName } from '../types';
@@ -10,6 +10,7 @@ import PhaseTimeline from '../components/PhaseTimeline';
 import ArtifactViewer from '../components/ArtifactViewer';
 import GateResult from '../components/GateResult';
 import ProcessView from '../components/ProcessView';
+import QuestionCard from '../components/QuestionCard';
 
 export default function FeatureDetail() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +26,13 @@ export default function FeatureDetail() {
   // SSE connection for real-time updates
   const { connected: sseConnected, lastEvent } = useSSE(id ?? null);
   void sseConnected; // Used for connection status banner
+
+  // Fetch questions for this feature
+  const { data: questions = [] } = useQuery({
+    queryKey: ['questions', id!],
+    queryFn: () => listQuestions(id!),
+    enabled: !!id,
+  });
 
   // Show ProcessView when processing is active (feature in_progress with recent process event)
   const [isProcessing, setIsProcessing] = useState(false);
@@ -308,6 +316,30 @@ export default function FeatureDetail() {
       {/* Gate Results */}
       {currentPhaseState?.gate_result && (
         <GateResult gateResult={currentPhaseState.gate_result} />
+      )}
+
+      {/* Questions Section */}
+      {questions.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Questions</h3>
+          {feature.status === 'waiting_for_human' && (
+            <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="waiting-for-human-banner">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                ⏳ This feature is waiting for your input. Please answer the questions below.
+              </p>
+            </div>
+          )}
+          <div className="space-y-4">
+            {questions.map((q) => (
+              <QuestionCard key={q.id} question={q} featureId={feature.id} />
+            ))}
+          </div>
+          {questions.every((q) => q.status !== 'pending') && questions.length > 0 && (
+            <p className="mt-4 text-sm text-green-600 dark:text-green-400" data-testid="all-questions-answered">
+              ✓ All questions answered. Pipeline will resume.
+            </p>
+          )}
+        </div>
       )}
 
       {/* Artifacts */}

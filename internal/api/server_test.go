@@ -37,8 +37,9 @@ func setupTestServer(t *testing.T) (*Server, string) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	questionStore := feature.NewFileQuestionStore(tmpDir)
 
-	s := NewServer(":0", sp, pipe, nil)
+	s := NewServer(":0", sp, pipe, nil, questionStore)
 
 	return s, tmpDir
 }
@@ -191,7 +192,7 @@ func TestSmokeServerStartsAndResponds(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -229,7 +230,7 @@ func TestSmokeRecoveryNoNilPointer(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -287,7 +288,7 @@ func TestSmokeCreateAndGetFeature(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -369,7 +370,7 @@ func TestIntegrationJSONArraysNeverNull(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()

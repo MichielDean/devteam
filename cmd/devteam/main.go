@@ -44,6 +44,7 @@ func main() {
 
 		specProvider := spec.NewSpecProvider(baseDir)
 		p := pipeline.NewPipeline(cfg, specProvider)
+		questionStore := feature.NewFileQuestionStore(baseDir)
 
 		// Serve frontend: use local filesystem (development or after go generate)
 		var staticFS fs.FS
@@ -53,7 +54,7 @@ func main() {
 		}
 		// If ui/dist doesn't exist, staticFS is nil — API-only mode (no frontend)
 
-		server := api.NewServer(*httpAddr, specProvider, p, staticFS)
+		server := api.NewServer(*httpAddr, specProvider, p, staticFS, questionStore)
 
 		fmt.Printf("Dev Team Web UI starting on %s\n", *httpAddr)
 		if err := server.Start(); err != nil {

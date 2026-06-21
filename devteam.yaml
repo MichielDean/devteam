@@ -3,6 +3,7 @@
 version: "1.0"
 
 pipeline:
+  human_interaction_timeout_minutes: 30
   phases:
     - name: inception
       roles: [pm, architect]

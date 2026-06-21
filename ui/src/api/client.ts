@@ -5,6 +5,9 @@ import type {
   RecirculateRequest,
   GateResult,
   ErrorResponse,
+  Question,
+  CreateQuestionRequest,
+  AnswerQuestionRequest,
 } from '../types';
 
 const API_BASE = '/api';
@@ -118,4 +121,33 @@ export async function getArtifact(id: string, type: string): Promise<string> {
     throw new ApiError(response.status, errorData.error, errorData.details);
   }
   return response.text();
+}
+
+// Question API functions
+
+// List questions for a feature
+export async function listQuestions(featureId: string): Promise<Question[]> {
+  return request<Question[]>(`/features/${featureId}/questions`);
+}
+
+// Create a question for a feature
+export async function createQuestion(featureId: string, req: CreateQuestionRequest): Promise<Question> {
+  return request<Question>(`/features/${featureId}/questions`, {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+// Answer a question
+export async function answerQuestion(featureId: string, questionId: string, answer: string): Promise<Question> {
+  const body: AnswerQuestionRequest = { answer };
+  return request<Question>(`/features/${featureId}/questions/${questionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+// List pending questions for a feature
+export async function listPendingQuestions(featureId: string): Promise<Question[]> {
+  return request<Question[]>(`/features/${featureId}/questions/pending`);
 }
