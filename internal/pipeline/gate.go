@@ -413,7 +413,7 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "smoke") && (strings.Contains(lower, "server starts") || strings.Contains(lower, "httptest") || strings.Contains(lower, "no panic") || strings.Contains(lower, "responds to"))
 
-	case strings.Contains(desc, "go test suite passes"):
+	case strings.Contains(desc, "test suite passes"):
 		return ge.checkTestSuitePasses(f)
 
 	case strings.Contains(desc, "integration tests exercise"):
