@@ -132,19 +132,26 @@ void vector024_unquotedStringParam_rejected() {
 
 ### Level 3: End-to-End Tests (REQUIRED FOR UI CHANGES)
 
-**What**: Load the web UI in a real browser. Click through user workflows. Verify the page renders correctly and data flows from backend to UI.
+**What**: Write Playwright test files that verify the web UI works in a browser.
 
 **Why**: A frontend that returns HTML but crashes on JavaScript errors is broken. The UI is what users see. If it doesn't render, nothing else matters.
 
 **How**:
-- Use Playwright (`npx playwright test`) for browser automation
-- Start the server, navigate to the UI, verify key elements render
-- Test core workflows: list features, click into a feature detail, verify phase pipeline renders
+- Write Playwright test files (`.spec.ts`) in the `ui/tests/` or `ui/e2e/` directory
+- Write test selectors using `data-testid` attributes that should already exist in the code
+- Cover core workflows: list features, click into a feature detail, verify phase pipeline renders
 - **Verify no console errors on page load** (the #1 indicator of agent-generated frontend bugs)
 - Verify API responses match what the UI expects (null vs empty array is the #1 offender)
 - Test empty states: what does the UI show when there are no features?
 - Test loading states: what does the UI show while data is being fetched?
 - Test error states: what does the UI show when the API returns an error?
+
+**IMPORTANT — Do NOT try to run Playwright tests:**
+- Playwright tests require a running server, installed browsers, and a specific environment
+- These are not available in your worktree
+- The quality gate does NOT run Playwright — it checks that you wrote test files and documented results
+- Just write the test files. CI will run them later.
+- In your test-report.md, note that Playwright tests were written but not executed (mark as "pending CI")
 
 ### Level 4: Unit Tests (AS APPROPRIATE)
 
