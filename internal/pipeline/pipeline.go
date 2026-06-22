@@ -799,6 +799,17 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		}
 	}
 
+	// When delivery gate passes, mark feature done and create a pull request.
+	if gateResult.Passed && currentPhase == feature.PhaseDelivery {
+		f.MarkDone()
+		if err := p.specProvider.SaveFeatureState(f); err != nil {
+			log.Printf("warning: could not save feature state after MarkDone: %v", err)
+		}
+		if err := p.createPullRequest(f); err != nil {
+			log.Printf("warning: could not create pull request for feature %s: %v", f.ID, err)
+		}
+	}
+
 	// Check for questions after inception/planning phases.
 	// The agent writes questions.json in the spec directory; we detect it,
 	// store the questions, and pause the feature for human input.
@@ -870,6 +881,49 @@ func (p *Pipeline) commitSpecArtifacts(f *feature.Feature, phase feature.Phase) 
 	}
 
 	log.Printf("commitSpecArtifacts: committed %s phase artifacts for %s on branch %s", phase, f.ID, branchName)
+	return nil
+}
+
+// createPullRequest opens a GitHub PR from the spec branch to main.
+// Called when the delivery gate passes and the feature is marked done.
+func (p *Pipeline) createPullRequest(f *feature.Feature) error {
+	branchName := "spec/" + f.ID
+
+	// Build PR body from spec artifacts
+	body := fmt.Sprintf("## Summary\n\nFeature: %s\n\n", f.Title)
+	body += fmt.Sprintf("Pipeline complete — all phases passed (inception → planning → construction → review → testing → delivery).\n\n")
+	body += fmt.Sprintf("Spec branch: `%s`\n", branchName)
+
+	// Read spec.md for the description
+	specPath := p.specProvider.FeatureDirFromFeature(f) + "/spec.md"
+	if specContent, err := os.ReadFile(specPath); err == nil {
+		// Extract first few lines as summary
+		lines := strings.Split(string(specContent), "\n")
+		for i, line := range lines {
+			if i > 10 {
+				break
+			}
+			if strings.TrimSpace(line) != "" {
+				body += "\n" + line
+			}
+		}
+	}
+
+	// Use gh CLI to create the PR
+	cmd := exec.Command("gh", "pr", "create",
+		"--title", f.Title,
+		"--body", body,
+		"--base", "main",
+		"--head", branchName,
+	)
+	cmd.Dir = p.WorktreeDir(f)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("creating PR: %w: %s", err, string(out))
+	}
+
+	prURL := strings.TrimSpace(string(out))
+	log.Printf("createPullRequest: created PR for feature %s: %s", f.ID, prURL)
 	return nil
 }
 
