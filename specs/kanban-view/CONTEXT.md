@@ -1751,6 +1751,390 @@ Q-024: Empty columns (no feature in, say, Testing) — what does the user see?
 → Column header present, body shows muted 'No features' placeholder
 [Source: human input]
 
+Q-025: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-026: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-027: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-028: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-029: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-030: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-031: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-032: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-033: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-034: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-035: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-036: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-037: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-038: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-039: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-040: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-041: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-042: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-043: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-044: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-045: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-046: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-047: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-048: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-049: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-050: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-051: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-052: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-053: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-054: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-055: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-056: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-057: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-058: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-059: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-060: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-061: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-062: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-063: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-064: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-065: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-066: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-067: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-068: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-069: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-070: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-071: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-072: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-073: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-074: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-075: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-076: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-077: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-078: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-079: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-080: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-081: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-082: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-083: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-084: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-085: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-086: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-087: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-088: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-089: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-090: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-091: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-092: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-093: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-094: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-095: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-096: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-097: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-098: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-099: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-100: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-101: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-102: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-103: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-104: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-105: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-106: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-107: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-108: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-109: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-110: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-111: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-112: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
+Q-113: How should the Kanban board and the existing list view relate on the Dashboard?
+→ Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)
+[Source: human input]
+
+Q-114: The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?
+→ Click card navigates to /features/:id detail page (same as list today)
+[Source: human input]
+
+Q-115: Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?
+→ Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card
+[Source: human input]
+
+Q-116: Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?
+→ Exactly one column — the feature's current_phase
+[Source: human input]
+
+Q-117: Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?
+→ View-only — no drag, phase transitions happen only via the pipeline
+[Source: human input]
+
+Q-118: A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?
+→ Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)
+[Source: human input]
+
+Q-119: Columns can get tall. How should large column content be handled?
+→ Vertical scroll within each column (board height fixed to viewport)
+[Source: human input]
+
+Q-120: Empty columns (no feature in, say, Testing) — what does the user see?
+→ Column header present, body shows muted 'No features' placeholder
+[Source: human input]
+
 
 
 ---
@@ -1807,7 +2191,7 @@ A user viewing the Dashboard can switch between the existing sortable list view 
 
 1. **Given** features exist and the Dashboard is loaded, **When** the user clicks the "Board" toggle, **Then** six phase columns render with feature cards placed in the column matching each feature's `current_phase`.
 2. **Given** the board is visible, **When** the user clicks the "List" toggle, **Then** the existing `FeatureList` component renders with no Kanban columns present.
-3. **Given** the Dashboard is loaded for the first time in a session, **When** no prior view choice is remembered, **Then** the List view is shown by default (conservative default — no regression to existing UX).
+3. **Given** the Dashboard is loaded for the first time in a session, **When** no prior view choice is remembered, **Then** the Board (Kanban) view is shown by default (per human input — Kanban is the primary view).
 4. **Given** the user has selected "Board", **When** they navigate away and return to the Dashboard within the same browser session, **Then** "Board" is still selected (persisted via sessionStorage).
 
 ---
@@ -1881,7 +2265,7 @@ When a column contains more cards than fit the viewport, the column scrolls vert
 
 - **FR-001**: The Dashboard MUST provide a two-way toggle control ("List" / "Board") that switches the feature display between the existing `FeatureList` component and a new `KanbanBoard` component. Source: US-001
 - **FR-002**: The selected view MUST persist across Dashboard visits within the same browser session via `sessionStorage` key `devteam.dashboard.view`. Source: US-001
-- **FR-003**: The default view when no prior selection exists MUST be "List" (no regression). Source: US-001
+- **FR-003**: The default view when no prior selection exists MUST be "Board" (Kanban is the default — per human input Q-001/009/017). Source: US-001
 - **FR-004**: The toggle MUST be hidden when no features exist (the `EmptyState` component renders instead). Source: US-003
 - **FR-005**: The `KanbanBoard` component MUST render exactly six phase columns in pipeline order: Inception, Planning, Construction, Review, Testing, Delivery — using `PHASES` and `PHASE_LABELS` from `ui/src/types`. Source: US-002
 - **FR-006**: Each feature in the loaded `features` array MUST appear in exactly one column — the column whose phase equals `feature.current_phase`. Source: US-002
@@ -1917,7 +2301,7 @@ No data model changes. No new API endpoints. No backend changes.
 
 ## Assumptions
 
-- [ASSUMPTION: View toggle default is "List" — conservative default to avoid regressing existing users. Pipeline question 1 option B is the conservative choice; if the human picks option A (Kanban default), FR-003 flips.]
+- [ASSUMPTION: View toggle default is "Board" (Kanban) — per human input Q-001/009/017. The Kanban board is the primary view of the Dashboard; the list view is the alternate. This intentionally supersedes the earlier conservative default of "List" once the human confirmed Kanban-default.]
 - [ASSUMPTION: The board and list share the same `/` Dashboard route — no new `/kanban` route. A single toggle control switches them. If the human picks the separate-route option, FR-001 and the App.tsx routes change.]
 - [ASSUMPTION: Columns are the six phases, not statuses. Status is shown as a badge on the card. Swimlane-per-status is out of scope (YAGNI — no UX evidence for it yet).]
 - [ASSUMPTION: A feature appears in exactly one column — its `current_phase`. Multi-column membership is out of scope.]
@@ -1980,9 +2364,9 @@ Every criterion follows Given/When/Then with a test level and verification metho
 
 ## US-001 — Toggle Between List and Kanban Board
 
-AC-001: Given the Dashboard is loaded with at least one feature, when the user locates the view toggle, then both "List" and "Board" options are present and the active option is "List" (default).
+AC-001: Given the Dashboard is loaded with at least one feature, when the user locates the view toggle, then both "List" and "Board" options are present and the active option is "Board" (Kanban default per human input Q-001/009/017).
   Test level: e2e
-  Verification: `await expect(page.locator('[data-testid="view-toggle"]')).toBeVisible(); await expect(page.locator('[data-testid="view-toggle-list"][aria-pressed="true"]')).toBeVisible();`
+  Verification: `await expect(page.locator('[data-testid="view-toggle"]')).toBeVisible(); await expect(page.locator('[data-testid="view-toggle-board"][aria-pressed="true"]')).toBeVisible();`
 
 AC-002: Given the Dashboard is loaded and the active view is "List", when the user clicks the "Board" toggle, then six phase column headers (Inception, Planning, Construction, Review, Testing, Delivery) render and the `FeatureList` grid is no longer present.
   Test level: e2e
@@ -1996,9 +2380,9 @@ AC-004: Given the user has selected "Board", when they reload the Dashboard in t
   Test level: e2e
   Verification: Click Board, `page.reload()`, assert `[data-testid="view-toggle-board"][aria-pressed="true"]` visible.
 
-AC-005: Given a fresh browser session with no prior view choice, when the Dashboard loads, then the active view is "List" (no regression to existing UX).
+AC-005: Given a fresh browser session with no prior view choice, when the Dashboard loads, then the active view is "Board" (Kanban is the default per human input Q-001/009/017).
   Test level: e2e
-  Verification: New context, navigate to `/`, assert `[data-testid="view-toggle-list"][aria-pressed="true"]`.
+  Verification: New context, navigate to `/`, assert `[data-testid="view-toggle-board"][aria-pressed="true"]`.
 
 AC-006: Given zero features exist, when the Dashboard loads, then the view toggle is NOT visible and `EmptyState` renders.
   Test level: e2e
@@ -2081,7 +2465,7 @@ AC-022: Given a viewport narrower than the board's natural width, when the board
 | CON-001 (Playwright :18765) | All e2e ACs run via Playwright config |
 | CON-002 (file paths) | Verified in review (architect/developer phase) |
 | CON-003 (minimal deps) | AC-016 implicitly — no new endpoint; package.json diff check in review |
-| CON-004 (no regression) | AC-001, AC-003, AC-005 preserve list view; existing app.spec.ts must still pass |
+| CON-004 (no regression) | AC-001, AC-003 preserve the list view as a selectable toggle option; existing app.spec.ts must still pass (note: default is now Board per human input, so app.spec.ts may need a click-to-List fixture if it asserts the default — architect to verify) |
 | CON-005 (reuse phase/status constants) | AC-007, AC-019 — column headers and badge labels match `PHASE_LABELS`/`STATUS_LABELS` |
 | CON-006 (card chrome parity) | AC-007, AC-008, AC-009 — board card badges match FeatureCard badges |
 | CON-007 (single fetch) | AC-016 |
