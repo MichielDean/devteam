@@ -27,6 +27,30 @@ When a feature spans multiple repos:
 - Identify the order of implementation (which repo changes first)
 - Document cross-repo dependencies in tasks.md
 
+## Interactive Questions — Ask When Architecture Is Ambiguous
+
+When the spec leaves architectural decisions open, ask the user before committing to a design. Write a `questions.json` file in the spec directory (`specs/<feature-id>/questions.json`):
+
+```json
+[
+  {
+    "phase": "planning",
+    "role": "architect",
+    "question": "Should the kanban board state be stored in the existing .devteam-state.yaml or in a separate state file?",
+    "type": "multiple_choice",
+    "options": ["Extend .devteam-state.yaml", "Separate kanban-state.yaml", "Store in SQLite"]
+  }
+]
+```
+
+Ask about:
+- **Technology choices**: "Should we use WebSocket or SSE for real-time updates?"
+- **Data model**: "Should board state be per-feature or global?"
+- **API design**: "Should this be a new endpoint or extend an existing one?"
+- **Architecture**: "Should this be a new module or extend an existing one?"
+
+Don't ask about things the spec already decided. Don't ask more than 3-5 questions — make reasonable assumptions for anything you can.
+
 ## Output Artifacts
 
 ### DO NOT produce these files — they belong to other phases:

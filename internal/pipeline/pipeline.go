@@ -799,6 +799,34 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		}
 	}
 
+	// Check for questions after inception/planning phases.
+	// The agent writes questions.json in the spec directory; we detect it,
+	// store the questions, and pause the feature for human input.
+	if gateResult.Passed && (currentPhase == feature.PhaseInception || currentPhase == feature.PhasePlanning) {
+		if p.questionStore != nil {
+			detectedQuestions := feature.DetectQuestions(f.ID, p.specProvider.FeatureDirFromFeature(f))
+			if len(detectedQuestions) > 0 {
+				log.Printf("RunPhaseWithAgentStreaming: detected %d questions for feature %s after %s phase", len(detectedQuestions), f.ID, currentPhase)
+				for i := range detectedQuestions {
+					detectedQuestions[i].FeatureID = f.ID
+					if _, err := p.questionStore.CreateQuestion(ctx, f.ID, detectedQuestions[i]); err != nil {
+						log.Printf("warning: failed to create question for feature %s: %v", f.ID, err)
+						continue
+					}
+				}
+				// Pause for human input
+				if err := f.WaitForHuman(); err != nil {
+					log.Printf("warning: cannot transition feature %s to waiting_for_human: %v", f.ID, err)
+				} else {
+					if err := p.specProvider.SaveFeatureState(f); err != nil {
+						log.Printf("warning: failed to save feature state for %s: %v", f.ID, err)
+					}
+					log.Printf("RunPhaseWithAgentStreaming: feature %s paused for human input (%d questions)", f.ID, len(detectedQuestions))
+				}
+			}
+		}
+	}
+
 	return result, nil
 }
 
@@ -944,6 +972,18 @@ Your task: Explore, clarify, and refine the idea into a structured specification
 
 Follow the Inception Phase Rules for detailed procedures (request type classification, completeness analysis, error scenario tables, empty state behavior, brownfield analysis). The rules are loaded in your context — use them.
 
+IMPORTANT — Ask clarifying questions BEFORE writing the spec:
+If this is a loose idea (not an external spec), you MUST write a questions.json file
+at specs/%s/questions.json with 3-8 clarifying questions in this format:
+[
+  {"phase":"inception","role":"pm","question":"Your question here","type":"multiple_choice","options":["Option A","Option B","Option C"]},
+  {"phase":"inception","role":"pm","question":"Another question","type":"multiple_choice","options":["Option A","Option B"]}
+]
+The pipeline will pause and ask the user these questions. Their answers will be provided
+to you on the next run. Only after receiving answers should you write the final spec.
+If you can resolve something by reading existing code, do that instead of asking.
+Write questions.json FIRST, then write spec.md, acceptance.md, and repos.yaml.
+
 You MUST produce the following artifacts in the spec directory:
 
 1. **spec.md** — Write this file at specs/%s/spec.md with:
@@ -980,6 +1020,16 @@ Do NOT write placeholder content. Every section must contain real, specific cont
 Your task: Design the technical approach with enough specificity that the Developer can implement without making architectural decisions on the fly.
 
 Follow the Planning Phase Rules for detailed procedures (component identification, data modeling, API contracts, NFR design, task decomposition). The rules are loaded in your context — use them.
+
+IMPORTANT — Ask clarifying questions BEFORE writing the plan:
+If the spec leaves architectural decisions open, write a questions.json file
+at specs/%s/questions.json with 1-5 questions in this format:
+[
+  {"phase":"planning","role":"architect","question":"Your question here","type":"multiple_choice","options":["Option A","Option B"]},
+]
+The pipeline will pause and ask the user these questions. Their answers will be provided
+to you on the next run. Only after receiving answers should you write the final plan.
+Don't ask about things the spec already decided. Make reasonable assumptions for anything obvious.
 
 You MUST produce the following artifacts:
 

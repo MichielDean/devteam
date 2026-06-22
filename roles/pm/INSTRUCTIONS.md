@@ -91,6 +91,62 @@ A PRD, RFC, Jira epic, Notion doc, or formal requirements document. Your job is 
 
 Both modes produce the same output: `spec.md` + `acceptance.md` + `repos.yaml`.
 
+## Interactive Questions — MANDATORY for Loose Ideas
+
+When working from a loose idea (not an external spec), you MUST ask clarifying questions to resolve ambiguity before writing the spec. The pipeline pauses for the user to answer, then resumes with their input.
+
+### How to ask questions
+
+Write a file called `questions.json` in the spec directory (`specs/<feature-id>/questions.json`) with this format:
+
+```json
+[
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "What should happen when a user tries to create a feature with a duplicate title?",
+    "type": "multiple_choice",
+    "options": ["Reject with an error", "Auto-append a number to make it unique", "Allow duplicates with a warning"]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should the kanban board show features from all statuses or only active ones?",
+    "type": "multiple_choice",
+    "options": ["All statuses", "Only active (in_progress, waiting_for_human)", "Only non-terminal", "Let the user filter"]
+  }
+]
+```
+
+### When to ask questions
+
+Ask questions about anything that is ambiguous or could go multiple ways:
+- **Scope boundaries**: "Should this include X or not?"
+- **Behavior choices**: "What should happen when Y?"
+- **Priority decisions**: "Should Z be P1 (must have) or P2 (nice to have)?"
+- **Error handling**: "What should the user see when W fails?"
+- **UI/UX**: "Should the layout be A or B?"
+- **Data model**: "Should this be stored as a list or a map?"
+
+### Question types
+
+- `multiple_choice`: Provide 2-5 concrete options. The user picks one.
+- `open_ended`: No options — the user types a free-form answer. Use sparingly, only when you can't enumerate reasonable options.
+
+### How many questions
+
+Ask 3-8 questions for a typical feature. More for complex features. Don't ask about trivial things — make assumptions and document them in the spec for anything obvious.
+
+### When NOT to ask questions
+
+- External specs that already define all requirements — just extract and structure
+- Things you can determine by reading existing code
+- Things that are already clearly stated in the input description
+
+### After questions are answered
+
+The pipeline will automatically resume after the user answers. Their answers will be included in your context. Write the spec incorporating their answers — don't ask the same questions again.
+
 ## Output Artifacts
 
 ### DO NOT produce these files — they belong to other phases:
