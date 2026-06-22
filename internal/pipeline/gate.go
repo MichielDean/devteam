@@ -556,28 +556,61 @@ func (ge *GateEvaluator) checkServiceStarts(f *feature.Feature) bool {
 }
 
 func (ge *GateEvaluator) checkTestSuitePasses(f *feature.Feature) bool {
-	goPath, err := exec.LookPath("go")
-	if err != nil {
-		goPath = "/usr/local/go/bin/go"
-	}
-	cmd := exec.Command(goPath, "test", "./...", "-count=1", "-timeout", "120s")
-	cmd.Dir = ge.workDirOr(f)
-	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		ge.lastCheckOutput = string(output)
-		return false
-	}
-	if strings.Contains(string(output), "FAIL") {
-		ge.lastCheckOutput = string(output)
-		return false
+	workDir := ge.workDirOr(f)
+	var failures []string
+
+	// Run go tests if go.mod exists
+	if _, err := os.Stat(filepath.Join(workDir, "go.mod")); err == nil {
+		goPath, err := exec.LookPath("go")
+		if err != nil {
+			goPath = "/usr/local/go/bin/go"
+		}
+		cmd := exec.Command(goPath, "test", "./...", "-count=1", "-timeout", "120s")
+		cmd.Dir = workDir
+		cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("go test failed:\n%s", string(output)))
+		} else if strings.Contains(string(output), "FAIL") {
+			failures = append(failures, fmt.Sprintf("go test had failures:\n%s", string(output)))
+		}
 	}
 
-	// Note: Playwright/e2e browser tests are NOT run by the gate.
-	// They require a running server and installed browsers — not available
-	// in the worktree. The gate checks that the tester wrote test files
-	// and documented results in test-report.md. Running browser tests
-	// is a CI concern, not a gate concern.
+	// Run npm test if package.json exists and has a test script
+	if pkgOutput, err := exec.Command("cat", filepath.Join(workDir, "package.json")).Output(); err == nil {
+		if strings.Contains(string(pkgOutput), "\"test\"") {
+			cmd := exec.Command("npm", "test")
+			cmd.Dir = workDir
+			cmd.Env = append(os.Environ(), "CI=true", "PATH="+os.Getenv("PATH"))
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				failures = append(failures, fmt.Sprintf("npm test failed:\n%s", string(output)))
+			}
+		}
+	}
+
+	// Run UI tests if ui/package.json exists with a test script
+	uiDir := filepath.Join(workDir, "ui")
+	if pkgOutput, err := os.ReadFile(filepath.Join(uiDir, "package.json")); err == nil {
+		if strings.Contains(string(pkgOutput), "\"test\"") {
+			// Install deps if needed
+			if _, err := os.Stat(filepath.Join(uiDir, "node_modules")); os.IsNotExist(err) {
+				exec.Command("npm", "install", "--prefix", uiDir).Run()
+			}
+			cmd := exec.Command("npm", "test")
+			cmd.Dir = uiDir
+			cmd.Env = append(os.Environ(), "CI=true", "PATH="+os.Getenv("PATH"))
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				failures = append(failures, fmt.Sprintf("ui npm test failed:\n%s", string(output)))
+			}
+		}
+	}
+
+	if len(failures) > 0 {
+		ge.lastCheckOutput = strings.Join(failures, "\n\n")
+		return false
+	}
 
 	ge.lastCheckOutput = ""
 	return true

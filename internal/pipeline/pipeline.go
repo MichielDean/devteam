@@ -1022,8 +1022,8 @@ Implementation approach:
 - Write tests alongside the code, not after
 
 Self-verification before marking any task complete:
-- go build ./... succeeds
-- go test ./... passes
+- Discover and run the project's build command (check package.json scripts, Makefile, go build, etc.)
+- Discover and run the project's test command (check package.json test script, Makefile, go test, etc.)
 - Done conditions from tasks.md are verified
 - No TODO, FIXME, HACK, or placeholder implementations remain
 - JSON arrays are [] not null (marshal zero-value struct to check)
@@ -1038,8 +1038,8 @@ Agent failure mode checks:
 - No phantom methods: every method called must actually exist
 
 After all tasks are complete:
-- go build ./... must succeed
-- go test ./... must pass`, featureID)
+- Build must succeed
+- All tests must pass`, featureID)
 
 	case feature.PhaseReview:
 		return fmt.Sprintf(`You are in the REVIEW phase for feature %s.
@@ -1080,35 +1080,36 @@ Your task: Write and run tests traced to the spec's acceptance criteria. Follow 
 
 Testing process:
 1. Spec-implementation drift: Compare spec against what was built before writing tests
-2. Determine testing levels needed (smoke always, integration for API, unit for logic)
-3. Write and run smoke tests: go test with httptest — start server in-process, hit every endpoint, verify no panics
-4. Write and run integration tests: full HTTP request/response cycles using httptest.NewServer
-5. Write E2E test files (if UI changed): write Playwright .spec.ts files but DO NOT run them — note "pending CI" in test report
-6. Write and run unit tests: business logic, state machine transitions, serialization
-7. Agent failure mode verification: nil pointers, null arrays, phantom methods
+2. Discover the project's test infrastructure: read package.json scripts, Makefile, go test setup, playwright.config.ts, etc.
+3. Write tests at the appropriate levels for what changed:
+   - Smoke tests: verify the service/app starts and responds without panicking
+   - Integration tests: full request/response cycles or API interactions
+   - E2E tests: if the repo has browser test infrastructure (Playwright, Cypress, etc.), write and run them
+   - Unit tests: business logic, state machine transitions, serialization
+4. Run ALL tests that the project supports — use the project's test commands
+5. Agent failure mode verification: nil pointers, null arrays, phantom methods
 
-IMPORTANT constraints:
-- Use go test with httptest for smoke and integration tests — start the server IN-PROCESS, do NOT start a separate server process
-- DO NOT run Playwright or browser tests — write the test files only, mark as "pending CI" in the report
-- DO NOT start the devteam-web service or any other long-running server process
-- Run tests with: go test ./... -count=1 -timeout 120s
-- If tests fail, fix the TEST, not the implementation — report implementation bugs in test-report.md
+Key principles:
+- Discover what test commands exist (npm test, go test, npx playwright test, make test, etc.) and run them
+- If the project has Playwright or other browser test infrastructure set up, use it
+- If tests fail, fix the TEST if the test is wrong, or report the BUG in test-report.md if the implementation is wrong
+- Write real tests with real assertions — not "all tests pass" without evidence
 
 Write your test report to specs/%s/test-report.md with:
 - Spec-implementation drift findings
-- Smoke test results: which endpoints were hit, what status codes returned
+- Test commands discovered and run (exact commands with output)
+- Smoke test results: what was started, what was hit, what status codes returned
 - Integration test results: which request/response cycles were verified
-- E2E test files written (note: not executed, pending CI)
+- E2E test results (if applicable): which scenarios were tested in a browser
 - Unit test results: which logic was tested in isolation
 - Null/empty checks: which fields verified to return [] not null
-- Exact commands to reproduce each test
 - Exact assertions verified
 - Anti-fake-report: specific evidence, not "all tests pass"
 
 Quality gate:
 - Every acceptance criterion has at least one test
 - No nil pointer panics, no null-vs-empty-array mismatches
-- All go tests pass (go test ./...)
+- All tests pass
 - ANY failing test is an automatic recirculate`, featureID, featureID)
 
 	case feature.PhaseDelivery:
