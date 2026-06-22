@@ -43,7 +43,7 @@ func TestSmokeQuestionEndpoints(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -132,7 +132,7 @@ func TestIntegrationListQuestions(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -244,7 +244,7 @@ func TestIntegrationListQuestionsEmpty(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -313,7 +313,7 @@ func TestIntegrationCreateQuestion(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -402,7 +402,7 @@ func TestIntegrationCreateQuestionValidation(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -508,7 +508,7 @@ func TestIntegrationAnswerQuestion(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -584,7 +584,7 @@ func TestIntegrationAnswerConflict(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -665,7 +665,7 @@ func TestIntegrationAnswerNotFound(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -709,7 +709,7 @@ func TestIntegrationAnswerEmptyString(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -770,7 +770,7 @@ func TestIntegrationAnswerTooLong(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -827,7 +827,7 @@ func TestIntegrationListPendingQuestions(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -933,7 +933,7 @@ func TestIntegrationXSSInAnswer(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -998,7 +998,7 @@ func TestIntegrationQuestionTooLong(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1042,7 +1042,7 @@ func TestIntegrationAdvanceFromWaitingHumanBlocked(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1102,7 +1102,7 @@ func TestIntegrationFeatureListIncludesPendingQuestionsCount(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1184,7 +1184,7 @@ func TestIntegrationQuestionEndpointsArraysNeverNull(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1261,7 +1261,7 @@ func TestIntegrationQuestion404s(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1312,7 +1312,7 @@ func TestIntegrationAnswerAssumedConflict(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir))
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()

@@ -14,6 +14,7 @@ import (
 
 	"github.com/MichielDean/devteam/internal/api"
 	"github.com/MichielDean/devteam/internal/config"
+	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	devinit "github.com/MichielDean/devteam/internal/init"
 	"github.com/MichielDean/devteam/internal/intake"
@@ -47,6 +48,15 @@ func main() {
 		p := pipeline.NewPipeline(cfg, specProvider)
 		questionStore := feature.NewFileQuestionStore(baseDir)
 
+		// Open SQLite database for operational data
+		dbPath := filepath.Join(baseDir, ".devteam.db")
+		database, err := db.Open(dbPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error opening database: %v\n", err)
+			os.Exit(1)
+		}
+		defer database.Close()
+
 		// Serve frontend: use local filesystem (development or after go generate)
 		var staticFS fs.FS
 		uiDir := filepath.Join(baseDir, "ui", "dist")
@@ -55,7 +65,7 @@ func main() {
 		}
 		// If ui/dist doesn't exist, staticFS is nil — API-only mode (no frontend)
 
-		server := api.NewServer(*httpAddr, specProvider, p, staticFS, questionStore)
+		server := api.NewServer(*httpAddr, specProvider, p, staticFS, questionStore, database)
 		server.RestoreActiveProcesses()
 
 		fmt.Printf("Dev Team Web UI starting on %s\n", *httpAddr)
