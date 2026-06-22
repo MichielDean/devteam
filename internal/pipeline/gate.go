@@ -396,7 +396,7 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 			return false
 		}
 		lower := strings.ToLower(content)
-		return strings.Contains(lower, "over-engineer") || strings.Contains(lower, "line count") || strings.Contains(lower, "scope") || true
+		return strings.Contains(lower, "over-engineer") || strings.Contains(lower, "line count") || strings.Contains(lower, "scope") || strings.Contains(lower, "no over")
 
 	case strings.Contains(desc, "implementation files were modified"):
 		return ge.checkCodeDiff(f)
@@ -520,6 +520,98 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		}
 		return strings.Contains(content, "PASS") || strings.Contains(content, "pass") || strings.Contains(content, "test")
 
+	case strings.Contains(desc, "SpecKit template format") || strings.Contains(desc, "P1, P2 priorities"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactSpecMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "p1") && (strings.Contains(lower, "p2") || strings.Contains(lower, "p3"))
+
+	case strings.Contains(desc, "success criteria that are measurable"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactSpecMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "success criteria") || strings.Contains(lower, "sc-0") || strings.Contains(lower, "measurable")
+
+	case strings.Contains(desc, "edge cases section"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactSpecMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "edge case") || strings.Contains(lower, "edge case")
+
+	case strings.Contains(desc, "technical context"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "language") || strings.Contains(lower, "framework") || strings.Contains(lower, "dependency") || strings.Contains(lower, "technical context")
+
+	case strings.Contains(desc, "constitution check"):
+		// Constitution check is optional — only fails if constitution exists and plan doesn't mention it
+		// If no constitution exists, this passes
+		workDir := ge.workDirOr(f)
+		constPath := filepath.Join(workDir, "constitution.md")
+		constPath2 := filepath.Join(workDir, ".specify", "constitution.md")
+		if _, err := os.Stat(constPath); err != nil && os.IsNotExist(err) {
+			if _, err2 := os.Stat(constPath2); err2 != nil && os.IsNotExist(err2) {
+				return true // No constitution — pass
+			}
+		}
+		// Constitution exists — check plan mentions it
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "constitution")
+
+	case strings.Contains(desc, "project structure with file paths"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactPlanMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "structure") || strings.Contains(lower, "directory") || strings.Contains(lower, "file path") || strings.Contains(lower, "layout")
+
+	case strings.Contains(desc, "research.md documents"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactResearchMD)
+		if err != nil {
+			return false
+		}
+		return len(content) > 50
+
+	case strings.Contains(desc, "data-model.md defines"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactDataModelMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "entit") || strings.Contains(lower, "attribute") || strings.Contains(lower, "relationship")
+
+	case strings.Contains(desc, "contracts/ directory contains"):
+		// Check if contracts/ directory exists and has files
+		specDir := ge.specProvider.FeatureDirFromFeature(f)
+		contractsDir := filepath.Join(specDir, "contracts")
+		entries, err := os.ReadDir(contractsDir)
+		if err != nil {
+			return false
+		}
+		return len(entries) > 0
+
+	case strings.Contains(desc, "organized by user story"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTasksMD)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "us1") || strings.Contains(lower, "us2") || strings.Contains(lower, "story 1") || strings.Contains(lower, "p1") || strings.Contains(lower, "phase 1") || strings.Contains(lower, "user story")
+
 	default:
 		// Unknown validation — FAIL instead of passing blindly
 		log.Printf("gate: unknown validation description, failing: %s", desc)
@@ -546,43 +638,107 @@ func (ge *GateEvaluator) checkMessage(desc string, passed bool, f *feature.Featu
 }
 
 func (ge *GateEvaluator) checkBuildCompiles(f *feature.Feature) bool {
-	goPath, err := exec.LookPath("go")
-	if err != nil {
-		goPath = "/usr/local/go/bin/go"
+	workDir := ge.workDirOr(f)
+
+	// Discover and run the project's build command
+	if _, err := os.Stat(filepath.Join(workDir, "go.mod")); err == nil {
+		// Go project
+		goPath, err := exec.LookPath("go")
+		if err != nil {
+			goPath = "/usr/local/go/bin/go"
+		}
+		cmd := exec.Command(goPath, "build", "./...")
+		cmd.Dir = workDir
+		cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			ge.lastCheckOutput = string(output)
+			return false
+		}
+		if strings.Contains(string(output), "error") {
+			ge.lastCheckOutput = string(output)
+			return false
+		}
+		ge.lastCheckOutput = ""
+		return true
 	}
-	cmd := exec.Command(goPath, "build", "./...")
-	cmd.Dir = ge.workDirOr(f)
-	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		ge.lastCheckOutput = string(output)
-		return false
+
+	if _, err := os.Stat(filepath.Join(workDir, "package.json")); err == nil {
+		// Node project — check if build script exists
+		pkgContent, _ := os.ReadFile(filepath.Join(workDir, "package.json"))
+		if strings.Contains(string(pkgContent), "\"build\"") {
+			cmd := exec.Command("npm", "run", "build")
+			cmd.Dir = workDir
+			cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH"))
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				ge.lastCheckOutput = string(output)
+				return false
+			}
+			ge.lastCheckOutput = ""
+			return true
+		}
+		// No build script — consider it a pass (not all projects have builds)
+		return true
 	}
-	if len(output) > 0 && strings.Contains(string(output), "error") {
-		ge.lastCheckOutput = string(output)
-		return false
+
+	if _, err := os.Stat(filepath.Join(workDir, "Cargo.toml")); err == nil {
+		// Rust project
+		cmd := exec.Command("cargo", "build")
+		cmd.Dir = workDir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			ge.lastCheckOutput = string(output)
+			return false
+		}
+		ge.lastCheckOutput = ""
+		return true
 	}
+
+	if _, err := os.Stat(filepath.Join(workDir, "Makefile")); err == nil {
+		// Make project
+		cmd := exec.Command("make")
+		cmd.Dir = workDir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			ge.lastCheckOutput = string(output)
+			return false
+		}
+		ge.lastCheckOutput = ""
+		return true
+	}
+
+	// Unknown project type — no build system detected, pass
 	ge.lastCheckOutput = ""
 	return true
 }
 
 func (ge *GateEvaluator) checkVetPasses(f *feature.Feature) bool {
-	goPath, err := exec.LookPath("go")
-	if err != nil {
-		goPath = "/usr/local/go/bin/go"
+	workDir := ge.workDirOr(f)
+
+	// Discover and run the project's lint/vet command
+	if _, err := os.Stat(filepath.Join(workDir, "go.mod")); err == nil {
+		goPath, err := exec.LookPath("go")
+		if err != nil {
+			goPath = "/usr/local/go/bin/go"
+		}
+		cmd := exec.Command(goPath, "vet", "./...")
+		cmd.Dir = workDir
+		cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			ge.lastCheckOutput = string(output)
+			return false
+		}
+		if strings.Contains(string(output), "vet:") {
+			ge.lastCheckOutput = string(output)
+			return false
+		}
+		ge.lastCheckOutput = ""
+		return true
 	}
-	cmd := exec.Command(goPath, "vet", "./...")
-	cmd.Dir = ge.workDirOr(f)
-	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		ge.lastCheckOutput = string(output)
-		return false
-	}
-	if strings.Contains(string(output), "vet:") {
-		ge.lastCheckOutput = string(output)
-		return false
-	}
+
+	// For non-Go projects, vet is optional — pass
 	ge.lastCheckOutput = ""
 	return true
 }
@@ -601,19 +757,25 @@ func (ge *GateEvaluator) checkNoPlaceholders(f *feature.Feature) bool {
 // the agent wrote zero code but the gate passed because existing code compiles.
 func (ge *GateEvaluator) checkCodeDiff(f *feature.Feature) bool {
 	workDir := ge.workDirOr(f)
-	
-	// Get git diff against the base branch (origin/main or the parent commit)
-	cmd := exec.Command("git", "diff", "--name-only", "HEAD~1")
+
+	// Get git diff against origin/main — the spec worktree was branched from here
+	cmd := exec.Command("git", "diff", "--name-only", "origin/main")
 	cmd.Dir = workDir
 	output, err := cmd.Output()
 	if err != nil {
-		// Try diff against origin/main
-		cmd2 := exec.Command("git", "diff", "--name-only", "origin/main")
+		// Fallback: try HEAD~1
+		cmd2 := exec.Command("git", "diff", "--name-only", "HEAD~1")
 		cmd2.Dir = workDir
 		output, err = cmd2.Output()
 		if err != nil {
-			ge.lastCheckOutput = fmt.Sprintf("could not get git diff: %v", err)
-			return false
+			// Fallback: try git status for uncommitted changes
+			cmd3 := exec.Command("git", "status", "--porcelain")
+			cmd3.Dir = workDir
+			output, err = cmd3.Output()
+			if err != nil {
+				ge.lastCheckOutput = fmt.Sprintf("could not get git diff: %v", err)
+				return false
+			}
 		}
 	}
 
@@ -632,12 +794,20 @@ func (ge *GateEvaluator) checkCodeDiff(f *feature.Feature) bool {
 		if line == "" {
 			continue
 		}
+		// Handle git status porcelain format (strip status prefix)
+		if len(line) > 3 && (line[0] == ' ' || line[0] == 'M' || line[0] == 'A' || line[0] == 'D' || line[0] == '?') {
+			line = strings.TrimSpace(line[2:])
+		}
 		// Skip spec artifacts and state files
-		if strings.HasPrefix(line, "specs/") || strings.Contains(line, ".devteam-state") || strings.Contains(line, "CONTEXT.md") || strings.Contains(line, "GATE_FAILURE") {
+		if strings.HasPrefix(line, "specs/") || strings.Contains(line, ".devteam-state") || strings.Contains(line, "CONTEXT.md") || strings.Contains(line, "GATE_FAILURE") || strings.Contains(line, "NOTES.md") || strings.Contains(line, "audit.md") || strings.Contains(line, "questions.json") {
 			continue
 		}
 		// Skip lock files and generated files
 		if strings.HasSuffix(line, "go.sum") || strings.HasSuffix(line, "package-lock.json") || strings.Contains(line, "node_modules") {
+			continue
+		}
+		// Skip log files
+		if strings.HasPrefix(line, "logs/") {
 			continue
 		}
 		implFiles++

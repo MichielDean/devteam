@@ -165,6 +165,64 @@ func (p *Pipeline) writeGateFailure(f *feature.Feature, phase feature.Phase, gat
 	return nil
 }
 
+// writePhaseNote writes a summary note to NOTES.md after a phase passes.
+// This is the Cistern notes pattern — each phase leaves a brief for the next.
+func (p *Pipeline) writePhaseNote(f *feature.Feature, phase feature.Phase, gateResult *feature.GateResult) {
+	notesPath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "NOTES.md")
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("\n## [%s] %s — Complete\n", time.Now().Format(time.RFC3339), phase))
+	b.WriteString(fmt.Sprintf("**Gate**: Passed (%d/%d checks)\n", countPassedChecks(gateResult), len(gateResult.Checks)))
+
+	// Summarize what was produced
+	switch phase {
+	case feature.PhaseInception:
+		b.WriteString("**Artifacts**: spec.md, acceptance.md, repos.yaml\n")
+		b.WriteString("**Key decisions**: See spec.md for user stories, requirements, and assumptions.\n")
+	case feature.PhasePlanning:
+		b.WriteString("**Artifacts**: plan.md, research.md, data-model.md, contracts/, tasks.md\n")
+		b.WriteString("**Key decisions**: See plan.md for technical approach. Tasks.md has implementation order.\n")
+	case feature.PhaseConstruction:
+		b.WriteString("**Artifacts**: Implementation code\n")
+		b.WriteString("**Note**: Verify the implementation matches tasks.md done conditions.\n")
+	case feature.PhaseReview:
+		b.WriteString("**Artifacts**: review-report.md\n")
+		b.WriteString("**Note**: Review findings are in review-report.md. Address any NOT MET criteria.\n")
+	case feature.PhaseTesting:
+		b.WriteString("**Artifacts**: test-report.md, test files\n")
+		b.WriteString("**Note**: Test results are in test-report.md. All tests must pass.\n")
+	case feature.PhaseDelivery:
+		b.WriteString("**Artifacts**: docs/\n")
+		b.WriteString("**Note**: Documentation complete. Feature is done.\n")
+	}
+
+	// Append to NOTES.md
+	file, err := os.OpenFile(notesPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("warning: could not write phase note: %v", err)
+		return
+	}
+	defer file.Close()
+	file.WriteString(b.String())
+
+	// Also write any failed checks as warnings for the next phase
+	for _, check := range gateResult.Checks {
+		if !check.Passed {
+			fmt.Fprintf(file, "\n**WARNING**: %s — %s\n", check.Name, check.Message)
+		}
+	}
+}
+
+func countPassedChecks(gr *feature.GateResult) int {
+	count := 0
+	for _, c := range gr.Checks {
+		if c.Passed {
+			count++
+		}
+	}
+	return count
+}
+
 func countFailedChecks(gr *feature.GateResult) int {
 	count := 0
 	for _, c := range gr.Checks {
@@ -546,6 +604,12 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		contextStr = contextStr + "\n\n---\n\n# Gate Failure (Previous Attempt)\n\n" + string(gateFailureContent)
 	}
 
+	// Include phase notes from prior phases (Cistern pattern)
+	notesPath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "NOTES.md")
+	if notesContent, err := os.ReadFile(notesPath); err == nil && len(notesContent) > 0 {
+		contextStr = contextStr + "\n\n---\n\n# Phase Notes (from prior phases)\n\n" + string(notesContent)
+	}
+
 	// Clean artifacts from any previous run of this phase so the agent starts fresh
 	p.cleanPhaseArtifacts(f, currentPhase)
 
@@ -624,6 +688,8 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		if err := p.commitSpecArtifacts(f, currentPhase); err != nil {
 			log.Printf("warning: could not commit spec artifacts for %s phase %s: %v", f.ID, currentPhase, err)
 		}
+		// Write a phase note for subsequent phases (Cistern pattern)
+		p.writePhaseNote(f, currentPhase, gateResult)
 	}
 
 	return result, nil

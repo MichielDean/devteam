@@ -146,15 +146,20 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	// Set remain-on-exit off so session dies when process exits (Cistern pattern)
 	exec.Command("tmux", "set-window-option", "-t", sessionName, "remain-on-exit", "off").Run()
 
-	// Use pipe-pane to capture ALL output to a log file (Cistern pattern)
-	sessionLogPath := filepath.Join(os.TempDir(), "devteam-"+req.Role+"-"+sessionName+".log")
+	// Use pipe-pane to capture ALL output to a log file in the spec worktree
+	// (not /tmp — this preserves the log for post-hoc debugging)
+	logDir := filepath.Join(m.workingDir, "logs")
+	os.MkdirAll(logDir, 0755)
+	sessionLogPath := filepath.Join(logDir, req.Phase+"-"+req.Role+".log")
 	exec.Command("tmux", "pipe-pane", "-o", "-t", sessionName, "cat >> "+shellQuote(sessionLogPath)).Run()
 	log.Printf("tmux: pipe-pane logging to %s", sessionLogPath)
-	defer os.Remove(sessionLogPath)
+	// Do NOT delete the log file — it's the audit trail
 
 	// Poll for output and completion
 	var outputBuf strings.Builder
 	lastCaptureLen := 0
+	lastOutputTime := time.Now()  // Track when output last changed (liveness)
+	staleTimeout := 5 * time.Minute // Kill session if no new output for 5 min
 
 	// Give the session a moment to start
 	time.Sleep(2 * time.Second)
@@ -173,6 +178,7 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 			}
 		}
 		lastCaptureLen = len(captured)
+		lastOutputTime = time.Now()
 	}
 
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -201,6 +207,17 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 				return result, nil
 			}
 
+			// Liveness check — if no new output for staleTimeout, kill the session
+			if time.Since(lastOutputTime) > staleTimeout {
+				log.Printf("tmux: session %s stale for %v — killing (liveness check)", sessionName, time.Since(lastOutputTime))
+				m.KillSession(sessionName)
+				result.Duration = time.Since(start)
+				result.Output = outputBuf.String()
+				result.Success = false
+				result.Error = fmt.Sprintf("agent session killed — no output for %v (likely hung or stuck)", staleTimeout)
+				return result, nil
+			}
+
 			// Capture new output via capture-pane
 			captureCmd := exec.Command("tmux", "capture-pane", "-p", "-t", sessionName, "-S", "-500")
 			captureOut, err := captureCmd.Output()
@@ -210,6 +227,7 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 
 			captured := string(captureOut)
 			if len(captured) > lastCaptureLen {
+				lastOutputTime = time.Now() // Output changed — reset stale timer
 				newContent := captured[lastCaptureLen:]
 				for _, line := range strings.Split(newContent, "\n") {
 					if line == "" {
