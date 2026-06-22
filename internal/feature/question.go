@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Question statuses
@@ -109,6 +111,14 @@ func NewFileQuestionStore(baseDir string) *FileQuestionStore {
 }
 
 func (s *FileQuestionStore) questionsPath(featureID string) string {
+	// Check if this feature has a worktree by loading its state file
+	statePath := filepath.Join(s.baseDir, "specs", featureID, ".devteam-state.yaml")
+	if data, err := os.ReadFile(statePath); err == nil {
+		var f Feature
+		if err := yaml.Unmarshal(data, &f); err == nil && f.WorktreeDir != "" {
+			return filepath.Join(f.WorktreeDir, "specs", featureID, "questions.json")
+		}
+	}
 	return filepath.Join(s.baseDir, "specs", featureID, "questions.json")
 }
 
