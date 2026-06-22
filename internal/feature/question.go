@@ -36,9 +36,11 @@ var ValidQuestionRoles = map[string]bool{
 
 // Valid question types
 var ValidQuestionTypes = map[string]bool{
-	"clarification": true,
-	"decision":      true,
-	"priority":      true,
+	"clarification":    true,
+	"decision":         true,
+	"priority":         true,
+	"multiple_choice":  true,
+	"open_ended":       true,
 }
 
 // Question represents a clarification or decision question surfaced by an agent
