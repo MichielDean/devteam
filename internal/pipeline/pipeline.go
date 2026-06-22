@@ -1095,6 +1095,14 @@ Key principles:
 - If tests fail, fix the TEST if the test is wrong, or report the BUG in test-report.md if the implementation is wrong
 - Write real tests with real assertions — not "all tests pass" without evidence
 
+CRITICAL — Do NOT manage server processes manually:
+- Do NOT run ps, grep for processes, start/stop/kill servers by hand
+- Playwright's webServer config handles starting and stopping the test server automatically
+- Just run the test command (e.g., npx playwright test) and let the framework handle server lifecycle
+- For go tests, use httptest.NewServer() in the test code — the test framework manages the server
+- If a test command fails, read the error output and fix the test or report the bug — do NOT try to debug by checking running processes
+- Do NOT run commands in a loop waiting for something to happen — run the command once, read the output, act on it
+
 Write your test report to specs/%s/test-report.md with:
 - Spec-implementation drift findings
 - Test commands discovered and run (exact commands with output)
