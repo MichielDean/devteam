@@ -50,9 +50,9 @@ phase_states:
                 - name: configuration documentation covers env vars and config files
                   passed: true
                   message: ✓ configuration documentation covers env vars and config files
-            evaluated_at: 2026-06-22T10:03:10.460348137-06:00
-        started_at: 2026-06-22T09:58:26.918205057-06:00
-        completed_at: 2026-06-22T09:58:26.918205057-06:00
+            evaluated_at: 2026-06-22T12:00:07.790479228-06:00
+        started_at: 2026-06-22T11:58:31.746439631-06:00
+        completed_at: 2026-06-22T11:58:31.746439631-06:00
     inception:
         phase: inception
         status: passed
