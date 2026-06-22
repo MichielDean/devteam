@@ -22,20 +22,28 @@ Instructions should tell agents to **discover** the project's build/test infrast
 
 ## Build & Test Commands
 
+### IMPORTANT: Go binary location
+
+The `go` binary is at `/usr/local/go/bin/go`. It may not be in your default PATH. Always use the full path or prepend to PATH:
+
+```bash
+export PATH="$PATH:/usr/local/go/bin"
+```
+
 ### Backend (Go)
 
 ```bash
-# Build
-go build -o ~/go/bin/devteam ./cmd/devteam/
+# Build (use full path if go is not in PATH)
+PATH="$PATH:/usr/local/go/bin" go build -o ~/go/bin/devteam ./cmd/devteam/
 
 # Run tests
-go test ./... -count=1 -timeout 120s
+PATH="$PATH:/usr/local/go/bin" go test ./... -count=1 -timeout 120s
 
 # Run with coverage
-go test ./... -cover -count=1
+PATH="$PATH:/usr/local/go/bin" go test ./... -cover -count=1
 
 # Vet
-go vet ./...
+PATH="$PATH:/usr/local/go/bin" go vet ./...
 ```
 
 ### Frontend (UI)
