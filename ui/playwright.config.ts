@@ -7,16 +7,16 @@ export default defineConfig({
   fullyParallel: false,
   retries: 1,
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:8765',
+    baseURL: process.env.BASE_URL || 'http://localhost:18765',
     trace: 'on-first-retry',
   },
   webServer: {
-    // Binary loads devteam.yaml from its working directory; repo root holds the
-    // config, so cd there before launching. Port matches baseURL below.
-    command: process.env.SERVER_BINARY || 'cd .. && ~/go/bin/devteam -http :8765',
-    port: parseInt(process.env.SERVER_PORT || '8765'),
-    // Reuse the systemd-managed devteam-web.service when present (production-ish
-    // local install). Set START_SERVER=1 to force a fresh process.
+    // Use port 18765 for tests to avoid conflicts with the production
+    // devteam-web service running on :8765.
+    command: process.env.SERVER_BINARY || 'cd .. && ~/go/bin/devteam -http :18765',
+    port: parseInt(process.env.SERVER_PORT || '18765'),
+    // Reuse an existing server on the port if one is running.
+    // Set START_SERVER=1 to force Playwright to start its own server.
     reuseExistingServer: !process.env.START_SERVER,
     timeout: 15000,
   },
