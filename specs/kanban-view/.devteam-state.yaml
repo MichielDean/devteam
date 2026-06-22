@@ -1,13 +1,13 @@
 id: kanban-view
 title: Kanban view
-current_phase: testing
+current_phase: delivery
 status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
 worktree_dir: /home/lobsterdog/worktrees/devteam-specs/kanban-view
 created_at: 2026-06-21T16:53:19.013093897-06:00
-updated_at: 2026-06-21T23:58:51.094335937-06:00
+updated_at: 2026-06-22T01:12:04.470127908-06:00
 phase_states:
     construction:
         phase: construction
@@ -27,7 +27,32 @@ phase_states:
         completed_at: 2026-06-21T23:54:37.243909977-06:00
     delivery:
         phase: delivery
-        status: draft
+        status: passed
+        gate_result:
+            phase: delivery
+            passed: true
+            checks:
+                - name: artifact_docs_exists
+                  passed: true
+                  message: artifact docs present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/docs
+                - name: documentation exists for every user story
+                  passed: true
+                  message: ✓ documentation exists for every user story
+                - name: documentation uses spec terminology (not code-internal names)
+                  passed: true
+                  message: ✓ documentation uses spec terminology (not code-internal names)
+                - name: API documentation covers every endpoint with request/response schemas
+                  passed: true
+                  message: ✓ API documentation covers every endpoint with request/response schemas
+                - name: changelog references the spec number
+                  passed: true
+                  message: ✓ changelog references the spec number
+                - name: configuration documentation covers env vars and config files
+                  passed: true
+                  message: ✓ configuration documentation covers env vars and config files
+            evaluated_at: 2026-06-22T10:03:10.460348137-06:00
+        started_at: 2026-06-22T09:58:26.918205057-06:00
+        completed_at: 2026-06-22T09:58:26.918205057-06:00
     inception:
         phase: inception
         status: passed
@@ -220,4 +245,4 @@ phase_states:
                   message: ✓ multi-component constraints tested across all components
             evaluated_at: 2026-06-22T00:49:39.798271564-06:00
         started_at: 2026-06-22T00:40:37.753985478-06:00
-        completed_at: 2026-06-22T00:40:37.753985478-06:00
+        completed_at: 2026-06-22T01:12:04.470127908-06:00
