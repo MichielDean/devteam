@@ -1,0 +1,67 @@
+[
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should users be able to drag-and-drop cards between phase columns to change a feature's phase, or is the Kanban view display-only (navigation via click-to-detail)?",
+    "type": "multiple_choice",
+    "options": [
+      "Display-only — cards show current phase, clicking navigates to detail page, phase changes only through the pipeline",
+      "Drag-and-drop to move features between phases (writes to backend, updates current_phase)",
+      "Drag-and-drop with confirmation dialog before persisting the phase change"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the view toggle (list vs Kanban) be persisted across page reloads?",
+    "type": "multiple_choice",
+    "options": [
+      "Persist in localStorage so it survives reloads and browser restarts",
+      "Persist in the URL query string (e.g. ?view=kanban) so it is shareable and bookmarkable",
+      "Do not persist — default to list view on every page load, user toggles each session"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "What should the Kanban board show for columns that have no features in them?",
+    "type": "multiple_choice",
+    "options": [
+      "Always show all six phase columns with an empty-state message (e.g. 'No features') inside",
+      "Hide columns that have zero features to save horizontal space",
+      "Show all columns but collapse empty ones to a narrow strip that can be expanded"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Within a phase column, how should cards be ordered?",
+    "type": "multiple_choice",
+    "options": [
+      "By priority (P1 first, then P2, then P3), ties broken by most recently updated",
+      "By most recently updated (descending), regardless of priority",
+      "By status first (in_progress, waiting_for_human, gate_blocked, done) then priority"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the board handle horizontal overflow when all six columns don't fit on screen (e.g. mobile, narrow viewports)?",
+    "type": "multiple_choice",
+    "options": [
+      "Horizontal scroll — columns stay fixed-width, board scrolls left/right",
+      "Responsive column wrap — columns reflow into a grid on narrow screens",
+      "Horizontal scroll on desktop, stacked vertical list of phases on mobile"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should each phase column display a count of features in that column (e.g. 'Inception (3)')?",
+    "type": "multiple_choice",
+    "options": [
+      "Yes — show feature count in each column header",
+      "No — keep headers minimal with just the phase name"
+    ]
+  }
+]
