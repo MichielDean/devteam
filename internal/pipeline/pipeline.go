@@ -1072,18 +1072,17 @@ Implementation approach:
 - Write tests alongside the code, not after
 
 Self-verification before marking any task complete:
-- Discover and run the project's build command (check package.json scripts, Makefile, go build, etc.)
-- Discover and run the project's test command (check package.json test script, Makefile, go test, etc.)
+- Discover and run the project's build command (check package.json scripts, Makefile, go build, Cargo, etc.)
+- Discover and run the project's test command (check package.json test script, Makefile, go test, cargo test, etc.)
 - Done conditions from tasks.md are verified
 - No TODO, FIXME, HACK, or placeholder implementations remain
-- JSON arrays are [] not null (marshal zero-value struct to check)
-- Error paths work: 400 for invalid input, 404 for missing resources, 409 for conflicts
+- Collections serialize as empty arrays, not null (check the language's default serialization behavior)
+- Error paths work: proper error codes for invalid input, missing resources, conflicts
 
 Agent failure mode checks:
-- Nil pointer chains: initialize struct fields in correct order
-- Null vs empty arrays: use json:"fieldname" NOT json:"fieldname,omitempty"
-- Recovery middleware first: must be outermost middleware
-- Error response structure: {"error": "code", "details": "message"}
+- Nil/null pointer chains: initialize struct fields in correct order
+- Null vs empty collections: use the language's non-null empty collection pattern, not nullable
+- Error response structure follows existing project conventions
 - No over-engineering: 500 lines is suspicious, 5000 lines is almost certainly wrong
 - No phantom methods: every method called must actually exist
 
@@ -1130,40 +1129,42 @@ Your task: Write and run tests traced to the spec's acceptance criteria. Follow 
 
 Testing process:
 1. Spec-implementation drift: Compare spec against what was built before writing tests
-2. Write tests at the appropriate levels for what changed
-3. Run ALL tests using the helper script: ./run-tests.sh (runs go test, npm test, and Playwright automatically)
-   - ./run-tests.sh go   — just Go tests
-   - ./run-tests.sh ui   — just UI tests (npm test + Playwright on port 18765)
-   - ./run-tests.sh all  — everything (default)
-4. Agent failure mode verification: nil pointers, null arrays, phantom methods
+2. Discover the project's test infrastructure: read package.json scripts, Makefile, go.mod, playwright.config.ts, Cargo.toml, etc.
+3. Write tests at the appropriate levels for what changed:
+   - Smoke tests: verify the service/app starts and responds without panicking
+   - Integration tests: full request/response cycles or API interactions
+   - E2E tests: if the repo has browser test infrastructure, write and run them
+   - Unit tests: business logic, state machine transitions, serialization
+4. Run ALL tests that the project supports — discover and use the project's test commands
+5. Agent failure mode verification: null pointers, empty collections vs null, phantom methods
 
-The run-tests.sh script handles:
-- Installing dependencies if needed (npm install, playwright install)
-- Starting a test server on port 18765 (NOT 8765 which is the production server)
-- Running go test, npm test, and npx playwright test with correct env vars
-- Cleaning up the server after tests
+Key principles:
+- Discover what test commands exist and run them — don't invent new commands
+- If the project has browser test infrastructure (Playwright, Cypress, etc.), use it
+- If tests need a running server, check if the test framework handles server lifecycle automatically (e.g., Playwright's webServer config, go's httptest)
+- If you need to start a server for tests, use a port that is NOT already in use — check the project's config for the default port and use a different one
+- If tests fail, fix the TEST if the test is wrong, or report the BUG in test-report.md if the implementation is wrong
+- Write real tests with real assertions — not "all tests pass" without evidence
 
-CRITICAL — Do NOT manage server processes manually:
+Do NOT manage server processes manually:
 - Do NOT run ps, grep for processes, start/stop/kill servers by hand
-- Do NOT run npx playwright test directly — use ./run-tests.sh ui instead
-- Do NOT run commands in a loop waiting for something to happen
-- If a test fails, read the error output and fix the test or report the bug
-- The script handles all server lifecycle, port selection, and dependency installation
+- Let the test framework handle server lifecycle
+- Do NOT run commands in a loop waiting for something to happen — run once, read output, act on it
 
 Write your test report to specs/%s/test-report.md with:
 - Spec-implementation drift findings
-- Test commands run (./run-tests.sh output)
+- Test commands discovered and run (exact commands with output)
 - Smoke test results: what was started, what was hit, what status codes returned
 - Integration test results: which request/response cycles were verified
 - E2E test results (if applicable): which scenarios were tested in a browser
 - Unit test results: which logic was tested in isolation
-- Null/empty checks: which fields verified to return [] not null
+- Null/empty checks: which fields verified to return empty collections not null
 - Exact assertions verified
 - Anti-fake-report: specific evidence, not "all tests pass"
 
 Quality gate:
 - Every acceptance criterion has at least one test
-- No nil pointer panics, no null-vs-empty-array mismatches
+- No null pointer panics, no null-vs-empty-collection mismatches
 - All tests pass
 - ANY failing test is an automatic recirculate`, featureID, featureID)
 
@@ -1182,11 +1183,10 @@ Cross-repo release:
 - Tag all repos with consistent version references
 
 Deployment verification (ALL must pass before marking delivery complete):
-- Build the binary: go build -o ~/go/bin/devteam ./cmd/devteam/
-- Start the service: verify it starts without panicking
-- Hit the endpoints: verify the API responds correctly
-- Load the UI: verify the frontend renders without console errors
-- Run the test suite: verify all tests pass
+- Build: discover and run the project's build command, verify it succeeds
+- Start: verify the service/app starts without panicking
+- Respond: verify the API/UI responds correctly
+- Test suite: discover and run the project's test commands, verify all pass
 
 Write documentation to specs/%s/docs/ with:
 - API documentation per endpoint (method, path, request, response, errors)

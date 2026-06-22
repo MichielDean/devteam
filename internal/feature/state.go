@@ -125,7 +125,7 @@ var GateDefinitions = []GateDefinition{
 			"spec-implementation drift checked",
 			"no nil pointer panics or null-vs-empty-array mismatches",
 			"failed tests have reproduction steps",
-			"go test suite passes",
+			"test suite passes",
 			"multi-component constraints tested across all components",
 		},
 	},
