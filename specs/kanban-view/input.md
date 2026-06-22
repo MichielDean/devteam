@@ -7,7 +7,7 @@
 
 ## Idea
 
-Add a Kanban board view to the Dev Team UI that shows features as cards organized by phase. Features should be displayed in columns representing their current phase (Inception, Planning, Construction, Review, Testing, Delivery). Cards should show feature title, priority, and status. Users should be able to click a card to navigate to the feature detail page. Add a toggle between the current list view and the new Kanban board view.
+Add a Kanban board view to the Dev Team UI that shows features as cards organized by phase. Features displayed in columns (Inception, Planning, Construction, Review, Testing, Delivery). Cards show title, priority, status. Click card to navigate to detail page. Toggle between list view and Kanban board view.
 
 ---
 

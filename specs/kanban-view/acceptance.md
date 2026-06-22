@@ -1,151 +1,119 @@
 # Acceptance Criteria — kanban-view
 
-Every criterion is Given/When/Then with a test level and a specific verification. UI feature → e2e via Playwright (port 18765) is the primary level; unit for pure sort logic.
+Every criterion follows Given/When/Then with a test level and verification method. Test levels: `smoke` (service starts, no crash), `integration` (API contract), `e2e` (Playwright browser), `unit` (pure logic).
 
-## US-1 — Toggle Between List and Kanban Views
+## US-001 — Toggle Between List and Kanban Board
 
-AC-001: Given the Dashboard is loaded with at least one feature, when the user clicks the "Kanban" toggle control, then the feature grid is replaced by a Kanban board containing six phase columns.
+AC-001: Given the Dashboard is loaded with at least one feature, when the user locates the view toggle, then both "List" and "Board" options are present and the active option is "List" (default).
   Test level: e2e
-  Verification: Playwright — locate `[data-testid="view-toggle-kanban"]`, click, assert `[data-testid="kanban-board"]` is visible and `[data-testid="feature-list"]` is not visible.
+  Verification: `await expect(page.locator('[data-testid="view-toggle"]')).toBeVisible(); await expect(page.locator('[data-testid="view-toggle-list"][aria-pressed="true"]')).toBeVisible();`
 
-AC-002: Given the Kanban board is displayed, when the user clicks the "List" toggle control, then the board is replaced by the existing feature grid (`FeatureList`).
+AC-002: Given the Dashboard is loaded and the active view is "List", when the user clicks the "Board" toggle, then six phase column headers (Inception, Planning, Construction, Review, Testing, Delivery) render and the `FeatureList` grid is no longer present.
   Test level: e2e
-  Verification: Playwright — locate `[data-testid="view-toggle-list"]`, click, assert `[data-testid="feature-list"]` is visible and `[data-testid="kanban-board"]` is not visible.
+  Verification: `page.locator('[data-testid="view-toggle-board"]').click();` then assert each `[data-testid^="kanban-column-"]` header text matches `PHASE_LABELS` and `[data-testid="feature-list"]` has count 0.
 
-AC-003: Given the user has selected Kanban view, when the page is reloaded, then the Kanban view is displayed again without any user interaction.
+AC-003: Given the active view is "Board", when the user clicks the "List" toggle, then the `FeatureList` component renders and no `kanban-column-*` elements are present.
   Test level: e2e
-  Verification: Playwright — click Kanban toggle, `page.reload()`, assert `[data-testid="kanban-board"]` is visible. Confirm `localStorage.getItem("devteam-dashboard-view")` === `"kanban"` before and after reload.
+  Verification: `page.locator('[data-testid="view-toggle-list"]').click();` assert `[data-testid="feature-list"]` visible and `[data-testid^="kanban-column-"]` count 0.
 
-AC-004: Given a user has never toggled before (no localStorage key), when they load the Dashboard, then the List view is shown.
+AC-004: Given the user has selected "Board", when they reload the Dashboard in the same browser session, then "Board" is still the active view (sessionStorage persistence).
   Test level: e2e
-  Verification: Playwright — `page.evaluate(() => localStorage.clear())`, load Dashboard, assert `[data-testid="feature-list"]` is visible and `[data-testid="kanban-board"]` is not visible.
+  Verification: Click Board, `page.reload()`, assert `[data-testid="view-toggle-board"][aria-pressed="true"]` visible.
 
-AC-005: Given the view-toggle control is rendered, then both toggle options have `data-testid` attributes (`view-toggle-list`, `view-toggle-kanban`) and the currently-active option is marked with an aria-pressed or visually-distinct state.
+AC-005: Given a fresh browser session with no prior view choice, when the Dashboard loads, then the active view is "List" (no regression to existing UX).
   Test level: e2e
-  Verification: Playwright — assert both testids exist; assert the active option has `aria-pressed="true"` or a distinct active class.
+  Verification: New context, navigate to `/`, assert `[data-testid="view-toggle-list"][aria-pressed="true"]`.
 
-## US-2 — View Features as Cards in Phase Columns
-
-AC-006: Given features exist in multiple phases, when the Kanban view is displayed, then each feature appears in exactly one column and that column's phase matches the feature's `current_phase`.
+AC-006: Given zero features exist, when the Dashboard loads, then the view toggle is NOT visible and `EmptyState` renders.
   Test level: e2e
-  Verification: Playwright — read features via the list view (each card has `data-testid="feature-card-{id}"` with `data-testid="feature-card-phase"` text), switch to Kanban, for each feature assert its card appears inside the column `[data-testid="kanban-column-{phase}"]` matching the phase read earlier. Assert no card appears in two columns.
+  Verification: Route `/api/features` to `{features:[], total_count:0}`; assert `[data-testid="view-toggle"]` count 0 and `EmptyState` text visible.
 
-AC-007: Given the Kanban view is displayed, then each column header shows the phase label from `PHASE_LABELS` (Inception, Planning, Construction, Review, Testing, Delivery) and a count.
+## US-002 — Feature Cards on the Board Show Key State
+
+AC-007: Given a feature with `current_phase='planning'`, `priority=1`, `status='in_progress'`, when the board renders, then a card with the feature's title is present in the Planning column with a P1 priority badge and an "In Progress" status badge.
   Test level: e2e
-  Verification: Playwright — for each of the six testids `kanban-column-inception` ... `kanban-column-delivery`, assert the header text contains the expected label and a count (e.g. `/^Inception\s*\(\d+\)$/`).
+  Verification: `page.locator('[data-testid="kanban-column-planning"] [data-testid*="kanban-card-"]')` contains the title; assert badge text via `[data-testid="kanban-card-priority"]` = "P1 - Critical" and `[data-testid="kanban-card-status"]` = "In Progress".
 
-AC-008: Given the Kanban view is displayed, then each card shows the feature title, priority badge, and status badge with the same content as the list-view card for that feature.
+AC-008: Given a feature with `pending_questions_count > 0`, when its board card renders, then a pending-questions badge is visible on the card.
   Test level: e2e
-  Verification: Playwright — for a sample feature, read `feature-card-title`, `feature-card-priority`, `feature-card-status` in list view, switch to Kanban, read the same testids inside that feature's column, assert text content is identical.
+  Verification: Assert `[data-testid*="kanban-card-"] [data-testid="question-badge"]` is visible for that feature.
 
-AC-009: Given the features list is still loading, when the Kanban view is the selected view, then the existing loading indicator is shown (`[data-testid="features-loading"]`) and no board is rendered.
+AC-009: Given a feature whose current-phase `gate_result` is present, when the card renders, then a passed (✓) or failed (✗) gate indicator is visible.
   Test level: e2e
-  Verification: Playwright — intercept `/api/features` with a delayed response, load Dashboard with view=kanban, assert `[data-testid="features-loading"]` is visible and `[data-testid="kanban-board"]` is not rendered.
+  Verification: Assert `[data-testid="kanban-card-gate"]` text matches "✓ Gate passed" or "✗ Gate failed" per `gate_result.passed`.
 
-AC-010: Given the features fetch returned an error, when the Kanban view is the selected view, then the existing error indicator is shown (`[data-testid="features-error"]`) and no board is rendered.
+AC-010: Given a board card for feature `:id`, when the user clicks the card, then the browser navigates to `/features/:id`.
   Test level: e2e
-  Verification: Playwright — intercept `/api/features` with a 500, load Dashboard with view=kanban, assert `[data-testid="features-error"]` is visible and `[data-testid="kanban-board"]` is not rendered.
+  Verification: `page.locator('[data-testid="kanban-card-${id}"]').click(); await expect(page).toHaveURL(/\/features\/${id}/);`
 
-AC-011: Given no features exist in a phase, when that column is rendered, then the column is still visible with its header, a count of 0, and an in-column empty-state message.
-  Test level: e2e
-  Verification: Playwright — seed state where at least one phase has zero features, load Kanban, assert `[data-testid="kanban-column-{empty-phase}"]` is visible, its header shows count `(0)`, and `[data-testid="kanban-column-empty-state"]` inside it is visible with non-empty text.
-
-## US-3 — Click a Card to Navigate to Feature Detail
-
-AC-012: Given the Kanban view is displayed with a card for feature X, when the user clicks the card, then the browser navigates to `/features/{id-of-X}` and the FeatureDetail page renders.
-  Test level: e2e
-  Verification: Playwright — in Kanban view, click `[data-testid="feature-card-{X.id}"]`, assert `page.url()` matches `/features/${X.id}`, assert `[data-testid="feature-detail-page"]` (or the existing detail root) is visible.
-
-AC-013: Given a card has a pending-questions badge, when the user clicks the card body, then navigation still occurs (badge does not block the link).
-  Test level: e2e
-  Verification: Playwright — seed a feature with `pending_questions_count > 0`, switch to Kanban, click the card, assert navigation to `/features/{id}` succeeds.
-
-## US-4 — Horizontal Scroll for Six Columns
-
-AC-014: Given the viewport is narrower than the combined width of six columns, when the Kanban view is displayed, then the board scrolls horizontally and an off-screen column becomes visible after scrolling.
-  Test level: e2e
-  Verification: Playwright — `page.setViewportSize({width: 800, height: 600})`, load Kanban, assert `[data-testid="kanban-board"]` has `scrollWidth > clientWidth`, assert column `kanban-column-delivery` is not fully in the viewport initially; scroll the board right (`scrollLeft = scrollWidth`), assert `kanban-column-delivery` bounding box is now within the viewport.
-
-AC-015: Given the board is scrolled horizontally, then each column's header remains aligned above its cards (header does not detach or desync).
-  Test level: e2e
-  Verification: Playwright — load Kanban at narrow width, for a sample column read the header's `boundingBox().x` and the first card's `boundingBox().x`, scroll the board, re-read both, assert the x-difference between header and card stays constant (within 1px).
-
-## US-5 — Card Ordering Within Columns
-
-AC-016: Given a column contains features of priorities P1, P2, and P3, when the column is rendered, then P1 cards appear above P2 cards, which appear above P3 cards.
-  Test level: e2e
-  Verification: Playwright — seed three features in the same phase with priorities 1, 2, 3, load Kanban, read the `data-testid="feature-card-priority"` text and `boundingBox().y` for each card inside `kanban-column-{phase}`, assert y-order matches priority order (P1 smallest y).
-
-AC-017: Given a column contains two features of the same priority with different `updated_at`, when the column is rendered, then the more recently updated card appears above the older one.
-  Test level: e2e
-  Verification: Playwright — seed two features same phase, same priority, feature A `updated_at` newer than B, load Kanban, assert A's card `boundingBox().y` < B's card `boundingBox().y`.
-
-AC-018: Given a column's card ordering logic, when the ordering function is invoked with an unsorted feature list, then it returns cards ordered by priority asc then `updated_at` desc.
+AC-011: Given a feature whose `current_phase` is not one of the six known phases, when the board renders, then the card is placed in a trailing "Other" column (`kanban-column-other`) and no crash occurs.
   Test level: unit
-  Verification: Vitest (or existing UI unit test runner) — import the sort helper, call with a fixture array, assert output order. (If the helper is inlined into the component, extract a pure `orderCards(features)` function so it is unit-testable — no other refactor required.)
+  Verification: `groupFeaturesByPhase([{current_phase:'weird', ...}, ...])` returns `{other: [feature]}`. (Pure function unit test.)
 
-## US-6 — Empty Board State
-
-AC-019: Given there are zero features, when the Dashboard loads, then the existing `EmptyState` component is rendered (not six empty columns).
+AC-012: Given a feature with `status='gate_blocked'`, when its board card renders, then the card has a distinct visual flag (e.g., red ring border class) vs. a normal card.
   Test level: e2e
-  Verification: Playwright — seed empty repo state, load Dashboard, assert `[data-testid="empty-state"]` is visible and `[data-testid="kanban-board"]` is not in the DOM.
+  Verification: Assert `[data-testid="kanban-card-${id}"]` has class containing `ring-red` (or equivalent flag class) when status is `gate_blocked`.
 
-AC-020: Given there are zero features, then the view-toggle control is not visible (or is disabled).
+AC-013: Given a feature with `status='waiting_for_human'`, when its board card renders, then the card has a distinct visual flag (yellow ring) vs. a normal card.
   Test level: e2e
-  Verification: Playwright — seed empty state, load Dashboard, assert neither `[data-testid="view-toggle-list"]` nor `[data-testid="view-toggle-kanban"]` is visible (or both have `aria-disabled="true"` / `disabled` attribute).
+  Verification: Assert `[data-testid="kanban-card-${id}"]` has class containing `ring-yellow` when status is `waiting_for_human`.
 
-## Constraint-Register Acceptance Criteria
-
-AC-CON-001: Given the implementation is built, then it builds and lints with the repo's existing commands — `npm run build` and `npm run lint` in `ui/`.
-  Test level: smoke
-  Verification: Run `cd ui && npm run build` and `cd ui && npm run lint`; both exit 0. No new build tool introduced.
-
-AC-CON-002: Given e2e tests are run, then they execute against port 18765 via the existing `ui/playwright.config.ts`.
-  Test level: smoke
-  Verification: `cd ui && npx playwright test --reporter=line` runs against the config's `webServer` on 18765; no test hardcodes 8765.
-
-AC-CON-003: Given the Kanban column renders cards, then the card markup is produced by the existing `FeatureCard` component (imported, not re-implemented inline).
-  Test level: unit
-  Verification: Grep the new Kanban component source — it imports `FeatureCard` from `./FeatureCard` and renders `<FeatureCard ... />`; no duplicated card JSX (title/status/priority/gate markup) in the column body.
-
-AC-CON-004: Given the board renders columns, then the column set and order match `PHASES` exactly: inception, planning, construction, review, testing, delivery.
+AC-014: Given the features query is loading, when the Board view is active, then the loading indicator renders (`features-loading` testid pattern) and no column bodies render yet.
   Test level: e2e
-  Verification: Playwright — read `data-testid` of all `kanban-column-*` elements in DOM order, assert the sequence is `kanban-column-inception`, `...-planning`, `...-construction`, `...-review`, `...-testing`, `...-delivery`.
+  Verification: Route `/api/features` with delay; assert `[data-testid="features-loading"]` visible and `[data-testid^="kanban-column-"]` count 0 until resolved.
 
-AC-CON-005: Given column headers are rendered, then the label text is derived from `PHASE_LABELS` (imported), not a hardcoded string literal.
-  Test level: unit
-  Verification: Grep the new component source — `PHASE_LABELS` is imported from `../types`; no string literal "Inception"/"Planning"/etc. used as a header label.
-
-AC-CON-006: Given any new interactive element is added (toggles, columns, cards), then it carries a `data-testid` attribute following the existing `kebab-case` naming pattern.
+AC-015: Given the features query returns an error, when the Board view is active, then the error indicator renders (`features-error` testid) and the board does not render.
   Test level: e2e
-  Verification: Playwright — every selector used in the test suite is a `[data-testid=...]` selector; no class-based or text-based selectors for interactive elements.
+  Verification: Route `/api/features` to 500; assert `[data-testid="features-error"]` visible and `[data-testid^="kanban-column-"]` count 0.
 
-AC-CON-007: Given the testing phase runs, then the Tester's report names specific Playwright spec files and specific assertions traced to user stories (AC-NNN).
-  Test level: process
-  Verification: The test-report.md maps each AC-NNN to a `describe`/`it` block in a named `ui/e2e/kanban.spec.ts` (or similar) file with quoted assertion lines. No "works as expected" claims.
+AC-016: Given the Board view is active, when the network is inspected, then exactly one `GET /api/features` request is made (no second fetch for the board).
+  Test level: integration
+  Verification: Playwright `page.on('request')` count for `/api/features` === 1 during Board render. (CON-007)
 
-AC-CON-008: Given the implementation is complete, then `ui/package.json` has no new runtime dependencies (or, if one was unavoidable, the plan.md justifies it).
-  Test level: smoke
-  Verification: `git diff main -- ui/package.json ui/package-lock.json` shows no added runtime deps, or the added dep is documented in plan.md with rationale. Tailwind / react-router / react-query cover all needs.
+## US-003 — Empty Columns and Empty Board
 
-AC-CON-009: Given a column has zero features, then the column shows an empty-state message (not an error, not hidden).
+AC-017: Given no features have `current_phase='testing'`, when the board renders, then the Testing column header is visible and its body contains a muted "No features" placeholder.
   Test level: e2e
-  Verification: (= AC-011) — covered by the empty-column assertion there.
+  Verification: Assert `[data-testid="kanban-column-testing"]` header visible and `[data-testid="kanban-column-empty-testing"]` contains "No features".
 
-AC-CON-010: Given `listFeatures` is loading or errored, then the Kanban view shows the same loading/error UI as the list view (not a blank board).
+AC-018: Given zero features exist, when the Dashboard loads, then `EmptyState` renders and the view toggle is NOT visible.
   Test level: e2e
-  Verification: (= AC-009, AC-010) — covered there.
+  Verification: (Same as AC-006 — listed once under US-1; cross-referenced here for US-3 traceability.)
 
-## Coverage Matrix
+AC-019: Given the board renders with at least one feature in some column, when the user inspects every column, then all six phase columns are present regardless of whether they have features.
+  Test level: e2e
+  Verification: Assert exactly 6 `[data-testid^="kanban-column-"]` elements (plus optional "Other" only when an unknown phase exists).
 
-| User Story | ACs | Test Levels |
-|---|---|---|
-| US-1 Toggle | AC-001..AC-005 | e2e |
-| US-2 Cards in columns | AC-006..AC-011 | e2e |
-| US-3 Click to detail | AC-012, AC-013 | e2e |
-| US-4 Horizontal scroll | AC-014, AC-015 | e2e |
-| US-5 Card ordering | AC-016, AC-017, AC-018 | e2e, unit |
-| US-6 Empty board | AC-019, AC-020 | e2e |
-| Constraints | AC-CON-001..AC-CON-010 | smoke, e2e, unit, process |
+## US-004 — Column Overflow Handling
 
-Every user story has at least one smoke/e2e criterion (UI change → e2e required). US-5 has a unit criterion for the pure sort logic. Error/loading paths (AC-009, AC-010) and empty states (AC-011, AC-019, AC-020) are explicitly covered.
+AC-020: Given a column with more cards than fit the viewport height, when the user scrolls within that column, then the column body scrolls vertically while the column header and other columns remain fixed (no page-level scroll).
+  Test level: e2e
+  Verification: Seed 50 features in one phase; assert `scrollHeight > clientHeight` on that column's body element and the page body does not scroll (body scrollTop === 0).
+
+AC-021: Given the board is rendered, when the viewport is resized shorter, then each column's scroll area adjusts to the new viewport height (board height bounded to viewport).
+  Test level: e2e
+  Verification: `page.setViewportSize({width:1280, height:400})`; assert each `[data-testid^="kanban-column-"]` body `clientHeight <= 400 - headerHeight`.
+
+AC-022: Given a viewport narrower than the board's natural width, when the board renders, then the board container scrolls horizontally and each column has a minimum width of 240px.
+  Test level: e2e
+  Verification: `page.setViewportSize({width:600, height:800})`; assert board container has `overflow-x: auto` (or scroll) and each column `getBoundingClientRect().width >= 240`.
+
+## Constraint Traceability
+
+| Constraint | AC |
+|---|---|
+| CON-001 (Playwright :18765) | All e2e ACs run via Playwright config |
+| CON-002 (file paths) | Verified in review (architect/developer phase) |
+| CON-003 (minimal deps) | AC-016 implicitly — no new endpoint; package.json diff check in review |
+| CON-004 (no regression) | AC-001, AC-003, AC-005 preserve list view; existing app.spec.ts must still pass |
+| CON-005 (reuse phase/status constants) | AC-007, AC-019 — column headers and badge labels match `PHASE_LABELS`/`STATUS_LABELS` |
+| CON-006 (card chrome parity) | AC-007, AC-008, AC-009 — board card badges match FeatureCard badges |
+| CON-007 (single fetch) | AC-016 |
+| CON-008 (loading/error/empty states) | AC-006, AC-014, AC-015, AC-017, AC-018 |
+| CON-009 (unknown enum defensive) | AC-011 |
+
+## Extension ACs
+
+Security extension: N/A — view-only, no input, no auth, no mutation. Documented in spec.md.
+
+Resiliency extension: N/A — reuses existing react-query error handling. Loading (AC-014) and error (AC-015) states covered. No new external call (AC-016).

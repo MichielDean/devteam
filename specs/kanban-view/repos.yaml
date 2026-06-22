@@ -2,11 +2,11 @@ repos:
   - name: devteam
     path: .
     role: primary
-    changes: >
-      UI-only feature. Add a Kanban board view to the Dashboard
-      (ui/src/pages/Dashboard.tsx or a new ui/src/components/KanbanBoard.tsx)
-      with six phase columns, reusing the existing FeatureCard component.
-      Add a List/Kanban view toggle with localStorage persistence.
-      No backend, no Go, no API, no database changes. No new npm runtime
-      dependencies. New Playwright e2e specs under ui/e2e/ cover the
-      acceptance criteria.
+    changes: |
+      UI-only change. Add a KanbanBoard view component and a view toggle to the Dashboard.
+      New files: ui/src/components/KanbanBoard.tsx, ui/src/components/ViewToggle.tsx (or inline in Dashboard).
+      Modified files: ui/src/pages/Dashboard.tsx (render Board or List per toggle; hide toggle on empty state),
+      ui/src/types/index.ts (no new types required — reuses FeatureSummary, PHASES, PHASE_LABELS, STATUS_LABELS, PRIORITY_LABELS).
+      New e2e: ui/e2e/kanban.spec.ts covering AC-001 through AC-022.
+      New unit: ui/src/components/KanbanBoard.test.ts (or co-located) for the groupFeaturesByPhase pure function (AC-011).
+      No backend changes. No new API endpoints. No new npm dependencies. No new Go files.

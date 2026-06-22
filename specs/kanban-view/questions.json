@@ -2,66 +2,98 @@
   {
     "phase": "inception",
     "role": "pm",
-    "question": "Should users be able to drag-and-drop cards between phase columns to change a feature's phase, or is the Kanban view display-only (navigation via click-to-detail)?",
+    "question": "How should the Kanban board and the existing list view relate on the Dashboard?",
     "type": "multiple_choice",
     "options": [
-      "Display-only — cards show current phase, clicking navigates to detail page, phase changes only through the pipeline",
-      "Drag-and-drop to move features between phases (writes to backend, updates current_phase)",
-      "Drag-and-drop with confirmation dialog before persisting the phase change"
+      "Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)",
+      "Toggle control on the Dashboard that switches between List and Kanban (List stays default, Kanban opt-in)",
+      "Separate /kanban route, List remains on the Dashboard as-is",
+      "Replace the List entirely with the Kanban board",
+      "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "How should the view toggle (list vs Kanban) be persisted across page reloads?",
+    "question": "The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?",
     "type": "multiple_choice",
     "options": [
-      "Persist in localStorage so it survives reloads and browser restarts",
-      "Persist in the URL query string (e.g. ?view=kanban) so it is shareable and bookmarkable",
-      "Do not persist — default to list view on every page load, user toggles each session"
+      "Click card navigates to /features/:id detail page (same as list today)",
+      "Click card opens a detail popover/panel without leaving the board",
+      "Click card navigates to detail; also an inline hover preview of the next gate",
+      "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "What should the Kanban board show for columns that have no features in them?",
+    "question": "Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?",
     "type": "multiple_choice",
     "options": [
-      "Always show all six phase columns with an empty-state message (e.g. 'No features') inside",
-      "Hide columns that have zero features to save horizontal space",
-      "Show all columns but collapse empty ones to a narrow strip that can be expanded"
+      "Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card",
+      "Columns = status (In Progress, Gate Blocked, Waiting, Done, etc.) regardless of phase",
+      "Columns = phase, with a separate swimlane per status",
+      "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "Within a phase column, how should cards be ordered?",
+    "question": "Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?",
     "type": "multiple_choice",
     "options": [
-      "By priority (P1 first, then P2, then P3), ties broken by most recently updated",
-      "By most recently updated (descending), regardless of priority",
-      "By status first (in_progress, waiting_for_human, gate_blocked, done) then priority"
+      "Exactly one column — the feature's current_phase",
+      "Exactly one column — current_phase, but visually flagged (color/icon) when gate_blocked or waiting_for_human",
+      "Multiple columns allowed (current + next blocked target)",
+      "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "How should the board handle horizontal overflow when all six columns don't fit on screen (e.g. mobile, narrow viewports)?",
+    "question": "Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?",
     "type": "multiple_choice",
     "options": [
-      "Horizontal scroll — columns stay fixed-width, board scrolls left/right",
-      "Responsive column wrap — columns reflow into a grid on narrow screens",
-      "Horizontal scroll on desktop, stacked vertical list of phases on mobile"
+      "View-only — no drag, phase transitions happen only via the pipeline",
+      "Drag-and-drop to advance phase (guarded by the same gate rules as /advance)",
+      "Drag allowed but only as a visual reorder, not a state change",
+      "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "Should each phase column display a count of features in that column (e.g. 'Inception (3)')?",
+    "question": "A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?",
     "type": "multiple_choice",
     "options": [
-      "Yes — show feature count in each column header",
-      "No — keep headers minimal with just the phase name"
+      "Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)",
+      "Above + gate result indicator (passed/failed) for the current phase",
+      "Above + last-updated timestamp and processing-mode (autonomous/interactive)",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Columns can get tall. How should large column content be handled?",
+    "type": "multiple_choice",
+    "options": [
+      "Vertical scroll within each column (board height fixed to viewport)",
+      "Page scrolls vertically as a whole; columns grow indefinitely",
+      "Cap visible cards per column with a '+N more' overflow that expands",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Empty columns (no feature in, say, Testing) — what does the user see?",
+    "type": "multiple_choice",
+    "options": [
+      "Column header present, body shows muted 'No features' placeholder",
+      "Column header present, body empty (blank)",
+      "Hide the column entirely when empty",
+      "Other"
     ]
   }
 ]
