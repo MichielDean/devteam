@@ -147,8 +147,7 @@ var GateDefinitions = []GateDefinition{
 			"documentation uses spec terminology (not code-internal names)",
 			"API documentation covers every endpoint with request/response schemas",
 			"changelog references the spec number",
-			"cross-repo release order is documented",
-			"service starts and responds to HTTP requests",
+			"configuration documentation covers env vars and config files",
 		},
 	},
 }

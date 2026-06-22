@@ -1074,49 +1074,50 @@ The plan MUST address all acceptance criteria from acceptance.md. Every task mus
 	case feature.PhaseConstruction:
 		return fmt.Sprintf(`You are in the CONSTRUCTION phase for feature %s.
 
-Your task: Implement the code according to the plan and tasks, following the Construction Phase Rules for self-verification, brownfield patterns, and agent failure mode checks.
+Your task: Write implementation code. That's it. Do NOT write tests — that's the Tester's job. Do NOT review code — that's the Reviewer's job.
 
 Before writing any code:
 1. Read spec.md and acceptance.md — understand what you're building and why
-2. Read plan.md — understand the technical approach and test strategy
+2. Read plan.md — understand the technical approach
 3. Read tasks.md — understand what to implement and in what order
-4. If brownfield: read existing code to understand conventions
+4. Read data-model.md and contracts/ — understand the data model and API contracts
+5. If brownfield: read existing code to understand conventions
 
 Implementation approach:
 - Follow the task list in tasks.md, respecting dependency order
 - Write the minimum code needed to satisfy each task's done conditions
-- If brownfield: modify existing files in-place, follow existing conventions, do NOT create ClassName_modified.go
-- Write tests alongside the code, not after
+- If brownfield: modify existing files in-place, follow existing conventions
 
 Self-verification before marking any task complete:
-- Discover and run the project's build command (check package.json scripts, Makefile, go build, Cargo, etc.)
-- Discover and run the project's test command (check package.json test script, Makefile, go test, cargo test, etc.)
+- Build succeeds (discover and run the project's build command)
 - Done conditions from tasks.md are verified
 - No TODO, FIXME, HACK, or placeholder implementations remain
-- Collections serialize as empty arrays, not null (check the language's default serialization behavior)
-- Error paths work: proper error codes for invalid input, missing resources, conflicts
+- Collections serialize as empty, not null
 
-Agent failure mode checks:
+DO NOT:
+- Write test files — that's the Testing phase's job
+- Run the test suite — that's the Testing phase's job
+- Start the service and hit endpoints — that's the Testing phase's job
+- Review code against acceptance criteria — that's the Review phase's job
+- Write documentation — that's the Delivery phase's job
+
+Agent failure mode awareness (avoid these common AI code bugs):
 - Nil/null pointer chains: initialize struct fields in correct order
-- Null vs empty collections: use the language's non-null empty collection pattern, not nullable
+- Null vs empty collections: use the language's non-null empty collection pattern
 - Error response structure follows existing project conventions
 - No over-engineering: 500 lines is suspicious, 5000 lines is almost certainly wrong
-- No phantom methods: every method called must actually exist
-
-After all tasks are complete:
-- Build must succeed
-- All tests must pass`, featureID)
+- No phantom methods: every method called must actually exist`, featureID)
 
 	case feature.PhaseReview:
 		return fmt.Sprintf(`You are in the REVIEW phase for feature %s.
 
-Your task: Perform adversarial review against the spec acceptance criteria. Follow the Review Phase Rules for the structured review process.
+Your task: Read the code and verify it matches the spec. You are a code reviewer, NOT a tester. Do NOT run tests, start servers, or hit endpoints — that's the Tester's job.
 
 Review process:
-1. Spec review: Compare plan against spec — does every user story have corresponding tasks?
-2. Code review: For each task, verify done conditions with specific evidence
-3. Over-engineering check: Is implementation the minimum needed?
-4. Missing implementation check: Any spec requirements not implemented?
+1. For each acceptance criterion (AC-NNN) in acceptance.md, find the code that implements it and verify it's correct
+2. Check for over-engineering: is the implementation the minimum needed?
+3. Check for missing implementations: any spec requirements with no corresponding code?
+4. Security review for P1 features: authentication, authorization, input validation
 
 Write your findings to specs/%s/review-report.md with:
 - Per-criterion analysis: every AC-NNN from acceptance.md with MET or NOT MET status
@@ -1130,23 +1131,23 @@ Format for each criterion:
   Evidence: [file:line] [quoted code or spec text]
   Explanation: [how the code satisfies or fails the criterion]
 
-Key checks:
-- Null pointer safety: every handler dereferencing pointers, every middleware chain
-- JSON serialization: every slice/map field returns [] not null
-- Error path coverage: 400, 404, 409, empty state, 500 recovery
-- Middleware chain: recovery middleware is outermost, CORS is correct
-- Security (P1): authentication, authorization, input validation, no secrets in logs
+DO NOT:
+- Run tests — that's the Testing phase's job
+- Start the service or hit endpoints — that's the Testing phase's job
+- Write test files — that's the Testing phase's job
+- Write documentation — that's the Delivery phase's job
+- Run build commands — that's the Construction phase's job
 
 No critical findings may remain unresolved.`, featureID, featureID)
 
 	case feature.PhaseTesting:
 		return fmt.Sprintf(`You are in the TESTING phase for feature %s.
 
-Your task: Write and run tests traced to the spec's acceptance criteria. Follow the Testing Phase Rules.
+Your task: Write and run tests. You own testing — no other phase runs tests.
 
 Testing process:
 1. Spec-implementation drift: Compare spec against what was built before writing tests
-2. Discover the project's test infrastructure: read package.json scripts, Makefile, go.mod, playwright.config.ts, Cargo.toml, etc.
+2. Discover the project's test infrastructure: read package.json scripts, Makefile, go.mod, Cargo.toml, etc.
 3. Write tests at the appropriate levels for what changed:
    - Smoke tests: verify the service/app starts and responds without panicking
    - Integration tests: full request/response cycles or API interactions
@@ -1158,8 +1159,8 @@ Testing process:
 Key principles:
 - Discover what test commands exist and run them — don't invent new commands
 - If the project has browser test infrastructure (Playwright, Cypress, etc.), use it
-- If tests need a running server, check if the test framework handles server lifecycle automatically (e.g., Playwright's webServer config, go's httptest)
-- If you need to start a server for tests, use a port that is NOT already in use — check the project's config for the default port and use a different one
+- If tests need a running server, check if the test framework handles server lifecycle automatically
+- If you need to start a server for tests, use a port that is NOT already in use
 - If tests fail, fix the TEST if the test is wrong, or report the BUG in test-report.md if the implementation is wrong
 - Write real tests with real assertions — not "all tests pass" without evidence
 
@@ -1167,6 +1168,12 @@ Do NOT manage server processes manually:
 - Do NOT run ps, grep for processes, start/stop/kill servers by hand
 - Let the test framework handle server lifecycle
 - Do NOT run commands in a loop waiting for something to happen — run once, read output, act on it
+
+DO NOT:
+- Write implementation code — that's the Construction phase's job
+- Review code against acceptance criteria — that's the Review phase's job
+- Write documentation — that's the Delivery phase's job
+- Run build commands (beyond what's needed to compile tests)
 
 Write your test report to specs/%s/test-report.md with:
 - Spec-implementation drift findings
@@ -1188,36 +1195,29 @@ Quality gate:
 	case feature.PhaseDelivery:
 		return fmt.Sprintf(`You are in the DELIVERY phase for feature %s.
 
-Your task: Ship and document. Follow the Delivery Phase Rules for documentation, release coordination, and deployment verification.
+Your task: Write documentation ONLY. The previous phases already built, reviewed, and tested everything. You do NOT verify, build, test, or deploy anything.
 
-Documentation:
-1. API documentation: for every endpoint in the plan, document method, path, request/response schemas, error responses
-2. User-facing documentation: for every user story in the spec, document using spec terminology
-3. Changelog: reference the spec number in every entry
-
-Cross-repo release:
-- If the feature spans repos, document release order (shared libraries first, consumers second, frontend last)
-- Tag all repos with consistent version references
-
-Deployment verification (ALL must pass before marking delivery complete):
-- Build: discover and run the project's build command, verify it succeeds
-- Start: verify the service/app starts without panicking
-- Respond: verify the API/UI responds correctly
-- Test suite: discover and run the project's test commands, verify all pass
+The Testing phase ran the full test suite. The Review phase verified acceptance criteria. The Construction phase built the code. Your job is documentation.
 
 Write documentation to specs/%s/docs/ with:
-- API documentation per endpoint (method, path, request, response, errors)
-- User-facing documentation using spec terminology
-- Changelog referencing the spec number
-- Cross-repo release order (if applicable)
-- Configuration documentation (env vars, config files, dependencies)
+1. **API documentation** — for every endpoint in the plan: method, path, request/response schemas, error responses
+2. **User-facing documentation** — for every user story in the spec, using spec terminology
+3. **Changelog** — reference the spec number in every entry
+4. **Cross-repo release order** (if applicable) — shared libraries first, consumers second, frontend last
+5. **Configuration documentation** — env vars, config files, dependencies
 
 Terminology consistency check: documentation must use the same terms as spec.md, not code-internal names.
 
-Pull request:
-- Commit all changes with a descriptive message referencing the spec
-- Push to the feature branch (feat/%s)
-- The pipeline will create a draft PR automatically and mark it ready when delivery completes`, featureID, featureID, featureID)
+DO NOT:
+- Run build commands (go build, npm run build, etc.) — Construction already did this
+- Run test commands (go test, npm test, npx playwright test, etc.) — Testing already did this
+- Start the service or hit endpoints — Testing already did this
+- Review code against acceptance criteria — Review already did this
+- Write implementation code — Construction already did this
+- Commit or push code — the pipeline handles commits and pushes automatically
+- Check running processes, verify dependencies, or re-prove anything
+
+Write the docs. That's all.`, featureID, featureID)
 
 	default:
 		return ""
