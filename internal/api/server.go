@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/intake"
 	"github.com/MichielDean/devteam/internal/pipeline"
@@ -21,6 +22,7 @@ type Server struct {
 	httpServer    *http.Server
 	pipeline      *pipeline.Pipeline
 	specProvider  *spec.SpecProvider
+	db            *db.DB
 	activeProcess sync.Map
 	sseClients    sync.Map
 	sseBuffers    sync.Map // featureID -> []*SSEMessage (recent events for late joiners)
@@ -145,13 +147,14 @@ func (s *Server) resumeOrphanedFeatures() {
 
 // NewServer creates a new API server.
 
-func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore) *Server {
+func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore, database *db.DB) *Server {
 	s := &Server{
 		specProvider:  specProvider,
 		pipeline:      pipeline,
 		baseDir:       specProvider.BaseDir(),
 		staticFS:      staticFS,
 		questionStore: questionStore,
+		db:            database,
 	}
 
 	mux := http.NewServeMux()
@@ -174,6 +177,15 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("GET /api/features/{id}/questions", s.listQuestions)
 	mux.HandleFunc("POST /api/features/{id}/questions", s.createQuestion)
 	mux.HandleFunc("PATCH /api/features/{id}/questions/{questionId}", s.answerQuestion)
+
+	// Database-backed history endpoints
+	mux.HandleFunc("GET /api/features/{id}/gate-history", s.getGateHistory)
+	mux.HandleFunc("GET /api/features/{id}/sessions", s.getSessions)
+	mux.HandleFunc("GET /api/features/{id}/recirculations", s.getRecirculations)
+	mux.HandleFunc("GET /api/features/{id}/events", s.getEvents)
+	mux.HandleFunc("GET /api/features/{id}/notes", s.getNotes)
+	mux.HandleFunc("GET /api/features/{id}/churn", s.getChurnMetrics)
+	mux.HandleFunc("GET /api/metrics/sessions", s.getSessionMetrics)
 
 	if staticFS != nil {
 		mux.Handle("/", s.spaHandler(staticFS))
