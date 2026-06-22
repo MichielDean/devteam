@@ -83,6 +83,15 @@ func (s *Server) resumeOrphanedFeatures() {
 			continue
 		}
 
+		// Don't re-run a phase whose gate already passed — the user just
+		// hasn't advanced to the next phase yet. Marking as not processing
+		// lets the UI show "Go to Planning" etc.
+		currentPhaseState, ok := f.PhaseStates[f.Current]
+		if ok && currentPhaseState.GateResult != nil && currentPhaseState.GateResult.Passed {
+			log.Printf("resumeOrphanedFeatures: feature %s phase %s gate already passed — not resuming, waiting for user to advance", f.ID, f.Current)
+			continue
+		}
+
 		log.Printf("resumeOrphanedFeatures: found orphaned feature %s (phase %s, status %s) — resuming current phase", f.ID, f.Current, f.Status)
 
 		// Resume in single-phase mode — run current phase only, then stop.
