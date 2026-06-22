@@ -19,7 +19,7 @@ type NoteRow struct {
 
 // AddNote inserts a note for a feature.
 func (db *DB) AddNote(featureID, phase, role, noteType, content string) (int64, error) {
-	result, err := db.conn.Exec(
+	result, err := db.Exec(
 		`INSERT INTO notes (feature_id, phase, role, note_type, content, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
 		featureID, phase, role, noteType, content, time.Now().UTC(),
 	)
@@ -32,7 +32,7 @@ func (db *DB) AddNote(featureID, phase, role, noteType, content string) (int64, 
 
 // GetNotes retrieves all notes for a feature, ordered by time.
 func (db *DB) GetNotes(featureID string) ([]NoteRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT id, feature_id, phase, role, note_type, content, created_at
 		 FROM notes WHERE feature_id = ? ORDER BY created_at ASC`,
 		featureID,
@@ -55,7 +55,7 @@ func (db *DB) GetNotes(featureID string) ([]NoteRow, error) {
 
 // GetNotesForPhase retrieves notes from a specific phase.
 func (db *DB) GetNotesForPhase(featureID, phase string) ([]NoteRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT id, feature_id, phase, role, note_type, content, created_at
 		 FROM notes WHERE feature_id = ? AND phase = ? ORDER BY created_at ASC`,
 		featureID, phase,

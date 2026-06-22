@@ -24,7 +24,7 @@ type SessionRow struct {
 
 // CreateSession records the start of an agent session.
 func (db *DB) CreateSession(s SessionRow) (int64, error) {
-	result, err := db.conn.Exec(
+	result, err := db.Exec(
 		`INSERT INTO sessions (feature_id, phase, role, tmux_session, duration_ms, output_length, success, error, log_path, started_at, ended_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.FeatureID, s.Phase, s.Role, s.TmuxSession, s.DurationMs, s.OutputLength, boolToInt(s.Success), s.Error, s.LogPath, s.StartedAt, s.EndedAt,
@@ -39,7 +39,7 @@ func (db *DB) CreateSession(s SessionRow) (int64, error) {
 // CompleteSession records the end of an agent session with results.
 func (db *DB) CompleteSession(id int64, durationMs int64, outputLength int, success bool, errorMsg, logPath string) error {
 	now := time.Now().UTC()
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`UPDATE sessions SET duration_ms = ?, output_length = ?, success = ?, error = ?, log_path = ?, ended_at = ? WHERE id = ?`,
 		durationMs, outputLength, boolToInt(success), errorMsg, logPath, now, id,
 	)
@@ -51,7 +51,7 @@ func (db *DB) CompleteSession(id int64, durationMs int64, outputLength int, succ
 
 // GetSessions retrieves all sessions for a feature.
 func (db *DB) GetSessions(featureID string) ([]SessionRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT id, feature_id, phase, role, tmux_session, duration_ms, output_length, success, error, log_path, started_at, ended_at
 		 FROM sessions WHERE feature_id = ? ORDER BY started_at ASC`,
 		featureID,
@@ -80,7 +80,7 @@ func (db *DB) GetSessions(featureID string) ([]SessionRow, error) {
 
 // GetSessionsForPhase retrieves sessions for a specific phase.
 func (db *DB) GetSessionsForPhase(featureID, phase string) ([]SessionRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT id, feature_id, phase, role, tmux_session, duration_ms, output_length, success, error, log_path, started_at, ended_at
 		 FROM sessions WHERE feature_id = ? AND phase = ? ORDER BY started_at ASC`,
 		featureID, phase,
@@ -118,7 +118,7 @@ type SessionMetrics struct {
 // GetSessionMetrics returns aggregate metrics across all sessions.
 func (db *DB) GetSessionMetrics() (*SessionMetrics, error) {
 	var m SessionMetrics
-	err := db.conn.QueryRow(
+	err := db.QueryRow(
 		`SELECT COUNT(*), AVG(success), AVG(duration_ms), SUM(output_length) FROM sessions WHERE ended_at IS NOT NULL`,
 	).Scan(&m.TotalSessions, &m.SuccessRate, &m.AvgDurationMs, &m.TotalOutput)
 	if err != nil && err != sql.ErrNoRows {

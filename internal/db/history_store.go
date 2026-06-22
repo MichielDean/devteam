@@ -19,7 +19,7 @@ type RecirculationRow struct {
 
 // AddRecirculation records a recirculation event.
 func (db *DB) AddRecirculation(featureID, fromPhase, toPhase, reason, failureDetails string) error {
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`INSERT INTO recirculations (feature_id, from_phase, to_phase, reason, failure_details, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
 		featureID, fromPhase, toPhase, reason, failureDetails, time.Now().UTC(),
@@ -29,7 +29,7 @@ func (db *DB) AddRecirculation(featureID, fromPhase, toPhase, reason, failureDet
 	}
 
 	// Increment recirculation count on feature
-	_, err = db.conn.Exec(
+	_, err = db.Exec(
 		`UPDATE features SET recirculation_count = recirculation_count + 1, updated_at = ? WHERE id = ?`,
 		time.Now().UTC(), featureID,
 	)
@@ -41,7 +41,7 @@ func (db *DB) AddRecirculation(featureID, fromPhase, toPhase, reason, failureDet
 
 // GetRecirculations retrieves all recirculations for a feature.
 func (db *DB) GetRecirculations(featureID string) ([]RecirculationRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT id, feature_id, from_phase, to_phase, reason, failure_details, created_at
 		 FROM recirculations WHERE feature_id = ? ORDER BY created_at ASC`,
 		featureID,
@@ -74,7 +74,7 @@ type EventRow struct {
 
 // GetEvents retrieves all events for a feature.
 func (db *DB) GetEvents(featureID string) ([]EventRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT id, feature_id, event_type, phase, details, created_at
 		 FROM events WHERE feature_id = ? ORDER BY created_at ASC`,
 		featureID,
@@ -110,7 +110,7 @@ func (db *DB) GetChurnMetrics(featureID string) (*ChurnMetrics, error) {
 	m := &ChurnMetrics{FeatureID: featureID}
 
 	// Total
-	err := db.conn.QueryRow(
+	err := db.QueryRow(
 		`SELECT COUNT(*) FROM recirculations WHERE feature_id = ?`, featureID,
 	).Scan(&m.TotalRecirculations)
 	if err != nil && err != sql.ErrNoRows {
@@ -120,7 +120,7 @@ func (db *DB) GetChurnMetrics(featureID string) (*ChurnMetrics, error) {
 	// Per-phase
 	for _, phase := range []string{"construction", "review", "testing", "delivery"} {
 		var count int
-		err := db.conn.QueryRow(
+		err := db.QueryRow(
 			`SELECT COUNT(*) FROM recirculations WHERE feature_id = ? AND from_phase = ?`, featureID, phase,
 		).Scan(&count)
 		if err != nil && err != sql.ErrNoRows {

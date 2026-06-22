@@ -80,8 +80,47 @@ The Playwright `webServer` config automatically starts a test server on :18765. 
 - **Binary**: `~/go/bin/devteam`
 - **Working directory**: `~/source/devteam` (primary checkout)
 - **Config**: `devteam.yaml` in repo root
+- **Database**: `.devteam.db` (SQLite, default) or external PostgreSQL via `database:` config
 - **Specs**: `specs/<feature-id>/` (git-tracked runtime data)
 - **Spec worktrees**: `~/worktrees/devteam-specs/<feature-id>/` on branch `spec/<feature-id>`
+
+## Database Configuration
+
+Operational data (features, gate results, sessions, notes, questions, recirculations, events) is stored in a relational database. Markdown spec artifacts stay in git.
+
+### SQLite (default — local/single-user)
+
+```yaml
+# devteam.yaml
+database:
+  driver: sqlite3
+  dsn: ""  # defaults to .devteam.db in repo root
+```
+
+### PostgreSQL (shared/multi-user)
+
+```yaml
+# devteam.yaml
+database:
+  driver: postgres
+  dsn: "host=localhost port=5432 user=devteam dbname=devteam sslmode=disable"
+```
+
+### Environment variable overrides
+
+```bash
+DEVTEAM_DB_DRIVER=postgres
+DEVTEAM_DB_DSN="host=db.internal port=5432 user=devteam dbname=devteam sslmode=require"
+```
+
+### Migrations
+
+Migrations are versioned and tracked in the `schema_migrations` table. They run automatically on startup. To add a new migration:
+
+1. Create `internal/db/migration_NNN.go`
+2. Register with `RegisterMigration(Migration{Version: NNN, Name: "description", Up: func})`
+3. Migrations run in version order, each in a transaction
+4. Each migration adapts SQL for both SQLite and PostgreSQL (AUTOINCREMENT → SERIAL, DATETIME → TIMESTAMP)
 
 ## Important Constraints
 

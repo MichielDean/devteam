@@ -48,9 +48,28 @@ func main() {
 		p := pipeline.NewPipeline(cfg, specProvider)
 		questionStore := feature.NewFileQuestionStore(baseDir)
 
-		// Open SQLite database for operational data
+		// Open database for operational data
+		// Supports SQLite (default, local) and PostgreSQL (shared/multi-user)
+		// Configure via devteam.yaml:
+		//   database:
+		//     driver: postgres  # or sqlite3 (default)
+		//     dsn: "host=localhost port=5432 user=devteam dbname=devteam sslmode=disable"
+		// Or via environment variable:
+		//   DEVTEAM_DB_DRIVER=postgres
+		//   DEVTEAM_DB_DSN="host=localhost ..."
+		dbCfg := db.Config{
+			Driver: cfg.Database.Driver,
+			DSN:    cfg.Database.DSN,
+		}
+		// Environment variables override config
+		if envDriver := os.Getenv("DEVTEAM_DB_DRIVER"); envDriver != "" {
+			dbCfg.Driver = envDriver
+		}
+		if envDSN := os.Getenv("DEVTEAM_DB_DSN"); envDSN != "" {
+			dbCfg.DSN = envDSN
+		}
 		dbPath := filepath.Join(baseDir, ".devteam.db")
-		database, err := db.Open(dbPath)
+		database, err := db.Open(dbCfg, dbPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error opening database: %v\n", err)
 			os.Exit(1)
