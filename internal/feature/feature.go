@@ -14,6 +14,7 @@ type Feature struct {
 	Priority     int        `yaml:"priority" json:"priority"`
 	IntakePath   IntakePath `yaml:"intake_path" json:"intake_path"`
 	SpecDir      string     `yaml:"spec_dir" json:"spec_dir"`
+	WorktreeDir  string     `yaml:"worktree_dir,omitempty" json:"worktree_dir,omitempty"`
 	CreatedAt    time.Time  `yaml:"created_at" json:"created_at"`
 	UpdatedAt    time.Time  `yaml:"updated_at" json:"updated_at"`
 	Dependencies []string   `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`

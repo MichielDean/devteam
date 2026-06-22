@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,6 +34,107 @@ type Pipeline struct {
 // Dispatcher returns the role dispatcher (for tmux session management).
 func (p *Pipeline) Dispatcher() *role.Dispatcher {
 	return p.dispatcher
+}
+
+// EnsureSpecWorktree creates a per-feature git worktree if it doesn't exist yet.
+// All agents dispatch with CWD = the worktree dir. Spec artifacts are written
+// there and committed on the spec/<feature-id> branch.
+func (p *Pipeline) EnsureSpecWorktree(f *feature.Feature) error {
+	if f.WorktreeDir != "" {
+		if _, err := os.Stat(filepath.Join(f.WorktreeDir, ".git")); err == nil {
+			// Worktree exists — make sure spec dir is present
+			wtSpecDir := filepath.Join(f.WorktreeDir, "specs", f.ID)
+			if _, err := os.Stat(wtSpecDir); err != nil {
+				// Copy spec dir from primary checkout
+				primarySpecDir := filepath.Join(p.specProvider.BaseDir(), "specs", f.ID)
+				if err := copyDir(primarySpecDir, wtSpecDir); err != nil {
+					log.Printf("warning: could not copy spec dir to worktree: %v", err)
+				}
+			}
+			return nil // worktree already exists
+		}
+	}
+
+	worktreeDir := filepath.Join(os.Getenv("HOME"), "worktrees", "devteam-specs", f.ID)
+	branchName := "spec/" + f.ID
+
+	// Create the worktree from origin/main
+	cmd := exec.Command("git", "worktree", "add", "-b", branchName, worktreeDir, "origin/main")
+	cmd.Dir = p.specProvider.BaseDir()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// Branch might already exist — try without -b
+		cmd2 := exec.Command("git", "worktree", "add", worktreeDir, branchName)
+		cmd2.Dir = p.specProvider.BaseDir()
+		out2, err2 := cmd2.CombinedOutput()
+		if err2 != nil {
+			return fmt.Errorf("creating spec worktree: %w: %s (retry: %s)", err, string(out), string(out2))
+		}
+	}
+
+	// Copy the spec dir from primary checkout to the worktree
+	primarySpecDir := filepath.Join(p.specProvider.BaseDir(), "specs", f.ID)
+	wtSpecDir := filepath.Join(worktreeDir, "specs", f.ID)
+	if _, err := os.Stat(primarySpecDir); err == nil {
+		if err := copyDir(primarySpecDir, wtSpecDir); err != nil {
+			log.Printf("warning: could not copy spec dir to worktree: %v", err)
+		}
+	}
+
+	f.WorktreeDir = worktreeDir
+	log.Printf("EnsureSpecWorktree: created worktree at %s on branch %s for feature %s", worktreeDir, branchName, f.ID)
+
+	// Save state with worktree dir (to both primary checkout and worktree)
+	if err := p.specProvider.SaveFeatureState(f); err != nil {
+		return fmt.Errorf("saving feature state with worktree dir: %w", err)
+	}
+
+	return nil
+}
+
+// copyDir copies a directory recursively.
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		dstPath := filepath.Join(dst, relPath)
+		if info.IsDir() {
+			return os.MkdirAll(dstPath, info.Mode())
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(dstPath, data, info.Mode())
+	})
+}
+
+// WorktreeDir returns the worktree directory for a feature, or the base dir if no worktree.
+func (p *Pipeline) WorktreeDir(f *feature.Feature) string {
+	if f.WorktreeDir != "" {
+		return f.WorktreeDir
+	}
+	return p.specProvider.BaseDir()
+}
+
+// dispatchWorkingDirForPhase returns the CWD an agent should run in for the
+// given phase. All phases run in the spec worktree if available. Impl phases
+// (construction, review, testing, delivery) run in the first prepared impl
+// repo worktree so the agent's code changes land in the right tree.
+func (p *Pipeline) dispatchWorkingDirForPhase(f *feature.Feature, phase feature.Phase) string {
+	switch phase {
+	case feature.PhaseConstruction, feature.PhaseReview, feature.PhaseTesting, feature.PhaseDelivery:
+		if len(f.PreparedRepos) > 0 {
+			return f.PreparedRepos[0].Dir
+		}
+	}
+	// Use the spec worktree if available, otherwise the base dir
+	return p.WorktreeDir(f)
 }
 
 func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline {
@@ -194,22 +296,6 @@ func (p *Pipeline) CleanupImplRepos(f *feature.Feature) {
 // review, testing, delivery) run in the first prepared impl repo worktree
 // so the agent's code changes land in the right tree.
 //
-// For multi-repo features, the first prepared repo is used as the primary
-// CWD and all repo paths are injected into CONTEXT.md so the agent can
-// cd into other repos as needed. Multi-repo dispatch (one agent per repo)
-// is a future enhancement; the current design covers the common
-// single-impl-repo case correctly and gives the agent enough context to
-// handle multi-repo manually.
-func (p *Pipeline) dispatchWorkingDirForPhase(f *feature.Feature, phase feature.Phase) string {
-	switch phase {
-	case feature.PhaseConstruction, feature.PhaseReview, feature.PhaseTesting, feature.PhaseDelivery:
-		if len(f.PreparedRepos) > 0 {
-			return f.PreparedRepos[0].Dir
-		}
-	}
-	return p.specProvider.BaseDir()
-}
-
 // implRepoContext returns a CONTEXT.md fragment describing the prepared
 // impl repo worktrees so agents know where to write code and which branch
 // they're on. Empty for spec-only phases (inception, planning) — those
@@ -345,6 +431,12 @@ type RunResult struct {
 
 func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*RunResult, error) {
 	currentPhase := f.CurrentPhase()
+
+	// Ensure spec worktree exists before running any phase
+	if err := p.EnsureSpecWorktree(f); err != nil {
+		log.Printf("warning: could not create spec worktree: %v — using base dir", err)
+	}
+
 	phaseConfig, err := p.getPhaseConfig(currentPhase)
 	if err != nil {
 		return nil, err
@@ -485,6 +577,12 @@ type OutputLineCallback func(line string, isStderr bool)
 func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Feature, onOutput OutputLineCallback) (*RunResult, error) {
 	currentPhase := f.CurrentPhase()
 	log.Printf("RunPhaseWithAgentStreaming: starting for phase %s, feature %s", currentPhase, f.ID)
+
+	// Ensure spec worktree exists before running any phase
+	if err := p.EnsureSpecWorktree(f); err != nil {
+		log.Printf("warning: could not create spec worktree: %v — using base dir", err)
+	}
+
 	phaseConfig, err := p.getPhaseConfig(currentPhase)
 	if err != nil {
 		return nil, err
@@ -641,18 +739,22 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 // Unlike PushPhaseChanges (which creates feature branches and PRs), this just
 // commits to whatever branch is currently checked out — usually main for spec-only features.
 func (p *Pipeline) commitSpecArtifacts(f *feature.Feature, phase feature.Phase) error {
-	specDir := p.specProvider.FeatureDir(f.ID)
-	relPath, err := filepath.Rel(p.specProvider.BaseDir(), specDir)
+	// Use a git client that operates in the worktree (if set) or the base dir
+	workDir := p.WorktreeDir(f)
+	wtGitClient := gitops.NewGitClient(workDir)
+
+	specDir := p.specProvider.FeatureDirFromFeature(f)
+	relPath, err := filepath.Rel(workDir, specDir)
 	if err != nil {
-		relPath = specDir
+		relPath = filepath.Join("specs", f.ID)
 	}
 
 	// Stage just the spec directory
-	if _, err := p.gitClient.Run("add", relPath); err != nil {
+	if _, err := wtGitClient.Run("add", relPath); err != nil {
 		return fmt.Errorf("staging spec dir %s: %w", relPath, err)
 	}
 
-	hasChanges, err := p.gitClient.HasStagedChanges()
+	hasChanges, err := wtGitClient.HasStagedChanges()
 	if err != nil {
 		return err
 	}
@@ -662,11 +764,17 @@ func (p *Pipeline) commitSpecArtifacts(f *feature.Feature, phase feature.Phase) 
 	}
 
 	message := fmt.Sprintf("spec: %s phase complete for %s", phase, f.ID)
-	if err := p.gitClient.Commit(message); err != nil {
+	if err := wtGitClient.Commit(message); err != nil {
 		return fmt.Errorf("committing spec artifacts: %w", err)
 	}
 
-	log.Printf("commitSpecArtifacts: committed %s phase artifacts for %s", phase, f.ID)
+	// Push the spec branch to origin
+	branchName := "spec/" + f.ID
+	if err := wtGitClient.Push(branchName); err != nil {
+		log.Printf("commitSpecArtifacts: warning: could not push spec branch %s: %v", branchName, err)
+	}
+
+	log.Printf("commitSpecArtifacts: committed %s phase artifacts for %s on branch %s", phase, f.ID, branchName)
 	return nil
 }
 
