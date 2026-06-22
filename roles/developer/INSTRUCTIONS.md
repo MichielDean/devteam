@@ -30,13 +30,13 @@ Your output is implementation code in the repo worktree(s) listed in CONTEXT.md.
 
 Before marking any task as complete, verify:
 
-1. **The service builds** — `go build ./...` succeeds
-2. **Go tests pass** — `go test ./...` succeeds (unit + integration tests only)
+1. **Build succeeds** — discover and run the project's build command (check package.json scripts, Makefile, go build, etc.)
+2. **Tests pass** — discover and run the project's test command (check package.json test script, Makefile, go test, etc.)
 3. **The done conditions pass** — the Architect specified specific assertions for each task. Run them.
 4. **No stubs remain** — search for TODO, FIXME, HACK, placeholder implementations
 5. **JSON arrays are [] not null** — marshal the zero-value struct and verify. This is the #1 bug in agent-generated code.
 
-**Do NOT run Playwright or browser tests.** Those require a running server and installed browsers — not available in your worktree. The tester role handles e2e tests. You handle unit and integration tests only.
+Run whatever test infrastructure the project already has — don't invent new test commands.
 
 ## Agent Failure Mode Awareness
 
