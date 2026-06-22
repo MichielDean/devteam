@@ -80,8 +80,10 @@ const (
 	ArtifactTestReport    ArtifactType = "test_report"
 	ArtifactDocs          ArtifactType = "docs"
 	ArtifactDataModelMD   ArtifactType = "data_model_md"
+	ArtifactResearchMD    ArtifactType = "research_md"
 	ArtifactQuickstartMD  ArtifactType = "quickstart_md"
 	ArtifactContractsDir  ArtifactType = "contracts_dir"
+	ArtifactAuditMD       ArtifactType = "audit_md"
 )
 
 func (a ArtifactType) String() string {

@@ -970,89 +970,106 @@ func (p *Pipeline) phaseInstruction(phase feature.Phase, featureID string) strin
 
 Your task: Explore, clarify, and refine the idea into a structured specification.
 
-Follow the Inception Phase Rules for detailed procedures (request type classification, completeness analysis, error scenario tables, empty state behavior, brownfield analysis). The rules are loaded in your context — use them.
-
 IMPORTANT — Ask clarifying questions BEFORE writing the spec:
 If this is a loose idea (not an external spec), you MUST write a questions.json file
 at specs/%s/questions.json with 3-8 clarifying questions in this format:
 [
-  {"phase":"inception","role":"pm","question":"Your question here","type":"multiple_choice","options":["Option A","Option B","Option C"]},
-  {"phase":"inception","role":"pm","question":"Another question","type":"multiple_choice","options":["Option A","Option B"]}
+  {"phase":"inception","role":"pm","question":"Your question here","type":"multiple_choice","options":["Option A","Option B","Other"]},
 ]
+Every question MUST include "Other" as the last option.
 The pipeline will pause and ask the user these questions. Their answers will be provided
 to you on the next run. Only after receiving answers should you write the final spec.
 If you can resolve something by reading existing code, do that instead of asking.
 Write questions.json FIRST, then write spec.md, acceptance.md, and repos.yaml.
 
+Use the SpecKit spec template at .specify/templates/spec-template.md as your guide.
+
+If a constitution.md exists in the repo root or .specify/, read it and verify compliance.
+
 You MUST produce the following artifacts in the spec directory:
 
-1. **spec.md** — Write this file at specs/%s/spec.md with:
-   - Feature title and description
-   - User stories with priority (P1, P2, P3) — each with independent test
+1. **spec.md** — Write this file at specs/%s/spec.md following the SpecKit template:
+   - User scenarios with priorities (P1, P2, P3) — each independently testable
+   - Each story: title, description, why this priority, independent test, acceptance scenarios (Given/When/Then)
+   - Edge cases section
    - Functional requirements (FR-NNN format) — each traced to a user story
-   - Key entities and relationships (data model overview)
-   - State transitions for entities with lifecycle (valid transitions and invalid transitions)
-   - Success criteria (SC-NNN format, measurable — "Given X, When Y, Then Z")
-   - Error scenarios table: for each user action, what happens on success AND on each error condition (400, 404, 409, 500)
-   - Empty state behavior: what the API/UI returns when collections are empty (200 with [], not 404)
-   - Assumptions and scope boundaries — flag every assumption with [ASSUMPTION: ...]
-   - No [NEEDS CLARIFICATION] markers may remain — resolve them or convert to assumptions
+   - Key entities and relationships
+   - Success criteria (SC-NNN format, measurable)
+   - Assumptions marked with [ASSUMPTION:]
+   - Constraint register (if applicable) with source references
+   - Constitution compliance check (if constitution exists)
 
 2. **acceptance.md** — Write this file at specs/%s/acceptance.md with:
    - Acceptance criteria traced to each user story (AC-NNN format)
-   - Each criterion in format: AC-NNN: Given [precondition], when [action], then [expected result]
+   - Each criterion: AC-NNN: Given [precondition], when [action], then [expected result]
      Test level: [smoke | integration | e2e | unit]
      Verification: [specific assertion or scenario]
-   - Every user story has at least one criterion per relevant test level
-   - Error paths and empty states explicitly covered
-   - No "should work well" or "should be fast" — only "Given X, When Y, Then Z"
 
 3. **repos.yaml** — Write this file at specs/%s/repos.yaml with:
-   - Feature ID
-   - List of affected repositories with name, URL, and branch
-   - At minimum, the devteam repo itself
+   - List of affected repositories with name, path, role, and changes description
 
-Do NOT write placeholder content. Every section must contain real, specific content derived from the feature input. If information is missing, make reasonable assumptions and flag them with [ASSUMPTION: ...].`, featureID, featureID, featureID, featureID)
+Do NOT write placeholder content. Every section must contain real, specific content.`, featureID, featureID, featureID, featureID, featureID)
 
 	case feature.PhasePlanning:
 		return fmt.Sprintf(`You are in the PLANNING phase for feature %s.
 
 Your task: Design the technical approach with enough specificity that the Developer can implement without making architectural decisions on the fly.
 
-Follow the Planning Phase Rules for detailed procedures (component identification, data modeling, API contracts, NFR design, task decomposition). The rules are loaded in your context — use them.
+Use the SpecKit plan template at .specify/templates/plan-template.md as your guide.
+
+If a constitution.md exists in the repo root or .specify/, perform a constitution check before design work.
 
 IMPORTANT — Ask clarifying questions BEFORE writing the plan:
 If the spec leaves architectural decisions open, write a questions.json file
 at specs/%s/questions.json with 1-5 questions in this format:
 [
-  {"phase":"planning","role":"architect","question":"Your question here","type":"multiple_choice","options":["Option A","Option B"]},
+  {"phase":"planning","role":"architect","question":"Your question here","type":"multiple_choice","options":["Option A","Option B","Other"]},
 ]
+Every question MUST include "Other" as the last option.
 The pipeline will pause and ask the user these questions. Their answers will be provided
 to you on the next run. Only after receiving answers should you write the final plan.
 Don't ask about things the spec already decided. Make reasonable assumptions for anything obvious.
 
 You MUST produce the following artifacts:
 
-1. **plan.md** — Write this file at specs/%s/plan.md with:
-   - Summary of what is being built
-   - Technical context (language, framework, dependencies)
-   - Project structure (where files go)
+1. **plan.md** — Write this file at specs/%s/plan.md following the SpecKit plan template:
+   - Summary: extract from spec — primary requirement + technical approach
+   - Technical context: language, framework, dependencies, storage, testing, platform, project type, performance, constraints, scale
+   - Constitution check: verify against any project constitution
+   - Project structure: source code layout for this feature with file paths
    - Component design: for each component, its purpose, responsibilities, interfaces, and dependencies
-   - Data model: entities, attributes, relationships, state transitions, data integrity rules
    - API contracts: for each endpoint, method, path, request schema, response schema (including error responses)
    - Test strategy per component: what testing levels are required (smoke, integration, e2e, unit)
    - Agent failure mode checks: which checks apply to which tasks
-   - NFR considerations: performance, security, scalability, reliability (as applicable)
+   - Constraint verification map: every constraint traced to a design decision and verification checkpoint
+   - Cross-component consistency matrix: for shared values across producers and consumers
+   - Quality checkpoints at task boundaries
 
-2. **tasks.md** — Write this file at specs/%s/tasks.md with:
+2. **research.md** — Write this file at specs/%s/research.md with:
+   - Existing code patterns in the repo (how similar features are structured)
+   - Library/framework choices with rationale
+   - Alternative approaches considered and rejected
+   - Any spikes or prototypes tried
+
+3. **data-model.md** — Write this file at specs/%s/data-model.md with:
+   - Entity definitions with attributes, types, nullable, default, validation
+   - Relationships between entities with cardinality
+   - State transitions for entities with lifecycle
+   - Data integrity rules
+
+4. **contracts/** — Write API contract files to specs/%s/contracts/ directory:
+   - One file per API endpoint or interface
+   - Each file: HTTP method, path, request headers/body/params, response status codes and schemas, error responses, examples
+
+5. **tasks.md** — Write this file at specs/%s/tasks.md following the SpecKit tasks template:
    - Tasks grouped by user story priority (P1 first, then P2, then P3)
    - Each task has: ID (T001, T002...), description with exact file paths, [P] for parallelizable
-   - Done conditions: specific verifiable assertions (not "implement the API" but "implement the API and verify: service starts, GET /api/features returns 200, POST with missing title returns 400")
+   - Done conditions: specific verifiable assertions
    - Dependencies between tasks explicitly stated
    - Test level required for each task (smoke, integration, e2e, unit)
-   - Agent failure mode checks per task
+   - Constraint references (CON- IDs) for constrained tasks
 
-The plan MUST address all acceptance criteria from acceptance.md. Every task must reference specific files.`, featureID, featureID, featureID)
+The plan MUST address all acceptance criteria from acceptance.md. Every task must reference specific files.`, featureID, featureID, featureID, featureID, featureID, featureID, featureID)
 
 	case feature.PhaseConstruction:
 		return fmt.Sprintf(`You are in the CONSTRUCTION phase for feature %s.
