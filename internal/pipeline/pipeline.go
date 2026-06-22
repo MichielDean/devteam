@@ -1130,32 +1130,29 @@ Your task: Write and run tests traced to the spec's acceptance criteria. Follow 
 
 Testing process:
 1. Spec-implementation drift: Compare spec against what was built before writing tests
-2. Discover the project's test infrastructure: read package.json scripts, Makefile, go test setup, playwright.config.ts, etc.
-3. Write tests at the appropriate levels for what changed:
-   - Smoke tests: verify the service/app starts and responds without panicking
-   - Integration tests: full request/response cycles or API interactions
-   - E2E tests: if the repo has browser test infrastructure (Playwright, Cypress, etc.), write and run them
-   - Unit tests: business logic, state machine transitions, serialization
-4. Run ALL tests that the project supports — use the project's test commands
-5. Agent failure mode verification: nil pointers, null arrays, phantom methods
+2. Write tests at the appropriate levels for what changed
+3. Run ALL tests using the helper script: ./run-tests.sh (runs go test, npm test, and Playwright automatically)
+   - ./run-tests.sh go   — just Go tests
+   - ./run-tests.sh ui   — just UI tests (npm test + Playwright on port 18765)
+   - ./run-tests.sh all  — everything (default)
+4. Agent failure mode verification: nil pointers, null arrays, phantom methods
 
-Key principles:
-- Discover what test commands exist (npm test, go test, npx playwright test, make test, etc.) and run them
-- If the project has Playwright or other browser test infrastructure set up, use it
-- If tests fail, fix the TEST if the test is wrong, or report the BUG in test-report.md if the implementation is wrong
-- Write real tests with real assertions — not "all tests pass" without evidence
+The run-tests.sh script handles:
+- Installing dependencies if needed (npm install, playwright install)
+- Starting a test server on port 18765 (NOT 8765 which is the production server)
+- Running go test, npm test, and npx playwright test with correct env vars
+- Cleaning up the server after tests
 
 CRITICAL — Do NOT manage server processes manually:
 - Do NOT run ps, grep for processes, start/stop/kill servers by hand
-- Playwright's webServer config handles starting and stopping the test server automatically
-- Just run the test command (e.g., npx playwright test) and let the framework handle server lifecycle
-- For go tests, use httptest.NewServer() in the test code — the test framework manages the server
-- If a test command fails, read the error output and fix the test or report the bug — do NOT try to debug by checking running processes
-- Do NOT run commands in a loop waiting for something to happen — run the command once, read the output, act on it
+- Do NOT run npx playwright test directly — use ./run-tests.sh ui instead
+- Do NOT run commands in a loop waiting for something to happen
+- If a test fails, read the error output and fix the test or report the bug
+- The script handles all server lifecycle, port selection, and dependency installation
 
 Write your test report to specs/%s/test-report.md with:
 - Spec-implementation drift findings
-- Test commands discovered and run (exact commands with output)
+- Test commands run (./run-tests.sh output)
 - Smoke test results: what was started, what was hit, what status codes returned
 - Integration test results: which request/response cycles were verified
 - E2E test results (if applicable): which scenarios were tested in a browser
