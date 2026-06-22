@@ -3,410 +3,433 @@
 **Feature ID**: kanban-view
 **Phase**: review
 **Reviewer**: reviewer
-**Date**: 2026-06-21
+**Date**: 2026-06-22
 **Priority**: P1
+**Branch reviewed**: `feature/kanban-view` at `6a7756d` ("feat(kanban-view): align board impl with spec/plan")
+**Worktree**: `/home/lobsterdog/source/devteam/worktrees/kanban-view/devteam`
 
 ## Summary
 
-- Acceptance criteria: 22 total (AC-001..014, AC-CON-003/005/006/008/011, AC-ERR-001/002/003)
-- MET: 21
-- NOT MET: 1 (AC-014 — live-update test uses `page.reload()`, violating "without a full page reload")
-- Findings: 0 critical, 1 required, 2 noted
+- Acceptance criteria: 22 total (AC-001..AC-022)
+- MET: 18
+- NOT MET: 3 (AC-011 unit test, AC-014/AC-015 via stale e2e selectors — see F-003)
+- UNVERIFIABLE-by-review: 1 (AC-016 single-fetch — integration, Tester verifies via network)
+- Findings: 2 Blocking, 2 Required, 2 Noted
 
-Implementation: single commit `a375f0b` on `feature/kanban-view` in `/home/lobsterdog/source/devteam/worktrees/kanban-view/devteam`. Diff is 7 files, 707 insertions / 27 deletions — all under `ui/`. No `internal/`, `cmd/`, `rules/` changes. No `package.json` changes. Build passes (`npm run build` verified — 476 modules transformed).
-
-Implementation is the minimal lazy solution. New TSX/TS logic: 155 lines across 4 files (KanbanBoard 46, KanbanColumn 39, ViewToggle 33, groupFeaturesByColumn 37) — well under the plan's ~250-line ceiling. No drag-drop, no WIP limits, no new route, no new deps, no re-implementation of FeatureCard. The shortest path to done.
+**Gate status: BLOCKED** — 2 Blocking findings (CON-001 port regression, stale e2e suite mismatches spec-compliant impl) must be resolved before advancing. The implementation source code itself is spec-compliant and minimal; the blockers are configuration drift and test-code drift from a mid-flight re-alignment commit (`6a7756d`) that rewrote the impl to match the spec but left the tests encoding the prior divergent interpretation.
 
 ---
 
-## Phase 1: Constraint Register Review
+## Phase 1: Constraint Register Review (with execution-path traces)
 
-### CON-001 — Board columns are the 6 pipeline phases in canonical order
+### CON-001 — E2E on `:18765`, never `:8765`
+**Source**: AGENTS.md "Frontend (UI)"
+**Status**: NOT MET (Blocking)
+**Trace**:
+1. `ui/playwright.config.ts:10` — `baseURL: process.env.BASE_URL || 'http://localhost:8765'`
+2. `ui/playwright.config.ts:21` — `port: parseInt(process.env.SERVER_PORT || '8765')`
+3. `ui/playwright.config.ts:20` — command defaults to `-http :8765`
+**Evidence**: `git diff main -- ui/playwright.config.ts` shows the default changed FROM `:18765` TO `:8765` on this branch. The env-var override path exists (`SERVER_PORT`), but the constraint is that the **default** test port is `:18765`. This branch regressed it to the production port.
+**Explanation**: Direct violation. Production server and test server now share a port by default — tests can collide with the live `devteam-web` service. Must revert default to `:18765`.
+
+### CON-002 — New components under `ui/src/components/`, hooks under `ui/src/hooks/`
+**Source**: AGENTS.md "Project Structure"
 **Status**: MET
 **Trace**:
-1. `types/index.ts:171` — `PHASES = ['inception','planning','construction','review','testing','delivery']` (canonical source)
-2. `groupFeaturesByColumn.ts:6` — `COLUMN_KEYS = ['backlog', ...PHASES]` → imports, does not re-declare
-3. `KanbanBoard.tsx:36` — `COLUMN_KEYS.map(key => <KanbanColumn .../>)` → renders in that order
-4. `KanbanColumn.tsx:17` — `data-testid={`kanban-column-${columnKey}`}` → testids derive from the same constant
+1. New files: `KanbanBoard.tsx`, `KanbanCard.tsx`, `KanbanColumn.tsx`, `ViewToggle.tsx`, `badgeColors.ts`, `groupFeaturesByPhase.ts` — all under `ui/src/components/`
+2. New hook: `useSessionView.ts` under `ui/src/hooks/` (sibling to existing `useFeatures.ts`, `useSSE.ts`)
+3. Modified: `Dashboard.tsx` (page), `FeatureCard.tsx` (component) — both in their existing canonical locations
+**Evidence**: `git diff main --name-only -- ui/` lists 12 files; every new file is under `ui/src/components/` or `ui/src/hooks/`. No new pages.
 
-No invented/reordered columns. Order flows from the single canonical constant.
-**Evidence**: `groupFeaturesByColumn.ts:6`, `KanbanBoard.tsx:36`, `types/index.ts:171`
+### CON-003 — Minimal deps; no new runtime npm dep
+**Source**: constitution.md VIII
+**Status**: MET (with note)
+**Trace**:
+1. `ui/package.json:14-22` `dependencies` block: `@tanstack/react-query`, `highlight.js`, `react`, `react-dom`, `react-markdown`, `react-router`, `rehype-highlight` — unchanged from main
+2. `ui/package.json:23-32` `devDependencies`: `@playwright/test`, `@tailwindcss/vite`, `@types/react`, `@types/react-dom`, `@vitejs/plugin-react`, `tailwindcss`, `typescript`, `vite` — **no `vitest` added**
+3. Board uses only `react`, `react-router` `Link`, `@tanstack/react-query` (via Dashboard), Tailwind classes — all already in deps
+**Evidence**: `git diff main -- ui/package.json` is empty (0 lines changed).
+**Note**: The plan (`plan.md:1838`) called for adding `vitest` as a devDep to satisfy AC-011's unit-test requirement. It was not added. This keeps CON-003 strictly satisfied but leaves AC-011 unimplemented (see F-004). The plan's "minimal deps" choice and the AC-011 requirement conflict; resolution is a Required finding, not a CON-003 violation.
 
-### CON-002 — Backlog = phase inception AND status draft
+### CON-004 — Existing `feature-card-*` / `feature-count-badge` assertions still pass
+**Source**: existing e2e `app.spec.ts`
+**Status**: NOT MET (Blocking)
+**Trace**:
+1. `Dashboard.tsx:52` — `hasFeatures = !isLoading && !error && features.length > 0`
+2. `Dashboard.tsx:70` — `{hasFeatures && <ViewToggle value={view} onChange={setView} />}`
+3. `Dashboard.tsx:106-110` — `{hasFeatures && (view === 'board' ? <KanbanBoard/> : <FeatureList/>)}`
+4. `useSessionView.ts:15` — default is `'board'`
+5. ∴ on first load with features, `KanbanBoard` renders. Board cards emit `kanban-card-*` (`KanbanCard.tsx:25`), NOT `feature-card-*`.
+6. `app.spec.ts:13-17` — `await page.goto('/'); ... page.locator('[data-testid*="feature-card"]').count()` expects `>= 1`. With Board as default, board cards are `kanban-card-*` → count is 0 → assertion fails.
+7. `app.spec.ts` was **not modified** on this branch (`git diff main -- ui/e2e/app.spec.ts` is empty).
+**Evidence**: `app.spec.ts:5-19` "feature list loads and shows features" asserts `feature-card` count ≥ 1 on `/` load. Board default means `feature-card-*` only appears after clicking "List". The plan (T-009, `plan.md:2116`) explicitly assigned the developer to add a click-to-List fixture. Not done.
+**Explanation**: CON-004 regression. The existing suite breaks because the default view flipped to Board and `app.spec.ts` was never updated to click "List" first. The plan called this out (T-009) and the developer skipped it.
+
+### CON-005 — Reuse `PHASES`/`PHASE_LABELS`/`STATUS_LABELS`/`PRIORITY_LABELS`, no duplicated strings
+**Source**: existing UI `types/index.ts`
 **Status**: MET
 **Trace**:
-1. `groupFeaturesByColumn.ts:30` — `if (f.status === 'draft' && f.current_phase === 'inception') { cols.backlog.push(f); }`
-2. `groupFeaturesByColumn.ts:32-33` — else branch: `PHASES.includes(f.current_phase)` → pushes to `cols[f.current_phase]`; a feature in `inception` with `status !== 'draft'` falls to the `inception` column.
-3. Paths traced: draft+inception → backlog ✓; in_progress+inception → inception ✓; any other status+inception → inception ✓; done+delivery → delivery ✓ (CON-009).
+1. `KanbanBoard.tsx:2` — `import { PHASES, PHASE_LABELS } from '../types'`
+2. `KanbanBoard.tsx:21-27` — `(PHASES as readonly PhaseName[]).map(phase => <KanbanColumn label={PHASE_LABELS[phase]} .../>)` — column order and labels derive from constants
+3. `KanbanColumn.tsx:21` — renders `{label}` (passed from parent); no literal phase name in column
+4. `KanbanCard.tsx:3` — `import { STATUS_LABELS, PRIORITY_LABELS } from '../types'`
+5. `KanbanCard.tsx:18-19` — `STATUS_LABELS[feature.status]`, `PRIORITY_LABELS[feature.priority]`
+6. Grep `Kanban*.tsx` for `'Inception'|'Planning'|'In Progress'` → 0 matches (only `groupFeaturesByPhase.ts:6` references `'other'` which is the defensive bucket, not a phase/status label)
+**Evidence**: No phase/status name literals in board components. All via the `types/` constants.
 
-Rule matches spec's derived grouping exactly.
-**Evidence**: `groupFeaturesByColumn.ts:30-34`
-
-### CON-003 — Board data exclusively from GET /api/features; no new endpoint
+### CON-006 — Card chrome parity with `FeatureCard`
+**Source**: `FeatureCard.tsx`
 **Status**: MET
 **Trace**:
-1. `KanbanBoard.tsx:2` — `import { listFeatures } from '../api/client'` (sole data import)
-2. `KanbanBoard.tsx:11-14` — `useQuery({ queryKey: ['features'], queryFn: listFeatures })`
-3. `git diff main...HEAD -- internal/ cmd/ rules/` → empty (verified: no backend diff)
-4. `git diff main...HEAD -- ui/src/api/client.ts` → empty (no new client function)
-5. E2E guard `kanban-api.spec.ts:37-50` — `page.on('request')` filters `/api/`, asserts every URL matches `/\/api\/features(\?|$)/`
+1. `badgeColors.ts:3-13` — single `statusColors` map, extracted from FeatureCard
+2. `FeatureCard.tsx:6` — `import { statusColors } from './badgeColors'`; `FeatureCard.tsx:37` uses `statusColors[feature.status]`
+3. `KanbanCard.tsx:4` — `import { statusColors } from './badgeColors'`; `KanbanCard.tsx:37` uses `statusColors[feature.status]`
+4. Gate text: `KanbanCard.tsx:64` `✓ Gate passed`, `:66` `✗ Gate failed` — byte-identical to `FeatureCard.tsx:59`/`:61`
+5. `question-badge` testid: `KanbanCard.tsx:53` local `<span data-testid="question-badge">` (not the `QuestionBadge` `<Link>`, avoiding nested anchors inside the card `<Link>`). Same testid as `QuestionBadge.tsx:15`, valid HTML.
+**Evidence**: Single shared map; both consumers import. Gate strings identical. Question badge testid reused without nested-anchor violation.
 
-No new endpoint. Only `listFeatures` consumed.
-**Evidence**: `KanbanBoard.tsx:2,11-14`; `kanban-api.spec.ts:27-53`; git diff (empty for internal/ + client.ts)
-
-### CON-004 — Empty features serialize as `[]` not `null`; board renders empty columns
+### CON-007 — Board consumes same `useQuery(['features'])`, no second fetch
+**Source**: `Dashboard.tsx` data flow
 **Status**: MET
 **Trace**:
-1. `internal/api/dto.go:93` — `summaries := make([]FeatureSummaryResponse, 0, len(features))` → empty slice, not nil, serializes to `[]`
-2. `KanbanBoard.tsx:16` — `groupFeaturesByColumn(data?.features ?? [])` → defends undefined while loading
-3. `groupFeaturesByColumn.ts:13-23` — `emptyColumns()` pre-initializes all 7 keys to `[]`
-4. `groupFeaturesByColumn.ts:28` — `const cols = emptyColumns()` before iteration → no missing key possible
-5. `KanbanColumn.tsx:30-33` — when `features.length === 0`, renders empty-state `<p>` (non-blank)
+1. `Dashboard.tsx:21-24` — single `useQuery({ queryKey: ['features'], queryFn: listFeatures })`
+2. `Dashboard.tsx:50` — `const features = data?.features ?? []`
+3. `Dashboard.tsx:108` — `<KanbanBoard features={features} />` (props-only)
+4. `KanbanBoard.tsx:12` — `function KanbanBoard({ features })` — no `useQuery`, no `useEffect`, no `fetch`. Pure render from props.
+5. `KanbanBoard.tsx:13` — `groupFeaturesByPhase(features)` is a pure function (`groupFeaturesByPhase.ts:20-32`, no side effects, no I/O)
+**Evidence**: Zero network calls in board component tree. Single query owned by Dashboard.
+**Note**: AC-016 (assert exactly one `GET /api/features` via `page.on('request')`) is an integration assertion — verifiable by Tester, not by code review. Code path confirms the precondition.
 
-Double defense: DTO guarantees `[]`; `?? []` + pre-init cols defend even a null. No throw path on empty input.
-**Evidence**: `internal/api/dto.go:93`, `KanbanBoard.tsx:16`, `groupFeaturesByColumn.ts:13-23,28`, `KanbanColumn.tsx:30-33`
-
-### CON-005 — Reuse existing FeatureCard
+### CON-008 — Loading/error/empty states explicitly covered
+**Source**: overconfidence-prevention Pattern 2
 **Status**: MET
 **Trace**:
-1. `KanbanColumn.tsx:1` — `import FeatureCard from './FeatureCard'`
-2. `KanbanColumn.tsx:35` — `features.map(f => <FeatureCard key={f.id} feature={f} />)`
-3. `FeatureCard.tsx` unchanged (not in diff) — renders title, status/phase/priority badges, gate indicator, updated date, `<Link to={/features/${id}}>` (line 29-30)
+1. Loading: `Dashboard.tsx:89-94` — `{isLoading && <div data-testid="features-loading">...}` — board not rendered (gated by `hasFeatures` at `:106`)
+2. Error: `Dashboard.tsx:96-100` — `{error && <div data-testid="features-error">...}` — board not rendered
+3. Empty board: `Dashboard.tsx:102-104` — `{!isLoading && !error && features.length === 0 && <EmptyState/>}` — board not rendered, toggle hidden (`hasFeatures` is false at `:70`)
+4. Empty column: `KanbanColumn.tsx:24-30` — `features.length === 0 ? <p data-testid="kanban-column-empty-${phase}">No features</p> : cards`
+5. Null-array guard: `groupFeaturesByPhase.ts:8-13` `emptyGroups()` initializes every bucket to `[]` — no `null` arrays
+**Evidence**: All three states (loading/error/empty) reuse existing Dashboard branches; board renders only when `hasFeatures`. Empty columns render placeholder, never blank/null.
 
-No re-implementation. Card markup reused as-is.
-**Evidence**: `KanbanColumn.tsx:1,35`; `FeatureCard.tsx:29` (existing, unchanged)
-
-### CON-006 — No new UI dependency
-**Status**: MET
+### CON-009 — Unknown `current_phase` handled defensively
+**Source**: overconfidence-prevention Pattern 1
+**Status**: MET (code); NOT MET (test — see F-004)
 **Trace**:
-1. `git diff main...HEAD -- ui/package.json` → empty (verified)
-2. `git diff main...HEAD -- ui/vite.config.ts` → empty (no vitest config added — AD-6 resolved conservatively, no vitest)
-3. `kanban-api.spec.ts:55-68` — AC-CON-006 test asserts board renders (only possible with existing bundle)
-
-Zero new declared deps. Lockfile churn only from reinstall if any (not in diff).
-**Evidence**: git diff (empty for package.json + vite.config.ts)
-
-### CON-007 — Kanban reachable via navigation alongside Dashboard
-**Status**: MET
-**Trace**:
-1. `Dashboard.tsx:15` — `useState<'list' | 'board'>('list')`
-2. `Dashboard.tsx:68` — `<ViewToggle value={viewMode} onChange={setViewMode} />` in header
-3. `Dashboard.tsx:87-112` — `viewMode === 'board' ? <KanbanBoard /> : <>...FeatureList...</>`
-4. `ViewToggle.tsx:16,25` — `data-testid="view-toggle-list"` / `data-testid="view-toggle-board"` both rendered; either click sets `viewMode` via `onChange`
-
-Both directions reachable. List is default (existing behavior preserved).
-**Evidence**: `Dashboard.tsx:15,68,87-112`; `ViewToggle.tsx:16,25`
-
-### CON-008 — Dark mode via existing Tailwind `dark:` variants
-**Status**: MET
-**Trace**:
-1. `KanbanBoard.tsx:23,32` — `dark:text-red-400 dark:bg-red-900/30 dark:border-red-800` / `dark:text-gray-400`
-2. `KanbanColumn.tsx:18,20,23,24,31` — `dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:text-gray-300 dark:text-gray-400`
-3. `ViewToggle.tsx:10,13` — `dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:bg-gray-800 dark:border-gray-700`
-4. `FeatureCard.tsx` (unchanged) already uses `dark:` variants throughout
-5. E2E `kanban.spec.ts:342-370` — AC-CON-008 toggles ThemeToggle, asserts column computed bg is not light palette
-
-Consistent with existing `dark:` usage in Dashboard/FeatureCard.
-**Evidence**: `KanbanBoard.tsx:23,32`; `KanbanColumn.tsx:18,20,23,31`; `ViewToggle.tsx:10,13`; `kanban.spec.ts:342-370`
-
-### CON-009 — Terminal status features placed in current_phase column, not hidden
-**Status**: MET
-**Trace**:
-1. `groupFeaturesByColumn.ts:30-34` — only the backlog branch checks `status === 'draft'`; the else branch indexes by `current_phase` with NO status filter
-2. Path: `status === 'done' && current_phase === 'delivery'` → fails backlog branch (status ≠ draft) → `PHASES.includes('delivery')` true → `cols.delivery.push(f)` ✓
-3. Same for `cancelled`: no status filter in the else branch → placed in current_phase column
-4. E2E `kanban.spec.ts:184-195` — AC-006 verifies `done`+`delivery` lands in `kanban-column-delivery`
-
-Terminal features visible. No exclusion filter.
-**Evidence**: `groupFeaturesByColumn.ts:30-34`; `kanban.spec.ts:184-195`
-
-### CON-010 — Total feature count badge remains visible and correct in Kanban view
-**Status**: MET
-**Trace**:
-1. `Dashboard.tsx:58-66` — `feature-count-badge` is rendered in the header row, OUTSIDE the `viewMode === 'board' ? ... : ...` body switch (line 87)
-2. `Dashboard.tsx:49` — `totalCount = data?.total_count ?? 0` derived from the shared `['features']` query
-3. The badge visibility guard `!isLoading && !error` (line 58) reads the shared query state — both views use the same query key, so the badge renders identically in both modes
-4. E2E `kanban.spec.ts:220-238` — AC-009 reads badge text before toggle, asserts same text after toggle
-
-Badge stays mounted; count stays correct.
-**Evidence**: `Dashboard.tsx:49,58-66,87`; `kanban.spec.ts:220-238`
-
-### CON-011 — Stable `data-testid` attributes
-**Status**: MET
-**Trace**:
-1. `KanbanBoard.tsx:19` — `data-testid="kanban-board"`
-2. `KanbanColumn.tsx:17` — `data-testid={`kanban-column-${columnKey}`}` → derives from `COLUMN_KEYS` = backlog + 6 phases
-3. All 8 required testids produced: `kanban-board`, `kanban-column-backlog`, `kanban-column-inception`, `kanban-column-planning`, `kanban-column-construction`, `kanban-column-review`, `kanban-column-testing`, `kanban-column-delivery`
-4. E2E `kanban.spec.ts:95-106` — AC-CON-011 asserts each testid exists exactly once
-
-All required testids present, exactly once each.
-**Evidence**: `KanbanBoard.tsx:19`; `KanbanColumn.tsx:17`; `groupFeaturesByColumn.ts:6`; `kanban.spec.ts:95-106`
+1. `groupFeaturesByPhase.ts:24-29`:
+   ```
+   for (const f of features) {
+     if ((PHASES as readonly string[]).includes(f.current_phase)) {
+       groups[f.current_phase as PhaseName].push(f);
+     } else {
+       groups.other.push(f);
+     }
+   }
+   ```
+2. Path A: `current_phase === 'planning'` → `PHASES.includes('planning')` true → pushed to `groups.planning`
+3. Path B: `current_phase === 'weird'` → `PHASES.includes('weird')` false → pushed to `groups.other` (no throw, no drop)
+4. Path C: `current_phase === undefined` → `.includes(undefined)` false → `groups.other` (no crash)
+5. `KanbanBoard.tsx:14` — `showOther = groups.other.length > 0` → Other column renders only when needed (AC-019)
+6. Partition invariant: every input feature goes to exactly one bucket; `sum(buckets) === input.length` by construction (no `continue`, no early return)
+**Evidence**: Code handles unknown phases correctly. **No unit test exists** to verify AC-011 (`KanbanBoard.test.ts` missing, `vitest` not in devDeps) — see F-004.
 
 ---
 
 ## Phase 2: Acceptance Criteria Review
 
-### AC-001: features land in column matching current_phase
+### AC-001: Toggle visible, Board active by default
 **Status**: MET
-**Evidence**: `groupFeaturesByColumn.ts:30-34` (grouping rule); `kanban.spec.ts:108-127` (e2e: seeds features in inception/planning/delivery, asserts each card in matching column)
-**Explanation**: Grouping fn routes non-backlog features to `cols[f.current_phase]`. Test verifies for 3 phases.
+**Evidence**: `Dashboard.tsx:70` `{hasFeatures && <ViewToggle value={view} onChange={setView} />}`; `ViewToggle.tsx:13` `data-testid="view-toggle"`; `ViewToggle.tsx:28` `aria-pressed={value === 'board'}`; `useSessionView.ts:15` default `'board'`.
+**Explanation**: Toggle renders when features exist; Board button has `aria-pressed="true"` on fresh session (default `'board'`).
 
-### AC-002: columns render in canonical order
+### AC-002: Click Board → 6 phase columns, FeatureList gone
 **Status**: MET
-**Evidence**: `KanbanBoard.tsx:36` (`COLUMN_KEYS.map`); `groupFeaturesByColumn.ts:6` (`COLUMN_KEYS = ['backlog', ...PHASES]`); `kanban.spec.ts:78-93` (asserts ordered suffixes === `['backlog','inception','planning','construction','review','testing','delivery']`)
-**Explanation**: Render order driven by the constant; test asserts exact order.
+**Evidence**: `Dashboard.tsx:107-108` `view === 'board' ? <KanbanBoard/> : <FeatureList/>`; `KanbanBoard.tsx:21` maps `PHASES` (6 entries, `types/index.ts:171`); `KanbanBoard.tsx:29-31` appends Other only when `groups.other.length > 0`. Clicking Board sets `view='board'` (`ViewToggle.tsx:26`), FeatureList unmounts.
+**Explanation**: 6 columns in `PHASES` order (Inception→Delivery); conditional Other. List view unmounts.
 
-### AC-003: column header shows label + card count
+### AC-003: Click List → FeatureList renders, no kanban columns
 **Status**: MET
-**Evidence**: `KanbanColumn.tsx:20-27` (header renders `<h3>{label}</h3>` + count span `{features.length}`); `kanban.spec.ts:129-150` (asserts header text contains label and count equals `feature-card-*` descendants)
-**Explanation**: Count is `features.length` (line 26), test asserts it equals descendant card count for all 7 columns.
+**Evidence**: `Dashboard.tsx:108-109` `view === 'list'` branch renders `<FeatureList features={features}/>`. `FeatureList.tsx:50` `data-testid="feature-list"`. Board unmounts (conditional render).
+**Explanation**: Toggling to List mounts FeatureList; board not rendered.
 
-### AC-004: draft+inception → backlog, not inception
+### AC-004: Board persists across reload (sessionStorage)
 **Status**: MET
-**Evidence**: `groupFeaturesByColumn.ts:30-31` (`if (f.status === 'draft' && f.current_phase === 'inception') cols.backlog.push(f)`); `kanban.spec.ts:152-166` (asserts card in `kanban-column-backlog`, NOT in `kanban-column-inception`)
-**Explanation**: Rule explicitly routes draft+inception to backlog. Test verifies exclusion from inception column.
+**Evidence**: `useSessionView.ts:10` `sessionStorage.getItem('devteam.dashboard.view')`; `:21-24` `set` writes `sessionStorage.setItem`; `:19` `useState(readStored)` lazy-init reads on mount. Key `devteam.dashboard.view` (FR-002).
+**Explanation**: Reload re-mounts Dashboard, `useSessionView` lazy-inits from sessionStorage, prior choice restored.
 
-### AC-005: in_progress+inception → inception, not backlog
+### AC-005: Fresh session → Board default
 **Status**: MET
-**Evidence**: `groupFeaturesByColumn.ts:30-33` (fails draft check → else branch → `cols.inception.push`); `kanban.spec.ts:168-182` (asserts card in `kanban-column-inception`, NOT in backlog)
-**Explanation**: in_progress ≠ draft, so feature falls to the else branch and is placed by current_phase.
+**Evidence**: `useSessionView.ts:7-16` `readStored()` returns `'board'` when stored value is absent or invalid (`if (v === 'board' || v === 'list') return v; ... return 'board'`).
+**Explanation**: Fresh sessionStorage → `getItem` returns null → falls through to `'board'`.
 
-### AC-006: done+delivery → delivery (terminal not hidden)
+### AC-006: Zero features → toggle hidden, EmptyState renders
 **Status**: MET
-**Evidence**: `groupFeaturesByColumn.ts:32-33` (else branch has no status filter); `kanban.spec.ts:184-195`
-**Explanation**: See CON-009 trace. Terminal features routed by current_phase only.
+**Evidence**: `Dashboard.tsx:52` `hasFeatures = !isLoading && !error && features.length > 0`; `:70` `{hasFeatures && <ViewToggle/>}` (hidden when false); `:102-104` `{!isLoading && !error && features.length === 0 && <EmptyState onCreateClick=.../>}`.
+**Explanation**: Toggle gated by `hasFeatures`; empty branch renders `EmptyState`.
 
-### AC-007: list → board toggle
+### AC-007: Card in correct column with P1 + "In Progress" badges
 **Status**: MET
-**Evidence**: `Dashboard.tsx:87-112` (viewMode switch); `ViewToggle.tsx:25` (`view-toggle-board` button); `kanban.spec.ts:197-207` (asserts `feature-list` visible → click → `kanban-board` visible, `feature-list` count 0)
-**Explanation**: Toggle switches body content; test asserts visibility transition.
+**Evidence**: `KanbanCard.tsx:18` `STATUS_LABELS['in_progress']` → `"In Progress"` (`types/index.ts:215`); `:19` `PRIORITY_LABELS[1]` → `"P1 - Critical"` (`types/index.ts:226`); `:38` `data-testid="kanban-card-status"`; `:44` `data-testid="kanban-card-priority"`. Column placement via `groupFeaturesByPhase` → `groups[feature.current_phase]` (`KanbanBoard.tsx:26`).
+**Explanation**: Card renders in Planning column with correct badge text from shared constants.
 
-### AC-008: board → list toggle
+### AC-008: Pending-questions badge when count > 0
 **Status**: MET
-**Evidence**: `Dashboard.tsx:87-112`; `ViewToggle.tsx:16` (`view-toggle-list` button); `kanban.spec.ts:209-218` (asserts `feature-list` visible, `kanban-board` count 0)
-**Explanation**: Reverse toggle works symmetrically.
+**Evidence**: `KanbanCard.tsx:50-58` `{feature.pending_questions_count > 0 && <span data-testid="question-badge">...}`.
+**Explanation**: Badge renders only when count > 0; testid `question-badge` matches spec.
 
-### AC-009: count badge stays consistent across toggle
+### AC-009: Gate indicator (✓/✗) when gate_result present
 **Status**: MET
-**Evidence**: `Dashboard.tsx:58-66` (badge in header, outside body switch); `kanban.spec.ts:220-238` (reads badge text before, asserts same text after toggle)
-**Explanation**: Badge is in the header row which is never unmounted by the body switch. Same query → same count.
+**Evidence**: `KanbanCard.tsx:61-69` `{feature.gate_result && <div data-testid="kanban-card-gate">{feature.gate_result.passed ? <span>✓ Gate passed</span> : <span>✗ Gate failed</span>}</div>}`. Text byte-identical to `FeatureCard.tsx:57-64`.
+**Explanation**: Gate indicator renders with correct pass/fail text.
 
-### AC-010: clicking a card navigates to /features/{id}
+### AC-010: Click card → navigate to `/features/:id`
 **Status**: MET
-**Evidence**: `KanbanColumn.tsx:35` (`<FeatureCard feature={f} />`); `FeatureCard.tsx:29-30` (`<Link to={`/features/${feature.id}`}>`); `kanban.spec.ts:240-269` (clicks card, asserts URL `/features/nav1`)
-**Explanation**: FeatureCard renders a `<Link>`; clicking it uses react-router navigation. Test verifies URL.
+**Evidence**: `KanbanCard.tsx:23-26` `<Link to={`/features/${feature.id}`} data-testid={`kanban-card-${feature.id}`}>`. Same destination as `FeatureCard.tsx:18-19`.
+**Explanation**: Card is a `react-router` `Link`; click navigates to detail page.
 
-### AC-011: empty board renders all columns with empty-state, no console errors
+### AC-011: Unknown `current_phase` → "Other" column, no crash (unit test)
+**Status**: NOT MET (Required)
+**Evidence**: `groupFeaturesByPhase.ts:24-29` handles unknown phases correctly (CON-009 trace). **But no unit test exists**: `KanbanBoard.test.ts` is absent (`ls ui/src/components/` shows no `.test.ts`), `vitest` is not in `package.json` devDeps, no `test:unit` script.
+**Explanation**: The code is correct; the required verification artifact is missing. AC-011 test level is explicitly `unit`. The plan (T-003, `plan.md:2159-2163`) and constraint register mandate a unit test for `groupFeaturesByPhase`. Either the developer or tester must add it; currently neither exists on the branch.
+
+### AC-012: `gate_blocked` → red ring
 **Status**: MET
-**Evidence**: `groupFeaturesByColumn.ts:13-23` (pre-init all 7 cols to `[]`); `KanbanColumn.tsx:30-33` (empty-state `<p>`); `kanban.spec.ts:271-283` (mocks `features: []`, asserts empty-state visible + zero `feature-card-*` for all 7 columns + zero console errors/pageerrors)
-**Explanation**: Empty input produces 7 empty columns each with non-blank empty-state message. Console captured and asserted clean.
+**Evidence**: `KanbanCard.tsx:11-14` `ringClass('gate_blocked')` → `'ring-2 ring-red-400'`; `:26` className includes `${ring}`.
+**Explanation**: Red ring applied only for `gate_blocked`.
 
-### AC-012: features:[] does not throw "map of null"
+### AC-013: `waiting_for_human` → yellow ring
 **Status**: MET
-**Evidence**: `KanbanBoard.tsx:16` (`data?.features ?? []`); `groupFeaturesByColumn.ts:13-23,28` (pre-init + `emptyColumns()` call before iteration)
-**Explanation**: Level reclassified from unit to e2e per plan AD-6 (CON-006 forbids adding vitest devDep). Behavior verified by AC-011's e2e (empty array path exercised, no throw, no console error). The grouping function never indexes a missing key and never calls `.map` on a possibly-null array.
+**Evidence**: `KanbanCard.tsx:13` `if (status === 'waiting_for_human') return 'ring-2 ring-yellow-400'`.
+**Explanation**: Yellow ring applied only for `waiting_for_human`.
 
-### AC-013: partial fill — one column has cards, others empty
+### AC-014: Loading state → `features-loading`, no columns
+**Status**: MET (impl); NOT MET (e2e — see F-003)
+**Evidence**: `Dashboard.tsx:89-94` loading branch renders `features-loading`; board gated by `hasFeatures` (false while loading) so no `kanban-column-*` renders.
+**Explanation**: Implementation correct. The e2e test `kanban.spec.ts` does not exercise this AC with the spec-compliant selectors (it uses `feature-card-*` and a `backlog` column that don't exist).
+
+### AC-015: Error state → `features-error`, no board
+**Status**: MET (impl); NOT MET (e2e — see F-003)
+**Evidence**: `Dashboard.tsx:96-100` error branch renders `features-error`; board gated by `hasFeatures` (false on error).
+**Explanation**: Implementation correct. `kanban-api.spec.ts:80,81` asserts `kanban-error` testid which does not exist in the impl (Dashboard uses `features-error`).
+
+### AC-016: Exactly one `GET /api/features` during Board render
+**Status**: UNVERIFIABLE-by-review (integration)
+**Evidence**: Code path supports it (CON-007 trace — single `useQuery`, board is props-only). Verifiable by Tester via `page.on('request')`.
+**Explanation**: No code-level second fetch exists. Final verification is Tester's network-level assertion.
+
+### AC-017: Empty column → header + "No features" placeholder
 **Status**: MET
-**Evidence**: `kanban.spec.ts:285-304` (seeds 5 in planning, asserts planning has 5 cards, every other column has 0 cards + visible empty-state)
-**Explanation**: Grouping fn routes all 5 to planning bucket; other buckets stay `[]` → empty-state renders.
+**Evidence**: `KanbanColumn.tsx:17-22` header with `data-testid="kanban-column-header-${phase}"` renders unconditionally; `:24-30` `features.length === 0 ? <p data-testid="kanban-column-empty-${phase}">No features</p> : cards`.
+**Explanation**: Empty columns render header + muted placeholder.
 
-### AC-014: cache invalidation moves card without full page reload
-**Status**: NOT MET
-**Evidence**: `kanban.spec.ts:306-340` — the test calls `await page.reload()` (line 329) and re-clicks the board toggle (line 330) to observe the moved card. The AC text requires the card to move "without a full page reload."
-**Explanation**: The implementation itself supports this — `KanbanBoard` uses `useQuery(['features'])` (KanbanBoard.tsx:11-14), the same cache key as Dashboard, so a real invalidation propagates without reload. The PRODUCTION CODE is correct. But the TEST does not verify the AC's actual constraint: it reloads the page, which is exactly what the AC forbids. The test comment (lines 323-328) acknowledges this ("in spirit", "the test exercises the data path, not the invalidation trigger") — but an AC verification that violates the AC's own constraint is not a verification. A correct test would trigger `queryClient.invalidateQueries(['features'])` via a real mutation (e.g. create a second feature through the IntakeForm, which invalidates the cache) or expose a test hook, then assert the card moved with `page.url()` unchanged and no `page.reload()` call. This is a TEST gap, not an implementation gap — the board code satisfies FR-014.
+### AC-018: Zero features → EmptyState, toggle hidden
+**Status**: MET (same as AC-006)
+**Evidence**: See AC-006 trace.
+**Explanation**: Cross-referenced with AC-006; identical code path.
 
-### AC-CON-003: no new backend endpoint
+### AC-019: All 6 phase columns present regardless of fill
 **Status**: MET
-**Evidence**: git diff (empty for `internal/`, `ui/src/api/client.ts`); `kanban-api.spec.ts:27-53` (asserts every `/api/` request matches `/\/api\/features(\?|$)/`)
-**Explanation**: No new mux handler, no new client function, board only calls `listFeatures`. Test guards against any new endpoint at runtime.
+**Evidence**: `KanbanBoard.tsx:21-28` `(PHASES as readonly PhaseName[]).map(phase => <KanbanColumn .../>)` — always renders all 6; `:29-31` Other column only when `groups.other.length > 0`.
+**Explanation**: 6 columns always render; +1 Other only when unknown phase exists.
 
-### AC-CON-005: reuse FeatureCard
+### AC-020: Column overflow → vertical scroll, header fixed
 **Status**: MET
-**Evidence**: `KanbanColumn.tsx:1` (`import FeatureCard from './FeatureCard'`); `KanbanColumn.tsx:35` (`<FeatureCard key={f.id} feature={f} />`)
-**Explanation**: Level reclassified from unit to integration per plan AD-6. Source grep confirms import + render usage. No card markup re-implemented.
+**Evidence**: `KanbanColumn.tsx:17-22` header has `shrink-0` (won't shrink); `:23` body div has `overflow-y-auto flex-1` (scrolls independently). `KanbanBoard.tsx:19` container `h-[calc(100vh-8rem)]` bounds board height; `KanbanColumn.tsx:15` `max-h-full` constrains column to board height.
+**Explanation**: Body scrolls; header fixed; board height bounded.
 
-### AC-CON-006: no new UI dependency
+### AC-021: Resize shorter → scroll area adjusts
 **Status**: MET
-**Evidence**: git diff (empty for `ui/package.json`); `kanban-api.spec.ts:55-68` (board renders with existing bundle)
-**Explanation**: Zero additions in dependencies or devDependencies.
+**Evidence**: `KanbanBoard.tsx:19` `h-[calc(100vh-8rem)]` is viewport-relative; `KanbanColumn.tsx:15` `max-h-full` + `:23` `flex-1` body adjusts to column height which tracks viewport.
+**Explanation**: Height tracks viewport via CSS calc; columns follow.
 
-### AC-CON-008: dark mode renders dark-palette backgrounds
+### AC-022: Narrow viewport → horizontal scroll, min-width 240px
 **Status**: MET
-**Evidence**: `KanbanColumn.tsx:18` (`dark:bg-gray-900`); `KanbanBoard.tsx:23` (`dark:bg-red-900/30`); `kanban.spec.ts:342-370` (toggles ThemeToggle, asserts column bg is not light palette)
-**Explanation**: Dark variants applied to board + columns + toggle. Test asserts computed bg is not the light palette.
-
-### AC-CON-011: each testid exists exactly once
-**Status**: MET
-**Evidence**: `KanbanBoard.tsx:19` (`kanban-board`); `KanbanColumn.tsx:17` (`kanban-column-${columnKey}`); `kanban.spec.ts:95-106` (asserts `toHaveCount(1)` for board + all 7 columns)
-**Explanation**: All 8 required testids present exactly once.
-
-### AC-ERR-001: API 500 renders error banner, no pageerror
-**Status**: MET
-**Evidence**: `KanbanBoard.tsx:20-28` (`error && !data` → banner with `data-testid="kanban-error"` containing `Failed to load features: {error.message}`); `kanban-api.spec.ts:70-88` (mocks 500, asserts banner visible + contains "Failed to load features" + `pageErrors` empty)
-**Explanation**: Error banner renders on 500 with no data. Columns still render (grouped from `[]` fallback). No uncaught exception.
-
-### AC-ERR-002: refetch error keeps board stable, no pageerror
-**Status**: MET
-**Evidence**: `KanbanBoard.tsx:20` (`error && !data` — when data exists, banner does NOT render; stale cards remain via `groupFeaturesByColumn(data?.features ?? [])`); `kanban-api.spec.ts:90-120` (loads successfully, then fails next fetch, asserts `pageErrors` empty + `errors` empty)
-**Explanation**: react-query keeps `data` populated on refetch error by default; the `!data` guard means stale cards stay visible. Test asserts no uncaught exception. AC allows "either" stale-or-banner.
-
-### AC-ERR-003: deleted card click → FeatureDetail 404 state
-**Status**: MET
-**Evidence**: `FeatureCard.tsx:29` (`<Link to={`/features/${feature.id}`}>`); `kanban.spec.ts:372-387` (mocks `/api/features/gone1` with 404, clicks card, asserts URL `/features/gone1` + no console error)
-**Explanation**: Board does not handle the 404 itself — navigates to detail page, which renders its existing not-found state. Test asserts no console error.
+**Evidence**: `KanbanBoard.tsx:19` `overflow-x-auto`; `KanbanColumn.tsx:15` `w-60` (Tailwind `w-60` = 15rem = 240px) + `shrink-0` (prevents compression).
+**Explanation**: Board scrolls horizontally; columns fixed at 240px.
 
 ---
 
 ## Phase 3: Negative Test Vector Verification
 
-The constraint register has no external-standard negative vectors (no RFC). The "negative vectors" are the empty-state + error-path ACs (per plan spec validation row). All verified:
+The constraint register has no RFC conformance vectors. Defensive edge cases:
 
-| Vector | Expected behavior | Verified by |
-|--------|-------------------|-------------|
-| `features: []` (CON-004) | 7 empty cols, no throw | AC-011 e2e — MET |
-| `GET /api/features` 500 | error banner, no crash | AC-ERR-001 — MET |
-| Refetch error mid-session | stale cards or banner, no crash | AC-ERR-002 — MET |
-| Click deleted card | detail page 404 state | AC-ERR-003 — MET |
-| Unknown `current_phase` | dropped, no throw | `groupFeaturesByColumn.ts:32-35` — `PHASES.includes(...)` guard; else branch is a no-op (comment line 35). Static reasoning: a feature with `current_phase = 'foo'` fails the backlog check and fails `PHASES.includes`, so it is silently dropped. No throw, no missing-key index. Not exercised by e2e (only valid phases seeded) but the guard is present and correct. |
-
-No negative vector accepted or thrown.
+| Edge case | Impl behavior | Status |
+|---|---|---|
+| Unknown `current_phase` (CON-009/AC-011) | `groupFeaturesByPhase` routes to `other` bucket; no throw | MET (code); NOT MET (no unit test) — F-004 |
+| Empty board (CON-008/AC-006) | Dashboard renders `EmptyState`, toggle hidden | MET |
+| Empty column (CON-008/AC-017) | `KanbanColumn` renders placeholder | MET |
+| Loading (CON-008/AC-014) | `features-loading` branch, board unmounted | MET (code) |
+| Error (CON-008/AC-015) | `features-error` branch, board unmounted | MET (code) |
+| Missing `total_count` | `Dashboard.tsx:51` `data?.total_count ?? 0` | MET (pre-existing) |
+| Invalid stored view | `useSessionView.ts:11` validates `=== 'board' \|\| === 'list'`, else default | MET |
 
 ---
 
-## Phase 4: Cross-Component Consistency Review
+## Phase 4: Cross-Component Consistency
 
-| Shared Value | Producer | Consumer | Consistent? |
-|--------------|----------|----------|-------------|
-| Phase wire values | Go `internal/feature/types.go` → API `current_phase` | `types/index.ts:171` `PHASES`; `groupFeaturesByColumn.ts:32` matches against them | YES — `PHASES` mirrors Go enum; grouping imports `PHASES`, not a re-declaration |
-| Status wire values | Go Status enum → API `status` | `groupFeaturesByColumn.ts:30` checks `=== 'draft'`; `FeatureCard.tsx:13` uses `STATUS_LABELS` | YES — string literal `'draft'` matches Go `StatusDraft = "draft"`; `STATUS_LABELS` covers all 9 statuses |
-| Column key set | `groupFeaturesByColumn.ts:6` `COLUMN_KEYS` | `KanbanColumn.tsx:17` testid; `KanbanBoard.tsx:36` render order; e2e selectors | YES — single source of truth |
-| `FeatureSummary` shape | `GET /api/features` → `types/index.ts:3` | `FeatureCard.tsx` props; `groupFeaturesByColumn.ts` reads `f.status`, `f.current_phase` | YES — board reads only fields the existing types define |
-| Empty-array contract | `internal/api/dto.go:93` (`make([]..., 0, ...)`) | `KanbanBoard.tsx:16` (`?? []`); `groupFeaturesByColumn.ts:13-23` (pre-init) | YES — double defense |
-| react-query cache key | `Dashboard.tsx:21` `useQuery(['features'])` | `KanbanBoard.tsx:12` `useQuery(['features'])` | YES — identical key → shared cache (FR-014) |
+| Shared value | Producer | Consumer(s) | Consistent? |
+|---|---|---|---|
+| Phase labels | `PHASE_LABELS` (types) | `KanbanColumn` header, `KanbanBoard` ordering | YES — single import |
+| Status labels | `STATUS_LABELS` (types) | `KanbanCard` status badge | YES |
+| Priority labels | `PRIORITY_LABELS` (types) | `KanbanCard` priority badge | YES |
+| Status→class map | `badgeColors.ts` | `FeatureCard`, `KanbanCard` (both import) | YES — single source |
+| Gate text | hardcoded in both cards | `FeatureCard:59/61`, `KanbanCard:64/66` | YES — byte-identical |
+| `question-badge` testid | `QuestionBadge` (Link), local `<span>` in `KanbanCard` | E2E selectors | YES — same testid, valid HTML (no nested anchors) |
+| Features array | Dashboard `useQuery(['features'])` | `FeatureList`, `KanbanBoard` (props) | YES — single query |
+| View preference | `useSessionView` | `Dashboard` render branch | YES — single owner |
 
-No inconsistencies. Every shared value has a single producer; all consumers read from it.
+**Multi-component check**: The only N-consumer case is `statusColors` (2 consumers). Both import from `badgeColors.ts`. No divergence.
 
 ---
 
 ## Phase 5: Language-Specific Footgun Review (TypeScript)
 
-| Footgun | Location | Risk | Verdict |
-|---------|----------|------|---------|
-| `any` type | none in new code | — | Clean: all types from `types/index.ts` |
-| `==` vs `===` | `groupFeaturesByColumn.ts:30` uses `===` | none | Correct — strict equality on string literals |
-| Optional chaining hiding null | `KanbanBoard.tsx:16` `data?.features ?? []` | guarded with `?? []` | Correct — `data` may be undefined while loading; `?? []` ensures grouping always gets an array |
-| `as` cast producing undefined key | `groupFeaturesByColumn.ts:32-33` `f.current_phase as PhaseName` then `cols[f.current_phase as ColumnKey]` | could index Record with a non-key → runtime `undefined` → `.push` on undefined throws | **Guarded**: `PHASES.includes(f.current_phase as PhaseName)` (line 32) gates the cast+index. If the cast lies (phase not in PHASES), the else branch is skipped (line 35 comment) — no index on a missing key. Safe. |
-| `.map` on possibly-null | none — `groupFeaturesByColumn` uses `for...of`; `KanbanBoard` maps `COLUMN_KEYS` (constant, never null) | none | Correct |
-| Mutable default args | none (no functions with default args) | — | N/A |
+- `any` type: No `any` in new code. `statusColors: Record<string, string>` (`badgeColors.ts:3`). `Record<GroupKey, FeatureSummary[]>` (`groupFeaturesByPhase.ts:22`). ✓
+- `==` vs `===`: `useSessionView.ts:11` uses `===`. `KanbanCard.tsx:11-13` uses `===`. No `==` found in new code. ✓
+- Optional chaining hiding null: `Dashboard.tsx:50` `data?.features ?? []` — handles undefined `data` (loading) correctly. `:51` `data?.total_count ?? 0`. ✓
+- Null array from `.map`/grouping: `groupFeaturesByPhase.ts:8-13` `emptyGroups()` pre-initializes all buckets to `[]`. ✓
+- `String.repeat(n)` with n<0: Not used. ✓
+- Integer overflow: N/A (JS numbers; no integer arithmetic on large values). ✓
 
-No language footgun produces wrong behavior. The `as` cast is correctly guarded by `PHASES.includes` — exactly as the plan's agent failure mode checks required.
+No footgun findings.
 
 ---
 
 ## Phase 6: Over-Engineering Check
 
 | File | Lines | Expected | Verdict |
-|------|-------|----------|---------|
-| `groupFeaturesByColumn.ts` | 37 | ~30 | Minimal — pure fn + 2 constants + emptyColumns helper |
-| `KanbanBoard.tsx` | 46 | ~50 | Minimal — query + grouping + render 7 columns + error/loading |
-| `KanbanColumn.tsx` | 39 | ~40 | Minimal — header + count + card list + empty-state |
-| `ViewToggle.tsx` | 33 | ~30 | Minimal — 2 buttons + active styling |
-| `Dashboard.tsx` diff | +39/-27 | ~+30 | Minimal — adds viewMode state + toggle + body switch |
-| **Total new logic** | **155** | plan ceiling ~250 | **Under budget** |
+|---|---|---|---|
+| `KanbanBoard.tsx` | 34 | ~40 | Minimal |
+| `KanbanColumn.tsx` | 37 | ~40 | Minimal |
+| `KanbanCard.tsx` | 76 | ~80 | Minimal |
+| `ViewToggle.tsx` | 34 | ~35 | Minimal |
+| `badgeColors.ts` | 13 | ~15 | Minimal (extracted map) |
+| `groupFeaturesByPhase.ts` | 32 | ~35 | Minimal |
+| `useSessionView.ts` | 31 | ~30 | Minimal |
+| `Dashboard.tsx` net diff | +23/-13 | ~+20 | Minimal |
 
-No speculative abstractions. No interface with one implementation. No factory. No config for constant values. No drag-drop, no WIP limits, no column collapse, no animation, no virtualization, no URL query param, no localStorage persistence. The implementation is the lazy minimum that satisfies every done condition.
-
-Test files: `kanban.spec.ts` (388 lines) + `kanban-api.spec.ts` (121 lines) = 509 lines. These are test-only, one test per AC, no shared fixture extravagance. Appropriate for 22 ACs.
+Total new logic: ~257 lines across 7 files. Plan estimated ~6 files, ~250 lines. On target. No speculative abstractions, no factories, no config-for-constants. `PHASE_GROUP_KEYS` export in `groupFeaturesByPhase.ts:6` is unused by the board (board maps `PHASES` directly and appends `other` conditionally) — **Noted**, not a finding (cheap, could be used by tests).
 
 ---
 
-## Phase 7: Missing Implementation Check
+## Phase 7: Missing Implementation
 
-| User Story | Implemented? | Evidence |
-|------------|--------------|----------|
-| US-001 (board by phase) | YES | KanbanBoard + grouping fn + AC-001/002/003 |
-| US-002 (backlog) | YES | Backlog rule + AC-004/005 |
-| US-003 (toggle) | YES | ViewToggle + Dashboard wiring + AC-007/008/009 |
-| US-004 (click card) | YES | FeatureCard reuse + AC-010 |
-| US-005 (empty state) | YES | emptyColumns + empty-state msg + AC-011/012/013 |
-| US-006 (live updates) | YES (code) / TEST GAP (AC-014) | `useQuery(['features'])` shares cache (KanbanBoard.tsx:12) — code satisfies FR-014. Test reloads page instead of invalidating. |
-
-No missing implementation. Every user story has corresponding code. The only gap is the AC-014 test method, not the implementation.
+| Spec/Plan requirement | Status |
+|---|---|
+| All FR-001..FR-017 | Implemented in code |
+| T-009: `app.spec.ts` click-to-List fixture (CON-004) | **MISSING** — F-001 |
+| T-003/T-010: `KanbanBoard.test.ts` unit test + `vitest` devDep (AC-011) | **MISSING** — F-004 |
+| `kanban.spec.ts` covering AC-001..AC-022 with spec-compliant selectors | **STALE** — F-003 (encodes prior divergent impl) |
+| `kanban-api.spec.ts` with spec-compliant selectors | **STALE** — F-003 |
+| Backend changes | None required, none made ✓ |
 
 ---
 
 ## Phase 8: Security Review (P1)
 
-| Check | Status | Evidence |
-|-------|--------|----------|
-| Authentication | N/A — no new endpoints; board uses existing `GET /api/features` with existing auth model | No backend changes (git diff empty for `internal/`) |
-| Authorization | N/A — no new resources; board is read-only over existing data | `KanbanBoard.tsx` only reads |
-| Input validation | N/A — board sends no user input to backend; `listFeatures()` is a GET with no params | `api/client.ts:51-52` unchanged |
-| Output filtering | N/A — board renders `FeatureSummary` fields already exposed by the existing API | No new fields rendered |
-| Error messages | OK — error banner shows `error.message` from the API response, not stack traces or file paths | `KanbanBoard.tsx:26` |
-| CORS | N/A — no backend changes | Unchanged |
-| Rate limiting | N/A — no new endpoints | Unchanged |
-| Logging | OK — no secrets logged; board is client-only | No new logging code |
-| Security headers | N/A — no backend changes | Unchanged |
-| XSS | OK — all feature data rendered via React JSX (auto-escaped); `FeatureCard` uses `{feature.title}` etc. | `FeatureCard.tsx:39,51,57,63,78` |
+Spec explicitly documents security extension as N/A: "View-only UI. No new endpoint, no input handling, no auth surface, no data mutation." Verified:
 
-No security issues. The feature adds no attack surface — it is a read-only view over existing authenticated data, rendering via React's auto-escaping.
+- No new API endpoint (`package.json` no new runtime dep; `internal/` unchanged on this branch's UI diff — backend changes in the broader diff are from other commits, not the kanban-view feature)
+- No user input handling in new components (board is read-only render from props)
+- No auth surface touched (board reuses already-authenticated `useQuery(['features'])`)
+- No state mutations (no `useMutation` in board components)
+- `Link` destinations are `/features/:id` where `:id` comes from API response (not user input) — no open-redirect
+- `sessionStorage` value validated against allowlist (`useSessionView.ts:11`) — no injection
+- No `dangerouslySetInnerHTML` in new code
+- No secrets in new code
+
+No security findings.
 
 ---
 
-## Phase 9: Constitution / Pipeline Principles
+## Phase 9: Constitution Compliance
 
-- **Quality built in**: grouping fn defends empty/null at the source; error banner + stale-data path handle API failure.
-- **Proof of work**: every MET claim above cites specific file:line + test:line.
-- **Agent failure modes checked**: null-array (CON-004), nil-deref (`?? []`), `as` cast guarded by `PHASES.includes`, multi-component consistency (single grouping fn, no render-time filtering).
-- **Conservative defaults**: AD-6 resolved the unit-test-runner tension conservatively (no vitest devDep, violating CON-006 would be worse). Empty-state copy chosen per plan. List is default view.
+| Principle | Status | Evidence |
+|---|---|---|
+| I. Spec-Driven | ✅ | Impl derives from spec.md + acceptance.md + plan.md |
+| VII. Self-Bootstrap | ✅ | Improves platform's own UI |
+| VIII. Minimal Dependencies | ✅ | No new runtime dep; `package.json` deps unchanged |
+| IX. Pipeline Governance | ✅ | Security/resiliency N/A (view-only), documented in spec |
 
 ---
 
 ## Findings
 
-### F-001: AC-014 test uses `page.reload()`, violating the AC's "without a full page reload" constraint
-- **Severity**: required (test gap, not implementation defect)
-- **Criterion**: AC-014
-- **Code**: `ui/e2e/kanban.spec.ts:329` — `await page.reload();`
-- **Description**: The test reloads the page to observe the card move from inception to planning. AC-014 requires the card to move "without a full page reload." The production code supports this (shared `['features']` cache key, FR-014), but the test does not verify the actual constraint. The test's own comment (lines 323-328) acknowledges the deviation.
-- **Fix needed**: Replace `page.reload()` with a real cache invalidation — e.g. create a second feature via the IntakeForm (which calls `queryClient.invalidateQueries(['features'])` in `Dashboard.tsx:31`), or expose a test hook, then assert the card moved with `page.url()` unchanged. The Tester phase should catch this during testing — flagging here so it is not missed.
+### F-001: `app.spec.ts` not updated — CON-004 regression (Blocking)
+- **Severity**: Blocking
+- **Criterion**: CON-004, AC-001/AC-003 (regression), plan T-009
+- **Code**: `ui/e2e/app.spec.ts` (unchanged from main; `git diff main -- ui/e2e/app.spec.ts` empty)
+- **Description**: Board is now the default view (`useSessionView.ts:15`). `app.spec.ts:5-19` "feature list loads and shows features" asserts `[data-testid*="feature-card"]` count ≥ 1 on `/` load. With Board default, board cards emit `kanban-card-*` (`KanbanCard.tsx:25`), so `feature-card-*` count is 0 → test fails. Plan T-009 (`plan.md:2116`) explicitly assigned the developer to add a click-to-List fixture before list-view assertions. Not done. This breaks the existing suite (CON-004: "existing `feature-card-*` testids and `feature-count-badge` assertions continue to pass unchanged").
+- **Fix**: Add `await page.locator('[data-testid="view-toggle-list"]').click();` after `page.goto('/')` in every `app.spec.ts` test that asserts `feature-card-*` or `feature-list`. Additive, no assertion removed.
 
-### F-002 (noted): AC-012 and AC-CON-005 test levels reclassified from unit to e2e/integration
-- **Severity**: noted (spec tension, resolved conservatively per plan AD-6)
-- **Criterion**: AC-012, AC-CON-005
-- **Code**: plan.md AD-6
-- **Description**: acceptance.md labels these as "unit" but CON-006 forbids adding the `vitest` devDep that true unit tests require. The architect resolved this conservatively (no vitest) and surfaced it as an open question. The implementation is structured correctly (pure grouping fn is unit-testable if vitest is later added). This is a spec-level tension, not an implementation defect. The Tester phase should note the reclassification in the test report.
+### F-002: Playwright config default port regressed to `:8765` — CON-001 violation (Blocking)
+- **Severity**: Blocking
+- **Criterion**: CON-001 ("E2E on `:18765`, never `:8765`")
+- **Code**: `ui/playwright.config.ts:10` (`baseURL: ... 'http://localhost:8765'`), `:21` (`port: ... '8765'`), `:20` (`-http :8765`)
+- **Description**: `git diff main` shows the default port changed FROM `:18765` TO `:8765` on this branch. The env-var override exists, but the constraint is that the **default** test port is `:18765` to avoid colliding with the production `devteam-web` service on `:8765`. This is a direct constraint violation.
+- **Fix**: Revert `playwright.config.ts` defaults to `:18765` (baseURL, port, command). Keep the `SERVER_PORT` env override.
 
-### F-003 (noted): Unknown `current_phase` silently dropped — no test covers the defensive guard
-- **Severity**: noted (defensive code is correct, but untested)
-- **Criterion**: plan agent failure mode check ("Unknown `current_phase` value → dropped, no throw")
-- **Code**: `groupFeaturesByColumn.ts:32-35` — `PHASES.includes(...)` guard + comment
-- **Description**: The grouping fn correctly drops features with an unknown `current_phase` (no throw, no missing-key index). This is defensive code for a case that "should not happen given types.go enum." No e2e test seeds an unknown phase to verify the drop. The guard is present and correct by static reasoning; a unit test would cover it if vitest were added (see F-002).
+### F-003: `kanban.spec.ts` and `kanban-api.spec.ts` encode the prior divergent implementation (Blocking for test suite, Noted for review)
+- **Severity**: Blocking (tests will fail against spec-compliant impl) / Noted (test rewrite is Tester's job)
+- **Criterion**: AC-002, AC-007, AC-011, AC-014, AC-015, AC-019, CON-005
+- **Code**: `ui/e2e/kanban.spec.ts:3-11` (`EXPECTED_COLUMNS` includes `'backlog'` — 7 columns, spec says 6 + conditional Other); `:13-21` (`COLUMN_LABELS.backlog = 'Backlog'` — no such column in spec); `:119,122,144,159,162,175,178,191,265,279,294,299,319,339,342,366,389` (all use `feature-card-*` testids for board cards — impl emits `kanban-card-*`); `:145` (asserts `kanban-column-count-${key}` — no such testid in `KanbanColumn.tsx`); `:80` (`mockFeatures(page, [])` then `switchToBoard` — but Dashboard hides toggle and renders `EmptyState` when features empty, so `view-toggle-board` won't exist); `:152-166` ("AC-004: draft+inception → backlog" — spec has NO Backlog column; FR-006 says feature goes to column matching `current_phase`); `ui/e2e/kanban-api.spec.ts:80,81` (asserts `kanban-error` testid — impl uses `features-error`); `:45` (asserts `feature-card-k1` on board — impl emits `kanban-card-k1`).
+- **Description**: Commit `6a7756d` rewrote the implementation to match the spec (replaced `groupFeaturesByColumn` with `groupFeaturesByPhase`, added `kanban-card-*` testids, removed Backlog column, made Board default) but did NOT update the e2e tests. The commit message admits this: "Existing kanban.spec.ts/kanban-api.spec.ts encode the prior divergent interpretation... Tester owns test rewrite." The tests as they stand will fail against the spec-compliant implementation. This is a blocker for the Testing phase (which will start from these tests) and a review finding because the tests are on the feature branch claiming to cover AC-001..AC-022.
+- **Fix**: Tester must rewrite `kanban.spec.ts` and `kanban-api.spec.ts` to use spec-compliant selectors (`kanban-card-*`, 6 phase columns + conditional Other, `features-error`/`features-loading` testids, no `backlog`, no `kanban-column-count`, no `kanban-error`).
+
+### F-004: AC-011 unit test missing — `KanbanBoard.test.ts` and `vitest` devDep absent (Required)
+- **Severity**: Required
+- **Criterion**: AC-011 (test level `unit`), CON-009, plan T-003/T-010
+- **Code**: No `KanbanBoard.test.ts` or `groupFeaturesByPhase.test.ts` in `ui/src/components/`; `ui/package.json:23-32` has no `vitest`; no `test:unit` script in `package.json:6-13`
+- **Description**: AC-011 explicitly requires a unit test: `groupFeaturesByPhase([{current_phase:'weird', ...}])` returns `{other: [feature]}`. The plan (T-003, `plan.md:2159-2163`; `plan.md:1838`) decided to add `vitest` as a devDep and create `KanbanBoard.test.ts`. Neither exists. The implementation code is correct (CON-009 trace), but the required verification artifact is missing. CON-009's verification method is "Unit test with synthetic unknown phase" — unsatisfied.
+- **Fix**: Add `vitest` devDep, `test:unit` script, and `KanbanBoard.test.ts` (or co-located `groupFeaturesByPhase.test.ts`) covering: empty input → 6 empty buckets + empty other; known phase → correct bucket; unknown phase → other; partition sum invariant.
+
+### F-005: Unused `PHASE_GROUP_KEYS` export (Noted)
+- **Severity**: Noted (doesn't need fixing)
+- **Criterion**: Over-engineering check
+- **Code**: `groupFeaturesByPhase.ts:6` `export const PHASE_GROUP_KEYS: GroupKey[] = [...PHASES, 'other']`
+- **Description**: Exported but not imported by `KanbanBoard.tsx` (which maps `PHASES` directly and appends `other` conditionally). Could be used by the missing unit test. Harmless but dead code today.
+- **Fix**: None required. If unit test (F-004) is added and uses it, it becomes live. Otherwise delete.
+
+### F-006: `kanban-api.spec.ts:80` asserts non-existent `kanban-error` testid (Noted — subsumed by F-003)
+- **Severity**: Noted
+- **Criterion**: AC-015
+- **Code**: `ui/e2e/kanban-api.spec.ts:80,81`
+- **Description**: Dashboard error branch uses `features-error` (`Dashboard.tsx:97`), not `kanban-error`. Test will fail. Subsumed by F-003's test-rewrite requirement.
 
 ---
 
-## Quality Gate
+## Quality Gate Checklist
 
 | Gate item | Status |
-|-----------|--------|
-| Every constraint checked with execution path trace + quoted evidence | ✅ CON-001..011 all traced |
-| Every acceptance criterion checked with quoted evidence | ✅ AC-001..014, AC-CON-*, AC-ERR-* all checked |
-| Every negative test vector verified | ✅ All empty/error paths verified; unknown-phase drop verified by static reasoning |
-| Cross-component consistency verified across all producers/consumers | ✅ 6 shared values, all consistent |
-| "No issues" includes evidence | ✅ Every MET cites file:line + test:line |
-| Security review complete (P1) | ✅ No attack surface added |
-| Constitution compliance verified | ✅ Conservative defaults, proof of work, agent failure modes checked |
-| Null pointer safety verified | ✅ `?? []`, pre-init cols, `PHASES.includes` guard |
-| Error paths verified | ✅ 500 (AC-ERR-001), refetch error (AC-ERR-002), 404 (AC-ERR-003), empty (AC-011/013) |
-| Middleware chain | N/A — no backend changes |
-| Execution paths traced | ✅ Every constraint has an input-to-output trace |
-| Language footguns checked | ✅ `as` cast guarded, `===` used, `?? []` defends undefined |
-| Multi-component constraints across ALL components | ✅ Single grouping fn is the only place filtering happens; all 7 columns render from it |
-| Over-engineering check | ✅ 155 lines new logic vs ~250 ceiling |
-| Missing implementation check | ✅ All 6 user stories implemented |
+|---|---|
+| Every constraint checked with execution-path trace | ✅ CON-001..CON-009 traced |
+| Every AC checked with quoted evidence | ✅ AC-001..AC-022 |
+| Negative test vectors verified | ✅ (defensive edges; CON-009 code correct, test missing — F-004) |
+| Cross-component consistency verified | ✅ all producers/consumers agree |
+| "No issues" backed by evidence | N/A — issues found |
+| Security review (P1) | ✅ N/A documented + verified |
+| Null pointer safety | ✅ all buckets `[]` init, `data?.features ?? []`, `data?.total_count ?? 0` |
+| Error paths verified | ✅ loading/error/empty branches traced |
+| Middleware chain | N/A (no backend change) |
+| Over-engineering check | ✅ minimal, ~257 lines |
+| Missing implementation check | ✅ F-001, F-004 |
+| Language footguns | ✅ no `any`, `===`, no `==`, no negative repeat |
+| Execution paths traced | ✅ per constraint |
+| Multi-component constraints across ALL components | ✅ `statusColors` in both cards |
 
-**Gate result**: PASS with one required finding (F-001: AC-014 test method). The implementation is correct; the test must be fixed to verify the AC's actual constraint. No critical findings. No implementation defects. F-001 is a test-quality issue for the Tester phase to address, not a recirculate-to-construction issue.
+---
 
-**Recommendation**: Advance to testing phase. The Tester must fix the AC-014 test to use cache invalidation instead of `page.reload()` before the testing gate can pass.
+## Verdict
+
+**BLOCKED — 2 Blocking findings must be resolved before advancing to Testing.**
+
+The implementation source code (`KanbanBoard.tsx`, `KanbanCard.tsx`, `KanbanColumn.tsx`, `ViewToggle.tsx`, `badgeColors.ts`, `groupFeaturesByPhase.ts`, `useSessionView.ts`, `Dashboard.tsx` wiring) is **spec-compliant and minimal**. All functional requirements FR-001..FR-017 are implemented correctly. The 18 reviewable ACs are MET at the code level.
+
+The blockers are configuration/test drift from the mid-flight re-alignment commit `6a7756d`:
+1. **F-002**: Playwright default port regressed to `:8765` (CON-001 violation) — revert to `:18765`.
+2. **F-001**: `app.spec.ts` not updated for Board-default (CON-004 regression) — add click-to-List fixture (T-009, plan-assigned to developer).
+
+Required (must address before Testing can pass):
+3. **F-004**: AC-011 unit test + `vitest` devDep missing.
+4. **F-003**: `kanban.spec.ts` / `kanban-api.spec.ts` encode the prior divergent impl — Tester owns rewrite, but flagged here so the Testing phase knows the starting tests are stale.
+
+Once F-001 and F-002 are fixed, the feature can advance to Testing. F-003 and F-004 will surface as Testing-phase failures if not addressed first.
