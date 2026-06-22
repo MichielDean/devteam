@@ -12,7 +12,7 @@ import (
 type Migration struct {
 	Version int
 	Name    string
-	Up      func(d *DB) error
+	Up      func(tx *sql.Tx) error
 }
 
 // migrations is the registered list of all migrations, sorted by version.
@@ -71,7 +71,7 @@ func (db *DB) migrate() error {
 		}
 
 		// Run the migration
-		if err := m.Up(db); err != nil {
+		if err := m.Up(tx); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("migration %d (%s): %w", m.Version, m.Name, err)
 		}

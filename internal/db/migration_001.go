@@ -1,6 +1,9 @@
 package db
 
-import "fmt"
+import (
+	"database/sql"
+	"fmt"
+)
 
 func init() {
 	RegisterMigration(Migration{
@@ -11,7 +14,7 @@ func init() {
 }
 
 // migration001InitialSchema creates all initial tables.
-func migration001InitialSchema(d *DB) error {
+func migration001InitialSchema(tx *sql.Tx) error {
 	statements := []string{
 		// features — replaces .devteam-state.yaml
 		`CREATE TABLE IF NOT EXISTS features (
@@ -135,7 +138,7 @@ func migration001InitialSchema(d *DB) error {
 	}
 
 	for _, stmt := range statements {
-		if _, err := d.execSQL(stmt); err != nil {
+		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("executing statement: %w\nSQL: %s", err, stmt)
 		}
 	}
