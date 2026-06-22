@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -397,13 +398,47 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "over-engineer") || strings.Contains(lower, "line count") || strings.Contains(lower, "scope") || true
 
+	case strings.Contains(desc, "implementation files were modified"):
+		return ge.checkCodeDiff(f)
+
+	case strings.Contains(desc, "code compiles"):
+		return ge.checkBuildCompiles(f)
+
+	case strings.Contains(desc, "tests compile"):
+		return ge.checkVetPasses(f)
+
+	case strings.Contains(desc, "review report contains file path"):
+		return ge.checkReviewFoundImplementation(f)
+
+	case strings.Contains(desc, "every acceptance criterion has been reviewed"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "met") && (strings.Contains(lower, "ac-") || strings.Contains(lower, "criterion"))
+
+	case strings.Contains(desc, "no unresolved critical"):
+		return ge.checkNoUnresolvedCritical(f)
+
 	case strings.Contains(desc, "missing implementation"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
 		if err != nil {
 			return false
 		}
 		lower := strings.ToLower(content)
-		return strings.Contains(lower, "missing") || strings.Contains(lower, "implement") || true
+		return strings.Contains(lower, "missing") || strings.Contains(lower, "implement") || strings.Contains(lower, "all requirements") || strings.Contains(lower, "no missing")
+
+	case strings.Contains(desc, "test files were created"):
+		return ge.checkNewTestFiles(f)
+
+	case strings.Contains(desc, "every acceptance criterion has at least one test"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "acceptance") || strings.Contains(lower, "ac-") || strings.Contains(lower, "criterion")
 
 	case strings.Contains(desc, "smoke tests verify"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
@@ -424,21 +459,13 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "integration") && (strings.Contains(lower, "http") || strings.Contains(lower, "endpoint") || strings.Contains(lower, "request") || strings.Contains(lower, "response cycle"))
 
-	case strings.Contains(desc, "JSON shapes match"):
-		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
-		if err != nil {
-			return false
-		}
-		lower := strings.ToLower(content)
-		return strings.Contains(lower, "[] not null") || strings.Contains(lower, "json") || true
-
 	case strings.Contains(desc, "spec-implementation drift"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
 		if err != nil {
 			return false
 		}
 		lower := strings.ToLower(content)
-		return strings.Contains(lower, "drift") || strings.Contains(lower, "spec") || true
+		return strings.Contains(lower, "drift") || strings.Contains(lower, "spec")
 
 	case strings.Contains(desc, "nil pointer panics"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
@@ -448,20 +475,43 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		lower := strings.ToLower(content)
 		return strings.Contains(lower, "nil pointer") || strings.Contains(lower, "no panic") || strings.Contains(lower, "panic")
 
-	case strings.Contains(desc, "API documentation covers"):
-		return true
+	case strings.Contains(desc, "documentation exists"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactDocs)
+		if err != nil {
+			return false
+		}
+		return len(content) > 100
 
 	case strings.Contains(desc, "documentation uses spec terminology"):
-		return true
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactDocs)
+		if err != nil {
+			return false
+		}
+		return len(content) > 100
+
+	case strings.Contains(desc, "API documentation covers"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactDocs)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "api") || strings.Contains(lower, "endpoint") || strings.Contains(lower, "method") || strings.Contains(lower, "get") || strings.Contains(lower, "post")
 
 	case strings.Contains(desc, "changelog references"):
-		return true
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactDocs)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "changelog") || strings.Contains(lower, "change") || strings.Contains(lower, "spec")
 
-	case strings.Contains(desc, "cross-repo release"):
-		return true
-
-	case strings.Contains(desc, "service starts and responds"):
-		return ge.checkServiceStarts(f)
+	case strings.Contains(desc, "configuration documentation"):
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactDocs)
+		if err != nil {
+			return false
+		}
+		lower := strings.ToLower(content)
+		return strings.Contains(lower, "config") || strings.Contains(lower, "env") || strings.Contains(lower, "environment")
 
 	case strings.Contains(desc, "test"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTestReport)
@@ -471,7 +521,9 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		return strings.Contains(content, "PASS") || strings.Contains(content, "pass") || strings.Contains(content, "test")
 
 	default:
-		return true
+		// Unknown validation — FAIL instead of passing blindly
+		log.Printf("gate: unknown validation description, failing: %s", desc)
+		return false
 	}
 }
 
@@ -542,6 +594,151 @@ func (ge *GateEvaluator) checkNoPlaceholders(f *feature.Feature) bool {
 	}
 	lower := strings.ToLower(content)
 	return !strings.Contains(lower, "placeholder") && !strings.Contains(lower, "stub") && !strings.Contains(lower, "todo")
+}
+
+// checkCodeDiff verifies that the construction phase actually modified or created
+// implementation files (not just spec artifacts). This catches the case where
+// the agent wrote zero code but the gate passed because existing code compiles.
+func (ge *GateEvaluator) checkCodeDiff(f *feature.Feature) bool {
+	workDir := ge.workDirOr(f)
+	
+	// Get git diff against the base branch (origin/main or the parent commit)
+	cmd := exec.Command("git", "diff", "--name-only", "HEAD~1")
+	cmd.Dir = workDir
+	output, err := cmd.Output()
+	if err != nil {
+		// Try diff against origin/main
+		cmd2 := exec.Command("git", "diff", "--name-only", "origin/main")
+		cmd2.Dir = workDir
+		output, err = cmd2.Output()
+		if err != nil {
+			ge.lastCheckOutput = fmt.Sprintf("could not get git diff: %v", err)
+			return false
+		}
+	}
+
+	changedFiles := strings.TrimSpace(string(output))
+	if changedFiles == "" {
+		ge.lastCheckOutput = "NO CODE CHANGES: The construction phase did not modify or create any files. Zero implementation work was done."
+		return false
+	}
+
+	// Filter out spec-only files — we need actual implementation files
+	lines := strings.Split(changedFiles, "\n")
+	implFiles := 0
+	var implExamples []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Skip spec artifacts and state files
+		if strings.HasPrefix(line, "specs/") || strings.Contains(line, ".devteam-state") || strings.Contains(line, "CONTEXT.md") || strings.Contains(line, "GATE_FAILURE") {
+			continue
+		}
+		// Skip lock files and generated files
+		if strings.HasSuffix(line, "go.sum") || strings.HasSuffix(line, "package-lock.json") || strings.Contains(line, "node_modules") {
+			continue
+		}
+		implFiles++
+		if len(implExamples) < 5 {
+			implExamples = append(implExamples, line)
+		}
+	}
+
+	if implFiles == 0 {
+		ge.lastCheckOutput = "NO IMPLEMENTATION FILES CHANGED: Only spec artifacts were modified. Zero implementation code was written.\nChanged files:\n" + changedFiles
+		return false
+	}
+
+	ge.lastCheckOutput = fmt.Sprintf("Found %d implementation files changed:\n%s", implFiles, strings.Join(implExamples, "\n"))
+	return true
+}
+
+// checkNewTestFiles verifies that the testing phase actually created test files
+// (not just a test report). Catches the case where the agent wrote a report
+// but no actual tests.
+func (ge *GateEvaluator) checkNewTestFiles(f *feature.Feature) bool {
+	workDir := ge.workDirOr(f)
+
+	// Get git diff to find new/modified test files
+	cmd := exec.Command("git", "diff", "--name-only", "origin/main")
+	cmd.Dir = workDir
+	output, err := cmd.Output()
+	if err != nil {
+		// Try HEAD~1
+		cmd2 := exec.Command("git", "diff", "--name-only", "HEAD~1")
+		cmd2.Dir = workDir
+		output, err = cmd2.Output()
+		if err != nil {
+			ge.lastCheckOutput = fmt.Sprintf("could not get git diff: %v", err)
+			return false
+		}
+	}
+
+	lines := strings.Split(string(output), "\n")
+	testFiles := 0
+	var testExamples []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Check if it's a test file
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "_test.go") || strings.Contains(lower, "test.ts") || strings.Contains(lower, "test.tsx") || strings.Contains(lower, ".spec.ts") || strings.Contains(lower, ".spec.tsx") || strings.Contains(lower, "test_") || strings.Contains(lower, "_test.") || strings.Contains(lower, "/tests/") || strings.Contains(lower, "/e2e/") || strings.Contains(lower, "/test/") {
+			// Skip spec directory test reports
+			if strings.HasPrefix(line, "specs/") {
+				continue
+			}
+			testFiles++
+			if len(testExamples) < 5 {
+				testExamples = append(testExamples, line)
+			}
+		}
+	}
+
+	if testFiles == 0 {
+		ge.lastCheckOutput = "NO TEST FILES FOUND: The testing phase wrote a test report but did not create any actual test files.\nAll changed files:\n" + string(output)
+		return false
+	}
+
+	ge.lastCheckOutput = fmt.Sprintf("Found %d test files:\n%s", testFiles, strings.Join(testExamples, "\n"))
+	return true
+}
+
+// checkReviewFoundImplementation verifies that the review report contains evidence
+// of actual code review (file paths and line numbers), not just generic statements.
+func (ge *GateEvaluator) checkReviewFoundImplementation(f *feature.Feature) bool {
+	content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+	if err != nil {
+		return false
+	}
+
+	// Check for actual file path references (e.g., "file.go:123" or "path/to/file")
+	lower := strings.ToLower(content)
+	hasFilePaths := strings.Contains(lower, ".go:") || strings.Contains(lower, ".ts:") || strings.Contains(lower, ".tsx:") || strings.Contains(lower, ".py:") || strings.Contains(lower, ".rs:") || strings.Contains(lower, "file:") || strings.Contains(lower, "line")
+	hasMET := strings.Contains(lower, "met") || strings.Contains(lower, "pass")
+	hasNOTMET := strings.Contains(lower, "not met") || strings.Contains(lower, "fail") || strings.Contains(lower, "missing") || strings.Contains(lower, "not found")
+
+	// A real review either has MET evidence or has NOT MET findings — both mean the reviewer actually looked at code
+	return hasFilePaths && (hasMET || hasNOTMET)
+}
+
+// checkNoUnresolvedCritical verifies no critical findings remain unresolved
+func (ge *GateEvaluator) checkNoUnresolvedCritical(f *feature.Feature) bool {
+	content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactReviewReport)
+	if err != nil {
+		return false
+	}
+	lower := strings.ToLower(content)
+	
+	// Check for unresolved critical findings
+	if strings.Contains(lower, "critical") && (strings.Contains(lower, "unresolved") || strings.Contains(lower, "not fixed") || strings.Contains(lower, "not addressed") || strings.Contains(lower, "remaining")) {
+		ge.lastCheckOutput = "UNRESOLVED CRITICAL FINDINGS: Review report contains unresolved critical issues."
+		return false
+	}
+	return true
 }
 
 func (ge *GateEvaluator) checkServiceStarts(f *feature.Feature) bool {
