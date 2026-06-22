@@ -60,7 +60,11 @@ npx playwright test --reporter=line       # run all e2e tests
 npx playwright test kanban.spec.ts        # run specific test file
 ```
 
-The Playwright `webServer` config automatically starts a test server on :18765. Set `START_SERVER=1` to force it to start its own server, or leave unset to reuse an existing one on that port.
+The Playwright `webServer` config automatically starts a test server on :18765. The config uses `cwd: repoRoot` so the server runs from the repo root (where `devteam.yaml` lives).
+
+- Set `START_SERVER=1` to force Playwright to start its own server
+- If using `SERVER_BINARY`, include `cd` to the repo root: `SERVER_BINARY="cd /path/to/repo && /path/to/binary -http :18765"`
+- Do NOT set `SERVER_BINARY` to just a binary path — the binary needs to run from the repo root to find `devteam.yaml`
 
 ## Service Architecture
 
