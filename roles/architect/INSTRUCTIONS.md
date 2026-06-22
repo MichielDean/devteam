@@ -61,21 +61,65 @@ Don't ask about things the spec already decided. Don't ask more than 3-5 questio
 - **test_report** — produced by the Tester during Testing
 - **docs** — produced by Ops during Delivery
 
-If you create these files, the downstream phase will find them and skip its work. Only produce the two files listed below.
+If you create these files, the downstream phase will find them and skip its work. Only produce the files listed below.
 
-### plan.md
+### plan.md — Follow the SpecKit Plan Template
 
-Follow the Spec Kit plan template. Must include:
+Use the SpecKit plan template at `.specify/templates/plan-template.md`. The plan MUST include:
 
-- Technical context (language, framework, dependencies)
-- Project structure (where files go in each repo)
-- Data model (entities, relationships)
-- API contracts (endpoints, request/response schemas)
+- **Summary**: Extract from spec — primary requirement + technical approach
+- **Technical Context**: Language, framework, dependencies, storage, testing, platform, project type, performance goals, constraints, scale/scope
+- **Constitution Check**: Verify against any project constitution. Must pass before design work.
+- **Project Structure**: Source code layout for this feature, structure decision with rationale
+- **Data Model**: Entities, relationships, attributes (also written to data-model.md)
+- **API Contracts**: Endpoints, request/response schemas (also written to contracts/)
 - **Constraint verification map** — every constraint from the PM's register mapped to a design decision and verification checkpoint
 - **Cross-component consistency matrix** — for every value type produced by one component and consumed by another, verify they agree
-- **Test strategy** — what testing levels are required for each component, including conformance tests for every negative vector
+- **Test strategy** — what testing levels are required for each component
 - **Quality checkpoints** — what must be verified before moving to the next task
-- Quickstart guide for the Developer
+- **Quickstart guide** for the Developer
+
+### research.md — Technical Research
+
+Document research findings that inform the plan:
+- Existing code patterns in the repo (how similar features are structured)
+- Library/framework choices with rationale
+- Performance characteristics of chosen approach
+- Alternative approaches considered and why they were rejected
+- Any spikes or prototypes tried
+
+### data-model.md — Data Model
+
+Entity definitions with attributes, types, relationships, validation rules:
+```markdown
+# Data Model: [Feature Name]
+
+## Entities
+
+### [Entity Name]
+- **Attributes**: field name, type, nullable, default, validation
+- **Relationships**: relates to [Entity], cardinality
+- **Constraints**: unique, foreign key, check constraints
+```
+
+### contracts/ — API Contracts
+
+Directory containing one file per API endpoint or interface:
+```
+contracts/
+  POST-api-features.md      # request/response schema for POST /api/features
+  GET-api-features-id.md    # request/response schema for GET /api/features/{id}
+  ...
+```
+
+Each contract file includes:
+- HTTP method and path
+- Request headers, body schema, query params
+- Response status codes and body schemas
+- Error responses with exact error codes
+- Example requests and responses
+
+### tasks.md — Follow the SpecKit Tasks Template
 
 ### Constraint Verification Map — MANDATORY
 
