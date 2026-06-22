@@ -4,9 +4,9 @@ Every criterion follows Given/When/Then with a test level and verification metho
 
 ## US-001 — Toggle Between List and Kanban Board
 
-AC-001: Given the Dashboard is loaded with at least one feature, when the user locates the view toggle, then both "List" and "Board" options are present and the active option is "List" (default).
+AC-001: Given the Dashboard is loaded with at least one feature, when the user locates the view toggle, then both "List" and "Board" options are present and the active option is "Board" (Kanban default per human input Q-001/009/017).
   Test level: e2e
-  Verification: `await expect(page.locator('[data-testid="view-toggle"]')).toBeVisible(); await expect(page.locator('[data-testid="view-toggle-list"][aria-pressed="true"]')).toBeVisible();`
+  Verification: `await expect(page.locator('[data-testid="view-toggle"]')).toBeVisible(); await expect(page.locator('[data-testid="view-toggle-board"][aria-pressed="true"]')).toBeVisible();`
 
 AC-002: Given the Dashboard is loaded and the active view is "List", when the user clicks the "Board" toggle, then six phase column headers (Inception, Planning, Construction, Review, Testing, Delivery) render and the `FeatureList` grid is no longer present.
   Test level: e2e
@@ -20,9 +20,9 @@ AC-004: Given the user has selected "Board", when they reload the Dashboard in t
   Test level: e2e
   Verification: Click Board, `page.reload()`, assert `[data-testid="view-toggle-board"][aria-pressed="true"]` visible.
 
-AC-005: Given a fresh browser session with no prior view choice, when the Dashboard loads, then the active view is "List" (no regression to existing UX).
+AC-005: Given a fresh browser session with no prior view choice, when the Dashboard loads, then the active view is "Board" (Kanban is the default per human input Q-001/009/017).
   Test level: e2e
-  Verification: New context, navigate to `/`, assert `[data-testid="view-toggle-list"][aria-pressed="true"]`.
+  Verification: New context, navigate to `/`, assert `[data-testid="view-toggle-board"][aria-pressed="true"]`.
 
 AC-006: Given zero features exist, when the Dashboard loads, then the view toggle is NOT visible and `EmptyState` renders.
   Test level: e2e
@@ -105,7 +105,7 @@ AC-022: Given a viewport narrower than the board's natural width, when the board
 | CON-001 (Playwright :18765) | All e2e ACs run via Playwright config |
 | CON-002 (file paths) | Verified in review (architect/developer phase) |
 | CON-003 (minimal deps) | AC-016 implicitly — no new endpoint; package.json diff check in review |
-| CON-004 (no regression) | AC-001, AC-003, AC-005 preserve list view; existing app.spec.ts must still pass |
+| CON-004 (no regression) | AC-001, AC-003 preserve the list view as a selectable toggle option; existing app.spec.ts must still pass (note: default is now Board per human input, so app.spec.ts may need a click-to-List fixture if it asserts the default — architect to verify) |
 | CON-005 (reuse phase/status constants) | AC-007, AC-019 — column headers and badge labels match `PHASE_LABELS`/`STATUS_LABELS` |
 | CON-006 (card chrome parity) | AC-007, AC-008, AC-009 — board card badges match FeatureCard badges |
 | CON-007 (single fetch) | AC-016 |

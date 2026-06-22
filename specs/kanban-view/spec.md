@@ -47,7 +47,7 @@ A user viewing the Dashboard can switch between the existing sortable list view 
 
 1. **Given** features exist and the Dashboard is loaded, **When** the user clicks the "Board" toggle, **Then** six phase columns render with feature cards placed in the column matching each feature's `current_phase`.
 2. **Given** the board is visible, **When** the user clicks the "List" toggle, **Then** the existing `FeatureList` component renders with no Kanban columns present.
-3. **Given** the Dashboard is loaded for the first time in a session, **When** no prior view choice is remembered, **Then** the List view is shown by default (conservative default — no regression to existing UX).
+3. **Given** the Dashboard is loaded for the first time in a session, **When** no prior view choice is remembered, **Then** the Board (Kanban) view is shown by default (per human input — Kanban is the primary view).
 4. **Given** the user has selected "Board", **When** they navigate away and return to the Dashboard within the same browser session, **Then** "Board" is still selected (persisted via sessionStorage).
 
 ---
@@ -121,7 +121,7 @@ When a column contains more cards than fit the viewport, the column scrolls vert
 
 - **FR-001**: The Dashboard MUST provide a two-way toggle control ("List" / "Board") that switches the feature display between the existing `FeatureList` component and a new `KanbanBoard` component. Source: US-001
 - **FR-002**: The selected view MUST persist across Dashboard visits within the same browser session via `sessionStorage` key `devteam.dashboard.view`. Source: US-001
-- **FR-003**: The default view when no prior selection exists MUST be "List" (no regression). Source: US-001
+- **FR-003**: The default view when no prior selection exists MUST be "Board" (Kanban is the default — per human input Q-001/009/017). Source: US-001
 - **FR-004**: The toggle MUST be hidden when no features exist (the `EmptyState` component renders instead). Source: US-003
 - **FR-005**: The `KanbanBoard` component MUST render exactly six phase columns in pipeline order: Inception, Planning, Construction, Review, Testing, Delivery — using `PHASES` and `PHASE_LABELS` from `ui/src/types`. Source: US-002
 - **FR-006**: Each feature in the loaded `features` array MUST appear in exactly one column — the column whose phase equals `feature.current_phase`. Source: US-002
@@ -157,7 +157,7 @@ No data model changes. No new API endpoints. No backend changes.
 
 ## Assumptions
 
-- [ASSUMPTION: View toggle default is "List" — conservative default to avoid regressing existing users. Pipeline question 1 option B is the conservative choice; if the human picks option A (Kanban default), FR-003 flips.]
+- [ASSUMPTION: View toggle default is "Board" (Kanban) — per human input Q-001/009/017. The Kanban board is the primary view of the Dashboard; the list view is the alternate. This intentionally supersedes the earlier conservative default of "List" once the human confirmed Kanban-default.]
 - [ASSUMPTION: The board and list share the same `/` Dashboard route — no new `/kanban` route. A single toggle control switches them. If the human picks the separate-route option, FR-001 and the App.tsx routes change.]
 - [ASSUMPTION: Columns are the six phases, not statuses. Status is shown as a badge on the card. Swimlane-per-status is out of scope (YAGNI — no UX evidence for it yet).]
 - [ASSUMPTION: A feature appears in exactly one column — its `current_phase`. Multi-column membership is out of scope.]

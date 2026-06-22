@@ -10,3 +10,11 @@
 **Timestamp**: 2026-06-22T00:02:00Z
 **Action**: Constitution checked (.specify/memory/constitution.md)
 **Details**: All 10 principles compliant. Security/resiliency extensions evaluated and marked N/A (view-only UI, no new endpoint/input/auth/mutation). Error-recovery and overconfidence-prevention applied.
+## Inception (resumption)
+**Timestamp**: 2026-06-22T18:00:00Z
+**Action**: Human answers received (Q-001..Q-024) — contradiction check run
+**Details**: All 8 original questions answered, each repeated 3× in the input (Q-001/009/017 identical, Q-002/010/018 identical, etc.). Deduped to 8 unique answers. Cross-checked against spec for contradictions.
+  Contradiction FOUND: Q-001/009/017 answer = "Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)". Spec FR-003, US-1 acceptance scenario 3, AC-001, AC-005, and the view-default assumption all said "List is default" (conservative autonomous fallback). Human wins — Kanban is the default.
+  All other answers already aligned with the spec (toggle on Dashboard, click→/features/:id, columns=6 phases, single column=current_phase, view-only no drag, card chrome reuse, vertical scroll per column, empty column placeholder). No second questions.json needed.
+**Action**: Spec revised to resolve contradiction
+**Details**: FR-003 flipped to "Board default". US-1 scenario 3 flipped to Board default. Assumption rewritten to cite Q-001/009/017 and supersede the prior conservative default. AC-001 active-option assertion changed to view-toggle-board[aria-pressed=true]. AC-005 fresh-session assertion changed to Board. CON-004 traceability row updated to flag that app.spec.ts may need a click-to-List fixture since the default view changed (architect to verify in planning). Gate re-evaluated: still passes — all 17 gate criteria remain satisfied; no [NEEDS CLARIFICATION] markers introduced.
