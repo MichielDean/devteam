@@ -1,5 +1,7 @@
 [
   {
+    "id": "",
+    "feature_id": "",
     "phase": "inception",
     "role": "pm",
     "question": "How should the Kanban board and the existing list view relate on the Dashboard?",
@@ -10,9 +12,16 @@
       "Separate /kanban route, List remains on the Dashboard as-is",
       "Replace the List entirely with the Kanban board",
       "Other"
-    ]
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
   },
   {
+    "id": "",
+    "feature_id": "",
     "phase": "inception",
     "role": "pm",
     "question": "The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?",
@@ -22,9 +31,16 @@
       "Click card opens a detail popover/panel without leaving the board",
       "Click card navigates to detail; also an inline hover preview of the next gate",
       "Other"
-    ]
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
   },
   {
+    "id": "",
+    "feature_id": "",
     "phase": "inception",
     "role": "pm",
     "question": "Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?",
@@ -34,9 +50,16 @@
       "Columns = status (In Progress, Gate Blocked, Waiting, Done, etc.) regardless of phase",
       "Columns = phase, with a separate swimlane per status",
       "Other"
-    ]
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
   },
   {
+    "id": "",
+    "feature_id": "",
     "phase": "inception",
     "role": "pm",
     "question": "Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?",
@@ -46,9 +69,16 @@
       "Exactly one column — current_phase, but visually flagged (color/icon) when gate_blocked or waiting_for_human",
       "Multiple columns allowed (current + next blocked target)",
       "Other"
-    ]
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
   },
   {
+    "id": "",
+    "feature_id": "",
     "phase": "inception",
     "role": "pm",
     "question": "Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?",
@@ -58,9 +88,16 @@
       "Drag-and-drop to advance phase (guarded by the same gate rules as /advance)",
       "Drag allowed but only as a visual reorder, not a state change",
       "Other"
-    ]
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
   },
   {
+    "id": "",
+    "feature_id": "",
     "phase": "inception",
     "role": "pm",
     "question": "A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?",
@@ -70,9 +107,16 @@
       "Above + gate result indicator (passed/failed) for the current phase",
       "Above + last-updated timestamp and processing-mode (autonomous/interactive)",
       "Other"
-    ]
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
   },
   {
+    "id": "",
+    "feature_id": "",
     "phase": "inception",
     "role": "pm",
     "question": "Columns can get tall. How should large column content be handled?",
@@ -82,9 +126,16 @@
       "Page scrolls vertically as a whole; columns grow indefinitely",
       "Cap visible cards per column with a '+N more' overflow that expands",
       "Other"
-    ]
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
   },
   {
+    "id": "",
+    "feature_id": "",
     "phase": "inception",
     "role": "pm",
     "question": "Empty columns (no feature in, say, Testing) — what does the user see?",
@@ -94,6 +145,470 @@
       "Column header present, body empty (blank)",
       "Hide the column entirely when empty",
       "Other"
-    ]
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
+  },
+  {
+    "id": "Q-001",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the Kanban board and the existing list view relate on the Dashboard?",
+    "type": "multiple_choice",
+    "options": [
+      "Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)",
+      "Toggle control on the Dashboard that switches between List and Kanban (List stays default, Kanban opt-in)",
+      "Separate /kanban route, List remains on the Dashboard as-is",
+      "Replace the List entirely with the Kanban board",
+      "Other"
+    ],
+    "answer": "Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.422810481-06:00",
+    "answered_at": "2026-06-22T16:47:22.231014956-06:00"
+  },
+  {
+    "id": "Q-002",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?",
+    "type": "multiple_choice",
+    "options": [
+      "Click card navigates to /features/:id detail page (same as list today)",
+      "Click card opens a detail popover/panel without leaving the board",
+      "Click card navigates to detail; also an inline hover preview of the next gate",
+      "Other"
+    ],
+    "answer": "Click card navigates to /features/:id detail page (same as list today)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.423876988-06:00",
+    "answered_at": "2026-06-22T16:47:22.238105576-06:00"
+  },
+  {
+    "id": "Q-003",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?",
+    "type": "multiple_choice",
+    "options": [
+      "Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card",
+      "Columns = status (In Progress, Gate Blocked, Waiting, Done, etc.) regardless of phase",
+      "Columns = phase, with a separate swimlane per status",
+      "Other"
+    ],
+    "answer": "Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.424888389-06:00",
+    "answered_at": "2026-06-22T16:47:22.244945118-06:00"
+  },
+  {
+    "id": "Q-004",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?",
+    "type": "multiple_choice",
+    "options": [
+      "Exactly one column — the feature's current_phase",
+      "Exactly one column — current_phase, but visually flagged (color/icon) when gate_blocked or waiting_for_human",
+      "Multiple columns allowed (current + next blocked target)",
+      "Other"
+    ],
+    "answer": "Exactly one column — the feature's current_phase",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.425918601-06:00",
+    "answered_at": "2026-06-22T16:47:22.252409222-06:00"
+  },
+  {
+    "id": "Q-005",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?",
+    "type": "multiple_choice",
+    "options": [
+      "View-only — no drag, phase transitions happen only via the pipeline",
+      "Drag-and-drop to advance phase (guarded by the same gate rules as /advance)",
+      "Drag allowed but only as a visual reorder, not a state change",
+      "Other"
+    ],
+    "answer": "View-only — no drag, phase transitions happen only via the pipeline",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.426927095-06:00",
+    "answered_at": "2026-06-22T16:47:22.259294488-06:00"
+  },
+  {
+    "id": "Q-006",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?",
+    "type": "multiple_choice",
+    "options": [
+      "Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)",
+      "Above + gate result indicator (passed/failed) for the current phase",
+      "Above + last-updated timestamp and processing-mode (autonomous/interactive)",
+      "Other"
+    ],
+    "answer": "Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.428506374-06:00",
+    "answered_at": "2026-06-22T16:47:22.266210099-06:00"
+  },
+  {
+    "id": "Q-007",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Columns can get tall. How should large column content be handled?",
+    "type": "multiple_choice",
+    "options": [
+      "Vertical scroll within each column (board height fixed to viewport)",
+      "Page scrolls vertically as a whole; columns grow indefinitely",
+      "Cap visible cards per column with a '+N more' overflow that expands",
+      "Other"
+    ],
+    "answer": "Vertical scroll within each column (board height fixed to viewport)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.429724053-06:00",
+    "answered_at": "2026-06-22T16:47:22.27376429-06:00"
+  },
+  {
+    "id": "Q-008",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Empty columns (no feature in, say, Testing) — what does the user see?",
+    "type": "multiple_choice",
+    "options": [
+      "Column header present, body shows muted 'No features' placeholder",
+      "Column header present, body empty (blank)",
+      "Hide the column entirely when empty",
+      "Other"
+    ],
+    "answer": "Column header present, body shows muted 'No features' placeholder",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.430809015-06:00",
+    "answered_at": "2026-06-22T16:47:22.280709552-06:00"
+  },
+  {
+    "id": "Q-009",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the Kanban board and the existing list view relate on the Dashboard?",
+    "type": "multiple_choice",
+    "options": [
+      "Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)",
+      "Toggle control on the Dashboard that switches between List and Kanban (List stays default, Kanban opt-in)",
+      "Separate /kanban route, List remains on the Dashboard as-is",
+      "Replace the List entirely with the Kanban board",
+      "Other"
+    ],
+    "answer": "Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.473453101-06:00",
+    "answered_at": "2026-06-22T16:47:22.287912836-06:00"
+  },
+  {
+    "id": "Q-010",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?",
+    "type": "multiple_choice",
+    "options": [
+      "Click card navigates to /features/:id detail page (same as list today)",
+      "Click card opens a detail popover/panel without leaving the board",
+      "Click card navigates to detail; also an inline hover preview of the next gate",
+      "Other"
+    ],
+    "answer": "Click card navigates to /features/:id detail page (same as list today)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.474615085-06:00",
+    "answered_at": "2026-06-22T16:47:22.294740929-06:00"
+  },
+  {
+    "id": "Q-011",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?",
+    "type": "multiple_choice",
+    "options": [
+      "Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card",
+      "Columns = status (In Progress, Gate Blocked, Waiting, Done, etc.) regardless of phase",
+      "Columns = phase, with a separate swimlane per status",
+      "Other"
+    ],
+    "answer": "Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.47569454-06:00",
+    "answered_at": "2026-06-22T16:47:22.30254788-06:00"
+  },
+  {
+    "id": "Q-012",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?",
+    "type": "multiple_choice",
+    "options": [
+      "Exactly one column — the feature's current_phase",
+      "Exactly one column — current_phase, but visually flagged (color/icon) when gate_blocked or waiting_for_human",
+      "Multiple columns allowed (current + next blocked target)",
+      "Other"
+    ],
+    "answer": "Exactly one column — the feature's current_phase",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.477219837-06:00",
+    "answered_at": "2026-06-22T16:47:22.309181193-06:00"
+  },
+  {
+    "id": "Q-013",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?",
+    "type": "multiple_choice",
+    "options": [
+      "View-only — no drag, phase transitions happen only via the pipeline",
+      "Drag-and-drop to advance phase (guarded by the same gate rules as /advance)",
+      "Drag allowed but only as a visual reorder, not a state change",
+      "Other"
+    ],
+    "answer": "View-only — no drag, phase transitions happen only via the pipeline",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.47842854-06:00",
+    "answered_at": "2026-06-22T16:47:22.315885215-06:00"
+  },
+  {
+    "id": "Q-014",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?",
+    "type": "multiple_choice",
+    "options": [
+      "Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)",
+      "Above + gate result indicator (passed/failed) for the current phase",
+      "Above + last-updated timestamp and processing-mode (autonomous/interactive)",
+      "Other"
+    ],
+    "answer": "Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.479576158-06:00",
+    "answered_at": "2026-06-22T16:47:22.323373492-06:00"
+  },
+  {
+    "id": "Q-015",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Columns can get tall. How should large column content be handled?",
+    "type": "multiple_choice",
+    "options": [
+      "Vertical scroll within each column (board height fixed to viewport)",
+      "Page scrolls vertically as a whole; columns grow indefinitely",
+      "Cap visible cards per column with a '+N more' overflow that expands",
+      "Other"
+    ],
+    "answer": "Vertical scroll within each column (board height fixed to viewport)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.480704418-06:00",
+    "answered_at": "2026-06-22T16:47:22.330208782-06:00"
+  },
+  {
+    "id": "Q-016",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Empty columns (no feature in, say, Testing) — what does the user see?",
+    "type": "multiple_choice",
+    "options": [
+      "Column header present, body shows muted 'No features' placeholder",
+      "Column header present, body empty (blank)",
+      "Hide the column entirely when empty",
+      "Other"
+    ],
+    "answer": "Column header present, body shows muted 'No features' placeholder",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.481832165-06:00",
+    "answered_at": "2026-06-22T16:47:22.337437764-06:00"
+  },
+  {
+    "id": "Q-017",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the Kanban board and the existing list view relate on the Dashboard?",
+    "type": "multiple_choice",
+    "options": [
+      "Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)",
+      "Toggle control on the Dashboard that switches between List and Kanban (List stays default, Kanban opt-in)",
+      "Separate /kanban route, List remains on the Dashboard as-is",
+      "Replace the List entirely with the Kanban board",
+      "Other"
+    ],
+    "answer": "Toggle control on the Dashboard that switches between List and Kanban (Kanban is default)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.48298465-06:00",
+    "answered_at": "2026-06-22T16:47:22.344408097-06:00"
+  },
+  {
+    "id": "Q-018",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "The existing FeatureCard is a clickable Link to the detail page. Should the Kanban cards preserve this, and what should clicking do?",
+    "type": "multiple_choice",
+    "options": [
+      "Click card navigates to /features/:id detail page (same as list today)",
+      "Click card opens a detail popover/panel without leaving the board",
+      "Click card navigates to detail; also an inline hover preview of the next gate",
+      "Other"
+    ],
+    "answer": "Click card navigates to /features/:id detail page (same as list today)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.484129214-06:00",
+    "answered_at": "2026-06-22T16:47:22.351866492-06:00"
+  },
+  {
+    "id": "Q-019",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Features have a current_phase (inception..delivery) AND a status (draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human). What defines a column?",
+    "type": "multiple_choice",
+    "options": [
+      "Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card",
+      "Columns = status (In Progress, Gate Blocked, Waiting, Done, etc.) regardless of phase",
+      "Columns = phase, with a separate swimlane per status",
+      "Other"
+    ],
+    "answer": "Columns = the 6 phases (Inception, Planning, Construction, Review, Testing, Delivery); status shown as badge on card",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.485737456-06:00",
+    "answered_at": "2026-06-22T16:47:22.358824073-06:00"
+  },
+  {
+    "id": "Q-020",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should a feature appear in only one column, or can it occupy multiple (e.g. gate_blocked in current phase AND a recirculate target)?",
+    "type": "multiple_choice",
+    "options": [
+      "Exactly one column — the feature's current_phase",
+      "Exactly one column — current_phase, but visually flagged (color/icon) when gate_blocked or waiting_for_human",
+      "Multiple columns allowed (current + next blocked target)",
+      "Other"
+    ],
+    "answer": "Exactly one column — the feature's current_phase",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.486926192-06:00",
+    "answered_at": "2026-06-22T16:47:22.365715681-06:00"
+  },
+  {
+    "id": "Q-021",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should the Kanban board support drag-and-drop to move features between phases, or is it view-only (read-only board)?",
+    "type": "multiple_choice",
+    "options": [
+      "View-only — no drag, phase transitions happen only via the pipeline",
+      "Drag-and-drop to advance phase (guarded by the same gate rules as /advance)",
+      "Drag allowed but only as a visual reorder, not a state change",
+      "Other"
+    ],
+    "answer": "View-only — no drag, phase transitions happen only via the pipeline",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.48814382-06:00",
+    "answered_at": "2026-06-22T16:47:22.372957253-06:00"
+  },
+  {
+    "id": "Q-022",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "A feature can be in current_phase=planning but phase_states show inception done, planning in_progress. What should the card surface?",
+    "type": "multiple_choice",
+    "options": [
+      "Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)",
+      "Above + gate result indicator (passed/failed) for the current phase",
+      "Above + last-updated timestamp and processing-mode (autonomous/interactive)",
+      "Other"
+    ],
+    "answer": "Title, priority badge, status badge, pending-questions badge (reuse existing card chrome)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.48934772-06:00",
+    "answered_at": "2026-06-22T16:47:22.379966072-06:00"
+  },
+  {
+    "id": "Q-023",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Columns can get tall. How should large column content be handled?",
+    "type": "multiple_choice",
+    "options": [
+      "Vertical scroll within each column (board height fixed to viewport)",
+      "Page scrolls vertically as a whole; columns grow indefinitely",
+      "Cap visible cards per column with a '+N more' overflow that expands",
+      "Other"
+    ],
+    "answer": "Vertical scroll within each column (board height fixed to viewport)",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.490543093-06:00",
+    "answered_at": "2026-06-22T16:47:22.387155559-06:00"
+  },
+  {
+    "id": "Q-024",
+    "feature_id": "kanban-view",
+    "phase": "inception",
+    "role": "pm",
+    "question": "Empty columns (no feature in, say, Testing) — what does the user see?",
+    "type": "multiple_choice",
+    "options": [
+      "Column header present, body shows muted 'No features' placeholder",
+      "Column header present, body empty (blank)",
+      "Hide the column entirely when empty",
+      "Other"
+    ],
+    "answer": "Column header present, body shows muted 'No features' placeholder",
+    "assumption": null,
+    "status": "answered",
+    "created_at": "2026-06-22T16:46:52.491757309-06:00",
+    "answered_at": "2026-06-22T16:47:22.39410402-06:00"
   }
 ]
