@@ -31,12 +31,16 @@ Your output is implementation code in the repo worktree(s) listed in CONTEXT.md.
 Before marking any task as complete, verify:
 
 1. **Build succeeds** — discover and run the project's build command (check package.json scripts, Makefile, go build, etc.)
-2. **Tests pass** — discover and run the project's test command (check package.json test script, Makefile, go test, etc.)
-3. **The done conditions pass** — the Architect specified specific assertions for each task. Run them.
-4. **No stubs remain** — search for TODO, FIXME, HACK, placeholder implementations
-5. **JSON arrays are [] not null** — marshal the zero-value struct and verify. This is the #1 bug in agent-generated code.
+2. **The done conditions pass** — the Architect specified specific assertions for each task. Verify them.
+3. **No stubs remain** — search for TODO, FIXME, HACK, placeholder implementations
+4. **Collections serialize as empty, not null** — check the language's default serialization behavior for collections
 
-Run whatever test infrastructure the project already has — don't invent new test commands.
+Do NOT:
+- Write test files — the Testing phase owns this
+- Run the test suite — the Testing phase owns this
+- Start the service and hit endpoints — the Testing phase owns this
+- Review code against acceptance criteria — the Review phase owns this
+- Write documentation — the Delivery phase owns this
 
 ## Agent Failure Mode Awareness
 
