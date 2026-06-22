@@ -1022,8 +1022,8 @@ Implementation approach:
 - Write tests alongside the code, not after
 
 Self-verification before marking any task complete:
-- Build succeeds, binary runs without panicking
-- Hit each endpoint, verify no nil pointer panics, proper error codes
+- go build ./... succeeds
+- go test ./... passes
 - Done conditions from tasks.md are verified
 - No TODO, FIXME, HACK, or placeholder implementations remain
 - JSON arrays are [] not null (marshal zero-value struct to check)
@@ -1039,8 +1039,7 @@ Agent failure mode checks:
 
 After all tasks are complete:
 - go build ./... must succeed
-- go test ./... must pass
-- Service starts and responds without panicking`, featureID)
+- go test ./... must pass`, featureID)
 
 	case feature.PhaseReview:
 		return fmt.Sprintf(`You are in the REVIEW phase for feature %s.
@@ -1077,25 +1076,31 @@ No critical findings may remain unresolved.`, featureID, featureID)
 	case feature.PhaseTesting:
 		return fmt.Sprintf(`You are in the TESTING phase for feature %s.
 
-Your task: Verify that what was built actually works. Follow the Testing Phase Rules for the structured testing process.
+Your task: Write and run tests traced to the spec's acceptance criteria. Follow the Testing Phase Rules.
 
 Testing process:
 1. Spec-implementation drift: Compare spec against what was built before writing tests
-2. Determine testing levels needed (smoke always, integration for API, E2E for UI, unit for logic)
-3. Write and execute smoke tests: start service, hit every endpoint, verify no panics
-4. Write and execute integration tests: full HTTP request/response cycles
-5. Write and execute E2E tests (if UI changed): load in browser, verify no console errors
-6. Write and execute unit tests: business logic, state machine transitions, serialization
-7. Agent failure mode verification: nil pointers, null arrays, phantom methods, over-engineering
+2. Determine testing levels needed (smoke always, integration for API, unit for logic)
+3. Write and run smoke tests: go test with httptest — start server in-process, hit every endpoint, verify no panics
+4. Write and run integration tests: full HTTP request/response cycles using httptest.NewServer
+5. Write E2E test files (if UI changed): write Playwright .spec.ts files but DO NOT run them — note "pending CI" in test report
+6. Write and run unit tests: business logic, state machine transitions, serialization
+7. Agent failure mode verification: nil pointers, null arrays, phantom methods
+
+IMPORTANT constraints:
+- Use go test with httptest for smoke and integration tests — start the server IN-PROCESS, do NOT start a separate server process
+- DO NOT run Playwright or browser tests — write the test files only, mark as "pending CI" in the report
+- DO NOT start the devteam-web service or any other long-running server process
+- Run tests with: go test ./... -count=1 -timeout 120s
+- If tests fail, fix the TEST, not the implementation — report implementation bugs in test-report.md
 
 Write your test report to specs/%s/test-report.md with:
 - Spec-implementation drift findings
 - Smoke test results: which endpoints were hit, what status codes returned
 - Integration test results: which request/response cycles were verified
-- E2E test results (if applicable): which pages were loaded, any console errors
+- E2E test files written (note: not executed, pending CI)
 - Unit test results: which logic was tested in isolation
 - Null/empty checks: which fields verified to return [] not null
-- State machine transitions: which transitions were verified
 - Exact commands to reproduce each test
 - Exact assertions verified
 - Anti-fake-report: specific evidence, not "all tests pass"
@@ -1103,7 +1108,7 @@ Write your test report to specs/%s/test-report.md with:
 Quality gate:
 - Every acceptance criterion has at least one test
 - No nil pointer panics, no null-vs-empty-array mismatches
-- All smoke and integration tests pass
+- All go tests pass (go test ./...)
 - ANY failing test is an automatic recirculate`, featureID, featureID)
 
 	case feature.PhaseDelivery:
