@@ -151,6 +151,8 @@ func (sp *SpecProvider) ArtifactPath(featureID string, artType feature.ArtifactT
 		return filepath.Join(dir, "plan.md")
 	case feature.ArtifactTasksMD:
 		return filepath.Join(dir, "tasks.md")
+	case feature.ArtifactResearchMD:
+		return filepath.Join(dir, "research.md")
 	case feature.ArtifactReviewReport:
 		return filepath.Join(dir, "review-report.md")
 	case feature.ArtifactTestReport:

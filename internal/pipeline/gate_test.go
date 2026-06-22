@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -49,7 +50,7 @@ func TestGateEvaluator_InceptionGate_AllArtifactsPresent(t *testing.T) {
 	}
 
 	for _, art := range feature.RequiredArtifactsForPhase(feature.PhaseInception) {
-		content := []byte("# Spec\n\n## User Stories\n\n- US-001: User can create features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]\n\n## Constraint Register\n\n| ID | Source | Type | Constraint | Verification |\n|----|--------|------|------------|-------------|\n| CON-001 | RFC 9421 | correctness | Wire-format failures return Invalid | Negative vector test |")
+		content := []byte("# Spec\n\n## User Stories\n\n### User Story 1 - Create features (Priority: P1)\n\n- US-001: User can create features\n\n### User Story 2 - List features (Priority: P2)\n\n- US-002: User can list features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Success Criteria\n\n- SC-001: Measurable outcome — 99% of create requests succeed within 200ms\n\n## Edge Cases\n\n- Empty input: returns 400\n- Duplicate id: returns 409\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]\n\n## Constraint Register\n\n| ID | Source | Type | Constraint | Verification |\n|----|--------|------|------------|-------------|\n| CON-001 | RFC 9421 | correctness | Wire-format failures return Invalid | Negative vector test |")
 		if art == feature.ArtifactReposYAML {
 			content = []byte("feature: 001-test\nrepos:\n  - name: devteam\n    branch: feature/001-test")
 		}
@@ -95,6 +96,11 @@ func TestGateEvaluator_PlanningGate(t *testing.T) {
 	}
 
 	planContent := `# Plan
+
+## Technical Context
+
+Language: Go. Framework: net/http. Dependencies: standard library.
+Storage: in-memory. Testing: go test. Platform: linux.
 
 ## Implementation Approach
 
@@ -147,6 +153,8 @@ Tasks depend on each other as specified.
 `
 	tasksContent := `# Tasks
 
+## User Story 1 (P1)
+
 ## T001 [P] Setup - Create project structure
 
 - [ ] T001 Create project files
@@ -167,6 +175,21 @@ T002 depends on T001.
 		t.Fatal(err)
 	}
 	if err := writer.WriteArtifact(f.ID, feature.ArtifactTasksMD, []byte(tasksContent)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.WriteArtifact(f.ID, feature.ArtifactResearchMD, []byte("# Research\n\nExisting code patterns analyzed. Library choices: stdlib only. Alternatives rejected: none needed.")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.WriteArtifact(f.ID, feature.ArtifactDataModelMD, []byte("# Data Model\n\n## Entities\n\n### Feature\n- Attributes: id, title, priority\n- Relationships: none\n- Constraints: unique id")); err != nil {
+		t.Fatal(err)
+	}
+	// contracts/ is a directory — WriteArtifact writes a file at the path, so
+	// create the directory and a contract file inside it directly.
+	contractsDir := filepath.Join(tmpDir, "specs", f.ID, "contracts")
+	if err := os.MkdirAll(contractsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(contractsDir, "GET-api-features.md"), []byte("# GET /api/features\n\nResponse 200: [{feature}]"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -197,7 +220,7 @@ func TestGateEvaluator_AdvanceFeature(t *testing.T) {
 	}
 
 	for _, art := range feature.RequiredArtifactsForPhase(feature.PhaseInception) {
-		content := []byte("# Spec\n\n## User Stories\n\n- US-001: User can create features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]\n\n## Constraint Register\n\n| ID | Source | Type | Constraint | Verification |\n|----|--------|------|------------|-------------|\n| CON-001 | RFC 9421 | correctness | Wire-format failures return Invalid | Negative vector test |")
+		content := []byte("# Spec\n\n## User Stories\n\n### User Story 1 - Create features (Priority: P1)\n\n- US-001: User can create features\n\n### User Story 2 - List features (Priority: P2)\n\n- US-002: User can list features\n\n## Functional Requirements\n\n- FR-001: System shall create features\n\n## Error Scenarios\n\n| Action | Success | Error | Response |\n|---|---|---|---|\n| Create | 201 | Missing title | 400 |\n\n## Empty State Behavior\n\n- GET /features returns 200 with []\n\n## Success Criteria\n\n- SC-001: Measurable outcome — 99% of create requests succeed within 200ms\n\n## Edge Cases\n\n- Empty input: returns 400\n- Duplicate id: returns 409\n\n## Assumptions\n\n- [ASSUMPTION: Single user system]\n\n## Constraint Register\n\n| ID | Source | Type | Constraint | Verification |\n|----|--------|------|------------|-------------|\n| CON-001 | RFC 9421 | correctness | Wire-format failures return Invalid | Negative vector test |")
 		if art == feature.ArtifactReposYAML {
 			content = []byte("feature: 001-test\nrepos:\n  - name: devteam\n    branch: feature/001-test")
 		}
