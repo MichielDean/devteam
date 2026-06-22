@@ -649,7 +649,7 @@ func (ge *GateEvaluator) checkFrontendTests(f *feature.Feature) bool {
 	cmd.Dir = uiDir
 	cmd.Env = append(os.Environ(), "PATH="+os.Getenv("PATH")+":"+"/usr/local/go/bin",
 		"CI=true",
-		"BASE_URL=http://localhost:8765",
+		"BASE_URL=http://localhost:18765",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
