@@ -1,12 +1,12 @@
 id: kanban-view
 title: Kanban View
 current_phase: inception
-status: waiting_for_human
+status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
 created_at: 2026-06-22T16:42:56.31989162-06:00
-updated_at: 2026-06-22T16:52:58.931327564-06:00
+updated_at: 2026-06-22T16:54:29.200607236-06:00
 phase_states:
     construction:
         phase: construction
@@ -69,9 +69,9 @@ phase_states:
                 - name: repos.yaml identifies at least one affected repository
                   passed: true
                   message: ✓ repos.yaml identifies at least one affected repository
-            evaluated_at: 2026-06-22T16:52:56.356093402-06:00
-        started_at: 2026-06-22T16:50:34.814691803-06:00
-        completed_at: 2026-06-22T16:50:34.814691803-06:00
+            evaluated_at: 2026-06-22T16:56:53.745099874-06:00
+        started_at: 2026-06-22T16:54:29.205799394-06:00
+        completed_at: 2026-06-22T16:54:29.205799394-06:00
     planning:
         phase: planning
         status: draft
