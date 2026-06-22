@@ -443,7 +443,7 @@ export default function FeatureDetail() {
 
       {/* Process View (shown during processing) */}
       {showProcessView && feature.status === 'in_progress' && (
-        <ProcessView featureId={feature.id} mode={processingMode} />
+        <ProcessView featureId={feature.id} mode={processingMode} startedAt={currentPhaseState?.started_at} />
       )}
 
       {/* Agent Output (shown during processing) */}

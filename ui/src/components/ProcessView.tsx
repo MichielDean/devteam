@@ -6,6 +6,7 @@ import type { PhaseName } from '../types';
 interface ProcessViewProps {
   featureId: string;
   mode?: 'autopilot' | 'single-phase' | null;
+  startedAt?: string | null;
 }
 
 interface ProcessStep {
@@ -28,10 +29,16 @@ const STEP_DESCRIPTIONS: Record<string, string> = {
   questions_assumed: 'Questions auto-answered',
 };
 
-export default function ProcessView({ featureId, mode }: ProcessViewProps) {
+export default function ProcessView({ featureId, mode, startedAt }: ProcessViewProps) {
   const { lastEvent } = useSSE(featureId);
   const [steps, setSteps] = useState<ProcessStep[]>([]);
-  const [startTime] = useState(Date.now());
+  const [startTime] = useState(() => {
+    if (startedAt) {
+      const t = new Date(startedAt).getTime();
+      if (!isNaN(t)) return t;
+    }
+    return Date.now();
+  });
   const [elapsed, setElapsed] = useState<string>('');
   const [isComplete, setIsComplete] = useState(false);
 
