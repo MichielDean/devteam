@@ -1,16 +1,18 @@
 id: kanban-view
 title: Kanban View
-current_phase: planning
+current_phase: construction
 status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
+worktree_dir: /home/lobsterdog/worktrees/devteam-specs/kanban-view
 created_at: 2026-06-22T16:42:56.31989162-06:00
-updated_at: 2026-06-22T16:57:08.114678427-06:00
+updated_at: 2026-06-22T17:17:48.591380597-06:00
 phase_states:
     construction:
         phase: construction
-        status: draft
+        status: in_progress
+        started_at: 2026-06-22T17:17:48.591380597-06:00
     delivery:
         phase: delivery
         status: draft
@@ -74,7 +76,7 @@ phase_states:
         completed_at: 2026-06-22T16:57:08.114678427-06:00
     planning:
         phase: planning
-        status: gate_blocked
+        status: passed
         gate_result:
             phase: planning
             passed: false
@@ -153,8 +155,9 @@ phase_states:
                 - name: dependencies between tasks are explicit
                   passed: true
                   message: ✓ dependencies between tasks are explicit
-            evaluated_at: 2026-06-22T17:06:53.181711973-06:00
-        started_at: 2026-06-22T16:57:08.137630513-06:00
+            evaluated_at: 2026-06-22T17:15:12.953109758-06:00
+        started_at: 2026-06-22T17:11:21.911876441-06:00
+        completed_at: 2026-06-22T17:17:48.591380597-06:00
     review:
         phase: review
         status: draft
