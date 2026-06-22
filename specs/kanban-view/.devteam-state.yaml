@@ -75,12 +75,10 @@ phase_states:
         completed_at: 2026-06-22T16:57:08.114678427-06:00
     planning:
         phase: planning
-        status: gate_blocked
+        status: passed
         gate_result:
             phase: planning
-            passed: false
-            missing_arts:
-                - research_md
+            passed: true
             checks:
                 - name: artifact_plan_md_exists
                   passed: true
@@ -92,8 +90,8 @@ phase_states:
                   passed: true
                   message: artifact data_model_md present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/data-model.md
                 - name: artifact_research_md_exists
-                  passed: false
-                  message: artifact research_md missing (expected at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/research_md)
+                  passed: true
+                  message: artifact research_md present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/research_md
                 - name: artifact_contracts_dir_exists
                   passed: true
                   message: artifact contracts_dir present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/contracts
@@ -128,8 +126,8 @@ phase_states:
                   passed: true
                   message: ✓ plan.md includes cross-component consistency matrix for shared values
                 - name: research.md documents technical research and existing code patterns
-                  passed: false
-                  message: '✗ research.md documents technical research and existing code patterns (phase: planning, feature: kanban-view)'
+                  passed: true
+                  message: ✓ research.md documents technical research and existing code patterns
                 - name: data-model.md defines entities with attributes, relationships, and constraints
                   passed: true
                   message: ✓ data-model.md defines entities with attributes, relationships, and constraints
@@ -154,8 +152,9 @@ phase_states:
                 - name: dependencies between tasks are explicit
                   passed: true
                   message: ✓ dependencies between tasks are explicit
-            evaluated_at: 2026-06-22T17:18:05.215571605-06:00
-        started_at: 2026-06-22T17:15:32.673268151-06:00
+            evaluated_at: 2026-06-22T17:21:08.013929118-06:00
+        started_at: 2026-06-22T17:19:53.47112561-06:00
+        completed_at: 2026-06-22T17:19:53.47112561-06:00
     review:
         phase: review
         status: draft
