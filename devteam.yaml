@@ -19,7 +19,7 @@ pipeline:
   human_interaction_timeout_minutes: 30
   phases:
     - name: inception
-      roles: [pm, architect]
+      roles: [pm]
       gate: spec_approved
       artifacts: [spec.md, acceptance.md, repos.yaml]
       rules: rules/aidlc/core-workflow.md
@@ -27,7 +27,7 @@ pipeline:
     - name: planning
       roles: [architect]
       gate: plan_approved
-      artifacts: [plan.md, tasks.md]
+      artifacts: [plan.md, research.md, data-model.md, contracts/, tasks.md]
       rules: rules/aidlc-rule-details/construction/
 
     - name: construction
