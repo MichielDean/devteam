@@ -122,6 +122,59 @@ func (p *Pipeline) WorktreeDir(f *feature.Feature) string {
 	return p.specProvider.BaseDir()
 }
 
+// writeGateFailure writes GATE_FAILURE.md when a gate fails, so the next
+// agent run can read it and understand what went wrong.
+func (p *Pipeline) writeGateFailure(f *feature.Feature, phase feature.Phase, gateResult *feature.GateResult) error {
+	if gateResult == nil || gateResult.Passed {
+		return nil
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("# Gate Failure: %s Phase\n\n", phase))
+	b.WriteString(fmt.Sprintf("Feature: %s\n\n", f.ID))
+	b.WriteString("## Failed Checks\n\n")
+
+	for _, check := range gateResult.Checks {
+		if !check.Passed {
+			b.WriteString(fmt.Sprintf("- **FAIL**: %s\n", check.Name))
+			if check.Message != "" {
+				b.WriteString(fmt.Sprintf("  %s\n", check.Message))
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	if len(gateResult.MissingArts) > 0 {
+		b.WriteString("## Missing Artifacts\n\n")
+		for _, art := range gateResult.MissingArts {
+			b.WriteString(fmt.Sprintf("- %s\n", art))
+		}
+	}
+
+	b.WriteString("\n## Instructions for Re-run\n\n")
+	b.WriteString("The previous run of this phase failed the quality gate. Fix the issues above.\n")
+	b.WriteString("Do NOT just re-create the same artifacts — address the specific failures.\n")
+
+	content := b.String()
+	path := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "GATE_FAILURE.md")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return fmt.Errorf("writing GATE_FAILURE.md: %w", err)
+	}
+
+	log.Printf("writeGateFailure: wrote GATE_FAILURE.md for %s phase %s (%d failed checks)", f.ID, phase, countFailedChecks(gateResult))
+	return nil
+}
+
+func countFailedChecks(gr *feature.GateResult) int {
+	count := 0
+	for _, c := range gr.Checks {
+		if !c.Passed {
+			count++
+		}
+	}
+	return count
+}
+
 // dispatchWorkingDirForPhase returns the CWD an agent should run in for the
 // given phase. All phases run in the spec worktree if available. Impl phases
 // (construction, review, testing, delivery) run in the first prepared impl
@@ -543,8 +596,15 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 	if gateResult.Passed {
 		ps.Status = feature.StatusPassed
 		ps.CompletedAt = &now
+		// Remove GATE_FAILURE.md on success so it doesn't confuse future phases
+		gateFailurePath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "GATE_FAILURE.md")
+		os.Remove(gateFailurePath)
 	} else {
 		ps.Status = feature.StatusGateBlocked
+		// Write GATE_FAILURE.md so the next run knows what failed
+		if err := p.writeGateFailure(f, currentPhase, gateResult); err != nil {
+			log.Printf("warning: could not write GATE_FAILURE.md: %v", err)
+		}
 	}
 
 	result := &RunResult{
@@ -708,8 +768,15 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	if gateResult.Passed {
 		ps.Status = feature.StatusPassed
 		ps.CompletedAt = &now
+		// Remove GATE_FAILURE.md on success so it doesn't confuse future phases
+		gateFailurePath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "GATE_FAILURE.md")
+		os.Remove(gateFailurePath)
 	} else {
 		ps.Status = feature.StatusGateBlocked
+		// Write GATE_FAILURE.md so the next run knows what failed
+		if err := p.writeGateFailure(f, currentPhase, gateResult); err != nil {
+			log.Printf("warning: could not write GATE_FAILURE.md: %v", err)
+		}
 	}
 
 	result := &RunResult{
