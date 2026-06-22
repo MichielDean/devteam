@@ -1,196 +1,214 @@
 # Feature Specification: Kanban View
 
-**Feature ID**: kanban-view
 **Feature Branch**: `kanban-view`
-**Created**: 2026-06-21
-**Status**: Inception
-**Priority**: P1
-**Intake Path**: Loose Idea
 
-## Description
+**Created**: 2026-06-22
 
-Add a Kanban board view to the Dev Team web UI that visualizes all feature specs as cards organized into columns by their current pipeline phase. Features that have not yet started the pipeline appear in a "Backlog" column. The view reuses existing UI components (FeatureCard, feature data, Tailwind styles) and the existing `GET /api/features` endpoint rather than introducing new backend APIs or building bespoke board infrastructure from scratch.
+**Status**: Draft
 
-The Kanban view is an alternative presentation of the same data already shown by the Dashboard's `FeatureList`. It adds a phase-grouped board layout so users can see pipeline progress across all specs at a glance.
+**Input**: Loose idea — "Add a Kanban board view to the Dev Team UI that shows features as cards organized by phase. Features displayed in columns (Inception, Planning, Construction, Review, Testing, Delivery). Cards show title, priority, status. Click card to navigate to detail page. Toggle between list view and Kanban board view."
 
-## Source Discovery
+## Workspace Summary (Brownfield)
 
-### Governing Sources
+**Repo**: `devteam` (single repo, primary checkout at `~/source/devteam`).
 
-This feature is a UI presentation layer over existing Dev Team data. There is no external RFC, protocol standard, or conformance test vector that governs a Kanban board. The governing sources are internal conventions:
+**Stack**:
+- Backend: Go (`cmd/devteam`, `internal/api`, `internal/feature`). HTTP API at `/api/*`.
+- Frontend: React 19 + TypeScript, Vite, Tailwind v4, `@tanstack/react-query`, `react-router` v7. Located in `ui/`.
+- E2E: Playwright at `ui/e2e/*.spec.ts`, runs on `:18765` (NOT `:8765` production).
+- No drag-and-drop library installed. No CSS-in-JS. Tailwind utility classes only.
 
-| Source | What it governs |
-|--------|-----------------|
-| `ui/src/types/index.ts` | `FeatureSummary` shape, `PHASES` constant, `STATUS_LABELS`, `PRIORITY_LABELS` — the canonical phase and status enums the board must use |
-| `ui/src/api/client.ts` | `listFeatures()` returns `FeatureListResponse { features: FeatureSummary[], total_count: number }` — the single data source for the board |
-| `ui/src/components/FeatureCard.tsx` | Existing card component to reuse for board cards |
-| `internal/feature/types.go` | Phase enum (`inception`, `planning`, `construction`, `review`, `testing`, `delivery`) and Status enum (`draft`, `in_progress`, `gate_blocked`, `passed`, `failed`, `done`, `recirculated`, `cancelled`, `waiting_for_human`) — wire values the API returns |
-| `internal/api/dto.go` + `server.go` | `GET /api/features` returns `{"features":[...],"total_count":N}` with empty `features` as `[]` (never null) |
+**Existing surface this feature touches**:
+- `ui/src/pages/Dashboard.tsx` — currently renders `FeatureList` when features exist, `EmptyState` when none, `IntakeForm` for creation. Uses `useQuery(['features'])` → `listFeatures()` returning `FeatureListResponse`.
+- `ui/src/components/FeatureList.tsx` — sortable grid of `FeatureCard`. Sort fields: phase, priority, status, updated_at.
+- `ui/src/components/FeatureCard.tsx` — `Link` to `/features/:id`; renders title, id, status badge, phase badge, priority badge, gate result indicator, pending-questions badge, updated date.
+- `ui/src/types/index.ts` — `PHASES` (`['inception','planning','construction','review','testing','delivery']`), `PHASE_LABELS`, `STATUS_LABELS`, `PRIORITY_LABELS`, `FeatureSummary` interface.
+- `ui/e2e/app.spec.ts` — existing tests assert `feature-card` testids, feature-count-badge, navigation to detail.
 
-### Constraint Register
+**Conventions**:
+- Components use `data-testid` for E2E selectors.
+- Tailwind dark-mode classes (`dark:...`) on every color.
+- `useQuery`/`useMutation` from `@tanstack/react-query` for server state.
+- No new runtime backend dependency required — `GET /api/features` already returns everything the board needs (current_phase, status, priority, gate_result, pending_questions_count, updated_at).
 
-| ID | Source | Type | Constraint | Verification |
-|----|--------|------|------------|-------------|
-| CON-001 | `ui/src/types/index.ts` `PHASES` | correctness | Board columns are the 6 pipeline phases in canonical order: inception, planning, construction, review, testing, delivery — no invented or reordered columns | Column order assertion |
-| CON-002 | Feature input | correctness | A "Backlog" column contains features whose pipeline has not started (phase = inception AND status = draft, i.e. no phase has entered in_progress) | Backlog grouping test |
-| CON-003 | `ui/src/api/client.ts` `listFeatures` | correctness | Board data comes exclusively from the existing `GET /api/features` response; no new backend endpoint is introduced | Endpoint inventory check |
-| CON-004 | `internal/api/dto.go` | correctness | Empty feature list serializes as `[]` not `null`; board renders empty columns when no features exist in a phase | Empty state test |
-| CON-005 | `ui/src/components/FeatureCard.tsx` | reuse | Feature cards on the board reuse the existing `FeatureCard` component (or its visual contract: title, status badge, phase badge, priority badge, gate indicator, updated date) | Component import check |
-| CON-006 | Feature input | reuse | Reuse existing components and Tailwind styling patterns instead of building bespoke board infrastructure; no new UI dependency added to `package.json` | Dependency diff check |
-| CON-007 | `ui/src/App.tsx` routing | consistency | Kanban view is reachable via navigation (route or view toggle) alongside the existing Dashboard list view | Navigation test |
-| CON-008 | Existing dark mode support (`ThemeToggle`) | consistency | Board supports dark mode via existing Tailwind `dark:` variants, matching the rest of the UI | Dark mode render test |
-| CON-009 | `internal/feature/types.go` Status enum | correctness | A feature with terminal status (`done`, `cancelled`) is placed in its `current_phase` column, not hidden — the board shows all features regardless of status | Terminal status placement test |
-| CON-010 | `ui/src/pages/Dashboard.tsx` `feature-count-badge` | consistency | Total feature count badge remains visible and correct when Kanban view is active | Count badge assertion |
-| CON-011 | Existing `data-testid` convention | testability | Board and columns expose stable `data-testid` attributes for E2E selectors (e.g. `kanban-board`, `kanban-column-{phase}`, `kanban-column-backlog`) | Testid presence check |
+**Constitution compliance**: See end of spec.
 
-## User Scenarios & Testing
+## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - See all features organized by pipeline phase (Priority: P1)
+### User Story 1 - Toggle Between List and Kanban Board (Priority: P1)
 
-As a developer using Dev Team, I want to view a Kanban board where each column is a pipeline phase and each card is a feature, so I can see the state of all specs and what kind of progress they have at a glance.
+A user viewing the Dashboard can switch between the existing sortable list view and a new Kanban board view via a toggle control. The choice is remembered for the session. The list view continues to work unchanged when selected.
 
-**Why this priority**: The feature request is explicitly this. Without the board, the feature does not exist.
+**Why this priority**: Without a toggle, the board either replaces the list (regression) or lives at a separate route the user has to find. The toggle is the minimum viable entry point and is independently testable: a user can flip the toggle and see two distinct layouts without any other feature.
 
-**Independent Test**: With at least one feature in each of inception, planning, and delivery phases, load the Kanban view and verify each feature appears in the column matching its `current_phase`.
+**Independent Test**: Load the Dashboard, click the "Board" toggle, assert the Kanban columns render; click "List", assert the existing FeatureList renders. Both states render the same underlying feature data.
 
-### User Story 2 - Not-yet-started features appear in Backlog (Priority: P1)
+**Acceptance Scenarios**:
 
-As a developer, I want features that have not started the pipeline to appear in a "Backlog" column, separate from features actively in a phase, so I can distinguish unstarted work from in-progress work.
+1. **Given** features exist and the Dashboard is loaded, **When** the user clicks the "Board" toggle, **Then** six phase columns render with feature cards placed in the column matching each feature's `current_phase`.
+2. **Given** the board is visible, **When** the user clicks the "List" toggle, **Then** the existing `FeatureList` component renders with no Kanban columns present.
+3. **Given** the Dashboard is loaded for the first time in a session, **When** no prior view choice is remembered, **Then** the Board (Kanban) view is shown by default (per human input — Kanban is the primary view).
+4. **Given** the user has selected "Board", **When** they navigate away and return to the Dashboard within the same browser session, **Then** "Board" is still selected (persisted via sessionStorage).
 
-**Why this priority**: Explicitly called out in the feature input ("Anything not started yet should be in the backlog").
+---
 
-**Independent Test**: Create a feature but do not run any phase (status = `draft`, current_phase = `inception`). Load the Kanban view and verify the feature appears in the Backlog column, not the Inception column.
+### User Story 2 - Feature Cards on the Board Show Key State (Priority: P1)
 
-### User Story 3 - Switch between list view and Kanban view (Priority: P1)
+On the Kanban board, each feature appears as a card in exactly one column — the column for its `current_phase`. The card shows the feature title, priority badge, status badge, pending-questions badge (when > 0), and gate result indicator for the current phase (when present). Clicking the card navigates to `/features/:id`, identical to the list view.
 
-As a developer, I want to toggle between the existing list/dashboard view and the new Kanban view, so I can choose the layout that suits my current task without losing access to either.
+**Why this priority**: This is the core value of the board — visualizing features by phase. It is independently testable: a board with cards in the right columns and correct badges delivers value even without the toggle (US-1) being remembered across sessions.
 
-**Why this priority**: The Kanban view is additive — it must not replace the existing Dashboard. Users need both.
+**Independent Test**: Load the Board view, assert each feature's card lives in the column whose header equals `PHASE_LABELS[feature.current_phase]`, and the card's title/priority/status badges match the API response.
 
-**Independent Test**: From the Dashboard, navigate to the Kanban view and back, verifying both views render their expected content and the total feature count badge stays consistent.
+**Acceptance Scenarios**:
 
-### User Story 4 - Click a card to open feature detail (Priority: P1)
+1. **Given** a feature with `current_phase='planning'`, `priority=1`, `status='in_progress'`, **When** the board renders, **Then** a card with the feature's title is present in the Planning column with a P1 badge and an "In Progress" status badge.
+2. **Given** a feature with `pending_questions_count > 0`, **When** its card renders, **Then** the pending-questions badge is visible on the card.
+3. **Given** a feature whose current-phase `gate_result` is present, **When** the card renders, **Then** a passed/failed gate indicator is visible.
+4. **Given** a feature card on the board, **When** the user clicks the card, **Then** the browser navigates to `/features/:id` (same destination as the list view).
+5. **Given** a feature whose `current_phase` is not one of the six known phases, **When** the board renders, **Then** the card is placed in a trailing "Other" column (defensive — should never happen in practice).
 
-As a developer, I want to click a feature card on the Kanban board and navigate to that feature's detail page, so I can inspect or act on a feature directly from the board.
+---
 
-**Why this priority**: Cards are useless if they don't link to the work. This matches the existing `FeatureCard` behavior (it renders a `<Link>`).
+### User Story 3 - Empty Columns and Empty Board (Priority: P2)
 
-**Independent Test**: With at least one feature on the board, click its card and verify navigation to `/features/{id}`.
+When a phase has no features, its column still renders with a header and a muted "No features" placeholder. When the board itself has no features at all, the existing `EmptyState` component is shown instead of the board (and the view toggle is hidden).
 
-### User Story 5 - Empty board renders cleanly with no console errors (Priority: P2)
+**Why this priority**: Edge-case polish. Without it the board looks broken on small workspaces. Not required for MVP — the toggle and cards already deliver value.
 
-As a developer with zero features, I want the Kanban view to render all columns as empty with an empty-state message, so the board doesn't break or show a blank page when there's no data.
+**Independent Test**: Load the Board view in a workspace where some phases have no features; assert every phase column renders, empty columns show the placeholder.
 
-**Why this priority**: Empty state correctness prevents the #1 agent-generated UI bug (null vs empty array) and a blank-page regression. P2 because it only triggers when the system has no features, which is rare after first use.
+**Acceptance Scenarios**:
 
-**Independent Test**: With zero features in the system, load the Kanban view and verify every column renders with an empty-state message and no browser console errors.
+1. **Given** no features exist with `current_phase='testing'`, **When** the board renders, **Then** the Testing column header is visible and its body contains a muted "No features" placeholder.
+2. **Given** zero features exist in the workspace, **When** the Dashboard loads, **Then** the `EmptyState` component renders and the List/Board toggle is NOT visible.
+3. **Given** zero features exist and the user previously selected "Board", **When** features are later created, **Then** the toggle becomes visible and the Board renders (state resumes).
 
-### User Story 6 - Board reflects live updates during processing (Priority: P3)
+---
 
-As a developer, when a feature advances phases while I'm viewing the Kanban board, the card moves to the new column without a full page reload, so the board stays current during autonomous processing.
+### User Story 4 - Column Overflow Handling (Priority: P3)
 
-**Why this priority**: Nice-to-have. The existing Dashboard already invalidates queries on mutations; the board can piggyback on the same `useQuery` cache. P3 because manual refresh already works and this is a polish improvement.
+When a column contains more cards than fit the viewport, the column scrolls vertically independent of other columns. The board's overall height is bounded to the viewport so column headers remain visible while bodies scroll.
 
-**Independent Test**: With the board open and a feature processing, trigger a phase advance and verify the card moves columns without a manual reload.
+**Why this priority**: Nice-to-have. Only matters on workspaces with many features in one phase. CSS `max-height` + `overflow-y-auto` is one line — included because it's cheap, but marked P3 because the absence doesn't break the feature.
 
-## Functional Requirements
+**Independent Test**: Load the Board with a column containing 50+ cards; assert that column scrolls without dragging the page, and the column header stays visible.
 
-- **FR-001**: The system shall render a Kanban board with 7 columns: Backlog, Inception, Planning, Construction, Review, Testing, Delivery, in that left-to-right order. (Source: US-001, US-002, CON-001)
-- **FR-002**: The system shall place a feature in the Backlog column when its `status` is `draft` and `current_phase` is `inception` (i.e. no phase has entered `in_progress`). (Source: US-002, CON-002)
-- **FR-003**: The system shall place a feature in the column matching its `current_phase` (inception → delivery) when it is not in Backlog (status is anything other than `draft`-with-`inception`, including `done`, `cancelled`, `in_progress`, `gate_blocked`, `passed`, `failed`, `recirculated`, `waiting_for_human`). (Source: US-001, CON-009)
-- **FR-004**: The system shall source all board data from the existing `listFeatures()` API client function, which calls `GET /api/features`. No new backend endpoint shall be introduced. (Source: US-001, CON-003)
-- **FR-005**: Each feature card on the board shall reuse the existing `FeatureCard` component (title, status badge, phase badge, priority badge, gate indicator, updated date, link to detail). (Source: US-004, CON-005)
-- **FR-006**: The system shall provide a navigation affordance (view toggle or route) on the Dashboard to switch to the Kanban view, and an affordance on the Kanban view to return to the Dashboard list. (Source: US-003, CON-007)
-- **FR-007**: The system shall preserve the total feature count badge across both views. (Source: US-003, CON-010)
-- **FR-008**: The system shall render each column with a header showing the column name and a count of cards in that column. (Source: US-001)
-- **FR-009**: The system shall render an empty-state message in each column that contains zero features (e.g. "No features in this phase"). (Source: US-005, CON-004)
-- **FR-010**: The system shall support dark mode on the board using existing Tailwind `dark:` variants consistent with the rest of the UI. (Source: CON-008)
-- **FR-011**: The board shall not add any new runtime dependency to `ui/package.json`; it must be built from existing React, react-router, @tanstack/react-query, and Tailwind primitives. (Source: CON-006)
-- **FR-012**: The board and its columns shall expose stable `data-testid` attributes: `kanban-board`, `kanban-column-backlog`, `kanban-column-inception`, `kanban-column-planning`, `kanban-column-construction`, `kanban-column-review`, `kanban-column-testing`, `kanban-column-delivery`. (Source: CON-011)
-- **FR-013**: The board shall remain horizontally scrollable on narrow viewports so all 7 columns are reachable without overlapping or clipping. (Source: US-001)
-- **FR-014**: The board shall refresh its data via the existing react-query `useQuery(['features'])` cache, so mutations that invalidate that cache (create, advance, recirculate, cancel) propagate to the board. (Source: US-006)
+**Acceptance Scenarios**:
 
-## Key Entities and Relationships
+1. **Given** a column with more cards than fit the viewport height, **When** the user scrolls within that column, **Then** the column body scrolls while the column header and other columns remain fixed.
+2. **Given** the board is rendered, **When** the viewport is resized shorter, **Then** each column's scroll area adjusts to the new viewport height.
 
-This feature introduces no new persistent entities. It is a view over existing data:
+---
 
-- **FeatureSummary** (existing, from `GET /api/features`): the card entity.
-  - `id`, `title`, `status`, `priority`, `current_phase`, `updated_at`, `gate_result`, `pending_questions_count`
-- **Column**: a derived grouping, not a stored entity. A column is identified by a phase key (or `backlog`) and contains the subset of `FeatureSummary[]` whose `current_phase` and `status` map to that key.
-- **Board**: the set of all 7 columns, derived from a single `FeatureListResponse`.
+### Edge Cases
 
-### Derived grouping rule
+- **Feature with unknown `current_phase` value**: Placed in a defensive trailing "Other" column. [ASSUMPTION: never expected in practice — backend enum is closed — but the UI must not crash.]
+- **Feature with `status='cancelled'` or `'done'`**: Still appears in the column for its `current_phase`; status badge communicates the terminal state. [ASSUMPTION: cancelled/done features are NOT filtered out of the board — they remain visible for retrospective.]
+- **Feature with `waiting_for_human` status**: Card is visually flagged (yellow ring / icon) so the user can spot features needing input. [ASSUMPTION: surface as a status badge color, no separate column.]
+- **Feature with `gate_blocked` status**: Card is visually flagged (red ring / icon) in addition to the gate-result indicator.
+- **API returns 200 with `features: []`**: Board does not render; `EmptyState` renders instead (per US-3).
+- **API returns 500 / network error**: Existing `features-error` testid renders the error message; toggle is not visible (no data to show).
+- **API returns `features` but `total_count` missing**: Defensive — derive count from `features.length`. [ASSUMPTION: existing Dashboard already handles this defensively per e2e test `feature count badge handles missing total_count`.]
+- **User toggles to Board while data is loading**: Show the loading spinner in place of the board body (reuse existing `features-loading` testid pattern).
+- **Dark mode**: All new elements include `dark:` Tailwind classes matching existing palette.
+- **Drag-and-drop**: Out of scope (see Assumptions). The board is view-only.
+- **Mobile/narrow viewport**: Board scrolls horizontally; columns have a fixed minimum width. [ASSUMPTION: min-width 240px per column, board uses `overflow-x-auto` on small screens.]
 
-```
-backlog      := features where status == 'draft' AND current_phase == 'inception'
-inception    := features where current_phase == 'inception' AND NOT (status == 'draft')
-planning     := features where current_phase == 'planning'
-construction := features where current_phase == 'construction'
-review       := features where current_phase == 'review'
-testing      := features where current_phase == 'testing'
-delivery     := features where current_phase == 'delivery'
-```
+## Requirements *(mandatory)*
 
-Every feature appears in exactly one column. A feature in `delivery` with `status == 'done'` still appears in the Delivery column (CON-009).
+### Functional Requirements
 
-### State transitions
+- **FR-001**: The Dashboard MUST provide a two-way toggle control ("List" / "Board") that switches the feature display between the existing `FeatureList` component and a new `KanbanBoard` component. Source: US-001
+- **FR-002**: The selected view MUST persist across Dashboard visits within the same browser session via `sessionStorage` key `devteam.dashboard.view`. Source: US-001
+- **FR-003**: The default view when no prior selection exists MUST be "Board" (Kanban is the default — per human input Q-001/009/017). Source: US-001
+- **FR-004**: The toggle MUST be hidden when no features exist (the `EmptyState` component renders instead). Source: US-003
+- **FR-005**: The `KanbanBoard` component MUST render exactly six phase columns in pipeline order: Inception, Planning, Construction, Review, Testing, Delivery — using `PHASES` and `PHASE_LABELS` from `ui/src/types`. Source: US-002
+- **FR-006**: Each feature in the loaded `features` array MUST appear in exactly one column — the column whose phase equals `feature.current_phase`. Source: US-002
+- **FR-007**: Features whose `current_phase` is not in `PHASES` MUST be placed in a trailing "Other" column rather than dropped. Source: US-002 (edge)
+- **FR-008**: Each card on the board MUST display: title, priority badge (via `PRIORITY_LABELS`), status badge (via `STATUS_LABELS`), and pending-questions badge when `pending_questions_count > 0`. Source: US-002
+- **FR-009**: Each card whose current-phase `gate_result` is present MUST display a passed/failed indicator matching the existing `FeatureCard` gate indicator. Source: US-002
+- **FR-010**: Clicking a card on the board MUST navigate to `/features/:id` via `react-router`'s `Link` (same destination as the list view's `FeatureCard`). Source: US-002
+- **FR-011**: Cards with `status` of `waiting_for_human` or `gate_blocked` MUST be visually flagged (distinct border/ring color) so they stand out at a glance. Source: US-002 (edge)
+- **FR-012**: Empty columns MUST render with the column header and a muted "No features" placeholder in the body. Source: US-003
+- **FR-013**: Each column body MUST scroll vertically independently when its content overflows; column headers and other columns MUST remain fixed. Source: US-004
+- **FR-014**: The board's overall height MUST be bounded to the viewport so all six column headers remain visible without page-level scroll. Source: US-004
+- **FR-015**: On viewports narrower than the board's natural width, the board container MUST scroll horizontally; each column has a minimum width of 240px. Source: US-004 (edge)
+- **FR-016**: The board MUST consume the same `useQuery(['features'])` data as the list view — no new API call, no new endpoint, no backend change. Source: US-001, US-002
+- **FR-017**: While the features query is loading, the board view MUST show the existing loading indicator (`features-loading` pattern); while the query is in an error state, it MUST show the existing error indicator (`features-error` pattern). Source: US-001
 
-This feature does not change feature state. Feature state transitions remain governed by `internal/feature/feature.go`:
-- draft → in_progress → gate_blocked/passed/failed → recirculated → ... → done | cancelled
+### Key Entities *(include if feature involves data)*
 
-The board only observes and reflects these transitions; it does not cause them.
+- **FeatureSummary** (existing, unchanged): `id`, `title`, `status`, `priority` (1|2|3), `current_phase` (one of `PHASES`), `updated_at`, `gate_result` (nullable), `pending_questions_count`. No new fields.
+- **PhaseColumn** (UI-only, not persisted): derived from `PHASES`; carries `phase: PhaseName`, `features: FeatureSummary[]` (filtered from the query result). Lifecycle: ephemeral, recomputed on every render from the query data.
 
-## Success Criteria
+No data model changes. No new API endpoints. No backend changes.
 
-- **SC-001**: Given a system with features spread across inception, planning, and delivery phases, when the user opens the Kanban view, then each feature appears in the column matching its `current_phase`, and the Backlog column contains only features with `status == 'draft'` and `current_phase == 'inception'`.
-- **SC-002**: Given the Dashboard, when the user activates the Kanban view affordance, then the board renders with 7 columns in the order Backlog, Inception, Planning, Construction, Review, Testing, Delivery, and the total feature count badge matches the Dashboard count.
-- **SC-003**: Given a feature card on the Kanban board, when the user clicks it, then the browser navigates to `/features/{id}`.
-- **SC-004**: Given a system with zero features, when the user opens the Kanban view, then all 7 columns render with an empty-state message, the board does not crash, and the browser console has no errors.
-- **SC-005**: Given the UI dependency list, when the Kanban view is implemented, then `ui/package.json` has no new dependencies added compared to the pre-feature state.
-- **SC-006**: Given the board in dark mode, when the user toggles the existing theme switch, then all columns and cards render with dark-mode styling consistent with the rest of the app.
+## Success Criteria *(mandatory)*
 
-## Error Scenarios
+### Measurable Outcomes
 
-| User Action | Success | Error Condition | Expected Response |
-|---|---|---|---|
-| Open Kanban view | 200, board renders with columns and cards | `GET /api/features` returns 500 | Board renders columns with a per-board error banner: "Failed to load features: {message}" and a retry affordance; no blank page, no uncaught exception |
-| Open Kanban view (empty system) | 200, all columns render empty-state message | (no error — empty is success) | 200, `features: []`, each column shows "No features in this phase" |
-| Click a feature card | Navigate to `/features/{id}` | Feature `id` no longer exists (deleted between load and click) | Navigate to `/features/{id}`; existing FeatureDetail page handles 404 with its own not-found state (unchanged behavior) |
-| Toggle to Kanban while a query is in flight | Board shows loading state (spinner per existing pattern) | Query error mid-flight | Error banner as above; columns render empty |
-| Process a feature (advance) while board open | Card moves to new column after cache invalidation | Phase advance API returns 409 / gate blocked | Existing toast/error handling from Dashboard applies; board card stays in current column, gate badge reflects failure |
+- **SC-001**: A user can switch from List to Board view with a single click and see all features grouped into six phase columns within 1 render frame of the existing features query resolving.
+- **SC-002**: Every feature returned by `GET /api/features` appears in exactly one column on the Board; zero features are dropped or duplicated.
+- **SC-003**: The Board view adds zero new HTTP requests beyond the existing `GET /api/features` call already made by the Dashboard.
+- **SC-004**: The Board view renders without console errors in Playwright (existing console-error assertion pattern extended to the Board view).
+- **SC-005**: The existing list-view e2e tests (`app.spec.ts`) continue to pass unchanged — adding the Board is additive, no regression.
+- **SC-006**: The Board view's first contentful paint completes within 200ms of the features query resolving (board rendering is pure CSS + React; no new data fetching).
 
-## Empty State Behavior
+## Assumptions
 
-- **No features at all**: `features: []` from API. Board renders all 7 columns, each with "No features in this phase" and a count of 0. The total count badge shows 0. No console errors.
-- **No features in a given phase, but features exist elsewhere**: that specific column shows "No features in this phase" with count 0; other columns render their cards normally.
-- **Backlog empty**: Backlog column shows "No features waiting to start" with count 0.
+- [ASSUMPTION: View toggle default is "Board" (Kanban) — per human input Q-001/009/017. The Kanban board is the primary view of the Dashboard; the list view is the alternate. This intentionally supersedes the earlier conservative default of "List" once the human confirmed Kanban-default.]
+- [ASSUMPTION: The board and list share the same `/` Dashboard route — no new `/kanban` route. A single toggle control switches them. If the human picks the separate-route option, FR-001 and the App.tsx routes change.]
+- [ASSUMPTION: Columns are the six phases, not statuses. Status is shown as a badge on the card. Swimlane-per-status is out of scope (YAGNI — no UX evidence for it yet).]
+- [ASSUMPTION: A feature appears in exactly one column — its `current_phase`. Multi-column membership is out of scope.]
+- [ASSUMPTION: Drag-and-drop is out of scope. The board is view-only. Phase transitions happen through the existing pipeline (`/advance`, `/recirculate`). Adding drag would require new backend endpoints and gate-aware drop rules — premature for a view feature.]
+- [ASSUMPTION: Click card → navigate to `/features/:id`, identical to the list view. A detail popover is out of scope; the detail page already exists and is the canonical view.]
+- [ASSUMPTION: Card surfaces title, priority, status, pending-questions badge, and gate-result indicator. Last-updated timestamp is shown (matches existing card). Processing-mode is NOT surfaced — it's already on the detail page.]
+- [ASSUMPTION: Column overflow = vertical scroll within each column, board height bounded to viewport. The "+N more" overflow pattern is out of scope — scroll is one CSS line, +N is a component.]
+- [ASSUMPTION: Empty columns render with header + muted "No features" placeholder. Hiding empty columns would obscure the pipeline shape — the whole point of the board is to show all six phases.]
+- [ASSUMPTION: Cancelled/done features remain on the board (not filtered out) — they're part of the retrospective view.]
+- [ASSUMPTION: No new npm dependencies. Drag-and-drop is out of scope, so no dnd-kit/react-dnd. All layout via Tailwind utilities.]
+- [ASSUMPTION: No backend changes. `GET /api/features` already returns every field the board needs.]
+- [ASSUMPTION: This feature is UI-only and ships in the `devteam` repo's `ui/` directory. No secondary repos affected.]
+- [ASSUMPTION: Session-scoped persistence (`sessionStorage`) is sufficient. Cross-session persistence (`localStorage`) is out of scope — no user-preference backend exists.]
+- [ASSUMPTION: The Playwright e2e suite is the required test level for this feature (UI change). Unit tests for the column-grouping function are added where logic is non-trivial.]
 
-[ASSUMPTION: exact empty-state copy is left to the Architect/Developer; the constraint is that each column has a non-blank, non-error empty state. Suggested copy is documented above but not mandatory verbatim.]
+## Constraint Register
 
-## Assumptions and Scope Boundaries
+No external standards, RFCs, or protocol conformance suites govern a UI Kanban view. The constraints are internal conventions:
 
-### In scope
-- New React page/component `KanbanBoard` (or equivalent) under `ui/src/`.
-- Navigation affordance between Dashboard list and Kanban board (view toggle in the Dashboard header or a dedicated route — Architect decides).
-- Column headers with per-column card counts.
-- Reuse of `FeatureCard` for cards.
-- Dark mode support.
-- E2E (Playwright) tests for board rendering, navigation, empty state.
-- `data-testid` attributes for all board elements.
+| ID | Source | Section/Vector | Type | Constraint | Verification Method |
+|----|--------|----------------|------|------------|---------------------|
+| CON-001 | AGENTS.md | "Frontend (UI)" | consistency | UI changes are tested via `npm run test:e2e` (Playwright) on `:18765`, never `:8765` | E2E test runs against Playwright webServer config |
+| CON-002 | AGENTS.md | "Project Structure" | consistency | New components live under `ui/src/components/`; new pages under `ui/src/pages/` | File-path check in plan/review |
+| CON-003 | constitution.md | VIII "Go, Minimal Dependencies" | consistency | No new Python runtime dep; UI deps are permissible but should be minimal — prefer native/Tailwind over new libraries | package.json diff: no new runtime dep added |
+| CON-004 | existing e2e | app.spec.ts | regression | Existing `feature-card-*` testids and `feature-count-badge` assertions continue to pass unchanged | `npm run test:e2e` green pre- and post-change |
+| CON-005 | existing UI | types/index.ts | consistency | Board reuses `PHASES`, `PHASE_LABELS`, `STATUS_LABELS`, `PRIORITY_LABELS` — no duplicated phase/status strings | Grep: no new string literals for phase/status names in board component |
+| CON-006 | FeatureCard.tsx | card chrome | consistency | Board card reuses the same badge color map and pending-questions badge as `FeatureCard` | Visual / class-name parity in review |
+| CON-007 | Dashboard.tsx | data flow | consistency | Board consumes the same `useQuery(['features'])` result as the list — no second fetch | Network tab in e2e: exactly one `GET /api/features` |
+| CON-008 | overconfidence-prevention | Pattern 2 | completeness | Empty-state, loading-state, and error-state paths explicitly covered (FR-017, US-3) | AC per state |
+| CON-009 | overconfidence-prevention | Pattern 1 | completeness | Unknown `current_phase` handled defensively (FR-007) — no crash on enum drift | Unit test with synthetic unknown phase |
 
-### Out of scope
-- Drag-and-drop card movement between columns (the board is read-only; phase changes happen via the existing Run/Advance/Recirculate actions on the detail page).
-- Card creation directly from the board (intake stays on the Dashboard / detail page).
-- Filtering or search within columns (the existing FeatureList sort controls are not required on the board).
-- Per-column WIP limits.
-- Backend API changes. No new endpoints, no DTO changes, no new query params.
-- Mobile-native app or non-web clients.
-- Real-time card animation beyond standard react-query refetch behavior.
+Every constraint has a corresponding acceptance criterion (see acceptance.md).
 
-### Assumptions
-- [ASSUMPTION: The existing `GET /api/features` response shape (`FeatureListResponse { features: FeatureSummary[], total_count }`) is sufficient for the board. No per-phase server-side filtering is needed because the feature count is small (tens, not thousands) and client-side grouping is fast enough.]
-- [ASSUMPTION: "Not started" means `status == 'draft'` AND `current_phase == 'inception'`. A freshly intake'd feature has both per `internal/feature/feature.go` line 82–93. If the team later adds a pre-inception phase, the Backlog rule must be revisited.]
-- [ASSUMPTION: Terminal features (`done`, `cancelled`) remain visible on the board in their `current_phase` column. If the team wants to hide them, that's a separate feature.]
-- [ASSUMPTION: The board reuses the existing react-query `['features']` cache key so it shares data with the Dashboard and stays in sync without a second fetch.]
-- [ASSUMPTION: Navigation is a view toggle (e.g. a "Board / List" segmented control in the Dashboard header) rather than a separate top-level route. Either is acceptable; the Architect picks. The constraint is that both views remain reachable from each other.]
-- [ASSUMPTION: Horizontal scroll is acceptable on narrow viewports. A responsive collapsed-column design is out of scope for this feature.]
+## Constitution Compliance
+
+| Principle | Compliant | Rationale |
+|---|---|---|
+| I. Spec-Driven, Always | ✅ | This spec is the contract. No implementation begins until spec.md + acceptance.md + repos.yaml exist and the inception gate passes. |
+| II. Six Roles, Fixed Pipeline | ✅ | This spec is the PM's inception output. It does not dictate architecture (Architect), code (Developer), or tests (Tester) beyond constraints. |
+| III. Central Spec, Distributed Implementation | ✅ | Single spec in the `devteam` repo. `repos.yaml` declares scope — primary repo only, no secondary repos. |
+| IV. Two Intake Paths, One Output Format | ✅ | Loose-idea intake; produces the standard spec.md + acceptance.md + repos.yaml shape. |
+| V. Proof-of-Work Gates | ✅ | Acceptance criteria are Given/When/Then with explicit test levels and verification methods. No "should work well". |
+| VI. Cross-Repo Coherence | ✅ | Single-repo feature. N/A. |
+| VII. Self-Bootstrap | ✅ | The platform builds itself; this feature improves the platform's own UI. |
+| VIII. Go, Minimal Dependencies | ✅ | No backend changes. UI adds no new runtime npm dependency — pure Tailwind + existing React/react-query/react-router. |
+| IX. Pipeline Governance | ✅ | Security and resiliency extensions evaluated — this is a view-only UI feature with no auth, no external calls, no state mutations; the extensions' mandatory checks are N/A and documented as such. |
+| X. Learn From Cistern | ✅ | Structured context (this spec) beats freeform. Phase gate will be mechanically enforced. |
+
+### Extension applicability
+
+- **security**: N/A. View-only UI. No new endpoint, no input handling, no auth surface, no data mutation. The board reads already-authenticated API responses.
+- **resiliency**: N/A. No new external calls. The board reuses the existing `useQuery(['features'])` which already has react-query's retry/error handling. Loading and error states are explicitly covered (FR-017) by reusing existing Dashboard patterns.
+- **error-recovery**: Applied. Ambiguous requirements resolved via questions.json; conservative defaults documented as `[ASSUMPTION:]`.
+- **overconfidence-prevention**: Applied. Empty state (US-3), error state (FR-017), unknown-enum edge (FR-007), and defensive missing-`total_count` handling all explicitly covered.

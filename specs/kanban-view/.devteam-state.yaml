@@ -1,58 +1,20 @@
 id: kanban-view
-title: Kanban view
-current_phase: delivery
+title: Kanban View
+current_phase: planning
 status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
 worktree_dir: /home/lobsterdog/worktrees/devteam-specs/kanban-view
-created_at: 2026-06-21T16:53:19.013093897-06:00
-updated_at: 2026-06-22T01:12:04.470127908-06:00
+created_at: 2026-06-22T16:42:56.31989162-06:00
+updated_at: 2026-06-22T16:57:08.114678427-06:00
 phase_states:
     construction:
         phase: construction
-        status: passed
-        gate_result:
-            phase: construction
-            passed: true
-            checks:
-                - name: code compiles and runs without panicking
-                  passed: true
-                  message: ✓ code compiles and runs without panicking
-                - name: tests compile without errors
-                  passed: true
-                  message: ✓ tests compile without errors
-            evaluated_at: 2026-06-21T22:45:10.584483084-06:00
-        started_at: 2026-06-21T22:42:49.543232535-06:00
-        completed_at: 2026-06-21T23:54:37.243909977-06:00
+        status: draft
     delivery:
         phase: delivery
-        status: passed
-        gate_result:
-            phase: delivery
-            passed: true
-            checks:
-                - name: artifact_docs_exists
-                  passed: true
-                  message: artifact docs present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/docs
-                - name: documentation exists for every user story
-                  passed: true
-                  message: ✓ documentation exists for every user story
-                - name: documentation uses spec terminology (not code-internal names)
-                  passed: true
-                  message: ✓ documentation uses spec terminology (not code-internal names)
-                - name: API documentation covers every endpoint with request/response schemas
-                  passed: true
-                  message: ✓ API documentation covers every endpoint with request/response schemas
-                - name: changelog references the spec number
-                  passed: true
-                  message: ✓ changelog references the spec number
-                - name: configuration documentation covers env vars and config files
-                  passed: true
-                  message: ✓ configuration documentation covers env vars and config files
-            evaluated_at: 2026-06-22T12:00:07.790479228-06:00
-        started_at: 2026-06-22T11:58:31.746439631-06:00
-        completed_at: 2026-06-22T11:58:31.746439631-06:00
+        status: draft
     inception:
         phase: inception
         status: passed
@@ -87,6 +49,15 @@ phase_states:
                 - name: spec.md contains constraint register with source references
                   passed: true
                   message: ✓ spec.md contains constraint register with source references
+                - name: spec.md contains user stories following SpecKit template format (P1, P2 priorities)
+                  passed: true
+                  message: ✓ spec.md contains user stories following SpecKit template format (P1, P2 priorities)
+                - name: spec.md contains success criteria that are measurable
+                  passed: true
+                  message: ✓ spec.md contains success criteria that are measurable
+                - name: spec.md contains edge cases section
+                  passed: true
+                  message: ✓ spec.md contains edge cases section
                 - name: acceptance.md contains at least one verifiable criterion per user story
                   passed: true
                   message: ✓ acceptance.md contains at least one verifiable criterion per user story
@@ -99,31 +70,48 @@ phase_states:
                 - name: repos.yaml identifies at least one affected repository
                   passed: true
                   message: ✓ repos.yaml identifies at least one affected repository
-            evaluated_at: 2026-06-21T16:59:21.091963777-06:00
-        started_at: 2026-06-21T16:53:19.013642417-06:00
-        completed_at: 2026-06-21T17:19:55.630486384-06:00
+            evaluated_at: 2026-06-22T16:56:53.745099874-06:00
+        started_at: 2026-06-22T16:54:29.205799394-06:00
+        completed_at: 2026-06-22T16:57:08.114678427-06:00
     planning:
         phase: planning
-        status: passed
+        status: gate_blocked
         gate_result:
             phase: planning
-            passed: true
+            passed: false
+            missing_arts:
+                - research_md
             checks:
                 - name: artifact_plan_md_exists
                   passed: true
-                  message: artifact plan_md present at /home/lobsterdog/source/devteam/specs/kanban-view/plan.md
+                  message: artifact plan_md present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/plan.md
                 - name: artifact_tasks_md_exists
                   passed: true
-                  message: artifact tasks_md present at /home/lobsterdog/source/devteam/specs/kanban-view/tasks.md
+                  message: artifact tasks_md present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/tasks.md
+                - name: artifact_data_model_md_exists
+                  passed: true
+                  message: artifact data_model_md present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/data-model.md
+                - name: artifact_research_md_exists
+                  passed: false
+                  message: artifact research_md missing (expected at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/research_md)
+                - name: artifact_contracts_dir_exists
+                  passed: true
+                  message: artifact contracts_dir present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/contracts
                 - name: plan.md addresses all acceptance criteria from acceptance.md
                   passed: true
                   message: ✓ plan.md addresses all acceptance criteria from acceptance.md
+                - name: plan.md includes technical context (language, framework, dependencies)
+                  passed: true
+                  message: ✓ plan.md includes technical context (language, framework, dependencies)
+                - name: plan.md includes constitution check (if constitution exists)
+                  passed: true
+                  message: ✓ plan.md includes constitution check (if constitution exists)
+                - name: plan.md includes project structure with file paths
+                  passed: true
+                  message: ✓ plan.md includes project structure with file paths
                 - name: plan.md includes component design with responsibilities and interfaces
                   passed: true
                   message: ✓ plan.md includes component design with responsibilities and interfaces
-                - name: plan.md includes data model with entities, relationships, and state transitions
-                  passed: true
-                  message: ✓ plan.md includes data model with entities, relationships, and state transitions
                 - name: plan.md includes API contracts with request/response schemas and error responses
                   passed: true
                   message: ✓ plan.md includes API contracts with request/response schemas and error responses
@@ -139,6 +127,15 @@ phase_states:
                 - name: plan.md includes cross-component consistency matrix for shared values
                   passed: true
                   message: ✓ plan.md includes cross-component consistency matrix for shared values
+                - name: research.md documents technical research and existing code patterns
+                  passed: false
+                  message: '✗ research.md documents technical research and existing code patterns (phase: planning, feature: kanban-view)'
+                - name: data-model.md defines entities with attributes, relationships, and constraints
+                  passed: true
+                  message: ✓ data-model.md defines entities with attributes, relationships, and constraints
+                - name: contracts/ directory contains API contract files with request/response schemas
+                  passed: true
+                  message: ✓ contracts/ directory contains API contract files with request/response schemas
                 - name: tasks.md contains specific file paths for implementation
                   passed: true
                   message: ✓ tasks.md contains specific file paths for implementation
@@ -151,98 +148,17 @@ phase_states:
                 - name: tasks.md includes constraint references (CON- IDs) for constrained tasks
                   passed: true
                   message: ✓ tasks.md includes constraint references (CON- IDs) for constrained tasks
+                - name: tasks.md organized by user story priority
+                  passed: true
+                  message: ✓ tasks.md organized by user story priority
                 - name: dependencies between tasks are explicit
                   passed: true
                   message: ✓ dependencies between tasks are explicit
-            evaluated_at: 2026-06-21T17:30:09.403011215-06:00
-        started_at: 2026-06-21T17:27:23.365399042-06:00
-        completed_at: 2026-06-21T17:30:20.533833645-06:00
+            evaluated_at: 2026-06-22T17:18:05.215571605-06:00
+        started_at: 2026-06-22T17:15:32.673268151-06:00
     review:
         phase: review
-        status: passed
-        gate_result:
-            phase: review
-            passed: true
-            checks:
-                - name: artifact_review_report_exists
-                  passed: true
-                  message: artifact review_report present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/review-report.md
-                - name: every acceptance criterion has been reviewed with quoted evidence
-                  passed: true
-                  message: ✓ every acceptance criterion has been reviewed with quoted evidence
-                - name: every constraint in the register has been reviewed with execution path trace
-                  passed: true
-                  message: ✓ every constraint in the register has been reviewed with execution path trace
-                - name: no critical findings remain unresolved
-                  passed: true
-                  message: ✓ no critical findings remain unresolved
-                - name: security review complete for priority-1 features
-                  passed: true
-                  message: ✓ security review complete for priority-1 features
-                - name: null pointer safety verified
-                  passed: true
-                  message: ✓ null pointer safety verified
-                - name: error paths verified (400, 404, 409, empty state)
-                  passed: true
-                  message: ✓ error paths verified (400, 404, 409, empty state)
-                - name: over-engineering check completed
-                  passed: true
-                  message: ✓ over-engineering check completed
-                - name: missing implementation check completed
-                  passed: true
-                  message: ✓ missing implementation check completed
-                - name: cross-component consistency verified across all producers and consumers
-                  passed: true
-                  message: ✓ cross-component consistency verified across all producers and consumers
-                - name: negative test vectors verified against implementation
-                  passed: true
-                  message: ✓ negative test vectors verified against implementation
-            evaluated_at: 2026-06-21T23:58:15.56966659-06:00
-        started_at: 2026-06-21T23:54:46.528530102-06:00
-        completed_at: 2026-06-21T23:58:51.094335937-06:00
+        status: draft
     testing:
         phase: testing
-        status: passed
-        gate_result:
-            phase: testing
-            passed: true
-            checks:
-                - name: artifact_test_report_exists
-                  passed: true
-                  message: artifact test_report present at /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/test-report.md
-                - name: every acceptance criterion has at least one test
-                  passed: true
-                  message: ✓ every acceptance criterion has at least one test
-                - name: every constraint in the register has at least one test that would fail if violated
-                  passed: true
-                  message: ✓ every constraint in the register has at least one test that would fail if violated
-                - name: conformance tests verify negative test vectors from the constraint register
-                  passed: true
-                  message: ✓ conformance tests verify negative test vectors from the constraint register
-                - name: smoke tests verify the service starts and responds without panics
-                  passed: true
-                  message: ✓ smoke tests verify the service starts and responds without panics
-                - name: integration tests exercise full HTTP request/response cycles
-                  passed: true
-                  message: ✓ integration tests exercise full HTTP request/response cycles
-                - name: JSON shapes match contract ([] not null)
-                  passed: true
-                  message: ✓ JSON shapes match contract ([] not null)
-                - name: spec-implementation drift checked
-                  passed: true
-                  message: ✓ spec-implementation drift checked
-                - name: no nil pointer panics or null-vs-empty-array mismatches
-                  passed: true
-                  message: ✓ no nil pointer panics or null-vs-empty-array mismatches
-                - name: failed tests have reproduction steps
-                  passed: true
-                  message: ✓ failed tests have reproduction steps
-                - name: test suite passes
-                  passed: true
-                  message: ✓ test suite passes
-                - name: multi-component constraints tested across all components
-                  passed: true
-                  message: ✓ multi-component constraints tested across all components
-            evaluated_at: 2026-06-22T00:49:39.798271564-06:00
-        started_at: 2026-06-22T00:40:37.753985478-06:00
-        completed_at: 2026-06-22T01:12:04.470127908-06:00
+        status: draft

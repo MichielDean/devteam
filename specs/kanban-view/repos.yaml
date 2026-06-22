@@ -1,16 +1,12 @@
-feature_id: kanban-view
-# Repositories affected by the kanban-view feature.
-# This feature is a UI-only change to the Dev Team web app. It adds a Kanban
-# board view over the existing GET /api/features response. No backend changes,
-# no new endpoints, no DTO changes — therefore only the devteam repo is in scope.
 repos:
   - name: devteam
-    url: https://github.com/MichielDean/devteam
-    branch: main
-    scope: ui-only
-    notes: >
-      Adds a KanbanBoard page/component under ui/src/, a view-toggle navigation
-      affordance on the Dashboard, and Playwright e2e tests under ui/e2e/.
-      Reuses the existing GET /api/features endpoint, FeatureCard component,
-      and react-query ['features'] cache. No changes to internal/api/,
-      internal/feature/, or the Go binary.
+    path: .
+    role: primary
+    changes: |
+      UI-only change. Add a KanbanBoard view component and a view toggle to the Dashboard.
+      New files: ui/src/components/KanbanBoard.tsx, ui/src/components/ViewToggle.tsx (or inline in Dashboard).
+      Modified files: ui/src/pages/Dashboard.tsx (render Board or List per toggle; hide toggle on empty state),
+      ui/src/types/index.ts (no new types required — reuses FeatureSummary, PHASES, PHASE_LABELS, STATUS_LABELS, PRIORITY_LABELS).
+      New e2e: ui/e2e/kanban.spec.ts covering AC-001 through AC-022.
+      New unit: ui/src/components/KanbanBoard.test.ts (or co-located) for the groupFeaturesByPhase pure function (AC-011).
+      No backend changes. No new API endpoints. No new npm dependencies. No new Go files.

@@ -1,13 +1,13 @@
-# Feature Input: Kanban view
+# Feature Input: Kanban View
 
 **Feature ID**: kanban-view
-**Created**: 2026-06-21
+**Created**: 2026-06-22
 **Intake Path**: Loose Idea
 **Priority**: P1
 
 ## Idea
 
-I'd like to add a Kanban view to the UI so we can better show the state of all of the specs and what kind of progress they have. Anything not started yet should be in the backlog. Let's find and reuse existing components for this instead of trying to build everything bespoke.
+Add a Kanban board view to the Dev Team UI that shows features as cards organized by phase. Features displayed in columns (Inception, Planning, Construction, Review, Testing, Delivery). Cards show title, priority, status. Click card to navigate to detail page. Toggle between list view and Kanban board view.
 
 ---
 
