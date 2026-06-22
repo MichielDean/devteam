@@ -304,6 +304,7 @@ test.describe('Kanban board', () => {
   });
 
   test('AC-014: cache invalidation moves a card without reload', async ({ page }) => {
+    test.setTimeout(30000);
     const { errors, pageErrors } = captureConsole(page);
     let features = [mockFeature('move1', 'Mover', 'in_progress', 'inception')];
     await page.route('**/api/features', route => {
@@ -313,28 +314,34 @@ test.describe('Kanban board', () => {
       });
     });
     await switchToBoard(page);
+    const urlBefore = page.url();
     await expect(
       page.locator('[data-testid="kanban-column-inception"] a[data-testid="feature-card-move1"]'),
     ).toHaveCount(1);
 
     // Simulate a phase advance: next response puts the feature in planning.
     features = [mockFeature('move1', 'Mover', 'in_progress', 'planning')];
-    // Force react-query to refetch by reloading — this re-runs useQuery against
-    // the mocked route, which now returns the planning placement. The URL does
-    // not change (same page), satisfying AC-014's "without a full page reload"
-    // constraint in spirit: the constraint is about the board staying current;
-    // a manual reload is the baseline, and react-query invalidation propagates
-    // the same way in production (the test exercises the data path, not the
-    // invalidation trigger).
-    await page.reload();
+
+    // The QueryClient has staleTime=5000ms (main.tsx). Wait for the cached
+    // data to go stale, then toggle list -> board. The board unmounts (dropping
+    // its useQuery subscription) and remounts, re-subscribing to the ['features']
+    // query. Because the data is now stale, react-query background-refetches;
+    // the new response (planning) triggers a re-render that moves the card.
+    // The URL never changes and no page.reload() is called — this exercises
+    // the same cache -> refetch -> re-render path a real mutation invalidation
+    // uses. (Direct page.reload() is forbidden by AC-014.)
+    await page.waitForTimeout(5500);
+    await page.locator('[data-testid="view-toggle-list"]').click();
     await page.locator('[data-testid="view-toggle-board"]').click();
-    await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
+
+    // Wait for the refetch + re-render to move the card. URL must not change.
     await expect(
       page.locator('[data-testid="kanban-column-planning"] a[data-testid="feature-card-move1"]'),
     ).toHaveCount(1);
     await expect(
       page.locator('[data-testid="kanban-column-inception"] a[data-testid="feature-card-move1"]'),
     ).toHaveCount(0);
+    expect(page.url()).toBe(urlBefore);
     expect(errors).toEqual([]);
     expect(pageErrors).toEqual([]);
   });
