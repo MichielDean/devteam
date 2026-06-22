@@ -7,9 +7,12 @@ import type { CreateFeatureRequest, FeatureSummary } from '../types';
 import FeatureList from '../components/FeatureList';
 import IntakeForm from '../components/IntakeForm';
 import EmptyState from '../components/EmptyState';
+import ViewToggle from '../components/ViewToggle';
+import KanbanBoard from '../components/KanbanBoard';
 
 export default function Dashboard() {
   const [showIntakeForm, setShowIntakeForm] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -49,17 +52,20 @@ export default function Dashboard() {
   return (
     <div data-testid="dashboard-page">
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Features</h2>
-          {!isLoading && !error && (
-            <span
-              data-testid="feature-count-badge"
-              aria-label={`Total features: ${totalCount}`}
-              className="inline-flex items-center justify-center min-w-[2.5rem] h-6 px-2 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs font-bold"
-            >
-              {totalCount}
-            </span>
-          )}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Features</h2>
+            {!isLoading && !error && (
+              <span
+                data-testid="feature-count-badge"
+                aria-label={`Total features: ${totalCount}`}
+                className="inline-flex items-center justify-center min-w-[2.5rem] h-6 px-2 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs font-bold"
+              >
+                {totalCount}
+              </span>
+            )}
+          </div>
+          <ViewToggle value={viewMode} onChange={setViewMode} />
         </div>
         <button
           onClick={() => setShowIntakeForm(true)}
@@ -78,25 +84,31 @@ export default function Dashboard() {
         />
       )}
 
-      {isLoading && (
-        <div className="flex items-center justify-center py-12" data-testid="features-loading">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-500 dark:text-gray-400">Loading features...</span>
-        </div>
-      )}
+      {viewMode === 'board' ? (
+        <KanbanBoard />
+      ) : (
+        <>
+          {isLoading && (
+            <div className="flex items-center justify-center py-12" data-testid="features-loading">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-500 dark:text-gray-400">Loading features...</span>
+            </div>
+          )}
 
-      {error && (
-        <div className="text-red-600 dark:text-red-400 py-4" data-testid="features-error">
-          Failed to load features: {error.message}
-        </div>
-      )}
+          {error && (
+            <div className="text-red-600 dark:text-red-400 py-4" data-testid="features-error">
+              Failed to load features: {error.message}
+            </div>
+          )}
 
-      {!isLoading && !error && features.length === 0 && (
-        <EmptyState onCreateClick={() => setShowIntakeForm(true)} />
-      )}
+          {!isLoading && !error && features.length === 0 && (
+            <EmptyState onCreateClick={() => setShowIntakeForm(true)} />
+          )}
 
-      {!isLoading && !error && features.length > 0 && (
-        <FeatureList features={features} />
+          {!isLoading && !error && features.length > 0 && (
+            <FeatureList features={features} />
+          )}
+        </>
       )}
     </div>
   );
