@@ -58,7 +58,7 @@ func (db *DB) RecordGateResult(featureID, phase string, passed bool, checks []Ga
 
 // GetGateHistory returns all gate evaluations for a feature, ordered by time.
 func (db *DB) GetGateHistory(featureID string) ([]GateCheckRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT feature_id, phase, check_name, check_passed, check_message, evaluated_at
 		 FROM gate_results WHERE feature_id = ? ORDER BY evaluated_at ASC`,
 		featureID,
@@ -83,7 +83,7 @@ func (db *DB) GetGateHistory(featureID string) ([]GateCheckRow, error) {
 
 // GetGateHistoryForPhase returns gate evaluations for a specific phase.
 func (db *DB) GetGateHistoryForPhase(featureID, phase string) ([]GateCheckRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT feature_id, phase, check_name, check_passed, check_message, evaluated_at
 		 FROM gate_results WHERE feature_id = ? AND phase = ? ORDER BY evaluated_at ASC`,
 		featureID, phase,
@@ -108,7 +108,7 @@ func (db *DB) GetGateHistoryForPhase(featureID, phase string) ([]GateCheckRow, e
 
 // GetFailedChecks returns all failed checks across all features (for metrics).
 func (db *DB) GetFailedChecks() ([]GateCheckRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT feature_id, phase, check_name, check_passed, check_message, evaluated_at
 		 FROM gate_results WHERE check_passed = 0 ORDER BY evaluated_at DESC LIMIT 100`,
 	)

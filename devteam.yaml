@@ -2,6 +2,19 @@
 
 version: "1.0"
 
+# Database configuration for operational data (features, gate results, sessions, etc.)
+# Defaults to SQLite at .devteam.db in the repo root.
+# For shared/multi-user deployments, use PostgreSQL:
+#   database:
+#     driver: postgres
+#     dsn: "host=localhost port=5432 user=devteam dbname=devteam sslmode=disable"
+# Environment variables override this config:
+#   DEVTEAM_DB_DRIVER=postgres
+#   DEVTEAM_DB_DSN="host=localhost ..."
+database:
+  driver: sqlite3
+  dsn: ""
+
 pipeline:
   human_interaction_timeout_minutes: 30
   phases:

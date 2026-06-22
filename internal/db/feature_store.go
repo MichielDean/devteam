@@ -31,7 +31,7 @@ type PhaseStateRow struct {
 
 // CreateFeature inserts a new feature.
 func (db *DB) CreateFeature(f FeatureRow) error {
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, worktree_dir, created_at, updated_at, recirculation_count)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		f.ID, f.Title, f.CurrentPhase, f.Status, f.Priority, f.IntakePath, f.SpecDir, f.WorktreeDir, f.CreatedAt, f.UpdatedAt, f.RecirculationCount,
@@ -42,7 +42,7 @@ func (db *DB) CreateFeature(f FeatureRow) error {
 
 	// Create phase states for all phases
 	for _, phase := range []string{"inception", "planning", "construction", "review", "testing", "delivery"} {
-		if _, err := db.conn.Exec(
+		if _, err := db.Exec(
 			`INSERT OR IGNORE INTO phase_states (feature_id, phase, status) VALUES (?, ?, 'draft')`,
 			f.ID, phase,
 		); err != nil {
@@ -55,7 +55,7 @@ func (db *DB) CreateFeature(f FeatureRow) error {
 
 // GetFeature retrieves a feature by ID.
 func (db *DB) GetFeature(id string) (*FeatureRow, error) {
-	row := db.conn.QueryRow(
+	row := db.QueryRow(
 		`SELECT id, title, current_phase, status, priority, intake_path, spec_dir, worktree_dir, created_at, updated_at, recirculation_count
 		 FROM features WHERE id = ?`, id,
 	)
@@ -75,7 +75,7 @@ func (db *DB) GetFeature(id string) (*FeatureRow, error) {
 
 // ListFeatures retrieves all features ordered by updated_at desc.
 func (db *DB) ListFeatures() ([]FeatureRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT id, title, current_phase, status, priority, intake_path, spec_dir, worktree_dir, created_at, updated_at, recirculation_count
 		 FROM features ORDER BY updated_at DESC`,
 	)
@@ -99,7 +99,7 @@ func (db *DB) ListFeatures() ([]FeatureRow, error) {
 
 // UpdateFeature updates a feature's mutable fields.
 func (db *DB) UpdateFeature(f FeatureRow) error {
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`UPDATE features SET title = ?, current_phase = ?, status = ?, priority = ?, worktree_dir = ?, updated_at = ?, recirculation_count = ?
 		 WHERE id = ?`,
 		f.Title, f.CurrentPhase, f.Status, f.Priority, f.WorktreeDir, time.Now().UTC(), f.RecirculationCount, f.ID,
@@ -112,7 +112,7 @@ func (db *DB) UpdateFeature(f FeatureRow) error {
 
 // UpdateFeatureStatus updates just the status and current phase.
 func (db *DB) UpdateFeatureStatus(id, status, currentPhase string) error {
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`UPDATE features SET status = ?, current_phase = ?, updated_at = ? WHERE id = ?`,
 		status, currentPhase, time.Now().UTC(), id,
 	)
@@ -124,7 +124,7 @@ func (db *DB) UpdateFeatureStatus(id, status, currentPhase string) error {
 
 // UpdateWorktreeDir sets the worktree directory for a feature.
 func (db *DB) UpdateWorktreeDir(id, worktreeDir string) error {
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`UPDATE features SET worktree_dir = ?, updated_at = ? WHERE id = ?`,
 		worktreeDir, time.Now().UTC(), id,
 	)
@@ -136,7 +136,7 @@ func (db *DB) UpdateWorktreeDir(id, worktreeDir string) error {
 
 // GetPhaseStates retrieves all phase states for a feature.
 func (db *DB) GetPhaseStates(featureID string) (map[string]PhaseStateRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT phase, status, started_at, completed_at FROM phase_states WHERE feature_id = ?`,
 		featureID,
 	)
@@ -165,7 +165,7 @@ func (db *DB) GetPhaseStates(featureID string) (map[string]PhaseStateRow, error)
 
 // UpdatePhaseState updates a phase state for a feature.
 func (db *DB) UpdatePhaseState(featureID, phase, status string, startedAt, completedAt *time.Time) error {
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`UPDATE phase_states SET status = ?, started_at = ?, completed_at = ? WHERE feature_id = ? AND phase = ?`,
 		status, startedAt, completedAt, featureID, phase,
 	)
@@ -177,7 +177,7 @@ func (db *DB) UpdatePhaseState(featureID, phase, status string, startedAt, compl
 
 // DeleteFeature removes a feature and all related data (cascade).
 func (db *DB) DeleteFeature(id string) error {
-	_, err := db.conn.Exec(`DELETE FROM features WHERE id = ?`, id)
+	_, err := db.Exec(`DELETE FROM features WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("deleting feature %s: %w", id, err)
 	}
@@ -187,7 +187,7 @@ func (db *DB) DeleteFeature(id string) error {
 // GetRecirculationCount returns the number of recirculations for a feature.
 func (db *DB) GetRecirculationCount(featureID string) (int, error) {
 	var count int
-	err := db.conn.QueryRow(
+	err := db.QueryRow(
 		`SELECT COUNT(*) FROM recirculations WHERE feature_id = ?`, featureID,
 	).Scan(&count)
 	if err != nil {

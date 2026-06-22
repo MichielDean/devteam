@@ -24,7 +24,7 @@ type QuestionRow struct {
 
 // CreateQuestion inserts a new question.
 func (db *DB) CreateQuestion(q QuestionRow) error {
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`INSERT OR REPLACE INTO questions (id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		q.ID, q.FeatureID, q.Phase, q.Role, q.Question, q.Type, q.Options, q.Answer, q.Status, boolToInt(q.Assumed), q.CreatedAt, q.AnsweredAt,
@@ -37,7 +37,7 @@ func (db *DB) CreateQuestion(q QuestionRow) error {
 
 // GetQuestion retrieves a question by ID.
 func (db *DB) GetQuestion(id string) (*QuestionRow, error) {
-	row := db.conn.QueryRow(
+	row := db.QueryRow(
 		`SELECT id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at
 		 FROM questions WHERE id = ?`, id,
 	)
@@ -61,7 +61,7 @@ func (db *DB) GetQuestion(id string) (*QuestionRow, error) {
 
 // ListQuestions retrieves all questions for a feature.
 func (db *DB) ListQuestions(featureID string) ([]QuestionRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at
 		 FROM questions WHERE feature_id = ? ORDER BY created_at ASC`,
 		featureID,
@@ -90,7 +90,7 @@ func (db *DB) ListQuestions(featureID string) ([]QuestionRow, error) {
 
 // ListPendingQuestions retrieves all pending questions for a feature.
 func (db *DB) ListPendingQuestions(featureID string) ([]QuestionRow, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.Query(
 		`SELECT id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at
 		 FROM questions WHERE feature_id = ? AND status = 'pending' ORDER BY created_at ASC`,
 		featureID,
@@ -120,7 +120,7 @@ func (db *DB) ListPendingQuestions(featureID string) ([]QuestionRow, error) {
 // PendingQuestionCount returns the number of pending questions for a feature.
 func (db *DB) PendingQuestionCount(featureID string) (int, error) {
 	var count int
-	err := db.conn.QueryRow(
+	err := db.QueryRow(
 		`SELECT COUNT(*) FROM questions WHERE feature_id = ? AND status = 'pending'`, featureID,
 	).Scan(&count)
 	if err != nil {
@@ -131,7 +131,7 @@ func (db *DB) PendingQuestionCount(featureID string) (int, error) {
 
 // AnswerQuestion updates a question with the user's answer.
 func (db *DB) AnswerQuestion(id, answer string) error {
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`UPDATE questions SET answer = ?, status = 'answered', answered_at = ? WHERE id = ?`,
 		answer, time.Now().UTC(), id,
 	)
@@ -143,7 +143,7 @@ func (db *DB) AnswerQuestion(id, answer string) error {
 
 // AssumeQuestion marks a question as auto-assumed (timeout).
 func (db *DB) AssumeQuestion(id, assumedAnswer string) error {
-	_, err := db.conn.Exec(
+	_, err := db.Exec(
 		`UPDATE questions SET answer = ?, status = 'assumed', assumed = 1, answered_at = ? WHERE id = ?`,
 		assumedAnswer, time.Now().UTC(), id,
 	)

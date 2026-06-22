@@ -15,6 +15,15 @@ type Config struct {
 	Plugins    map[string]PluginConfig     `yaml:"plugins"`
 	Intake     IntakeConfig               `yaml:"intake"`
 	SpecRepo   SpecRepoConfig             `yaml:"spec_repo"`
+	Database   DatabaseConfig             `yaml:"database"`
+}
+
+// DatabaseConfig configures the database connection.
+// Defaults to SQLite at .devteam.db if not specified.
+// Set driver to "postgres" and provide a DSN for shared/multi-user deployments.
+type DatabaseConfig struct {
+	Driver string `yaml:"driver" json:"driver"` // "sqlite3" (default) or "postgres"
+	DSN    string `yaml:"dsn" json:"dsn"`       // connection string
 }
 
 type PipelineConfig struct {
