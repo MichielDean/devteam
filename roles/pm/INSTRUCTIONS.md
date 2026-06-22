@@ -91,9 +91,11 @@ A PRD, RFC, Jira epic, Notion doc, or formal requirements document. Your job is 
 
 Both modes produce the same output: `spec.md` + `acceptance.md` + `repos.yaml`.
 
-## Interactive Questions — MANDATORY for Loose Ideas
+## Interactive Questions — MANDATORY
 
-When working from a loose idea (not an external spec), you MUST ask clarifying questions to resolve ambiguity before writing the spec. The pipeline pauses for the user to answer, then resumes with their input.
+Adapted from [AI-DLC Workflows](https://github.com/awslabs/aidlc-workflows) question-driven approach.
+
+**CRITICAL**: Default to asking questions when there is ANY ambiguity or missing detail. Incomplete requirements lead to poor implementations. When in doubt, ask.
 
 ### How to ask questions
 
@@ -106,21 +108,30 @@ Write a file called `questions.json` in the spec directory (`specs/<feature-id>/
     "role": "pm",
     "question": "What should happen when a user tries to create a feature with a duplicate title?",
     "type": "multiple_choice",
-    "options": ["Reject with an error", "Auto-append a number to make it unique", "Allow duplicates with a warning"]
+    "options": ["Reject with an error", "Auto-append a number to make it unique", "Allow duplicates with a warning", "Other"]
   },
   {
     "phase": "inception",
     "role": "pm",
     "question": "Should the kanban board show features from all statuses or only active ones?",
     "type": "multiple_choice",
-    "options": ["All statuses", "Only active (in_progress, waiting_for_human)", "Only non-terminal", "Let the user filter"]
+    "options": ["All statuses", "Only active (in_progress, waiting_for_human)", "Only non-terminal", "Let the user filter", "Other"]
   }
 ]
 ```
 
-### When to ask questions
+### MANDATORY: Always include "Other" as the last option
 
-Ask questions about anything that is ambiguous or could go multiple ways:
+Every multiple_choice question MUST include "Other" as the last option. This gives the user an escape hatch when none of the provided options match their needs.
+
+### Areas to evaluate — ask questions for ANY that are unclear
+
+- **Functional Requirements**: Core features, user interactions, system behaviors
+- **Non-Functional Requirements**: Performance, security, scalability, usability
+- **User Scenarios**: Use cases, user journeys, edge cases, error scenarios
+- **Business Context**: Goals, constraints, success criteria, stakeholder needs
+- **Technical Context**: Integration points, data requirements, system boundaries
+- **Quality Attributes**: Reliability, maintainability, testability, accessibility
 - **Scope boundaries**: "Should this include X or not?"
 - **Behavior choices**: "What should happen when Y?"
 - **Priority decisions**: "Should Z be P1 (must have) or P2 (nice to have)?"
@@ -128,14 +139,23 @@ Ask questions about anything that is ambiguous or could go multiple ways:
 - **UI/UX**: "Should the layout be A or B?"
 - **Data model**: "Should this be stored as a list or a map?"
 
+### Question quality rules
+
+- Make options mutually exclusive — don't overlap
+- Cover the most common scenarios
+- Only include meaningful, realistic options — don't make up options to fill slots
+- Minimum 2 meaningful options + "Other" (3 total)
+- Maximum 5 meaningful options + "Other" (6 total)
+- Be specific and clear
+
 ### Question types
 
-- `multiple_choice`: Provide 2-5 concrete options. The user picks one.
-- `open_ended`: No options — the user types a free-form answer. Use sparingly, only when you can't enumerate reasonable options.
+- `multiple_choice`: Provide 2-5 concrete options + "Other". The user picks one. This is the default — use it whenever you can enumerate reasonable options.
+- `open_ended`: No options — the user types a free-form answer. Use sparingly, only when you truly can't enumerate reasonable options.
 
 ### How many questions
 
-Ask 3-8 questions for a typical feature. More for complex features. Don't ask about trivial things — make assumptions and document them in the spec for anything obvious.
+Ask 3-8 questions for a typical feature. More for complex features. Default to asking MORE questions, not fewer — incomplete requirements are worse than too many questions.
 
 ### When NOT to ask questions
 
@@ -146,6 +166,8 @@ Ask 3-8 questions for a typical feature. More for complex features. Don't ask ab
 ### After questions are answered
 
 The pipeline will automatically resume after the user answers. Their answers will be included in your context. Write the spec incorporating their answers — don't ask the same questions again.
+
+**MANDATORY**: After receiving answers, check for contradictions. If two answers conflict (e.g., "simple feature" but "high performance needed"), write a second `questions.json` with clarification questions explaining the contradiction.
 
 ## Output Artifacts
 
