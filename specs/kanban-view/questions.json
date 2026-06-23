@@ -1,134 +1,93 @@
 [
   {
-    "id": "",
-    "feature_id": "",
     "phase": "inception",
     "role": "pm",
-    "question": "When a feature is in a non-terminal phase but its gate has failed (gate_blocked / recirculated), which column should its card appear in on the Kanban board?",
+    "question": "Should the board have a separate \"Backlog\" column for not-yet-started features (status=draft, current_phase=inception), or just the six pipeline phase columns (Inception, Planning, Construction, Review, Testing, Delivery)?",
     "type": "multiple_choice",
     "options": [
-      "Current phase column, with a distinct visual marker (e.g. red/amber badge) to indicate the blocked state",
-      "A dedicated 'Blocked' column appended after Delivery",
-      "Current phase column with no special treatment \u2014 status badge on the card is sufficient",
+      "Six pipeline columns only — draft features appear in the Inception column",
+      "Seven columns: Backlog + six pipeline phases — draft/unstarted features separated from active inception",
       "Other"
-    ],
-    "answer": null,
-    "assumption": null,
-    "status": "",
-    "created_at": "0001-01-01T00:00:00Z",
-    "answered_at": null
+    ]
   },
   {
-    "id": "",
-    "feature_id": "",
     "phase": "inception",
     "role": "pm",
-    "question": "How should the Kanban board handle features whose status is 'draft' (not yet started, no current phase)?",
+    "question": "Which view should be the default when a user first opens the Dashboard (no prior selection remembered)?",
     "type": "multiple_choice",
     "options": [
-      "Place draft features in a 'Backlog' column shown before Inception",
-      "Place draft features in the Inception column",
-      "Exclude draft features from the Kanban board entirely",
+      "List view (existing default — Kanban is opt-in)",
+      "Board/Kanban view (Kanban becomes the primary view, list is the alternate)",
       "Other"
-    ],
-    "answer": null,
-    "assumption": null,
-    "status": "",
-    "created_at": "0001-01-01T00:00:00Z",
-    "answered_at": null
+    ]
   },
   {
-    "id": "",
-    "feature_id": "",
     "phase": "inception",
     "role": "pm",
-    "question": "How should the board handle features that have completed the final phase (Delivery done) \u2014 should they appear in the Delivery column or be filtered out by default?",
+    "question": "How should the user switch between List and Kanban views?",
     "type": "multiple_choice",
     "options": [
-      "Completed features appear in the Delivery column with a 'Done' visual treatment",
-      "Completed features are hidden by default, with a toggle to show them",
-      "Completed features appear in the Delivery column with no special treatment",
+      "In-page toggle control on the Dashboard (single route, segmented List/Board control)",
+      "Separate route (e.g. /kanban) with nav links between the two",
       "Other"
-    ],
-    "answer": null,
-    "assumption": null,
-    "status": "",
-    "created_at": "0001-01-01T00:00:00Z",
-    "answered_at": null
+    ]
   },
   {
-    "id": "",
-    "feature_id": "",
     "phase": "inception",
     "role": "pm",
-    "question": "Should the user be able to move cards between columns by dragging (interactive state change), or is the board read-only with navigation handled by clicking through to the detail page?",
+    "question": "How long should the user's view choice persist?",
     "type": "multiple_choice",
     "options": [
-      "Read-only board \u2014 cards navigate to detail page on click, phase changes happen via existing detail-page controls",
-      "Drag-and-drop to change phase, persisted via the existing advance/recirculate API",
+      "Session only (sessionStorage — resets when browser closes)",
+      "Across sessions (localStorage — remembered permanently)",
+      "Do not persist — always start from the default view",
       "Other"
-    ],
-    "answer": null,
-    "assumption": null,
-    "status": "",
-    "created_at": "0001-01-01T00:00:00Z",
-    "answered_at": null
+    ]
   },
   {
-    "id": "",
-    "feature_id": "",
     "phase": "inception",
     "role": "pm",
-    "question": "Should the Kanban board render all six phase columns (Inception, Planning, Construction, Review, Testing, Delivery) on screen at once, or adapt the number of visible columns to viewport width?",
+    "question": "Should users be able to drag-and-drop cards between columns to change a feature's phase, or is the board view-only?",
     "type": "multiple_choice",
     "options": [
-      "All six columns always rendered, horizontal scroll when viewport is too narrow",
-      "All six columns always rendered, each column shrinks to fit the viewport (cards may be narrow)",
-      "Render as many columns as fit the viewport, horizontal scroll for the rest",
+      "View-only — phase changes happen via the existing pipeline actions on the detail page",
+      "Drag-and-drop enabled — dropping a card in a new column triggers a phase transition",
       "Other"
-    ],
-    "answer": null,
-    "assumption": null,
-    "status": "",
-    "created_at": "0001-01-01T00:00:00Z",
-    "answered_at": null
+    ]
   },
   {
-    "id": "",
-    "feature_id": "",
     "phase": "inception",
     "role": "pm",
-    "question": "When there are many features in a single phase column, how should the column behave?",
+    "question": "How should features with terminal status (done, cancelled) appear on the board?",
     "type": "multiple_choice",
     "options": [
-      "Render all cards in the column (no virtualization, no limit) \u2014 relies on CSS scroll within the column",
-      "Render all cards in the column with a sticky column header so the phase label stays visible while scrolling",
-      "Show a configurable maximum (e.g. 20) with a 'Show N more' expander at the bottom of the column",
+      "Show them in their current_phase column (full retrospective view)",
+      "Hide them from the board (only show active/in-flight work)",
+      "Show them but visually dimmed/greyed in their current_phase column",
       "Other"
-    ],
-    "answer": null,
-    "assumption": null,
-    "status": "",
-    "created_at": "0001-01-01T00:00:00Z",
-    "answered_at": null
+    ]
   },
   {
-    "id": "",
-    "feature_id": "",
     "phase": "inception",
     "role": "pm",
-    "question": "Should the Kanban view preserve the existing sort controls from the list view (by phase / priority / status / updated), or does the Kanban layout make those redundant?",
+    "question": "When a column has more cards than fit the viewport, how should overflow be handled?",
     "type": "multiple_choice",
     "options": [
-      "Cards within each column are sorted by priority (P1 first) then by last-updated descending; no sort controls shown",
-      "Keep the existing sort controls above the board; they reorder cards within each column",
-      "Cards within each column are sorted by last-updated descending only; no sort controls shown",
+      "Vertical scroll within each column (board height bounded to viewport, column headers stay fixed)",
+      "Show a count and a \"+N more\" affordance that expands or navigates",
+      "Let the page scroll normally (no per-column scroll)",
       "Other"
-    ],
-    "answer": null,
-    "assumption": null,
-    "status": "",
-    "created_at": "0001-01-01T00:00:00Z",
-    "answered_at": null
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "What should the board show when a phase column has zero features?",
+    "type": "multiple_choice",
+    "options": [
+      "Render the column with header + muted \"No features\" placeholder (pipeline shape always visible)",
+      "Hide empty columns (only show phases that have features)",
+      "Other"
+    ]
   }
 ]

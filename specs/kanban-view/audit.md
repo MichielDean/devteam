@@ -1,33 +1,30 @@
+
 ## Inception
-**Timestamp**: 2026-06-22T00:00:00Z
+**Timestamp**: 2026-06-22T00:00:00-06:00
 **Action**: Workspace detection + source discovery
-**Details**: Brownfield. Repo = /home/lobsterdog/source/devteam. Go backend (internal/api, internal/feature) + React/TS UI (ui/src). Existing list view: Dashboard.tsx renders FeatureList -> FeatureCard (Link to /features/:id). FeatureSummary has current_phase, status, priority, title, pending_questions_count, gate_result. Phase enum: inception, planning, construction, review, testing, delivery. Status enum: draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human. API: GET /api/features returns FeatureListResponse{features[], total_count}. No constitution.md found. No external RFC/standard governs a Kanban view — pure UI feature. Constraints derived from existing UI conventions (data-testid attributes, dark mode support, empty states, QuestionBadge for pending questions).
+**Details**: Brownfield. Single repo `devteam`. Stack: Go backend + React/TS/Tailwind/Vite frontend (ui/), Playwright e2e on :18765. Existing Dashboard renders FeatureList (sortable grid of FeatureCard). GET /api/features returns FeatureListResponse {features: FeatureSummary[], total_count}. No external RFC/standard governs a UI Kanban view. Constraints derived from internal conventions (AGENTS.md, constitution.md VIII, existing types/index.ts, FeatureCard.tsx, app.spec.ts). Read constitution.md (10 principles) and spec-template.md.
 
 ## Inception
-**Timestamp**: 2026-06-22T00:01:00Z
-**Action**: Questions asked
-**Details**: Wrote specs/kanban-view/questions.json with 7 questions covering: blocked-feature column placement, draft-feature placement, completed-feature visibility, drag-and-drop vs read-only, column layout/scroll strategy, high-volume column behavior, sort-control preservation. All questions multiple_choice with "Other" omitted per template — see note below.
+**Timestamp**: 2026-06-22T00:01:00-06:00
+**Action**: questions.json written
+**Details**: 8 clarifying questions at specs/kanban-view/questions.json covering: (1) Backlog column vs six-phase-only, (2) default view, (3) toggle vs route, (4) persistence scope, (5) drag-and-drop, (6) terminal-status display, (7) overflow handling, (8) empty-column behavior. Every question includes "Other" as last option. Multiple_choice format. Pipeline will pause for human answers.
 
 ## Inception
-**Timestamp**: 2026-06-22T00:02:00Z
-**Action**: Spec written
-**Details**: Wrote specs/kanban-view/spec.md, acceptance.md, repos.yaml. Assumptions documented for each unanswered question per autonomous-mode error-recovery rules (conservative defaults chosen).
+**Timestamp**: 2026-06-22T00:02:00-06:00
+**Action**: spec.md written
+**Details**: Conservative defaults adopted as [ASSUMPTION:] markers pending human answers: List default (FR-003), in-page toggle (no /kanban route), six phase columns only (no Backlog), sessionStorage persistence, view-only (no drag-and-drop), terminal features shown undimmed, vertical-scroll overflow, empty columns rendered with placeholder. 4 user stories (P1: toggle, cards; P2: empty states; P3: overflow). 17 functional requirements. Constraint register with 9 internal constraints (CON-001..CON-009), each with AC. Constitution compliance checked — all 10 principles compliant; security/resiliency extensions N/A (view-only, no new external calls, no mutations).
 
 ## Inception
-**Timestamp**: 2026-06-22T20:30:00Z
-**Action**: Artifacts restored + gate re-verified
-**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree (present in HEAD at commit 48ea369 where gate passed). Restored via `git checkout HEAD --`. Re-verified gate: 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 28 ACs (incl. AC-CON-001..007), 13 [ASSUMPTION:] markers, zero [NEEDS CLARIFICATION]. State file inception.phase=passed with all 15 checks green. No constitution.md. No new work needed — artifacts complete.
-## Inception
-**Timestamp**: 2026-06-22T20:45:00Z
-**Action**: Artifacts restored (again) + questions.json deduped + gate re-verified
-**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree (again; present in HEAD at commit fd90776). Restored via `git checkout HEAD --`. Found questions.json contained 28 entries — 7 unique questions each duplicated 4x. Deduped to 7 unique questions (all multiple_choice with "Other" as last option). Re-verified gate: 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 28 ACs (incl. AC-CON-001..007), 13 [ASSUMPTION:] markers, 0 [NEEDS CLARIFICATION]. State file inception.phase=passed with all 15 checks green. No new spec work needed — artifacts complete. Root cause of repeated deletion: working-tree state lost between dispatches; artifacts safe in git history.
+**Timestamp**: 2026-06-22T00:03:00-06:00
+**Action**: acceptance.md written
+**Details**: 22 acceptance criteria (AC-001..AC-022) across 4 user stories. Given/When/Then format with test level and verification. Test level mix: e2e (Playwright), integration (route interception + network), unit (groupFeaturesByPhase pure function). Constraint traceability table maps each CON to ACs. Error/empty/loading states explicitly covered (AC-006, AC-014, AC-015, AC-017, AC-018). Defensive unknown-enum case as unit test (AC-011).
 
 ## Inception
-**Timestamp**: 2026-06-22T21:05:00Z
-**Action**: Artifacts restored (3rd time) + questions.json dedup re-applied + gate re-verified
-**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree again. Restored spec.md/acceptance.md/repos.yaml via `git checkout HEAD --`. questions.json HEAD blob (72b06dd) still had 28 entries (7 unique ×4) — restored the deduped 7-entry version from commit ef80d47 instead. Re-verified gate programmatically: spec.md has 5 user stories, 17 FRs, 6 SCs, 8 CONs, 13 [ASSUMPTION:] markers, 0 [NEEDS CLARIFICATION]; acceptance.md has 28 ACs (21 story + 7 constraint) across test levels (4 smoke, 2 integration, 19 e2e, 3 unit); repos.yaml identifies devteam primary repo with UI-only changes scoped. State file inception.phase=passed with all 15 checks green. No new spec work needed — artifacts complete and deduplicated.
+**Timestamp**: 2026-06-22T00:04:00-06:00
+**Action**: repos.yaml written
+**Details**: Single repo `devteam` (primary, path .). UI-only changes: new components under ui/src/components/, modified Dashboard.tsx, new e2e under ui/e2e/. No backend changes, no new endpoints, no DTO changes.
 
 ## Inception
-**Timestamp**: 2026-06-22T21:20:00Z
-**Action**: Artifacts restored (5th time) + questions.json dedup re-applied + committed/pushed
-**Details**: PM re-dispatch (gate-blocked re-run after state file reset) found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree again. Restored spec.md/acceptance.md/repos.yaml via `git checkout HEAD --`. Restored deduped 7-entry questions.json from /tmp/kv_q.json (ef80d47 blob). Re-verified gate programmatically: spec.md 5 user stories w/ priorities, 17 FRs (16 `Source: US-` traces), 8 CONs, 6 SCs, 13 [ASSUMPTION:], 1 Edge Cases section, 11 empty-state mentions, HTTP codes present, 0 [NEEDS CLARIFICATION]; acceptance.md 28 ACs all Given/When/Then + Test level, 7 AC-CON references; repos.yaml 1 primary repo. Committed c43aa4e + pushed to main to survive next dispatch. Root cause unchanged: working-tree state lost between dispatches; artifacts safe in git history.
+**Timestamp**: 2026-06-22T00:05:00-06:00
+**Action**: Constitution check
+**Details**: .specify/memory/constitution.md read (v1.1, ratified 2026-06-19). All 10 principles verified compliant. Principle VIII (Go, Minimal Dependencies) — no new npm runtime dep. Principle IX (Pipeline Governance) — security/resiliency extensions evaluated and marked N/A with justification (view-only UI, no auth/input/mutation surface, no new external calls). Compliance table in spec.md.
