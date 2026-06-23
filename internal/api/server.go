@@ -1099,7 +1099,61 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Printf("all questions answered for feature %s, auto-resuming pipeline", id)
+		// Check if the current phase's gate already passed.
+		// If so, advance to the next phase instead of re-running.
+		currentPhase := f.Current
+		if ps, ok := f.PhaseStates[currentPhase]; ok && ps.GateResult != nil && ps.GateResult.Passed {
+			log.Printf("all questions answered for feature %s, gate already passed for %s — advancing", id, currentPhase)
+			
+			// Advance to next phase
+			advanced, err := s.pipeline.AdvanceFeature(f)
+			if err != nil {
+				log.Printf("error advancing feature %s after questions: %v", id, err)
+				s.activeProcess.Delete(id)
+				return
+			}
+			f = advanced
+			
+			// If feature is now done (delivery was the last phase), we're done
+			if f.IsTerminal() {
+				log.Printf("feature %s is done after advancing", id)
+				s.activeProcess.Delete(id)
+				return
+			}
+			
+			// Run the next phase
+			log.Printf("running next phase %s for feature %s", f.Current, id)
+			ctx := context.Background()
+			onOutput := func(line string, isStderr bool) {
+				escaped, _ := json.Marshal(line)
+				s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, id, string(escaped), isStderr))
+			}
+
+			s.broadcastSSE(id, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, id, f.Current))
+			s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched"}`, id, f.Current, s.pipeline.PrimaryRole(f.Current)))
+
+			result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput)
+			s.activeProcess.Delete(id)
+			if err != nil {
+				log.Printf("error running phase after questions: %v", err)
+				s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Phase failed: %s"}`, id, err.Error()))
+				return
+			}
+
+			if result != nil && result.GateResult != nil {
+				checks := make([]map[string]interface{}, 0, len(result.GateResult.Checks))
+				for _, c := range result.GateResult.Checks {
+					checks = append(checks, map[string]interface{}{"name": c.Name, "passed": c.Passed, "message": c.Message})
+				}
+				checksJSON, _ := json.Marshal(checks)
+				s.broadcastSSE(id, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, id, f.Current, result.GateResult.Passed, string(checksJSON)))
+			}
+			s.broadcastSSE(id, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, id, f.Current))
+			return
+		}
+
+		// Gate hasn't passed yet — re-run the current phase with the answers
+		log.Printf("all questions answered for feature %s, re-running %s phase with answers", id, currentPhase)
 		ctx := context.Background()
 		eventCh := make(chan pipeline.ProcessEvent, 100)
 
