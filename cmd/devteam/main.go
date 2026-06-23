@@ -75,8 +75,10 @@ func main() {
 		}
 		defer database.Close()
 
-		// Use SQLite-backed question store (full history, queryable)
+		// Wire database and DB question store into pipeline
 		questionStore := feature.NewDBQuestionStore(database)
+		p.SetDatabase(database)
+		p.SetQuestionStore(questionStore)
 
 		// Serve frontend: use local filesystem (development or after go generate)
 		var staticFS fs.FS

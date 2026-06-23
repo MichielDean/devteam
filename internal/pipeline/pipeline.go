@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/MichielDean/devteam/internal/config"
+	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/gitops"
 	"github.com/MichielDean/devteam/internal/repo"
@@ -29,6 +30,7 @@ type Pipeline struct {
 	questionStore feature.QuestionStore
 	gitClient     *gitops.GitClient
 	repoManager   *repo.Manager
+	database      *db.DB
 }
 
 // Dispatcher returns the role dispatcher (for tmux session management).
@@ -277,6 +279,16 @@ func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline 
 		gitClient:     gitops.NewGitClient(baseDir),
 		repoManager:   repo.NewManager(baseDir),
 	}
+}
+
+// SetDatabase wires the SQLite database into the pipeline for notes, events, and recirculation tracking.
+func (p *Pipeline) SetDatabase(database *db.DB) {
+	p.database = database
+}
+
+// SetQuestionStore overrides the default question store (e.g., with DBQuestionStore).
+func (p *Pipeline) SetQuestionStore(qs feature.QuestionStore) {
+	p.questionStore = qs
 }
 
 func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecProvider, dispatcher *role.Dispatcher) *Pipeline {
@@ -614,17 +626,29 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		contextStr = contextStr + "\n\n---\n\n" + specContext
 	}
 
-	// Include gate failure details if present (for recirculation context)
+	// Include revision notes if present (Cistern recirculation pattern)
+	revisionNotesPath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "REVISION_NOTES.md")
+	if revisionContent, err := os.ReadFile(revisionNotesPath); err == nil {
+		contextStr = contextStr + "\n\n---\n\n# ⚠️ REVISION REQUIRED\n\n" + string(revisionContent)
+	}
+
+	// Include gate failure details if present (fallback safety check)
 	gateFailurePath := filepath.Join(p.specProvider.FeatureDir(f.ID), "GATE_FAILURE.md")
 	if gateFailureContent, err := os.ReadFile(gateFailurePath); err == nil {
 		contextStr = contextStr + "\n\n---\n\n# Gate Failure (Previous Attempt)\n\n" + string(gateFailureContent)
 	}
 
-	// Include phase notes from prior phases (Cistern pattern)
-	notesPath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "NOTES.md")
-	if notesContent, err := os.ReadFile(notesPath); err == nil && len(notesContent) > 0 {
-		contextStr = contextStr + "\n\n---\n\n# Phase Notes (from prior phases)\n\n" + string(notesContent)
+	// Include phase notes from SQLite (Cistern pattern)
+	if p.database != nil {
+		notesContext := p.database.BuildNotesContext(f.ID, string(currentPhase))
+		if notesContext != "" {
+			contextStr = contextStr + notesContext
+		}
 	}
+
+	// Clean up revision notes after they've been included in context
+	revisionNotesPath2 := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "REVISION_NOTES.md")
+	defer os.Remove(revisionNotesPath2)
 
 	// Clean artifacts from any previous run of this phase so the agent starts fresh
 	p.cleanPhaseArtifacts(f, currentPhase)
@@ -645,6 +669,8 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		if phaseInstruction != "" {
 			promptContext = promptContext + "\n\n---\n\n" + phaseInstruction
 		}
+		// Add outcome instructions (Cistern pattern — agent signals pass/recirculate)
+		promptContext = promptContext + outcomeInstructions(currentPhase)
 
 		// Inject impl repo worktree paths so the agent knows where to write.
 		promptContext = promptContext + p.implRepoContext(f, currentPhase)
@@ -676,7 +702,7 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 	}
 
 	ps.GateResult = gateResult
-	if gateResult.Passed {
+	if ps.GateResult.Passed {
 		ps.Status = feature.StatusPassed
 		ps.CompletedAt = &now
 		// Remove GATE_FAILURE.md on success so it doesn't confuse future phases
@@ -703,7 +729,7 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 	}
 
 	// Commit spec artifacts to git after gate passes
-	if gateResult.Passed {
+	if ps.GateResult.Passed {
 		if err := p.commitSpecArtifacts(f, currentPhase); err != nil {
 			log.Printf("warning: could not commit spec artifacts for %s phase %s: %v", f.ID, currentPhase, err)
 		}
@@ -800,6 +826,8 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		if phaseInstruction != "" {
 			promptContext = promptContext + "\n\n---\n\n" + phaseInstruction
 		}
+		// Add outcome instructions (Cistern pattern — agent signals pass/recirculate)
+		promptContext = promptContext + outcomeInstructions(currentPhase)
 
 		// Inject impl repo worktree paths so the agent knows where to write.
 		promptContext = promptContext + p.implRepoContext(f, currentPhase)
@@ -848,31 +876,75 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		roleResults = append(roleResults, result)
 	}
 
-	gateResult, err := NewGateEvaluatorWithCommit(p.specProvider, p.WorktreeDir(f), preDispatchCommit).EvaluateForPhase(f, currentPhase)
-	if err != nil {
-		return nil, fmt.Errorf("evaluating gate for phase %s: %w", currentPhase, err)
+	// Read the agent's outcome (Cistern pattern — agent is the evaluator)
+	outcome := p.ParseOutcome(f, currentPhase)
+	p.DeleteOutcome(f)
+
+	log.Printf("RunPhaseWithAgentStreaming: agent outcome for %s: %s target=%s notes=%d chars",
+		currentPhase, outcome.Result, outcome.Target, len(outcome.Notes))
+
+	// If agent didn't write outcome file, run gate as safety check
+	if !outcome.HasFile {
+		log.Printf("RunPhaseWithAgentStreaming: no outcome file — running gate as safety check")
+		gateResult, err := NewGateEvaluatorWithCommit(p.specProvider, p.WorktreeDir(f), preDispatchCommit).EvaluateForPhase(f, currentPhase)
+		if err != nil {
+			return nil, fmt.Errorf("evaluating gate for phase %s: %w", currentPhase, err)
+		}
+		if ps.GateResult.Passed {
+			outcome.Result = OutcomePass
+		} else {
+			outcome.Result = OutcomeRecirculate
+			outcome.Notes = formatGateFailureAsNotes(gateResult)
+			outcome.Target = string(ResolveRecirculateTarget(currentPhase, ""))
+		}
+		ps.GateResult = gateResult
+	} else {
+		ps.GateResult = &feature.GateResult{
+			Phase:       currentPhase,
+			Passed:      outcome.Result == OutcomePass,
+			EvaluatedAt: time.Now(),
+		}
 	}
 
-	ps.GateResult = gateResult
-	if gateResult.Passed {
+	// Write notes to SQLite
+	if outcome.Notes != "" && p.database != nil {
+		noteType := "summary"
+		if outcome.Result == OutcomeRecirculate {
+			noteType = "revision"
+		}
+		p.database.AddNote(f.ID, string(currentPhase), string(p.PrimaryRole(currentPhase)), noteType, outcome.Notes)
+	}
+
+	// Record event
+	if p.database != nil {
+		eventType := db.EventPhaseComplete
+		if outcome.Result == OutcomeRecirculate {
+			eventType = db.EventRecirculate
+		}
+		p.database.RecordEvent(f.ID, eventType, string(currentPhase), outcome.Notes)
+	}
+
+	if outcome.Result == OutcomePass {
 		ps.Status = feature.StatusPassed
 		ps.CompletedAt = &now
-		// Remove GATE_FAILURE.md on success so it doesn't confuse future phases
 		gateFailurePath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "GATE_FAILURE.md")
 		os.Remove(gateFailurePath)
+	} else if outcome.Result == OutcomeRecirculate {
+		ps.Status = feature.StatusGateBlocked
+		target := ResolveRecirculateTarget(currentPhase, outcome.Target)
+		p.writeRecirculationNotes(f, currentPhase, target, outcome.Notes)
+		if p.database != nil {
+			p.database.AddRecirculation(f.ID, string(currentPhase), string(target), "agent_recirculate", outcome.Notes)
+		}
 	} else {
 		ps.Status = feature.StatusGateBlocked
-		// Write GATE_FAILURE.md so the next run knows what failed
-		if err := p.writeGateFailure(f, currentPhase, gateResult); err != nil {
-			log.Printf("warning: could not write GATE_FAILURE.md: %v", err)
-		}
 	}
 
 	result := &RunResult{
 		Phase:       currentPhase,
 		RoleResults: roleResults,
-		GateResult:  gateResult,
-		Message:     fmt.Sprintf("Phase %s completed. Gate passed: %v", currentPhase, gateResult.Passed),
+		GateResult:  ps.GateResult,
+		Message:     fmt.Sprintf("Phase %s outcome: %s", currentPhase, outcome.Result),
 		Duration:    time.Since(now),
 	}
 
@@ -882,14 +954,14 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 
 	// Commit spec artifacts to git after gate passes.
 	// This ensures specs are tracked and survive branch switches / resets.
-	if gateResult.Passed {
+	if ps.GateResult.Passed {
 		if err := p.commitSpecArtifacts(f, currentPhase); err != nil {
 			log.Printf("warning: could not commit spec artifacts for %s phase %s: %v", f.ID, currentPhase, err)
 		}
 	}
 
 	// When delivery gate passes, mark feature done and create a pull request.
-	if gateResult.Passed && currentPhase == feature.PhaseDelivery {
+	if ps.GateResult.Passed && currentPhase == feature.PhaseDelivery {
 		f.MarkDone()
 		if err := p.specProvider.SaveFeatureState(f); err != nil {
 			log.Printf("warning: could not save feature state after MarkDone: %v", err)
@@ -902,7 +974,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	// Check for questions after inception/planning phases.
 	// The agent writes questions.json in the spec directory; we detect it,
 	// store the questions, and pause the feature for human input.
-	if gateResult.Passed && (currentPhase == feature.PhaseInception || currentPhase == feature.PhasePlanning) {
+	if ps.GateResult.Passed && (currentPhase == feature.PhaseInception || currentPhase == feature.PhasePlanning) {
 		if p.questionStore != nil {
 			// Only check for questions if we haven't already asked questions for this phase
 			// (prevents re-detection loop when phase is re-run after answers)
@@ -944,32 +1016,48 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		}
 	}
 
-	// Auto-advance to the next phase if:
-	// 1. Gate passed
-	// 2. autoAdvance is true (autopilot mode or auto-start)
-	// 3. Not waiting for human (no questions were asked)
-	// 4. Not delivery (delivery marks done, not advances)
-	if gateResult.Passed && autoAdvance && f.Status != feature.StatusWaitingHuman && currentPhase != feature.PhaseDelivery {
-		nextPhase := feature.NextPhase(currentPhase)
-		if nextPhase != "" {
-			log.Printf("RunPhaseWithAgentStreaming: auto-advancing %s from %s to %s", f.ID, currentPhase, nextPhase)
-			advanced, err := p.AdvanceFeature(f)
-			if err != nil {
-				log.Printf("warning: could not auto-advance %s: %v", f.ID, err)
-			} else {
-				f = advanced
-				if err := p.specProvider.SaveFeatureState(f); err != nil {
-					log.Printf("warning: could not save state after auto-advance: %v", err)
-				}
-				// Run the next phase
-				log.Printf("RunPhaseWithAgentStreaming: auto-running next phase %s for %s", nextPhase, f.ID)
-				nextResult, err := p.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
+	// Outcome-based routing (Cistern pattern):
+	// - pass + autoAdvance → advance to next phase and run it
+	// - recirculate + autoAdvance → route to target phase and run it
+	// - pool → stop, notify user
+	// - pass + !autoAdvance → stop, let user advance manually
+	// - waiting_for_human → stop, let user answer questions
+	if autoAdvance && f.Status != feature.StatusWaitingHuman {
+		if outcome.Result == OutcomePass && currentPhase != feature.PhaseDelivery {
+			// Advance to next phase
+			nextPhase := feature.NextPhase(currentPhase)
+			if nextPhase != "" {
+				log.Printf("RunPhaseWithAgentStreaming: auto-advancing %s from %s to %s", f.ID, currentPhase, nextPhase)
+				advanced, err := p.AdvanceFeature(f)
 				if err != nil {
-					log.Printf("warning: auto-advanced phase %s failed: %v", nextPhase, err)
-				} else if nextResult != nil {
-					// Merge gate results from next phase
-					result.GateResult = nextResult.GateResult
+					log.Printf("warning: could not auto-advance %s: %v", f.ID, err)
+				} else {
+					f = advanced
+					p.specProvider.SaveFeatureState(f)
+					log.Printf("RunPhaseWithAgentStreaming: auto-running next phase %s for %s", nextPhase, f.ID)
+					nextResult, err := p.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
+					if err != nil {
+						log.Printf("warning: auto-advanced phase %s failed: %v", nextPhase, err)
+					} else if nextResult != nil {
+						result.GateResult = nextResult.GateResult
+					}
 				}
+			}
+		} else if outcome.Result == OutcomeRecirculate {
+			// Recirculate to target phase (Cistern pattern — send back with notes)
+			target := ResolveRecirculateTarget(currentPhase, outcome.Target)
+			log.Printf("RunPhaseWithAgentStreaming: recirculating %s from %s to %s", f.ID, currentPhase, target)
+			// Move feature back to the target phase
+			f.Current = target
+			f.PhaseStates[target].Status = feature.StatusDraft
+			p.specProvider.SaveFeatureState(f)
+			// Run the target phase with the revision notes in context
+			log.Printf("RunPhaseWithAgentStreaming: running recirculated phase %s for %s", target, f.ID)
+			nextResult, err := p.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
+			if err != nil {
+				log.Printf("warning: recirculated phase %s failed: %v", target, err)
+			} else if nextResult != nil {
+				result.GateResult = nextResult.GateResult
 			}
 		}
 	}

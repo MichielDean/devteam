@@ -167,3 +167,34 @@ func mkdirAll(dir string) error {
 var osMkdirAll = func(dir string, perm os.FileMode) error {
 	return os.MkdirAll(dir, perm)
 }
+
+// Event types for the events table
+const (
+	EventPhaseStart       = "phase_start"
+	EventPhaseComplete    = "phase_complete"
+	EventGatePass         = "gate_pass"
+	EventGateFail         = "gate_fail"
+	EventRecirculate      = "recirculate"
+	EventAdvance          = "advance"
+	EventQuestionAsked    = "question_asked"
+	EventQuestionAnswered = "question_answered"
+	EventQuestionAssumed  = "question_assumed"
+	EventMarkDone         = "mark_done"
+	EventCancel           = "cancel"
+	EventPRCreated        = "pr_created"
+	EventSessionStart     = "session_start"
+	EventSessionEnd       = "session_end"
+	EventLivenessKill     = "liveness_kill"
+)
+
+// RecordEvent inserts an event into the audit trail.
+func (db *DB) RecordEvent(featureID, eventType, phase, details string) error {
+	_, err := db.Exec(
+		`INSERT INTO events (feature_id, event_type, phase, details, created_at) VALUES (?, ?, ?, ?, ?)`,
+		featureID, eventType, phase, details, time.Now().UTC(),
+	)
+	if err != nil {
+		return fmt.Errorf("recording event: %w", err)
+	}
+	return nil
+}
