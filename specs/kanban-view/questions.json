@@ -1,0 +1,86 @@
+[
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "When a feature is in a non-terminal phase but its status is 'gate_blocked' or 'recirculated', which column should the card appear in?",
+    "type": "multiple_choice",
+    "options": [
+      "The column matching its current_phase (e.g. a recirculated planning feature stays in the Planning column)",
+      "A separate 'Blocked' or 'Recirculated' column appended after Delivery",
+      "The column of the phase it was recirculated back to (target_phase)",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should the Kanban board be the default view on the Dashboard, or should the current list view remain default?",
+    "type": "multiple_choice",
+    "options": [
+      "List view stays default; Kanban is opt-in via toggle",
+      "Kanban becomes default; list view is opt-in via toggle",
+      "Remember the user's last choice (persist in localStorage)",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "What card information should be visible on a Kanban card (beyond title)?",
+    "type": "multiple_choice",
+    "options": [
+      "Title + priority + status badge (minimal, matching current FeatureCard)",
+      "Title + priority + status badge + pending questions indicator",
+      "Title + priority + status badge + pending questions indicator + last updated timestamp",
+      "Title + priority + status badge + pending questions indicator + last updated + gate result indicator",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should empty columns (phases with no features) be shown or hidden?",
+    "type": "multiple_choice",
+    "options": [
+      "Always show all six phase columns, even if empty (consistent board layout)",
+      "Hide columns that have zero features (compact board)",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should users be able to drag-and-drop cards between columns to change a feature's phase, or is the board read-only?",
+    "type": "multiple_choice",
+    "options": [
+      "Read-only board (cards move only via the pipeline; clicking navigates to detail)",
+      "Drag-and-drop to advance phase only (forward moves allowed, no skips)",
+      "Full drag-and-drop to any column (admin override of pipeline ordering)",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the board handle a large number of features in a single column (e.g. 50 features in Construction)?",
+    "type": "multiple_choice",
+    "options": [
+      "Scroll within each column independently (CSS overflow-y on column body)",
+      "Show all cards, column grows with page scroll (simple, no pagination)",
+      "Show first 10 cards with a 'show N more' expander inside the column",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "On narrow viewports (mobile / small tablet), how should the six-column board behave?",
+    "type": "multiple_choice",
+    "options": [
+      "Horizontal scroll (board stays 6 columns wide, viewport scrolls sideways)",
+      "Stack columns vertically (each phase becomes a collapsible section)",
+      "Show first 3 columns, horizontally scroll to reveal the rest",
+      "Other"
+    ]
+  }
+]

@@ -1,17 +1,12 @@
-feature_id: kanban-view
-# Repositories affected by the kanban-view feature.
-# This feature is a UI-only change to the Dev Team web app. It adds a Kanban
-# board view over the existing GET /api/features response. No backend changes,
-# no new endpoints, no DTO changes — therefore only the devteam repo is in scope.
 repos:
   - name: devteam
-    path: ~/source/devteam
+    path: .
     role: primary
     changes: >
-      UI-only. Adds KanbanBoard, KanbanColumn, KanbanCard, ViewToggle components
-      and useSessionView hook under ui/src/. Adds groupFeaturesByPhase pure
-      function + unit test. Modifies Dashboard.tsx to render toggle + board.
-      Adds Playwright e2e tests under ui/e2e/kanban.spec.ts. Reuses existing
-      GET /api/features endpoint, FeatureCard visual contract, and react-query
-      ['features'] cache. No changes to internal/api/, internal/feature/, the
-      Go binary, or ui/package.json dependencies.
+      Frontend-only changes in ui/. Add a KanbanBoard component (and a
+      KanbanCard variant or reused FeatureCard) under ui/src/components/.
+      Add a List/Kanban view toggle to ui/src/pages/Dashboard.tsx with
+      localStorage persistence. Add Playwright E2E specs under ui/e2e/ for
+      the board. Add Vitest unit/integration tests for column grouping,
+      unknown-phase handling, and localStorage fallbacks. No backend
+      (internal/, cmd/) changes. No new npm dependencies (CON-007).

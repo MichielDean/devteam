@@ -1,12 +1,12 @@
 id: kanban-view
 title: Kanban View
-current_phase: planning
-status: waiting_for_human
+current_phase: inception
+status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
-created_at: 2026-06-22T23:07:15.271292358-06:00
-updated_at: 2026-06-22T23:18:22.98779943-06:00
+created_at: 2026-06-22T23:26:16.617696577-06:00
+updated_at: 2026-06-22T23:26:16.617808998-06:00
 phase_states:
     construction:
         phase: construction
@@ -69,96 +69,12 @@ phase_states:
                 - name: repos.yaml identifies at least one affected repository
                   passed: true
                   message: ✓ repos.yaml identifies at least one affected repository
-            evaluated_at: 2026-06-22T23:11:12.824808742-06:00
-        started_at: 2026-06-22T23:07:15.276586556-06:00
-        completed_at: 2026-06-22T23:11:15.426658997-06:00
+            evaluated_at: 2026-06-22T23:28:35.667273946-06:00
+        started_at: 2026-06-22T23:26:16.622068491-06:00
+        completed_at: 2026-06-22T23:26:16.622068491-06:00
     planning:
         phase: planning
-        status: gate_blocked
-        gate_result:
-            phase: planning
-            passed: false
-            missing_arts:
-                - plan_md
-                - tasks_md
-                - data_model_md
-                - research_md
-            checks:
-                - name: artifact_plan_md_exists
-                  passed: false
-                  message: artifact plan_md missing (expected at /home/lobsterdog/source/devteam/specs/kanban-view/plan.md)
-                - name: artifact_tasks_md_exists
-                  passed: false
-                  message: artifact tasks_md missing (expected at /home/lobsterdog/source/devteam/specs/kanban-view/tasks.md)
-                - name: artifact_data_model_md_exists
-                  passed: false
-                  message: artifact data_model_md missing (expected at /home/lobsterdog/source/devteam/specs/kanban-view/data-model.md)
-                - name: artifact_research_md_exists
-                  passed: false
-                  message: artifact research_md missing (expected at /home/lobsterdog/source/devteam/specs/kanban-view/research.md)
-                - name: artifact_contracts_dir_exists
-                  passed: true
-                  message: artifact contracts_dir present at /home/lobsterdog/source/devteam/specs/kanban-view/contracts
-                - name: plan.md addresses all acceptance criteria from acceptance.md
-                  passed: false
-                  message: '✗ plan.md addresses all acceptance criteria from acceptance.md (phase: planning, feature: kanban-view)'
-                - name: plan.md includes technical context (language, framework, dependencies)
-                  passed: false
-                  message: '✗ plan.md includes technical context (language, framework, dependencies) (phase: planning, feature: kanban-view)'
-                - name: plan.md includes constitution check (if constitution exists)
-                  passed: true
-                  message: ✓ plan.md includes constitution check (if constitution exists)
-                - name: plan.md includes project structure with file paths
-                  passed: false
-                  message: '✗ plan.md includes project structure with file paths (phase: planning, feature: kanban-view)'
-                - name: plan.md includes component design with responsibilities and interfaces
-                  passed: false
-                  message: '✗ plan.md includes component design with responsibilities and interfaces (phase: planning, feature: kanban-view)'
-                - name: plan.md includes API contracts with request/response schemas and error responses
-                  passed: false
-                  message: '✗ plan.md includes API contracts with request/response schemas and error responses (phase: planning, feature: kanban-view)'
-                - name: plan.md includes test strategy section with testing levels for each component
-                  passed: false
-                  message: '✗ plan.md includes test strategy section with testing levels for each component (phase: planning, feature: kanban-view)'
-                - name: plan.md includes agent failure mode checks for AI-generated code
-                  passed: false
-                  message: '✗ plan.md includes agent failure mode checks for AI-generated code (phase: planning, feature: kanban-view)'
-                - name: plan.md includes constraint verification map tracing constraints to design decisions
-                  passed: false
-                  message: '✗ plan.md includes constraint verification map tracing constraints to design decisions (phase: planning, feature: kanban-view)'
-                - name: plan.md includes cross-component consistency matrix for shared values
-                  passed: false
-                  message: '✗ plan.md includes cross-component consistency matrix for shared values (phase: planning, feature: kanban-view)'
-                - name: research.md documents technical research and existing code patterns
-                  passed: false
-                  message: '✗ research.md documents technical research and existing code patterns (phase: planning, feature: kanban-view)'
-                - name: data-model.md defines entities with attributes, relationships, and constraints
-                  passed: false
-                  message: '✗ data-model.md defines entities with attributes, relationships, and constraints (phase: planning, feature: kanban-view)'
-                - name: contracts/ directory contains API contract files with request/response schemas
-                  passed: true
-                  message: ✓ contracts/ directory contains API contract files with request/response schemas
-                - name: tasks.md contains specific file paths for implementation
-                  passed: false
-                  message: '✗ tasks.md contains specific file paths for implementation (phase: planning, feature: kanban-view)'
-                - name: tasks.md includes done conditions with specific verifiable assertions
-                  passed: false
-                  message: '✗ tasks.md includes done conditions with specific verifiable assertions (phase: planning, feature: kanban-view)'
-                - name: tasks.md includes test level required for each task
-                  passed: false
-                  message: '✗ tasks.md includes test level required for each task (phase: planning, feature: kanban-view)'
-                - name: tasks.md includes constraint references (CON- IDs) for constrained tasks
-                  passed: false
-                  message: '✗ tasks.md includes constraint references (CON- IDs) for constrained tasks (phase: planning, feature: kanban-view)'
-                - name: tasks.md organized by user story priority
-                  passed: false
-                  message: '✗ tasks.md organized by user story priority (phase: planning, feature: kanban-view)'
-                - name: dependencies between tasks are explicit
-                  passed: false
-                  message: '✗ dependencies between tasks are explicit (phase: planning, feature: kanban-view)'
-            evaluated_at: 2026-06-22T23:24:15.3430074-06:00
-        started_at: 2026-06-22T23:23:51.791525105-06:00
-        completed_at: 2026-06-22T23:11:15.432105375-06:00
+        status: draft
     review:
         phase: review
         status: draft
