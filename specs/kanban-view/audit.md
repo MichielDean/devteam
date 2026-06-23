@@ -12,3 +12,8 @@
 **Timestamp**: 2026-06-22T00:02:00Z
 **Action**: Spec written
 **Details**: Wrote specs/kanban-view/spec.md, acceptance.md, repos.yaml. Assumptions documented for each unanswered question per autonomous-mode error-recovery rules (conservative defaults chosen).
+
+## Inception
+**Timestamp**: 2026-06-22T20:30:00Z
+**Action**: Artifacts restored + gate re-verified
+**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree (present in HEAD at commit 48ea369 where gate passed). Restored via `git checkout HEAD --`. Re-verified gate: 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 28 ACs (incl. AC-CON-001..007), 13 [ASSUMPTION:] markers, zero [NEEDS CLARIFICATION]. State file inception.phase=passed with all 15 checks green. No constitution.md. No new work needed — artifacts complete.
