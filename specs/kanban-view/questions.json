@@ -1,0 +1,85 @@
+[
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "When a feature is in a non-terminal phase but its gate has failed (gate_blocked / recirculated), which column should its card appear in on the Kanban board?",
+    "type": "multiple_choice",
+    "options": [
+      "Current phase column, with a distinct visual marker (e.g. red/amber badge) to indicate the blocked state",
+      "A dedicated 'Blocked' column appended after Delivery",
+      "Current phase column with no special treatment — status badge on the card is sufficient",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the Kanban board handle features whose status is 'draft' (not yet started, no current phase)?",
+    "type": "multiple_choice",
+    "options": [
+      "Place draft features in a 'Backlog' column shown before Inception",
+      "Place draft features in the Inception column",
+      "Exclude draft features from the Kanban board entirely",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the board handle features that have completed the final phase (Delivery done) — should they appear in the Delivery column or be filtered out by default?",
+    "type": "multiple_choice",
+    "options": [
+      "Completed features appear in the Delivery column with a 'Done' visual treatment",
+      "Completed features are hidden by default, with a toggle to show them",
+      "Completed features appear in the Delivery column with no special treatment",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should the user be able to move cards between columns by dragging (interactive state change), or is the board read-only with navigation handled by clicking through to the detail page?",
+    "type": "multiple_choice",
+    "options": [
+      "Read-only board — cards navigate to detail page on click, phase changes happen via existing detail-page controls",
+      "Drag-and-drop to change phase, persisted via the existing advance/recirculate API",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should the Kanban board render all six phase columns (Inception, Planning, Construction, Review, Testing, Delivery) on screen at once, or adapt the number of visible columns to viewport width?",
+    "type": "multiple_choice",
+    "options": [
+      "All six columns always rendered, horizontal scroll when viewport is too narrow",
+      "All six columns always rendered, each column shrinks to fit the viewport (cards may be narrow)",
+      "Render as many columns as fit the viewport, horizontal scroll for the rest",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "When there are many features in a single phase column, how should the column behave?",
+    "type": "multiple_choice",
+    "options": [
+      "Render all cards in the column (no virtualization, no limit) — relies on CSS scroll within the column",
+      "Render all cards in the column with a sticky column header so the phase label stays visible while scrolling",
+      "Show a configurable maximum (e.g. 20) with a 'Show N more' expander at the bottom of the column",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should the Kanban view preserve the existing sort controls from the list view (by phase / priority / status / updated), or does the Kanban layout make those redundant?",
+    "type": "multiple_choice",
+    "options": [
+      "Cards within each column are sorted by priority (P1 first) then by last-updated descending; no sort controls shown",
+      "Keep the existing sort controls above the board; they reorder cards within each column",
+      "Cards within each column are sorted by last-updated descending only; no sort controls shown",
+      "Other"
+    ]
+  }
+]

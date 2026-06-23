@@ -1,12 +1,11 @@
 repos:
   - name: devteam
-    path: .
+    path: /home/lobsterdog/source/devteam
     role: primary
     changes: |
-      UI-only change. Add a KanbanBoard view component and a view toggle to the Dashboard.
-      New files: ui/src/components/KanbanBoard.tsx, ui/src/components/ViewToggle.tsx (or inline in Dashboard).
-      Modified files: ui/src/pages/Dashboard.tsx (render Board or List per toggle; hide toggle on empty state),
-      ui/src/types/index.ts (no new types required — reuses FeatureSummary, PHASES, PHASE_LABELS, STATUS_LABELS, PRIORITY_LABELS).
-      New e2e: ui/e2e/kanban.spec.ts covering AC-001 through AC-022.
-      New unit: ui/src/components/KanbanBoard.test.ts (or co-located) for the groupFeaturesByPhase pure function (AC-011).
-      No backend changes. No new API endpoints. No new npm dependencies. No new Go files.
+      UI-only changes. Add KanbanBoard + KanbanColumn React components under ui/src/components/.
+      Add a view-mode toggle to ui/src/pages/Dashboard.tsx with localStorage persistence.
+      Reuse the existing FeatureCard (or a thin board-card variant sharing its badge logic) and
+      the existing GET /api/features API client (no backend changes). Add Playwright E2E coverage
+      in ui/e2e/app.spec.ts and unit tests for the phase-grouping / status-classification helpers.
+      No Go changes, no database changes, no new API endpoints.
