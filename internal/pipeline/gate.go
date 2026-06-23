@@ -16,6 +16,7 @@ type GateEvaluator struct {
 	specProvider     *spec.SpecProvider
 	lastCheckOutput string
 	workDir          string
+	preDispatchCommit string // git commit hash before agent ran — diff against this
 }
 
 func NewGateEvaluator(specProvider *spec.SpecProvider) *GateEvaluator {
@@ -30,6 +31,16 @@ func NewGateEvaluatorWithWorkDir(specProvider *spec.SpecProvider, workDir string
 	return &GateEvaluator{
 		specProvider: specProvider,
 		workDir:       workDir,
+	}
+}
+
+// NewGateEvaluatorWithCommit creates a gate evaluator that diffs against
+// a specific commit hash (the commit before the agent ran).
+func NewGateEvaluatorWithCommit(specProvider *spec.SpecProvider, workDir, preDispatchCommit string) *GateEvaluator {
+	return &GateEvaluator{
+		specProvider:      specProvider,
+		workDir:           workDir,
+		preDispatchCommit: preDispatchCommit,
 	}
 }
 
@@ -758,24 +769,24 @@ func (ge *GateEvaluator) checkNoPlaceholders(f *feature.Feature) bool {
 func (ge *GateEvaluator) checkCodeDiff(f *feature.Feature) bool {
 	workDir := ge.workDirOr(f)
 
-	// Get git diff against origin/main — the spec worktree was branched from here
-	cmd := exec.Command("git", "diff", "--name-only", "origin/main")
-	cmd.Dir = workDir
-	output, err := cmd.Output()
-	if err != nil {
-		// Fallback: try HEAD~1
-		cmd2 := exec.Command("git", "diff", "--name-only", "HEAD~1")
-		cmd2.Dir = workDir
-		output, err = cmd2.Output()
+	// Diff against the pre-dispatch commit if available — this ensures
+	// we only count files the agent actually changed, not pre-existing
+	// changes from before the phase started.
+	var output []byte
+	var err error
+	if ge.preDispatchCommit != "" {
+		cmd := exec.Command("git", "diff", "--name-only", ge.preDispatchCommit)
+		cmd.Dir = workDir
+		output, err = cmd.Output()
+	}
+	if err != nil || len(output) == 0 {
+		// Fallback: uncommitted changes (git status --porcelain)
+		cmd := exec.Command("git", "status", "--porcelain")
+		cmd.Dir = workDir
+		output, err = cmd.Output()
 		if err != nil {
-			// Fallback: try git status for uncommitted changes
-			cmd3 := exec.Command("git", "status", "--porcelain")
-			cmd3.Dir = workDir
-			output, err = cmd3.Output()
-			if err != nil {
-				ge.lastCheckOutput = fmt.Sprintf("could not get git diff: %v", err)
-				return false
-			}
+			ge.lastCheckOutput = fmt.Sprintf("could not get git diff: %v", err)
+			return false
 		}
 	}
 
@@ -831,15 +842,18 @@ func (ge *GateEvaluator) checkCodeDiff(f *feature.Feature) bool {
 func (ge *GateEvaluator) checkNewTestFiles(f *feature.Feature) bool {
 	workDir := ge.workDirOr(f)
 
-	// Get git diff to find new/modified test files
-	cmd := exec.Command("git", "diff", "--name-only", "origin/main")
-	cmd.Dir = workDir
-	output, err := cmd.Output()
-	if err != nil {
-		// Try HEAD~1
-		cmd2 := exec.Command("git", "diff", "--name-only", "HEAD~1")
-		cmd2.Dir = workDir
-		output, err = cmd2.Output()
+	// Diff against pre-dispatch commit if available
+	var output []byte
+	var err error
+	if ge.preDispatchCommit != "" {
+		cmd := exec.Command("git", "diff", "--name-only", ge.preDispatchCommit)
+		cmd.Dir = workDir
+		output, err = cmd.Output()
+	}
+	if err != nil || len(output) == 0 {
+		cmd := exec.Command("git", "status", "--porcelain")
+		cmd.Dir = workDir
+		output, err = cmd.Output()
 		if err != nil {
 			ge.lastCheckOutput = fmt.Sprintf("could not get git diff: %v", err)
 			return false
