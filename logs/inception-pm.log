@@ -2500,3 +2500,506 @@ ok ef80d47
 [0m
 Error: unknown command "hook" for "llmem"
 Run 'llmem --help' for usage.
+Error: unknown command "context" for "llmem"
+Run 'llmem --help' for usage.
+2026/06/22 20:33:16 INFO llmem: store: vec shadow table populated embeddings=517 total=517
+[0m
+> pm · glm-5.2:cloud
+[0m
+[0m→ [0mRead /tmp/devteam-pm-2083785121/CONTEXT.md
+[0m→ [0mRead /tmp/devteam-pm-2083785121/agents/pm.md
+[0m→ [0mRead /tmp/devteam-pm-2083785121/CONTEXT.md[90m [offset=1059][0m
+[0m→ [0mRead /tmp/devteam-pm-2083785121/CONTEXT.md[90m [offset=1974][0m
+[0m
+[0m$ [0mrtk ls -la /home/lobsterdog/source/devteam/specs/ 2>/dev/null; echo "---"; rtk git -C /home/lobsterdog/source/devteam worktree list 2>/dev/null; echo "---"; rtk ls /tmp/devteam-pm-2083785121/
+775  001-dev-team-platform/
+775  002-dev-team-web-ui/
+775  003-human-interaction-points/
+775  feature-spec-count-badge---show-total-count-of-feature-specs/
+775  human-interaction-points---allow-the-pipeline-to-pause-for-h/
+755  kanban-view/
+---
+~/source/devteam 56d6915 [main]
+~/source/devteam/worktrees/kanban-view/devteam adce1b7 [feature/kanban-view]
+~/worktrees/devteam-fix/clean-artifacts-before-phase 4f00403 [fix/clean-artifacts-before-phase]
+~/worktrees/devteam-fix/delivery-no-retest f6dc656 [fix/delivery-no-retest]
+~/worktrees/devteam-specs/kanban-view f7ff22b [spec/kanban-view] prunable
+---
+agents/
+.gitignore  63B
+CONTEXT.md  109.0K
+package-lock.json  13.5K
+package.json  65B
+[0m
+[0m$ [0mrtk ls -la /home/lobsterdog/source/devteam/specs/kanban-view/ 2>/dev/null; echo "---worktree---"; rtk ls -la /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/specs/ 2>/dev/null; echo "---spec-branch---"; rtk ls -la /home/lobsterdog/worktrees/devteam-specs/kanban-view/ 2>/dev/null
+644  .devteam-state.yaml  4.1K
+644  CONTEXT.md  109.0K
+664  audit.md  3.0K
+644  input.md  835B
+---worktree---
+775  001-dev-team-platform/
+775  002-dev-team-web-ui/
+775  003-human-interaction-points/
+775  feature-spec-count-badge---show-total-count-of-feature-specs/
+775  human-interaction-points---allow-the-pipeline-to-pause-for-h/
+775  kanban-view/
+---spec-branch---
+[0m
+[0m$ [0mrtk ls -la /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/specs/kanban-view/ 2>/dev/null; echo "---root specs/kanban---"; rtk cat /home/lobsterdog/source/devteam/specs/kanban-view/.devteam-state.yaml 2>/dev/null; echo "---audit---"; rtk cat /home/lobsterdog/source/devteam/specs/kanban-view/audit.md 2>/dev/null
+775  contracts/
+664  .devteam-state.yaml  7.0K
+664  CONTEXT.md  108.9K
+664  acceptance.md  9.2K
+664  data-model.md  6.4K
+664  input.md  803B
+664  plan.md  25.2K
+664  repos.yaml  783B
+664  research.md  6.9K
+664  spec.md  21.3K
+664  tasks.md  22.4K
+---root specs/kanban---
+id: kanban-view
+title: Kanban View
+current_phase: inception
+status: in_progress
+priority: 1
+intake_path: loose_idea
+spec_dir: specs/kanban-view/
+created_at: 2026-06-22T20:25:56.205046849-06:00
+updated_at: 2026-06-22T20:33:13.141180584-06:00
+phase_states:
+    construction:
+        phase: construction
+        status: draft
+    delivery:
+        phase: delivery
+        status: draft
+    inception:
+        phase: inception
+        status: passed
+        gate_result:
+            phase: inception
+            passed: true
+            checks:
+                - name: artifact_spec_md_exists
+                  passed: true
+                  message: artifact spec_md present at /home/lobsterdog/source/devteam/specs/kanban-view/spec.md
+                - name: artifact_acceptance_md_exists
+                  passed: true
+                  message: artifact acceptance_md present at /home/lobsterdog/source/devteam/specs/kanban-view/acceptance.md
+                - name: artifact_repos_yaml_exists
+                  passed: true
+                  message: artifact repos_yaml present at /home/lobsterdog/source/devteam/specs/kanban-view/repos.yaml
+                - name: spec.md contains at least one user story with priority
+                  passed: true
+                  message: ✓ spec.md contains at least one user story with priority
+                - name: spec.md contains functional requirements traced to user stories
+                  passed: true
+                  message: ✓ spec.md contains functional requirements traced to user stories
+                - name: spec.md contains error scenarios with specific HTTP status codes
+                  passed: true
+                  message: ✓ spec.md contains error scenarios with specific HTTP status codes
+                - name: spec.md contains empty state behavior for collections
+                  passed: true
+                  message: ✓ spec.md contains empty state behavior for collections
+                - name: spec.md contains assumptions marked with [ASSUMPTION:]
+                  passed: true
+                  message: ✓ spec.md contains assumptions marked with [ASSUMPTION:]
+                - name: spec.md contains constraint register with source references
+                  passed: true
+                  message: ✓ spec.md contains constraint register with source references
+                - name: spec.md contains user stories following SpecKit template format (P1, P2 priorities)
+                  passed: true
+                  message: ✓ spec.md contains user stories following SpecKit template format (P1, P2 priorities)
+                - name: spec.md contains success criteria that are measurable
+                  passed: true
+                  message: ✓ spec.md contains success criteria that are measurable
+                - name: spec.md contains edge cases section
+                  passed: true
+                  message: ✓ spec.md contains edge cases section
+                - name: acceptance.md contains at least one verifiable criterion per user story
+                  passed: true
+                  message: ✓ acceptance.md contains at least one verifiable criterion per user story
+                - name: acceptance.md criteria follow Given/When/Then format with test level
+                  passed: true
+                  message: ✓ acceptance.md criteria follow Given/When/Then format with test level
+                - name: acceptance.md contains constraint-derived criteria referencing CON- IDs
+                  passed: true
+                  message: ✓ acceptance.md contains constraint-derived criteria referencing CON- IDs
+                - name: repos.yaml identifies at least one affected repository
+                  passed: true
+                  message: ✓ repos.yaml identifies at least one affected repository
+            evaluated_at: 2026-06-22T20:33:00.012228691-06:00
+        started_at: 2026-06-22T20:31:27.970962955-06:00
+        completed_at: 2026-06-22T20:31:27.970962955-06:00
+    planning:
+        phase: planning
+        status: draft
+    review:
+        phase: review
+        status: draft
+    testing:
+        phase: testing
+        status: draft
+---audit---
+## Inception
+**Timestamp**: 2026-06-22T00:00:00Z
+**Action**: Workspace detection + source discovery
+**Details**: Brownfield. Repo = /home/lobsterdog/source/devteam. Go backend (internal/api, internal/feature) + React/TS UI (ui/src). Existing list view: Dashboard.tsx renders FeatureList -> FeatureCard (Link to /features/:id). FeatureSummary has current_phase, status, priority, title, pending_questions_count, gate_result. Phase enum: inception, planning, construction, review, testing, delivery. Status enum: draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human. API: GET /api/features returns FeatureListResponse{features[], total_count}. No constitution.md found. No external RFC/standard governs a Kanban view — pure UI feature. Constraints derived from existing UI conventions (data-testid attributes, dark mode support, empty states, QuestionBadge for pending questions).
+
+## Inception
+**Timestamp**: 2026-06-22T00:01:00Z
+**Action**: Questions asked
+**Details**: Wrote specs/kanban-view/questions.json with 7 questions covering: blocked-feature column placement, draft-feature placement, completed-feature visibility, drag-and-drop vs read-only, column layout/scroll strategy, high-volume column behavior, sort-control preservation. All questions multiple_choice with "Other" omitted per template — see note below.
+
+## Inception
+**Timestamp**: 2026-06-22T00:02:00Z
+**Action**: Spec written
+**Details**: Wrote specs/kanban-view/spec.md, acceptance.md, repos.yaml. Assumptions documented for each unanswered question per autonomous-mode error-recovery rules (conservative defaults chosen).
+
+## Inception
+**Timestamp**: 2026-06-22T20:30:00Z
+**Action**: Artifacts restored + gate re-verified
+**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree (present in HEAD at commit 48ea369 where gate passed). Restored via `git checkout HEAD --`. Re-verified gate: 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 28 ACs (incl. AC-CON-001..007), 13 [ASSUMPTION:] markers, zero [NEEDS CLARIFICATION]. State file inception.phase=passed with all 15 checks green. No constitution.md. No new work needed — artifacts complete.
+## Inception
+**Timestamp**: 2026-06-22T20:45:00Z
+**Action**: Artifacts restored (again) + questions.json deduped + gate re-verified
+**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree (again; present in HEAD at commit fd90776). Restored via `git checkout HEAD --`. Found questions.json contained 28 entries — 7 unique questions each duplicated 4x. Deduped to 7 unique questions (all multiple_choice with "Other" as last option). Re-verified gate: 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 28 ACs (incl. AC-CON-001..007), 13 [ASSUMPTION:] markers, 0 [NEEDS CLARIFICATION]. State file inception.phase=passed with all 15 checks green. No new spec work needed — artifacts complete. Root cause of repeated deletion: working-tree state lost between dispatches; artifacts safe in git history.
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam status --short specs/kanban-view/ 2>/dev/null; echo "---ls working---"; rtk ls -la /home/lobsterdog/source/devteam/specs/kanban-view/ 2>/dev/null; echo "---HEAD has---"; rtk git -C /home/lobsterdog/source/devteam ls-tree HEAD specs/kanban-view/ 2>/dev/null
+M specs/kanban-view/.devteam-state.yaml
+ D specs/kanban-view/acceptance.md
+ D specs/kanban-view/questions.json
+ D specs/kanban-view/repos.yaml
+ D specs/kanban-view/spec.md---ls working---
+644  .devteam-state.yaml  4.1K
+644  CONTEXT.md  109.0K
+664  audit.md  3.0K
+644  input.md  835B
+---HEAD has---
+100644 blob 21f8ff62b4a70344505cc4c27efc100cd3cf4076	specs/kanban-view/.devteam-state.yaml
+100644 blob eb27818290a85ab151639613be68f282e2d98d49	specs/kanban-view/CONTEXT.md
+100644 blob 5e05d593da96bf6e343f9acbe08973ae13d3490e	specs/kanban-view/acceptance.md
+100644 blob e0abc2052bf5190918b023b554c26ae46a6c170f	specs/kanban-view/audit.md
+100644 blob 00ff62998d7f8b3c01aa0f4a545bdfc1738e31d6	specs/kanban-view/input.md
+100644 blob 72b06dd1c55a2bf0b231965c5329b14bcfb2325f	specs/kanban-view/questions.json
+100644 blob 419296905243f24f2f0de71cc2b09f3fd135e5f4	specs/kanban-view/repos.yaml
+100644 blob 9955341352ba866a50f3db29c65fde8e556f3c8d	specs/kanban-view/spec.md
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam checkout HEAD -- specs/kanban-view/spec.md specs/kanban-view/acceptance.md specs/kanban-view/repos.yaml specs/kanban-view/questions.json && rtk ls -la /home/lobsterdog/source/devteam/specs/kanban-view/
+644  .devteam-state.yaml  4.1K
+644  CONTEXT.md  109.0K
+664  acceptance.md  11.7K
+664  audit.md  3.0K
+644  input.md  835B
+664  questions.json  20.5K
+664  repos.yaml  643B
+664  spec.md  21.5K
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam status --short specs/kanban-view/
+M specs/kanban-view/.devteam-state.yaml
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam log --oneline -5 -- specs/kanban-view/spec.md
+48ea369 spec: inception phase complete for kanban-view
+5dfda6a spec(kanban-view): flip default view to Board per human input
+aafbeb1 spec: inception phase complete for kanban-view
+1213a7e spec: inception phase complete for kanban-view
+42a7dd4 restore: kanban-view specs recovered from reflog (commit 6efc8dc)
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/source/devteam/.specify/templates/ 2>/dev/null; echo "---constitution---"; rtk ls /home/lobsterdog/source/devteam/constitution.md /home/lobsterdog/source/devteam/.specify/constitution.md 2>/dev/null; echo "---questions.json head---"; rtk git -C /home/lobsterdog/source/devteam show HEAD:specs/kanban-view/questions.json | head -60
+checklist-template.md  1.3K
+constitution-template.md  2.3K
+plan-template.md  3.6K
+spec-template.md  4.4K
+tasks-template.md  9.0K
+---constitution---
+---questions.json head---
+[
+  {
+    "id": "",
+    "feature_id": "",
+    "phase": "inception",
+    "role": "pm",
+    "question": "When a feature is in a non-terminal phase but its gate has failed (gate_blocked / recirculated), which column should its card appear in on the Kanban board?",
+    "type": "multiple_choice",
+    "options": [
+      "Current phase column, with a distinct visual marker (e.g. red/amber badge) to indicate the blocked state",
+      "A dedicated 'Blocked' column appended after Delivery",
+      "Current phase column with no special treatment — status badge on the card is sufficient",
+      "Other"
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
+  },
+  {
+    "id": "",
+    "feature_id": "",
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the Kanban board handle features whose status is 'draft' (not yet started, no current phase)?",
+    "type": "multiple_choice",
+    "options": [
+      "Place draft features in a 'Backlog' column shown before Inception",
+      "Place draft features in the Inception column",
+      "Exclude draft features from the Kanban board entirely",
+      "Other"
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
+  },
+  {
+    "id": "",
+    "feature_id": "",
+    "phase": "inception",
+    "role": "pm",
+    "question": "How should the board handle features that have completed the final phase (Delivery done) — should they appear in the Delivery column or be filtered out by default?",
+    "type": "multiple_choice",
+    "options": [
+      "Completed features appear in the Delivery column with a 'Done' visual treatment",
+      "Completed features are hidden by default, with a toggle to show them",
+      "Completed features appear in the Delivery column with no special treatment",
+      "Other"
+    ],
+    "answer": null,
+    "assumption": null,
+    "status": "",
+    "created_at": "0001-01-01T00:00:00Z",
+    "answered_at": null
+  },
+  {
+    "id": "",
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam show HEAD:specs/kanban-view/questions.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('total entries:', len(d)); seen=set(); uniq=[]; [seen.add(q['question']) or uniq.append(q) for q in d if q['question'] not in seen]; print('unique:', len(uniq)); print('all have Other:', all('Other' in q['options'] for q in d))"
+total entries: 28
+unique: 7
+all have Other: True
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam show HEAD:specs/kanban-view/repos.yaml
+repos:
+  - name: devteam
+    path: /home/lobsterdog/source/devteam
+    role: primary
+    changes: |
+      UI-only changes. Add KanbanBoard + KanbanColumn React components under ui/src/components/.
+      Add a view-mode toggle to ui/src/pages/Dashboard.tsx with localStorage persistence.
+      Reuse the existing FeatureCard (or a thin board-card variant sharing its badge logic) and
+      the existing GET /api/features API client (no backend changes). Add Playwright E2E coverage
+      in ui/e2e/app.spec.ts and unit tests for the phase-grouping / status-classification helpers.
+      No Go changes, no database changes, no new API endpoints.
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam show HEAD:specs/kanban-view/questions.json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+seen=set()
+uniq=[]
+for q in d:
+    if q['question'] not in seen:
+        seen.add(q['question'])
+        uniq.append(q)
+with open('/tmp/kanban-q-clean.json','w') as f:
+    json.dump(uniq,f,indent=2)
+print('wrote', len(uniq), 'unique questions')
+"
+cat /tmp/kanban-q-clean.json | python3 -c "import json,sys; d=json.load(sys.stdin); [print(i, q['question'][:80], '| opts:', len(q['options']), '| Other:', 'Other' in q['options']) for i,q in enumerate(d)]"
+wrote 7 unique questions
+0 When a feature is in a non-terminal phase but its gate has failed (gate_blocked  | opts: 4 | Other: True
+1 How should the Kanban board handle features whose status is 'draft' (not yet sta | opts: 4 | Other: True
+2 How should the board handle features that have completed the final phase (Delive | opts: 4 | Other: True
+3 Should the user be able to move cards between columns by dragging (interactive s | opts: 3 | Other: True
+4 Should the Kanban board render all six phase columns (Inception, Planning, Const | opts: 4 | Other: True
+5 When there are many features in a single phase column, how should the column beh | opts: 4 | Other: True
+6 Should the Kanban view preserve the existing sort controls from the list view (b | opts: 4 | Other: True
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam log --oneline -8 -- specs/kanban-view/questions.json
+56d6915 inception: complete kanban-view phase for inception
+ef80d47 spec(kanban-view): restore inception artifacts, dedup questions.json
+fd90776 inception: complete kanban-view phase for inception
+48ea369 spec: inception phase complete for kanban-view
+15effb4 spec: inception phase complete for kanban-view
+d9cfb59 inception: complete kanban-view phase for inception
+b037ae2 spec(kanban-view): dedupe questions.json + log resumption audit
+5939130 inception: complete kanban-view phase for inception
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam show ef80d47:specs/kanban-view/questions.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('count:', len(d))" 2>/dev/null; echo "---"; rtk git -C /home/lobsterdog/source/devteam show 56d6915:specs/kanban-view/questions.json | python3 -c "import json,sys; d=json.load(sys.stdin); print('count:', len(d))" 2>/dev/null
+count: 7
+---
+count: 28
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam show ef80d47:specs/kanban-view/questions.json > /home/lobsterdog/source/devteam/specs/kanban-view/questions.json && rtk git -C /home/lobsterdog/source/devteam show HEAD:specs/kanban-view/questions.json | python3 -c "import json,sys; d=json.load(sys.stdin); seen=set(); uniq=[q for q in d if q['question'] not in seen and not seen.add(q['question'])]; print('HEAD uniq:', len(uniq))"; python3 -c "import json; d=json.load(open('/home/lobsterdog/source/devteam/specs/kanban-view/questions.json')); print('working now:', len(d))"
+HEAD uniq: 7
+working now: 7
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam status --short specs/kanban-view/
+M specs/kanban-view/.devteam-state.yaml
+ M specs/kanban-view/questions.json
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam diff specs/kanban-view/.devteam-state.yaml | head -40
+specs/kanban-view/.devteam-state.yaml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+Changes:
+
+specs/kanban-view/.devteam-state.yaml
+  @@ -1,12 +1,12 @@
+  -status: waiting_for_human
+  +status: in_progress
+   priority: 1
+   intake_path: loose_idea
+   spec_dir: specs/kanban-view/
+   created_at: 2026-06-22T20:25:56.205046849-06:00
+  -updated_at: 2026-06-22T20:33:02.544638688-06:00
+  +updated_at: 2026-06-22T20:33:13.141180584-06:00
+   phase_states:
+       construction:
+           phase: construction
+  +2 -2
+[0m
+[0m$ [0mrtk grep -c "NEEDS CLARIFICATION" /home/lobsterdog/source/devteam/specs/kanban-view/spec.md /home/lobsterdog/source/devteam/specs/kanban-view/acceptance.md 2>/dev/null; echo "---ASSUMPTION count---"; rtk grep -c "ASSUMPTION:" /home/lobsterdog/source/devteam/specs/kanban-view/spec.md
+/home/lobsterdog/source/devteam/specs/kanban-view/spec.md:0
+/home/lobsterdog/source/devteam/specs/kanban-view/acceptance.md:0
+---ASSUMPTION count---
+13
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam branch --show-current; rtk git -C /home/lobsterdog/source/devteam log --oneline -3
+main
+56d6915 inception: complete kanban-view phase for inception
+07b798e spec: inception phase complete for kanban-view
+ef80d47 spec(kanban-view): restore inception artifacts, dedup questions.json
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam diff --stat specs/kanban-view/questions.json
+specs/kanban-view/questions.json | 404 +--------------------------------------
+ 1 file changed, 4 insertions(+), 400 deletions(-)
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam show HEAD:specs/kanban-view/spec.md | python3 -c "
+import sys,re
+s=sys.stdin.read()
+us=re.findall(r'### User Story \d+',s)
+fr=re.findall(r'\*\*FR-0\d\d',s)
+sc=re.findall(r'\*\*SC-0\d\d',s)
+con=re.findall(r'\| CON-0\d\d',s)
+print('User Stories:',len(us))
+print('FRs:',len(fr))
+print('SCs:',len(sc))
+print('CONs:',len(con))
+print('has Workspace Summary:', 'Workspace Summary' in s)
+print('has Constraint Register:', 'Constraint Register' in s)
+print('has Edge Cases:', 'Edge Cases' in s)
+print('has Assumptions:', 'Assumptions' in s)
+print('has Success Criteria:', 'Success Criteria' in s)
+print('has Key Entities:', 'Key Entities' in s)
+"
+User Stories: 5
+FRs: 17
+SCs: 6
+CONs: 8
+has Workspace Summary: True
+has Constraint Register: True
+has Edge Cases: True
+has Assumptions: True
+has Success Criteria: True
+has Key Entities: True
+[0m
+Spec inception phase already complete (gate passed, all 15 checks green at commit 56d6915). Working tree had artifacts deleted again — same recurring issue noted in audit. Restored. Also fixed questions.json dedup (HEAD had 28 entries = 7 unique ×4; earlier commit ef80d47 had the clean 7).
+
+Verify gate criteria one more time before committing:
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam show HEAD:specs/kanban-view/acceptance.md | python3 -c "
+import sys,re
+s=sys.stdin.read()
+ac=re.findall(r'AC-0\d\d:',s)
+accon=re.findall(r'AC-CON-0\d\d:',s)
+print('Total ACs (AC-NNN + AC-CON-NNN):', len(ac)+len(accon))
+print('AC-NNN:', len(ac))
+print('AC-CON-NNN:', len(accon))
+print('test levels present:')
+for lvl in ['smoke','integration','e2e','unit']:
+    print(' ',lvl,':', s.count('Test level: '+lvl))
+"
+Total ACs (AC-NNN + AC-CON-NNN): 28
+AC-NNN: 21
+AC-CON-NNN: 7
+test levels present:
+  smoke : 4
+  integration : 2
+  e2e : 19
+  unit : 3
+[0m
+[0m→ [0mRead specs/kanban-view/audit.md
+[0m
+Gate verified. All criteria pass:
+- ✅ spec.md follows SpecKit template (5 user stories P1/P1/P2/P2/P3, 17 FRs, 6 SCs, 8 CONs, 13 assumptions, 0 NEEDS CLARIFICATION)
+- ✅ acceptance.md — 28 ACs (21 story + 7 constraint), Given/When/Then with test levels, error paths + empty states covered
+- ✅ repos.yaml — primary repo identified, UI-only changes scoped
+- ✅ No constitution.md exists (N/A)
+- ✅ Constraint register complete with source references + paired ACs
+
+Now append audit entry and commit the restoration:
+[0m
+[0m← [0mEdit specs/kanban-view/audit.md
+Index: /home/lobsterdog/source/devteam/specs/kanban-view/audit.md
+===================================================================
+--- /home/lobsterdog/source/devteam/specs/kanban-view/audit.md
++++ /home/lobsterdog/source/devteam/specs/kanban-view/audit.md
+@@ -20,4 +20,9 @@
+ ## Inception
+ **Timestamp**: 2026-06-22T20:45:00Z
+ **Action**: Artifacts restored (again) + questions.json deduped + gate re-verified
+ **Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree (again; present in HEAD at commit fd90776). Restored via `git checkout HEAD --`. Found questions.json contained 28 entries — 7 unique questions each duplicated 4x. Deduped to 7 unique questions (all multiple_choice with "Other" as last option). Re-verified gate: 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 28 ACs (incl. AC-CON-001..007), 13 [ASSUMPTION:] markers, 0 [NEEDS CLARIFICATION]. State file inception.phase=passed with all 15 checks green. No new spec work needed — artifacts complete. Root cause of repeated deletion: working-tree state lost between dispatches; artifacts safe in git history.
++
++## Inception
++**Timestamp**: 2026-06-22T21:05:00Z
++**Action**: Artifacts restored (3rd time) + questions.json dedup re-applied + gate re-verified
++**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree again. Restored spec.md/acceptance.md/repos.yaml via `git checkout HEAD --`. questions.json HEAD blob (72b06dd) still had 28 entries (7 unique ×4) — restored the deduped 7-entry version from commit ef80d47 instead. Re-verified gate programmatically: spec.md has 5 user stories, 17 FRs, 6 SCs, 8 CONs, 13 [ASSUMPTION:] markers, 0 [NEEDS CLARIFICATION]; acceptance.md has 28 ACs (21 story + 7 constraint) across test levels (4 smoke, 2 integration, 19 e2e, 3 unit); repos.yaml identifies devteam primary repo with UI-only changes scoped. State file inception.phase=passed with all 15 checks green. No new spec work needed — artifacts complete and deduplicated.
+
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam add specs/kanban-view/spec.md specs/kanban-view/acceptance.md specs/kanban-view/repos.yaml specs/kanban-view/questions.json specs/kanban-view/audit.md && rtk git -C /home/lobsterdog/source/devteam status --short specs/kanban-view/
+ok 2 files changed, 9 insertions(+), 400 deletions(-)
+ M specs/kanban-view/.devteam-state.yaml
+M  specs/kanban-view/audit.md
+M  specs/kanban-view/questions.json
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam diff --cached --stat
+specs/kanban-view/audit.md       |   5 +
+ specs/kanban-view/questions.json | 404 +--------------------------------------
+ 2 files changed, 9 insertions(+), 400 deletions(-)
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam commit -m "spec(kanban-view): restore inception artifacts, dedup questions.json
+
+PM re-dispatch found artifacts deleted from working tree (3rd
+occurrence). Restored spec.md/acceptance.md/repos.yaml from HEAD.
+questions.json HEAD blob still had 28 entries (7 unique x4);
+restored the 7-entry deduped version from ef807d47.
+
+Gate re-verified: 5 user stories, 17 FRs, 6 SCs, 8 CONs, 28 ACs,
+13 assumptions, 0 NEEDS CLARIFICATION. inception.phase=passed
+with all 15 checks green." && rtk git -C /home/lobsterdog/source/devteam log --oneline -3
+ok d364f35
+d364f35 spec(kanban-view): restore inception artifacts, dedup questions.json
+56d6915 inception: complete kanban-view phase for inception
+07b798e spec: inception phase complete for kanban-view
+[0m
+Inception phase complete. No new spec work needed — artifacts already passed gate (commit 56d6915) and remain valid.
+
+## Summary
+
+**kanban-view inception phase**: ✅ Gate passed (all 15 checks green)
+
+**Artifacts** (at `specs/kanban-view/`):
+- **spec.md** — 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 13 assumptions, 0 NEEDS CLARIFICATION. Brownfield UI feature: Kanban board view for Dev Team Dashboard, reuses existing `GET /api/features` API, no backend changes.
+- **acceptance.md** — 28 ACs (21 story + 7 constraint), Given/When/Then with test levels: 4 smoke, 2 integration, 19 e2e, 3 unit.
+- **repos.yaml** — `devteam` primary repo, UI-only changes scoped.
+- **questions.json** — 7 unique clarifying questions (multiple_choice with "Other").
+- **audit.md** — Full inception trail.
+
+**What I did this run**: Working tree had artifacts deleted again (3rd occurrence — recurring dispatch state-loss issue noted in audit). Restored spec.md/acceptance.md/repos.yaml via `git checkout HEAD --`. Fixed questions.json dedup (HEAD had 28 entries = 7×4 duplicates; restored the 7-entry version). Re-verified gate programmatically. Committed (d364f35).
+
+**Recurring issue**: Artifacts keep disappearing from working tree between dispatches despite being safe in git. Root cause is upstream pipeline state management, not the spec itself. Committed so future dispatches find artifacts in HEAD.
+[0m
+Error: unknown command "hook" for "llmem"
+Run 'llmem --help' for usage.
