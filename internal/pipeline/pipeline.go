@@ -122,6 +122,22 @@ func (p *Pipeline) WorktreeDir(f *feature.Feature) string {
 	return p.specProvider.BaseDir()
 }
 
+// recordGitCommit returns the current HEAD commit hash of the worktree.
+// Used before agent dispatch so the gate can diff only the agent's changes.
+func (p *Pipeline) recordGitCommit(f *feature.Feature) string {
+	workDir := p.WorktreeDir(f)
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = workDir
+	output, err := cmd.Output()
+	if err != nil {
+		log.Printf("recordGitCommit: could not get HEAD: %v", err)
+		return ""
+	}
+	commit := strings.TrimSpace(string(output))
+	log.Printf("recordGitCommit: HEAD at %s before agent dispatch", commit[:8])
+	return commit
+}
+
 // writeGateFailure writes GATE_FAILURE.md when a gate fails, so the next
 // agent run can read it and understand what went wrong.
 func (p *Pipeline) writeGateFailure(f *feature.Feature, phase feature.Phase, gateResult *feature.GateResult) error {
@@ -613,6 +629,9 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 	// Clean artifacts from any previous run of this phase so the agent starts fresh
 	p.cleanPhaseArtifacts(f, currentPhase)
 
+	// Record git commit before dispatch so gate can diff only agent's changes
+	preDispatchCommit := p.recordGitCommit(f)
+
 	var roleResults []*role.DispatchResult
 	for _, roleName := range roles {
 		roleDef, err := p.roleLoader.Load(roleName)
@@ -651,7 +670,7 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		roleResults = append(roleResults, result)
 	}
 
-	gateResult, err := NewGateEvaluatorWithWorkDir(p.specProvider, p.WorktreeDir(f)).EvaluateForPhase(f, currentPhase)
+	gateResult, err := NewGateEvaluatorWithCommit(p.specProvider, p.WorktreeDir(f), preDispatchCommit).EvaluateForPhase(f, currentPhase)
 	if err != nil {
 		return nil, fmt.Errorf("evaluating gate for phase %s: %w", currentPhase, err)
 	}
@@ -764,6 +783,10 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		contextStr = contextStr + "\n\n---\n\n# Gate Failure (Previous Attempt)\n\n" + string(gateFailureContent)
 	}
 
+	// Clean artifacts and record commit before dispatch
+	p.cleanPhaseArtifacts(f, currentPhase)
+	preDispatchCommit := p.recordGitCommit(f)
+
 	var roleResults []*role.DispatchResult
 	for _, roleName := range roles {
 		roleDef, err := p.roleLoader.Load(roleName)
@@ -825,7 +848,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		roleResults = append(roleResults, result)
 	}
 
-	gateResult, err := NewGateEvaluatorWithWorkDir(p.specProvider, p.WorktreeDir(f)).EvaluateForPhase(f, currentPhase)
+	gateResult, err := NewGateEvaluatorWithCommit(p.specProvider, p.WorktreeDir(f), preDispatchCommit).EvaluateForPhase(f, currentPhase)
 	if err != nil {
 		return nil, fmt.Errorf("evaluating gate for phase %s: %w", currentPhase, err)
 	}
@@ -1194,39 +1217,18 @@ The plan MUST address all acceptance criteria from acceptance.md. Every task mus
 	case feature.PhaseConstruction:
 		return fmt.Sprintf(`You are in the CONSTRUCTION phase for feature %s.
 
-Your task: Write implementation code. That's it. Do NOT write tests — that's the Tester's job. Do NOT review code — that's the Reviewer's job.
+Your task: Build the spec. Read the spec, plan, and tasks. Write the code. Commit and push.
 
-Before writing any code:
-1. Read spec.md and acceptance.md — understand what you're building and why
-2. Read plan.md — understand the technical approach
-3. Read tasks.md — understand what to implement and in what order
-4. Read data-model.md and contracts/ — understand the data model and API contracts
-5. If brownfield: read existing code to understand conventions
+1. Read spec.md, acceptance.md, plan.md, tasks.md, data-model.md, contracts/ — understand what to build
+2. Read existing code to understand conventions
+3. Write the code — implement every task in tasks.md
+4. Verify the build succeeds (discover and run the project's build command)
+5. Commit all changes: git add -A && git commit -m "feat: implement %s"
+6. Push to the current branch: git push origin HEAD
 
-Implementation approach:
-- Follow the task list in tasks.md, respecting dependency order
-- Write the minimum code needed to satisfy each task's done conditions
-- If brownfield: modify existing files in-place, follow existing conventions
+That's it. Build to spec. Commit. Push.
 
-Self-verification before marking any task complete:
-- Build succeeds (discover and run the project's build command)
-- Done conditions from tasks.md are verified
-- No TODO, FIXME, HACK, or placeholder implementations remain
-- Collections serialize as empty, not null
-
-DO NOT:
-- Write test files — that's the Testing phase's job
-- Run the test suite — that's the Testing phase's job
-- Start the service and hit endpoints — that's the Testing phase's job
-- Review code against acceptance criteria — that's the Review phase's job
-- Write documentation — that's the Delivery phase's job
-
-Agent failure mode awareness (avoid these common AI code bugs):
-- Nil/null pointer chains: initialize struct fields in correct order
-- Null vs empty collections: use the language's non-null empty collection pattern
-- Error response structure follows existing project conventions
-- No over-engineering: 500 lines is suspicious, 5000 lines is almost certainly wrong
-- No phantom methods: every method called must actually exist`, featureID)
+DO NOT write tests, review code, or write documentation — other phases handle those.`, featureID, featureID)
 
 	case feature.PhaseReview:
 		return fmt.Sprintf(`You are in the REVIEW phase for feature %s.
