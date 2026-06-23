@@ -2257,3 +2257,202 @@ No new spec work needed. Ready for Planning phase.
 [0m
 Error: unknown command "hook" for "llmem"
 Run 'llmem --help' for usage.
+Error: unknown command "context" for "llmem"
+Run 'llmem --help' for usage.
+2026/06/22 20:31:32 INFO llmem: store: vec shadow table populated embeddings=517 total=517
+[0m
+> pm · glm-5.2:cloud
+[0m
+[0m→ [0mRead /tmp/devteam-pm-943764053/CONTEXT.md
+[0m→ [0mRead /tmp/devteam-pm-943764053/agents/pm.md
+[0m→ [0mRead /tmp/devteam-pm-943764053/CONTEXT.md[90m [offset=1059][0m
+[0m
+Need full context. Reading rest + feature state + input description.
+[0m
+[0m→ [0mRead /tmp/devteam-pm-943764053/CONTEXT.md[90m [offset=1974][0m
+[0m
+[0m$ [0mrtk ls -la /home/lobsterdog/source/devteam/specs/kanban-view/ 2>/dev/null; echo "---STATE---"; rtk read /home/lobsterdog/source/devteam/.devteam-state.yaml 2>/dev/null; echo "---WORKTREE---"; rtk ls /home/lobsterdog/source/devteam/.worktrees/ 2>/dev/null
+644  .devteam-state.yaml  4.1K
+644  CONTEXT.md  109.0K
+664  audit.md  2.2K
+644  input.md  835B
+---STATE---
+---WORKTREE---
+[0m
+[0m$ [0mrtk cat /home/lobsterdog/source/devteam/.devteam-state.yaml
+/usr/bin/cat: /home/lobsterdog/source/devteam/.devteam-state.yaml: No such file or directory (os error 2)
+[0m
+[0m$ [0mrtk cat /home/lobsterdog/source/devteam/specs/kanban-view/audit.md
+## Inception
+**Timestamp**: 2026-06-22T00:00:00Z
+**Action**: Workspace detection + source discovery
+**Details**: Brownfield. Repo = /home/lobsterdog/source/devteam. Go backend (internal/api, internal/feature) + React/TS UI (ui/src). Existing list view: Dashboard.tsx renders FeatureList -> FeatureCard (Link to /features/:id). FeatureSummary has current_phase, status, priority, title, pending_questions_count, gate_result. Phase enum: inception, planning, construction, review, testing, delivery. Status enum: draft, in_progress, gate_blocked, passed, failed, done, recirculated, cancelled, waiting_for_human. API: GET /api/features returns FeatureListResponse{features[], total_count}. No constitution.md found. No external RFC/standard governs a Kanban view — pure UI feature. Constraints derived from existing UI conventions (data-testid attributes, dark mode support, empty states, QuestionBadge for pending questions).
+
+## Inception
+**Timestamp**: 2026-06-22T00:01:00Z
+**Action**: Questions asked
+**Details**: Wrote specs/kanban-view/questions.json with 7 questions covering: blocked-feature column placement, draft-feature placement, completed-feature visibility, drag-and-drop vs read-only, column layout/scroll strategy, high-volume column behavior, sort-control preservation. All questions multiple_choice with "Other" omitted per template — see note below.
+
+## Inception
+**Timestamp**: 2026-06-22T00:02:00Z
+**Action**: Spec written
+**Details**: Wrote specs/kanban-view/spec.md, acceptance.md, repos.yaml. Assumptions documented for each unanswered question per autonomous-mode error-recovery rules (conservative defaults chosen).
+
+## Inception
+**Timestamp**: 2026-06-22T20:30:00Z
+**Action**: Artifacts restored + gate re-verified
+**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree (present in HEAD at commit 48ea369 where gate passed). Restored via `git checkout HEAD --`. Re-verified gate: 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 28 ACs (incl. AC-CON-001..007), 13 [ASSUMPTION:] markers, zero [NEEDS CLARIFICATION]. State file inception.phase=passed with all 15 checks green. No constitution.md. No new work needed — artifacts complete.
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/source/devteam/specs/kanban-view/
+.devteam-state.yaml  4.1K
+CONTEXT.md  109.0K
+audit.md  2.2K
+input.md  835B
+[0m
+[0m$ [0mrtk pwd && rtk git -C /home/lobsterdog/source/devteam status --short && rtk git -C /home/lobsterdog/source/devteam log --oneline -5 && rtk git -C /home/lobsterdog/source/devteam branch --show-current
+/home/lobsterdog/source/devteam
+ M logs/inception-pm.log
+ M specs/kanban-view/.devteam-state.yaml
+ D specs/kanban-view/acceptance.md
+ D specs/kanban-view/questions.json
+ D specs/kanban-view/repos.yaml
+ D specs/kanban-view/spec.mdfd90776 inception: complete kanban-view phase for inception
+ae549dd spec: inception phase complete for kanban-view
+7ff2bd8 spec(kanban-view): restore inception artifacts, re-verify gate
+48ea369 spec: inception phase complete for kanban-view
+c6f45e1 spec: planning phase complete for kanban-view
+main
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam checkout HEAD -- specs/kanban-view/spec.md specs/kanban-view/acceptance.md specs/kanban-view/repos.yaml specs/kanban-view/questions.json
+(no output)
+[0m
+Same situation audit describes. Artifacts deleted from working tree, present in HEAD. Restore.
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/source/devteam/specs/kanban-view/ && rtk git -C /home/lobsterdog/source/devteam status --short
+.devteam-state.yaml  4.1K
+CONTEXT.md  109.0K
+acceptance.md  11.7K
+audit.md  2.2K
+input.md  835B
+questions.json  20.5K
+repos.yaml  643B
+spec.md  21.5K
+ M logs/inception-pm.log
+ M specs/kanban-view/.devteam-state.yaml
+[0m
+[0m→ [0mRead specs/kanban-view/.devteam-state.yaml
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam diff HEAD -- specs/kanban-view/spec.md specs/kanban-view/acceptance.md specs/kanban-view/repos.yaml specs/kanban-view/questions.json | head -20; echo "---DIFFSTAT---"; rtk git -C /home/lobsterdog/source/devteam diff --stat HEAD -- specs/kanban-view/
+---DIFFSTAT---
+specs/kanban-view/.devteam-state.yaml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+[0m
+State inception phase already passed, all 15 checks green. Artifacts restored from HEAD. Verify no drift, append audit, done.
+[0m
+[0m$ [0mrtk test -s /home/lobsterdog/source/devteam/specs/kanban-view/spec.md && rtk test -s /home/lobsterdog/source/devteam/specs/kanban-view/acceptance.md && rtk test -s /home/lobsterdog/source/devteam/specs/kanban-view/repos.yaml && rtk test -s /home/lobsterdog/source/devteam/specs/kanban-view/questions.json && echo "ALL ARTIFACTS PRESENT"
+OUTPUT (last 5 lines):
+  sh: 0: Illegal option -
+[0m
+Artifacts match HEAD byte-for-byte. Only state file modified (runtime). Gate already passed. Quick sanity check on key files exist + verify questions.json valid.
+[0m
+[0m$ [0mfor f in spec.md acceptance.md repos.yaml questions.json; do if [ -s "/home/lobsterdog/source/devteam/specs/kanban-view/$f" ]; then echo "OK $f"; else echo "MISSING/EMPTY $f"; fi; done; rtk python3 -c "import json; d=json.load(open('/home/lobsterdog/source/devteam/specs/kanban-view/questions.json')); print(f'questions.json: {len(d)} questions'); [print(f'  q{i+1}: {q[\"question\"][:60]}... options={len(q[\"options\"])}') for i,q in enumerate(d)]"
+OK spec.md
+OK acceptance.md
+OK repos.yaml
+OK questions.json
+questions.json: 28 questions
+  q1: When a feature is in a non-terminal phase but its gate has f... options=4
+  q2: How should the Kanban board handle features whose status is ... options=4
+  q3: How should the board handle features that have completed the... options=4
+  q4: Should the user be able to move cards between columns by dra... options=3
+  q5: Should the Kanban board render all six phase columns (Incept... options=4
+  q6: When there are many features in a single phase column, how s... options=4
+  q7: Should the Kanban view preserve the existing sort controls f... options=4
+  q8: When a feature is in a non-terminal phase but its gate has f... options=4
+  q9: How should the Kanban board handle features whose status is ... options=4
+  q10: How should the board handle features that have completed the... options=4
+  q11: Should the user be able to move cards between columns by dra... options=3
+  q12: Should the Kanban board render all six phase columns (Incept... options=4
+  q13: When there are many features in a single phase column, how s... options=4
+  q14: Should the Kanban view preserve the existing sort controls f... options=4
+  q15: When a feature is in a non-terminal phase but its gate has f... options=4
+  q16: How should the Kanban board handle features whose status is ... options=4
+  q17: How should the board handle features that have completed the... options=4
+  q18: Should the user be able to move cards between columns by dra... options=3
+  q19: Should the Kanban board render all six phase columns (Incept... options=4
+  q20: When there are many features in a single phase column, how s... options=4
+  q21: Should the Kanban view preserve the existing sort controls f... options=4
+  q22: When a feature is in a non-terminal phase but its gate has f... options=4
+  q23: How should the Kanban board handle features whose status is ... options=4
+  q24: How should the board handle features that have completed the... options=4
+  q25: Should the user be able to move cards between columns by dra... options=3
+  q26: Should the Kanban board render all six phase columns (Incept... options=4
+  q27: When there are many features in a single phase column, how s... options=4
+  q28: Should the Kanban view preserve the existing sort controls f... options=4
+[0m
+[0m$ [0mrtk python3 -c "
+import json
+d=json.load(open('/home/lobsterdog/source/devteam/specs/kanban-view/questions.json'))
+seen=set(); uniq=[]
+for q in d:
+    key=q['question']
+    if key not in seen:
+        seen.add(key); uniq.append(q)
+print(f'before={len(d)} after={len(uniq)}')
+for q in uniq:
+    opts=q['options']
+    has_other=opts[-1].lower()=='other'
+    print(f'  opts={len(opts)} other={has_other}: {q[\"question\"][:70]}')
+"
+before=28 after=7
+  opts=4 other=True: When a feature is in a non-terminal phase but its gate has failed (gat
+  opts=4 other=True: How should the Kanban board handle features whose status is 'draft' (n
+  opts=4 other=True: How should the board handle features that have completed the final pha
+  opts=3 other=True: Should the user be able to move cards between columns by dragging (int
+  opts=4 other=True: Should the Kanban board render all six phase columns (Inception, Plann
+  opts=4 other=True: When there are many features in a single phase column, how should the 
+  opts=4 other=True: Should the Kanban view preserve the existing sort controls from the li
+[0m
+questions.json has 28 questions — 7 distinct questions × 4 duplicates. Bug. Should be 7. Dedup.
+[0m
+[0m$ [0mrtk python3 -c "
+import json
+d=json.load(open('/home/lobsterdog/source/devteam/specs/kanban-view/questions.json'))
+seen=set(); uniq=[]
+for q in d:
+    key=q['question']
+    if key not in seen:
+        seen.add(key); uniq.append(q)
+json.dump(uniq, open('/home/lobsterdog/source/devteam/specs/kanban-view/questions.json','w'), indent=2)
+print(f'wrote {len(uniq)} questions')
+"
+wrote 7 questions
+[0m
+7 unique questions, all have "Other". Dedup file.
+[0m
+Now verify gate criteria pass + append audit.
+[0m
+[0m$ [0mrtk grep -c "NEEDS CLARIFICATION" /home/lobsterdog/source/devteam/specs/kanban-view/spec.md; rtk grep -c "\[ASSUMPTION:" /home/lobsterdog/source/devteam/specs/kanban-view/spec.md; rtk grep -c "^AC-" /home/lobsterdog/source/devteam/specs/kanban-view/acceptance.md; rtk grep -c "^- \*\*FR-" /home/lobsterdog/source/devteam/specs/kanban-view/spec.md; rtk grep -c "^- \*\*SC-" /home/lobsterdog/source/devteam/specs/kanban-view/spec.md; rtk grep -c "^| CON-" /home/lobsterdog/source/devteam/specs/kanban-view/spec.md; rtk grep -c "Priority: P" /home/lobsterdog/source/devteam/specs/kanban-view/spec.md
+0
+13
+28
+17
+6
+8
+5
+[0m
+[0m✗ [0mRead specs/kanban-view/audit.md failed[90m [offset=25][0m
+[91m[1mError: [0mOffset 25 is out of range for this file (19 lines)
+[0m
+Gate: 0 NEEDS CLARIFICATION, 13 ASSUMPTION, 28 AC, 17 FR, 6 SC, 8 CON, 5 user stories w/ priorities. All pass. Append audit.
+[0m
+[0m$ [0mcat >> /home/lobsterdog/source/devteam/specs/kanban-view/audit.md << 'EOF'
+
+## Inception
+**Timestamp**: 2026-06-22T20:45:00Z
+**Action**: Artifacts restored (again) + questions.json deduped + gate re-verified
+**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree (again; present in HEAD at commit fd90776). Restored via `git checkout HEAD --`. Found questions.json contained 28 entries — 7 unique questions each duplicated 4x. Deduped to 7 unique questions (all multiple_choice with "Other" as last option). Re-verified gate: 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 28 ACs (incl. AC-CON-001..007), 13 [ASSUMPTION:] markers, 0 [NEEDS CLARIFICATION]. State file inception.phase=passed with all 15 checks green. No new spec work needed — artifacts complete. Root cause of repeated deletion: working-tree state lost between dispatches; artifacts safe in git history.
+EOF
+echo "appended"
+appended
+[0m

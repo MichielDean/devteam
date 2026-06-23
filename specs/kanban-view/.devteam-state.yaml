@@ -1,12 +1,12 @@
 id: kanban-view
 title: Kanban View
 current_phase: inception
-status: waiting_for_human
+status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
 created_at: 2026-06-22T20:25:56.205046849-06:00
-updated_at: 2026-06-22T20:31:14.614650372-06:00
+updated_at: 2026-06-22T20:31:27.96576993-06:00
 phase_states:
     construction:
         phase: construction
