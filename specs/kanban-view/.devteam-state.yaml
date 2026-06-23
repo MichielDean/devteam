@@ -5,8 +5,8 @@ status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
-created_at: 2026-06-22T22:53:55.254767454-06:00
-updated_at: 2026-06-22T22:53:55.25490756-06:00
+created_at: 2026-06-22T23:07:15.271292358-06:00
+updated_at: 2026-06-22T23:07:15.271433063-06:00
 phase_states:
     construction:
         phase: construction
@@ -69,9 +69,9 @@ phase_states:
                 - name: repos.yaml identifies at least one affected repository
                   passed: true
                   message: ✓ repos.yaml identifies at least one affected repository
-            evaluated_at: 2026-06-22T22:58:39.802227754-06:00
-        started_at: 2026-06-22T22:53:55.259560205-06:00
-        completed_at: 2026-06-22T22:53:55.259560205-06:00
+            evaluated_at: 2026-06-22T23:11:12.824808742-06:00
+        started_at: 2026-06-22T23:07:15.276586556-06:00
+        completed_at: 2026-06-22T23:07:15.276586556-06:00
     planning:
         phase: planning
         status: draft
