@@ -2456,3 +2456,47 @@ EOF
 echo "appended"
 appended
 [0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam add -A && rtk git -C /home/lobsterdog/source/devteam status --short
+ok 4 files changed, 210 insertions(+), 403 deletions(-)
+M  logs/inception-pm.log
+M  specs/kanban-view/.devteam-state.yaml
+M  specs/kanban-view/audit.md
+M  specs/kanban-view/questions.json
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam commit -m "spec(kanban-view): restore inception artifacts, dedup questions.json
+
+Working tree had lost spec.md/acceptance.md/repos.yaml/questions.json
+(deleted between dispatches; present in HEAD at fd90776). Restored via
+git checkout HEAD --. Found questions.json contained 28 entries = 7
+unique questions duplicated 4x. Deduped to 7.
+
+Gate re-verified: 5 user stories, 17 FRs, 6 SCs, 8 CONs, 28 ACs,
+13 [ASSUMPTION:], 0 [NEEDS CLARIFICATION]. inception.phase=passed,
+all 15 gate checks green."
+ok ef80d47
+[0m
+## Inception complete — kanban-view
+
+**State**: inception.phase = `passed`, all 15 gate checks green.
+
+**What happened this run**:
+- Working tree had lost all 4 artifacts (spec.md/acceptance.md/repos.yaml/questions.json) between dispatches — present in HEAD at fd90776, restored via `git checkout HEAD --`.
+- Found questions.json had **28 entries = 7 unique questions × 4 duplicates**. Deduped to 7. All `multiple_choice` with "Other" as last option.
+- Re-verified gate (no re-spec needed — prior spec is complete):
+
+| Gate check | Count |
+|---|---|
+| User stories w/ priority | 5 (P1/P1/P2/P2/P3) |
+| Functional requirements | 17 |
+| Success criteria | 6 |
+| Constraints | 8 (each w/ paired AC-CON-NNN) |
+| Acceptance criteria | 28 |
+| [ASSUMPTION:] markers | 13 |
+| [NEEDS CLARIFICATION] | 0 |
+
+**Artifacts** at `specs/kanban-view/`: `spec.md`, `acceptance.md`, `repos.yaml`, `questions.json`, `audit.md`. Committed `ef80d47`.
+
+**Root cause note**: artifacts keep getting deleted from working tree between dispatches — safe in git, but state file says `passed` while files vanish. Pipeline should read artifacts from HEAD when working tree is missing them, not re-dispatch PM.
+[0m
+Error: unknown command "hook" for "llmem"
+Run 'llmem --help' for usage.
