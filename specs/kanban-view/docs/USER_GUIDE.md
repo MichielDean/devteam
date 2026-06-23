@@ -1,155 +1,166 @@
-# Kanban View — User Guide (Spec kanban-view)
+# Kanban View — User Guide (spec kanban-view)
 
-The Kanban view is an alternative presentation of the Dev Team feature list.
-Where the Dashboard shows features in a single sortable list, the Kanban view
-shows them as cards grouped into columns by their current pipeline phase. Both
-views show the same data — switching between them does not refetch, does not
-lose your place, and does not change the total feature count.
-
-## What it shows
-
-A board with 7 columns, in this fixed left-to-right order:
-
-1. **Backlog** — features that have not started the pipeline yet
-2. **Inception**
-3. **Planning**
-4. **Construction**
-5. **Review**
-6. **Testing**
-7. **Delivery**
-
-The column order matches the Dev Team pipeline phase order. It is not
-configurable. The 6 phase columns (Inception through Delivery) use the canonical
-phase names from `internal/feature/types.go`; the board does not invent its own
-column names.
-
-Each column has a header with the column name and a count of the cards in that
-column. Each card reuses the existing `FeatureCard` component: title, status
-badge, phase badge, priority badge, gate indicator (✓ Gate passed / ✗ Gate
-failed), and updated date.
-
-## User stories covered
+The Kanban view is a new presentation of the Dev Team Dashboard. Where the
+existing list view shows features in a single sortable grid, the Kanban view
+shows them as cards grouped into six phase columns. Both views show the same
+data — switching between them does not refetch, does not lose your place, and
+does not change the total feature count.
 
 This guide documents every user story from `specs/kanban-view/spec.md`.
 
-### US-001 — See all features organized by pipeline phase
+## What it shows
 
-Open the Dashboard and switch to the **Board** view (see "Switching views"
-below). Every feature in the system appears as a card in exactly one column. A
-feature lands in the column matching its `current_phase` — for example, a
-feature currently in the Review phase appears in the **Review** column.
+A board with **six phase columns** in this fixed left-to-right pipeline order
+(FR-005, CON-005 — column names come from `PHASE_LABELS`):
 
-### US-002 — Not-yet-started features appear in Backlog
+1. **Inception**
+2. **Planning**
+3. **Construction**
+4. **Review**
+5. **Testing**
+6. **Delivery**
 
-A feature that has been created but has not had any phase run yet appears in the
-**Backlog** column, not in the **Inception** column. The rule is: if the
-feature's status is `draft` and its current phase is `inception`, it goes to
-Backlog. Once inception starts (status becomes `in_progress`), the card moves
-to the **Inception** column.
+A trailing **"Other"** column appears only when a feature's `current_phase` is
+not one of the six known phases (FR-007, AC-011). This is defensive — the
+backend enum is closed, so it should never happen in practice — but the board
+will not crash if it does.
 
-### US-003 — Switch between list view and Kanban view
+Each column has a header with the phase name. Each card shows the feature
+title, priority badge, status badge, pending-questions badge (when > 0), gate
+result indicator for the current phase (when present), and updated date
+(FR-008, FR-009, CON-006). The card chrome is shared with the existing
+`FeatureCard` component — the same badge color map and the same gate
+indicator text (`✓ Gate passed` / `✗ Gate failed`).
 
-A **List / Board** segmented control sits in the Dashboard header, next to the
-total feature count badge. Click **Board** to switch to the Kanban view; click
-**List** to switch back. The total feature count badge stays mounted across both
-views, so the count you see is identical in either view.
+## US-001 — Toggle Between List and Kanban Board
 
-### US-004 — Click a card to open feature detail
+A **List / Board** toggle sits in the Dashboard header. Click **Board** to
+switch to the Kanban board; click **List** to switch back to the existing
+sortable `FeatureList` (FR-001, AC-002/003).
 
-Every card on the board is a link. Click a card to navigate to that feature's
-detail page at `/features/{id}`. From there you can run phases, advance, view
-artifacts, and answer pending questions — the same actions available from the
-list view. The board itself is read-only: you cannot drag cards between columns,
-create features from the board, or change a feature's phase by interacting with
-the board. Phase changes happen on the detail page and propagate back to the
-board through the shared data cache.
+- **Default view**: when the Dashboard loads for the first time in a session
+  with no prior choice, the **Board** view is shown (FR-003, AC-005). Kanban
+  is the primary view of the Dashboard.
+- **Persistence**: the selected view is remembered for the browser session via
+  `sessionStorage` key `devteam.dashboard.view` (FR-002, AC-004). Navigate
+  away and return, or reload the page, and the same view is still active.
+- **Hidden when empty**: if zero features exist, the toggle is NOT visible and
+  the existing `EmptyState` component renders instead (FR-004, AC-006/018).
+  Once features are created, the toggle appears and the stored view resumes.
 
-### US-005 — Empty board renders cleanly
+## US-002 — Feature Cards on the Board Show Key State
 
-If the system has zero features, every column renders with an empty-state
-message and a count of 0:
+Every feature appears as a card in **exactly one** column — the column whose
+phase equals the feature's `current_phase` (FR-006, SC-002). A feature in the
+Review phase appears in the **Review** column; a feature in Delivery appears
+in **Delivery**; and so on.
 
-- **Backlog**: "No features waiting to start"
-- **Inception, Planning, Construction, Review, Testing, Delivery**:
-  "No features in this phase"
+Each card shows:
 
-The board does not crash, does not show a blank page, and produces no browser
-console errors. The total count badge shows 0.
+- **Title** (line-clamped to 2 lines)
+- **Priority badge** via `PRIORITY_LABELS` — e.g. `P1 - Critical`, `P2 - Medium`, `P3 - Low` (FR-008, AC-007)
+- **Status badge** via `STATUS_LABELS` — e.g. `In Progress`, `Done`, `Cancelled` (FR-008, AC-007)
+- **Pending-questions badge** when `pending_questions_count > 0` (FR-008, AC-008)
+- **Gate result indicator** when `gate_result` is present: `✓ Gate passed` or `✗ Gate failed` (FR-009, AC-009) — identical text to the list view's `FeatureCard`
+- **Updated date**
 
-### US-006 — Board reflects live updates during processing
+**Attention flags** (FR-011):
 
-If a feature advances phases while the board is open (because you triggered an
-action from its detail page, or because autonomous processing is running), the
-card moves to the new column without a full page reload. The board and the
-Dashboard list share the same data cache, so any change visible on the list is
-visible on the board on the next cache invalidation.
+- A feature with `status='gate_blocked'` gets a **red ring** on its card (AC-012).
+- A feature with `status='waiting_for_human'` gets a **yellow ring** on its card (AC-013).
+
+**Click to navigate**: clicking a card navigates to `/features/{id}` via
+`react-router`'s `Link` — the same destination as the list view's
+`FeatureCard` (FR-010, AC-010). The board itself is read-only.
+
+**Terminal features stay visible**: a feature with `status='done'` or
+`status='cancelled'` is **not** filtered out. It stays in the column for its
+`current_phase`; the status badge communicates the terminal state. This is
+intentional — the board shows the state of all specs, including finished ones,
+for retrospective.
+
+**Unknown phase (defensive)**: if a feature's `current_phase` is not one of
+the six known phases, the card is placed in a trailing **"Other"** column
+rather than dropped (FR-007, AC-011). The board does not crash.
+
+## US-003 — Empty Columns and Empty Board
+
+**Empty column**: when a phase has no features, its column still renders with
+the header and a muted **"No features"** placeholder in the body (FR-012,
+AC-017). All six phase columns are always present regardless of whether they
+have features (AC-019) — hiding empty columns would obscure the pipeline
+shape, which is the whole point of the board.
+
+**Empty board**: when zero features exist in the workspace, the Dashboard
+renders the existing `EmptyState` component instead of the board, and the
+List/Board toggle is NOT visible (FR-004, AC-006/018). Once features are
+created, the toggle becomes visible and the previously-stored view resumes.
+
+## US-004 — Column Overflow Handling
+
+When a column contains more cards than fit the viewport, the column **scrolls
+vertically independent of other columns** (FR-013, AC-020). The board's
+overall height is bounded to the viewport so all six column headers remain
+visible without page-level scroll (FR-014, AC-021).
+
+On viewports narrower than the board's natural width, the board container
+**scrolls horizontally**; each column has a minimum width of 240px (FR-015,
+AC-022).
 
 ## Switching views
 
 1. Open the Dashboard (`/`).
-2. In the header, next to the **Features** heading and the count badge, locate
-   the segmented control labeled **List | Board**.
+2. Locate the **List / Board** toggle in the header.
 3. Click **Board** to render the Kanban board. Click **List** to return to the
    existing sortable feature list.
 
-The default view on first load is **List** (the existing behavior is preserved).
+The board and list share the same `/` Dashboard route — there is no separate
+`/kanban` route. A single toggle control switches them.
 
-## Terminal features stay visible
+## Loading and error states
 
-A feature that has finished the pipeline (status `done`) or been cancelled
-(status `cancelled`) is **not** hidden from the board. It stays in the column
-matching its `current_phase`. For example, a feature that completed Delivery
-remains in the **Delivery** column with a "Done" status badge on its card. This
-is intentional: the board shows the state of all specs, including finished ones.
+- **Loading**: while the features query is in flight, the existing
+  `features-loading` indicator renders and no column bodies render yet
+  (FR-017, AC-014).
+- **API error**: the existing `features-error` indicator renders and the board
+  does not render (FR-017, AC-015). The toggle is hidden (no data to show).
+
+Both states reuse the existing Dashboard branches unchanged (CON-008). The
+board only renders when `!isLoading && !error && features.length > 0`.
 
 ## Dark mode
 
-The board supports dark mode via the existing theme toggle in the app header.
-Toggle the theme and every column, card, badge, and empty-state message
-re-renders with the app's dark palette. No separate board-specific theme setting
-exists.
-
-## Error and loading states
-
-- **Loading**: while the first fetch is in flight, each column renders empty and
-  the board shows a loading spinner. Columns are always present (the board
-  renders 7 columns even before data arrives).
-- **API error on first load**: the board shows a red banner
-  `Failed to load features: {message}` at the top. The 7 columns still render,
-  each empty. No uncaught exception, no blank page.
-- **API error on refetch (mid-session)**: the board keeps the previously-loaded
-  cards visible — stale data is better than a blank board. No uncaught
-  exception. Trigger a refresh (e.g. by creating or advancing a feature) to
-  retry.
-- **Clicking a card whose feature was deleted between load and click**: the
-  browser navigates to `/features/{id}` and the existing Feature Detail page
-  shows its own not-found state. The board does not need to handle this itself.
+All new elements include `dark:` Tailwind classes matching the existing
+palette. Use the existing theme toggle in the app header; every column, card,
+badge, and empty-state message re-renders with the dark palette.
 
 ## What the board does not do
 
-The following are explicitly out of scope (see `spec.md` "Out of scope"):
+The following are explicitly out of scope (see `spec.md` "Assumptions"):
 
-- **Drag-and-drop** card movement between columns. The board is read-only; phase
-  changes happen on the feature detail page.
+- **Drag-and-drop** card movement between columns. The board is view-only;
+  phase transitions happen through the existing pipeline (`/advance`,
+  `/recirculate`) on the feature detail page.
 - **Card creation** from the board. Use the **+ New Feature** button on the
-  Dashboard (available in both list and board views).
-- **Filtering or search** within columns. The board shows all features; sorting
-  and filtering remain list-view features.
-- **Per-column WIP limits.**
-- **A separate `/kanban` route.** The board lives at `/` alongside the list view,
-  toggled by the segmented control. The URL does not distinguish the two views.
-- **Mobile collapsed-column layout.** On narrow viewports the board scrolls
-  horizontally so all 7 columns remain reachable.
+  Dashboard.
+- **Filtering, sorting, or search** within columns. The board shows all
+  features; sorting and filtering remain list-view features.
+- **Swimlane-per-status.** Columns are the six phases, not statuses. Status is
+  shown as a badge on the card.
+- **A separate `/kanban` route.** The board lives at `/` alongside the list
+  view, toggled by the control.
+- **Cross-session persistence.** The view choice is `sessionStorage` only; no
+  user-preference backend exists.
+- **"+N more" overflow truncation.** Overflow is handled by vertical scroll,
+  not a truncation component.
 
 ## Accessibility
 
-- The **List / Board** toggle is a `role="group"` with two buttons, each with
-  `aria-pressed` reflecting the active view.
-- The total feature count badge has an `aria-label` of `Total features: N`.
-- Each column header is an `<h3>`; each card title is an `<h3>` inside a link.
-- The error banner uses `role="alert"`.
-- The board and all columns expose stable `data-testid` attributes for automated
-  selectors (see the testability section of the spec, CON-011).
+- The **List / Board** toggle exposes two buttons, each with `aria-pressed`
+  reflecting the active view (AC-001/004/005).
+- Each column header and card title uses semantic heading elements.
+- The board and all columns expose stable `data-testid` attributes for
+  automated selectors (see below).
 
 ## Stable test selectors
 
@@ -157,21 +168,18 @@ For E2E and integration tests, the board exposes:
 
 | Selector | Element |
 |----------|---------|
-| `[data-testid="kanban-board"]` | the board container |
-| `[data-testid="kanban-column-backlog"]` | Backlog column |
-| `[data-testid="kanban-column-inception"]` | Inception column |
-| `[data-testid="kanban-column-planning"]` | Planning column |
-| `[data-testid="kanban-column-construction"]` | Construction column |
-| `[data-testid="kanban-column-review"]` | Review column |
-| `[data-testid="kanban-column-testing"]` | Testing column |
-| `[data-testid="kanban-column-delivery"]` | Delivery column |
-| `[data-testid="kanban-column-count-{key}"]` | per-column card count |
-| `[data-testid="kanban-column-empty-{key}"]` | per-column empty-state message |
-| `[data-testid="view-toggle-list"]` | List view toggle button |
-| `[data-testid="view-toggle-board"]` | Board view toggle button |
-| `[data-testid="feature-card-{id}"]` | each card (inherited from `FeatureCard`) |
-| `[data-testid="kanban-error"]` | board-level error banner |
-| `[data-testid="kanban-loading"]` | board-level loading spinner |
+| `[data-testid="view-toggle"]` | toggle container |
+| `[data-testid="view-toggle-list"]` | List toggle button |
+| `[data-testid="view-toggle-board"]` | Board toggle button |
+| `[data-testid^="kanban-column-"]` | each column (e.g. `kanban-column-planning`) |
+| `[data-testid="kanban-column-empty-{phase}"]` | per-column "No features" placeholder |
+| `[data-testid="kanban-card-{id}"]` | each board card |
+| `[data-testid="kanban-card-status"]` | card status badge |
+| `[data-testid="kanban-card-priority"]` | card priority badge |
+| `[data-testid="kanban-card-gate"]` | card gate indicator |
+| `[data-testid="question-badge"]` | card pending-questions badge |
+| `[data-testid="features-loading"]` | loading indicator (existing, reused) |
+| `[data-testid="features-error"]` | error indicator (existing, reused) |
 
 The existing `feature-count-badge` testid remains mounted in the Dashboard
 header across both views.
