@@ -46,7 +46,6 @@ func main() {
 
 		specProvider := spec.NewSpecProvider(baseDir)
 		p := pipeline.NewPipeline(cfg, specProvider)
-		questionStore := feature.NewFileQuestionStore(baseDir)
 
 		// Open database for operational data
 		// Supports SQLite (default, local) and PostgreSQL (shared/multi-user)
@@ -75,6 +74,9 @@ func main() {
 			os.Exit(1)
 		}
 		defer database.Close()
+
+		// Use SQLite-backed question store (full history, queryable)
+		questionStore := feature.NewDBQuestionStore(database)
 
 		// Serve frontend: use local filesystem (development or after go generate)
 		var staticFS fs.FS

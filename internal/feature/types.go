@@ -15,6 +15,17 @@ func AllPhases() []Phase {
 	return []Phase{PhaseInception, PhasePlanning, PhaseConstruction, PhaseReview, PhaseTesting, PhaseDelivery}
 }
 
+// NextPhase returns the phase after the given one, or "" if it's the last phase.
+func NextPhase(p Phase) Phase {
+	phases := AllPhases()
+	for i, phase := range phases {
+		if phase == p && i+1 < len(phases) {
+			return phases[i+1]
+		}
+	}
+	return ""
+}
+
 func (p Phase) String() string {
 	return string(p)
 }

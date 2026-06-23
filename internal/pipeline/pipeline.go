@@ -719,7 +719,7 @@ type OutputLineCallback func(line string, isStderr bool)
 
 // RunPhaseWithAgentStreaming is the same as RunPhaseWithAgent but streams agent output
 // to the callback in real time.
-func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Feature, onOutput OutputLineCallback) (*RunResult, error) {
+func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Feature, onOutput OutputLineCallback, autoAdvance bool) (*RunResult, error) {
 	currentPhase := f.CurrentPhase()
 	log.Printf("RunPhaseWithAgentStreaming: starting for phase %s, feature %s", currentPhase, f.ID)
 
@@ -944,10 +944,38 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		}
 	}
 
+	// Auto-advance to the next phase if:
+	// 1. Gate passed
+	// 2. autoAdvance is true (autopilot mode or auto-start)
+	// 3. Not waiting for human (no questions were asked)
+	// 4. Not delivery (delivery marks done, not advances)
+	if gateResult.Passed && autoAdvance && f.Status != feature.StatusWaitingHuman && currentPhase != feature.PhaseDelivery {
+		nextPhase := feature.NextPhase(currentPhase)
+		if nextPhase != "" {
+			log.Printf("RunPhaseWithAgentStreaming: auto-advancing %s from %s to %s", f.ID, currentPhase, nextPhase)
+			advanced, err := p.AdvanceFeature(f)
+			if err != nil {
+				log.Printf("warning: could not auto-advance %s: %v", f.ID, err)
+			} else {
+				f = advanced
+				if err := p.specProvider.SaveFeatureState(f); err != nil {
+					log.Printf("warning: could not save state after auto-advance: %v", err)
+				}
+				// Run the next phase
+				log.Printf("RunPhaseWithAgentStreaming: auto-running next phase %s for %s", nextPhase, f.ID)
+				nextResult, err := p.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
+				if err != nil {
+					log.Printf("warning: auto-advanced phase %s failed: %v", nextPhase, err)
+				} else if nextResult != nil {
+					// Merge gate results from next phase
+					result.GateResult = nextResult.GateResult
+				}
+			}
+		}
+	}
+
 	return result, nil
 }
-
-// commitSpecArtifacts commits spec directory changes to git on the current branch.
 // Unlike PushPhaseChanges (which creates feature branches and PRs), this just
 // commits to whatever branch is currently checked out — usually main for spec-only features.
 func (p *Pipeline) commitSpecArtifacts(f *feature.Feature, phase feature.Phase) error {
