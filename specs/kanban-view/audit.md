@@ -21,3 +21,8 @@
 **Timestamp**: 2026-06-22T20:45:00Z
 **Action**: Artifacts restored (again) + questions.json deduped + gate re-verified
 **Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree (again; present in HEAD at commit fd90776). Restored via `git checkout HEAD --`. Found questions.json contained 28 entries — 7 unique questions each duplicated 4x. Deduped to 7 unique questions (all multiple_choice with "Other" as last option). Re-verified gate: 5 user stories (P1/P1/P2/P2/P3), 17 FRs, 6 SCs, 8 CONs, 28 ACs (incl. AC-CON-001..007), 13 [ASSUMPTION:] markers, 0 [NEEDS CLARIFICATION]. State file inception.phase=passed with all 15 checks green. No new spec work needed — artifacts complete. Root cause of repeated deletion: working-tree state lost between dispatches; artifacts safe in git history.
+
+## Inception
+**Timestamp**: 2026-06-22T21:05:00Z
+**Action**: Artifacts restored (3rd time) + questions.json dedup re-applied + gate re-verified
+**Details**: PM re-dispatch found spec.md/acceptance.md/repos.yaml/questions.json deleted from working tree again. Restored spec.md/acceptance.md/repos.yaml via `git checkout HEAD --`. questions.json HEAD blob (72b06dd) still had 28 entries (7 unique ×4) — restored the deduped 7-entry version from commit ef80d47 instead. Re-verified gate programmatically: spec.md has 5 user stories, 17 FRs, 6 SCs, 8 CONs, 13 [ASSUMPTION:] markers, 0 [NEEDS CLARIFICATION]; acceptance.md has 28 ACs (21 story + 7 constraint) across test levels (4 smoke, 2 integration, 19 e2e, 3 unit); repos.yaml identifies devteam primary repo with UI-only changes scoped. State file inception.phase=passed with all 15 checks green. No new spec work needed — artifacts complete and deduplicated.
