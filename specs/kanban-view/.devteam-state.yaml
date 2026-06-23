@@ -1,12 +1,12 @@
 id: kanban-view
 title: Kanban View
-current_phase: testing
+current_phase: delivery
 status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/kanban-view/
 created_at: 2026-06-22T23:26:16.617696577-06:00
-updated_at: 2026-06-22T23:52:18.755786106-06:00
+updated_at: 2026-06-23T10:06:06.267427684-06:00
 phase_states:
     construction:
         phase: construction
@@ -29,7 +29,13 @@ phase_states:
         completed_at: 2026-06-22T23:48:18.220516785-06:00
     delivery:
         phase: delivery
-        status: draft
+        status: passed
+        gate_result:
+            phase: delivery
+            passed: true
+            evaluated_at: 2026-06-23T10:08:57.3142435-06:00
+        started_at: 2026-06-23T10:06:06.273196967-06:00
+        completed_at: 2026-06-23T10:06:06.273196967-06:00
     inception:
         phase: inception
         status: passed
@@ -203,4 +209,4 @@ phase_states:
             passed: true
             evaluated_at: 2026-06-23T10:06:03.837689491-06:00
         started_at: 2026-06-23T09:58:38.793179377-06:00
-        completed_at: 2026-06-23T09:58:38.793179377-06:00
+        completed_at: 2026-06-23T10:06:06.267427684-06:00
