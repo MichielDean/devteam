@@ -1,0 +1,636 @@
+Error: unknown command "context" for "llmem"
+Run 'llmem --help' for usage.
+2026/06/22 17:21:42 INFO llmem: store: vec shadow table populated embeddings=517 total=517
+[0m
+> developer · glm-5.2:cloud
+[0m
+[0m→ [0mRead /tmp/devteam-developer-828826982/CONTEXT.md
+[0m→ [0mRead /tmp/devteam-developer-828826982/agents/developer.md
+[0m
+[0m$ [0mrtk ls /tmp/devteam-developer-828826982/ && echo "---" && rtk ls /tmp/devteam-developer-828826982/spec 2>/dev/null; echo "---CWD---"; pwd && rtk git branch --show-current && rtk git status --short
+agents/
+.gitignore  63B
+CONTEXT.md  126.7K
+package-lock.json  13.5K
+package.json  65B
+---
+---CWD---
+/home/lobsterdog/worktrees/devteam-specs/kanban-view
+spec/kanban-view
+ M specs/kanban-view/.devteam-state.yaml
+ M specs/kanban-view/CONTEXT.md
+[0m
+[0m$ [0mrtk ls -la /tmp/devteam-developer-828826982/spec/kanban-view 2>/dev/null; echo "---worktree git---"; rtk git rev-parse --show-toplevel; echo "---branch---"; rtk git branch --show-current; echo "---specs dir---"; rtk ls -la /home/lobsterdog/worktrees/devteam-specs/kanban-view/specs/kanban-view/ 2>/dev/null
+---worktree git---
+/home/lobsterdog/worktrees/devteam-specs/kanban-view
+---branch---
+spec/kanban-view
+---specs dir---
+775  contracts/
+775  docs/
+664  .devteam-state.yaml  9.6K
+664  CONTEXT.md  126.7K
+664  acceptance.md  9.2K
+664  audit.md  5.4K
+664  data-model.md  6.4K
+664  input.md  835B
+664  plan.md  25.2K
+664  repos.yaml  798B
+664  research.md  6.9K
+664  research_md  6.9K
+664  review-report.md  30.1K
+664  spec.md  21.3K
+664  tasks.md  22.4K
+664  test-report.md  24.9K
+[0m
+[0m→ [0mRead specs/kanban-view/repos.yaml
+[0m→ [0mRead specs/kanban-view/tasks.md
+[0m
+[0m$ [0mrtk ls -la /home/lobsterdog/worktrees/devteam-specs/kanban-view/ && echo "---git remotes---" && rtk git -C /home/lobsterdog/worktrees/devteam-specs/kanban-view remote -v && echo "---other worktrees---" && rtk git -C /home/lobsterdog/worktrees/devteam-specs/kanban-view worktree list && echo "---look for devteam worktree---" && rtk ls /home/lobsterdog/worktrees/ 2>/dev/null
+775  .opencode/
+775  .playwright-mcp/
+775  .specify/
+775  cmd/
+775  internal/
+775  plugins/
+775  roles/
+775  rules/
+775  specs/
+775  ui/
+664  .git  67B
+664  .gitignore  375B
+664  AGENTS.md  188B
+664  README.md  5.6K
+664  devteam.yaml  3.8K
+664  go.mod  183B
+664  go.sum  690B
+664  opencode.json  183B
+664  repos.yaml  959B
+---git remotes---
+origin	git@github.com:MichielDean/devteam.git (fetch)
+origin	git@github.com:MichielDean/devteam.git (push)
+---other worktrees---
+~/source/devteam 3df5086 [main]
+~/source/devteam/worktrees/kanban-view/devteam c7af01e [feature/kanban-view]
+~/worktrees/devteam-fix/clean-artifacts-before-phase 4f00403 [fix/clean-artifacts-before-phase]
+~/worktrees/devteam-fix/delivery-no-retest f6dc656 [fix/delivery-no-retest]
+~/worktrees/devteam-specs/kanban-view d964aa2 [spec/kanban-view]
+---look for devteam worktree---
+adcp-salesagent-fix/
+adcp-sdk-java-fix/
+adcp-sdk-java-track4/
+cistern-installer-fix/
+devteam-feat/
+devteam-fix/
+devteam-specs/
+kotlin-sdk-roots-sample/
+[0m
+[0m$ [0mrtk ls -la /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ && echo "---branch---" && rtk git -C /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam branch --show-current && echo "---status---" && rtk git -C /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam status --short && echo "---ui dir---" && rtk ls /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/
+775  .opencode/
+775  .playwright-mcp/
+775  .specify/
+775  cmd/
+775  internal/
+775  plugins/
+775  roles/
+775  rules/
+775  specs/
+775  ui/
+664  .git  63B
+664  .gitignore  375B
+664  AGENTS.md  188B
+664  README.md  5.6K
+664  devteam.yaml  3.8K
+664  go.mod  183B
+664  go.sum  690B
+664  opencode.json  183B
+664  repos.yaml  959B
+775  run-tests.sh  1.7K
+---branch---
+feature/kanban-view
+---status---
+?? ui/node_modules---ui dir---
+e2e/
+src/
+test-results/
+.gitignore  83B
+index.html  356B
+node_modules -> /home/lobsterdog/source/devteam/ui/node_modules  47B
+package-lock.json  130.0K
+package.json  830B
+playwright.config.ts  1.0K
+tsconfig.json  688B
+vite.config.ts  647B
+[0m
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/FeatureCard.tsx
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/pages/Dashboard.tsx
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/types/index.ts
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/FeatureList.tsx
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/QuestionBadge.tsx
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/package.json
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/ /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/hooks/ /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/e2e/ 2>&1
+app.spec.ts  6.8K
+kanban-api.spec.ts  4.6K
+kanban.spec.ts  15.2K
+AgentOutput.tsx  3.0K
+ArtifactViewer.tsx  5.2K
+ConnectionStatus.tsx  754B
+EmptyState.tsx  1.2K
+FeatureCard.tsx  3.6K
+FeatureList.tsx  3.5K
+GateResult.tsx  1.8K
+IntakeForm.tsx  8.6K
+KanbanBoard.tsx  1.5K
+KanbanColumn.tsx  1.5K
+PhaseTimeline.tsx  2.7K
+ProcessView.tsx  5.9K
+QuestionBadge.tsx  618B
+QuestionCard.tsx  6.8K
+ThemeToggle.tsx  2.1K
+Toast.tsx  1.9K
+ViewToggle.tsx  1.2K
+useFeatures.ts  446B
+useSSE.ts  4.1K
+[0m
+Dashboard already imports `ViewToggle` + `KanbanBoard`. Check existing state of those files.
+[0m
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/KanbanBoard.tsx
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/KanbanColumn.tsx
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/ViewToggle.tsx
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/e2e/app.spec.ts
+[0m
+Files already exist. Read them to assess current state.
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/lib/ 2>&1; echo "---"; rtk cat /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/lib/groupFeaturesByColumn.ts 2>&1 | head -80
+groupFeaturesByColumn.ts  1015B
+---
+import { PHASES, PHASE_LABELS, type PhaseName } from '../types';
+import type { FeatureSummary } from '../types';
+
+export type ColumnKey = 'backlog' | PhaseName;
+
+export const COLUMN_KEYS = ['backlog', ...PHASES] as const;
+
+export const COLUMN_LABELS: Record<ColumnKey, string> = {
+  backlog: 'Backlog',
+  ...PHASE_LABELS,
+};
+
+function emptyColumns(): Record<ColumnKey, FeatureSummary[]> {
+  return {
+    backlog: [],
+    inception: [],
+    planning: [],
+    construction: [],
+    review: [],
+    testing: [],
+    delivery: [],
+  };
+}
+
+export function groupFeaturesByColumn(
+  features: FeatureSummary[],
+): Record<ColumnKey, FeatureSummary[]> {
+  const cols = emptyColumns();
+  for (const f of features) {
+    if (f.status === 'draft' && f.current_phase === 'inception') {
+      cols.backlog.push(f);
+    } else if (PHASES.includes(f.current_phase as PhaseName)) {
+      cols[f.current_phase as ColumnKey].push(f);
+    }
+    // else: unknown phase — drop (defensive; not in canonical PHASES).
+  }
+  return cols;
+}
+[0m
+Wait. Spec says Board default. But Dashboard has `viewMode='list'` default. And there's a `lib/groupFeaturesByColumn` with COLUMN_KEYS that's not phase-based. Let me check that lib and kanban.spec.ts.
+[0m
+[0m→ [0mRead /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/e2e/kanban.spec.ts
+[0m
+Existing impl diverges significantly from spec/plan:
+- `groupFeaturesByColumn` has Backlog column + drops unknown phases (spec: 6 phases + Other, FR-007)
+- KanbanBoard makes own `useQuery` (CON-007 violation: must use props from Dashboard)
+- No `KanbanCard` component (reuses `FeatureCard`)
+- No `badgeColors.ts` shared module
+- No `useSessionView` hook (uses local useState, default 'list' not 'board')
+- No `groupFeaturesByPhase` with 'other' bucket
+- No vitest unit test
+- Dashboard gates toggle wrong (always visible)
+
+Plan mandates: `groupFeaturesByPhase` with `other` bucket, `KanbanCard` separate component, `badgeColors.ts`, `useSessionView`, Board default, toggle hidden in empty/loading/error, single `useQuery` in Dashboard, 240px columns, `h-[calc(100vh-8rem)]`, ring flags. Read kanban.spec.ts + kanban-api.spec.ts to understand existing test expectations before rewriting.
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam log --oneline -15 && echo "---diff main---" && rtk git -C /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam diff main --stat 2>&1 | head -40
+c7af01e docs(kanban-view): add planning artifacts (research, data-model, contracts, plan, tasks)
+bd10d23 style(kanban-view): gofmt kanban_smoke_test.go
+f3b9695 chore(kanban-view): untrack ui/node_modules symlink
+87035f8 test(kanban-view): add backend smoke tests + fix AC-014 refetch trigger
+a375f0b feat(kanban-view): add Kanban board view with toggle
+d1e1835 fix: all phases use spec worktree, gate doesn't run Playwright (#25)
+fa018ff fix: timer uses phase start time, don't resume passed phases (#24)
+f75a837 fix: write GATE_FAILURE.md when gate fails so agents get feedback (#23)
+0ba0e9b spec: planning phase complete for kanban-view
+dd89fec feat: per-spec git worktree for all phases (#22)
+f652b41 fix: add DO NOT produce section to all role instructions (#21)
+3b78ce6 fix: clean phase artifacts before running phase (#20)
+8029527 fix: remove stale plan.md and tasks.md from kanban-view
+50914aa spec: planning phase complete for kanban-view
+b98de25 specs(kanban-view): planning phase passed
+---diff main---
+.devteam.db                           |  Bin 4096 -> 0 bytes
+ .devteam.db-shm                       |  Bin 32768 -> 0 bytes
+ .devteam.db-wal                       |  Bin 111272 -> 0 bytes
+ AGENTS.md                             |  184 +--
+ cmd/devteam/main.go                   |   31 +-
+ devteam.yaml                          |   17 +-
+ go.mod                                |    8 +-
+ go.sum                                |    8 +-
+ internal/api/history_handlers.go      |  133 --
+ internal/api/kanban_smoke_test.go     |  191 +++
+ internal/api/question_test.go         |   36 +-
+ internal/api/server.go                |   14 +-
+ internal/api/server_test.go           |   16 +-
+ internal/config/config.go             |    9 -
+ internal/db/database.go               |  169 ---
+ internal/db/feature_store.go          |  197 ---
+ internal/db/gate_store.go             |  138 --
+ internal/db/history_store.go          |  142 --
+ internal/db/migration_001.go          |  147 --
+ internal/db/migrations.go             |  121 --
+ internal/db/notes_store.go            |  100 --
+ internal/db/question_store.go         |  154 --
+ internal/db/session_store.go          |  128 --
+ internal/feature/question.go          |    8 +-
+ internal/feature/state.go             |   39 +-
+ internal/feature/types.go             |    2 -
+ internal/pipeline/gate.go             |  534 +------
+ internal/pipeline/gate_test.go        |   27 +-
+ internal/pipeline/notes.go            |  113 --
+ internal/pipeline/pipeline.go         |  402 ++----
+ internal/role/tmux.go                 |   24 +-
+ internal/spec/provider.go             |    2 -
+ logs/inception-architect.log          | 1264 -----------------
+ logs/inception-pm.log                 | 1468 --------------------
+ logs/planning-architect.log           | 2470 ---------------------------------
+ roles/architect/INSTRUCTIONS.md       |   86 +-
+ roles/developer/INSTRUCTIONS.md       |   18 +-
+ roles/pm/INSTRUCTIONS.md              |  302 ++--
+ roles/tester/INSTRUCTIONS.md          |   16 +-
+ run-tests.sh                          |   58 +
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam diff main --stat -- ui/ 2>&1 | head -30
+ui/e2e/kanban-api.spec.ts           | 121 +++++++++++
+ ui/e2e/kanban.spec.ts               | 395 ++++++++++++++++++++++++++++++++++++
+ ui/playwright.config.ts             |  24 +--
+ ui/src/components/KanbanBoard.tsx   |  47 +++++
+ ui/src/components/KanbanColumn.tsx  |  40 ++++
+ ui/src/components/ViewToggle.tsx    |  34 ++++
+ ui/src/lib/groupFeaturesByColumn.ts |  38 ++++
+ ui/src/pages/Dashboard.tsx          |  66 +++---
+ 8 files changed, 725 insertions(+), 40 deletions(-)
+[0m
+[0m→ [0mRead specs/kanban-view/.devteam-state.yaml
+[0m
+[0m# [0mTodos
+[•] Align impl with spec/plan: KanbanCard, badgeColors, useSessionView, groupFeaturesByPhase(other), Board default, toggle gating, single useQuery, 240px cols, h-[calc(100vh-8rem)], ring flags, gate text parity
+[ ] Update existing tests to spec or leave for tester (DO NOT write tests per dev rules)
+[ ] Verify build + typecheck
+[ ] Commit to feature/kanban-view worktree
+[0m
+[0m← [0mWrite /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/badgeColors.ts
+Wrote file successfully.
+[0m
+Existing impl diverges hard from spec/plan: Backlog column (spec has 6 phases + Other), KanbanBoard makes own useQuery (CON-007 violation), no KanbanCard, no badgeColors shared module, no useSessionView, list default (spec: Board default), toggle always visible (spec: hide in empty/loading/error), no ring flags, reuses FeatureCard (spec: separate KanbanCard with `kanban-card-*` testids). Rewrite to spec. Tests already committed by prior pass encode the wrong interpretation — Tester owns test correctness, not me.
+[0m
+[0m← [0mEdit /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/FeatureCard.tsx
+Index: /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/FeatureCard.tsx
+===================================================================
+--- /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/FeatureCard.tsx
++++ /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/FeatureCard.tsx
+@@ -2,8 +2,9 @@
+ import type { FeatureSummary } from '../types';
+ import { STATUS_LABELS, PHASE_LABELS, PRIORITY_LABELS } from '../types';
+ import type { PhaseName } from '../types';
+ import QuestionBadge from './QuestionBadge';
++import { statusColors } from './badgeColors';
+ 
+ interface FeatureCardProps {
+   feature: FeatureSummary;
+ }
+@@ -12,20 +13,8 @@
+   const phaseLabel = PHASE_LABELS[feature.current_phase as PhaseName] || feature.current_phase;
+   const statusLabel = STATUS_LABELS[feature.status] || feature.status;
+   const priorityLabel = PRIORITY_LABELS[feature.priority] || `P${feature.priority}`;
+ 
+-  const statusColors: Record<string, string> = {
+-    in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+-    done: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+-    cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+-    draft: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+-    gate_blocked: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+-    passed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+-    failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+-    recirculated: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+-    waiting_for_human: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+-  };
+-
+   return (
+     <Link
+       to={`/features/${feature.id}`}
+       className="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow border border-gray-200 dark:border-gray-700 p-4 relative"
+
+[0m
+[0m← [0mWrite /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/hooks/useSessionView.ts
+Wrote file successfully.
+[0m
+Now useSessionView hook:
+[0m
+[0m← [0mWrite /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/groupFeaturesByPhase.ts
+Wrote file successfully.
+[0m
+Now `groupFeaturesByPhase` — pure function, 6 buckets + `other`. Remove old `groupFeaturesByColumn.ts`.
+[0m
+[0m$ [0mrm /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/lib/groupFeaturesByColumn.ts && rmdir /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/lib 2>&1 || true; echo "done"
+done
+[0m
+[0m← [0mWrite /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/KanbanCard.tsx
+Wrote file successfully.
+[0m
+Now KanbanCard:
+[0m
+[0m← [0mWrite /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/KanbanColumn.tsx
+Wrote file successfully.
+[0m
+Now KanbanColumn (header fixed outside `overflow-y-auto`, `w-60` = 240px, empty placeholder, "Other" label support):
+[0m
+[0m← [0mWrite /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/KanbanBoard.tsx
+Wrote file successfully.
+[0m
+Now KanbanBoard — props-only (no useQuery), renders 6 phases + conditional `other`:
+[0m
+[0m← [0mWrite /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/pages/Dashboard.tsx
+Wrote file successfully.
+[0m
+ViewToggle — already correct. Now Dashboard wiring per spec: single `useQuery`, Board default via useSessionView, toggle gated to `!isLoading && !error && features.length > 0`, board/list share same query data:
+[0m
+[0m← [0mEdit /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/ViewToggle.tsx
+Index: /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/ViewToggle.tsx
+===================================================================
+--- /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/ViewToggle.tsx
++++ /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/src/components/ViewToggle.tsx
+@@ -9,9 +9,9 @@
+ const active = 'bg-blue-600 text-white';
+ const inactive = 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600';
+ 
+ return (
+-  <div className="inline-flex gap-1 p-1 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700" role="group" aria-label="View toggle">
++  <div data-testid="view-toggle" className="inline-flex gap-1 p-1 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700" role="group" aria-label="View toggle">
+     <button
+       type="button"
+       data-testid="view-toggle-list"
+       onClick={() => onChange('list')}
+
+[0m
+Now check ViewToggle uses `value`/`onChange` props names (matches Dashboard). It does. Verify it has `view-toggle` container testid (AC-001 expects `[data-testid="view-toggle"]`). Currently no container testid — add it.
+[0m
+[0m$ [0mrtk cat /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/vite.config.ts && echo "---tsconfig---" && rtk cat /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui/tsconfig.json
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+  ],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-markdown': ['react-markdown', 'rehype-highlight', 'highlight.js'],
+        },
+      },
+    },
+  },
+});---tsconfig---
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}
+[0m
+Now check `line-clamp-2` — Tailwind v4 has it built-in. Check tsconfig + build. Run typecheck/build.
+[0m
+[0m$ [0mcd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam/ui && rtk npm run build 2>&1 | tail -40
+> tsc -b && vite build
+vite v6.4.3 building for production...
+transforming...
+✓ 479 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                            0.71 kB │ gzip:  0.37 kB
+dist/assets/index-BZPQOLHa.css            29.13 kB │ gzip:  6.09 kB
+dist/assets/vendor-react-CXf-tQEN.js      40.95 kB │ gzip: 14.68 kB
+dist/assets/vendor-query-4zvgFKp8.js      50.09 kB │ gzip: 15.41 kB
+dist/assets/index-TW1w65z2.js            239.21 kB │ gzip: 70.72 kB
+dist/assets/vendor-markdown-DRx9rTIh.js  295.78 kB │ gzip: 90.19 kB
+✓ built in 2.55s
+[0m
+[0m$ [0mcd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam && rtk rg -n "TODO|FIXME|HACK|placeholder|groupFeaturesByColumn|statusColors.*=.*\{|const statusColors" ui/src/ && echo "---grep kanban-*.tsx for phase literals (CON-005)---" && rtk rg -n "'Inception'|'Planning'|'Construction'|'Review'|'Testing'|'Delivery'|'In Progress'|'P1 - Critical'" ui/src/components/Kanban*.tsx ui/src/components/groupFeaturesByPhase.ts && echo "---done---"
+ui/src/components/QuestionCard.tsx:141:          placeholder="Type your answer..."
+ui/src/components/IntakeForm.tsx:124:            placeholder="Feature title..."
+ui/src/components/IntakeForm.tsx:143:            placeholder="Describe your feature idea..."
+ui/src/components/badgeColors.ts:3:export const statusColors: Record<string, string> = {
+---grep kanban-*.tsx for phase literals (CON-005)---
+[0m
+Build green. Check for TODO/FIXME/HACK and verify no `groupFeaturesByColumn` references remain.
+[0m
+[0m$ [0mcd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam && rtk rg -n "groupFeaturesByColumn|from '\.\./lib/" ui/ 2>&1; echo "---go build---"; rtk go build ./... 2>&1 | tail -20
+---go build---
+rtk: Failed to run go build: Failed to spawn process: No such file or directory (os error 2)
+[0m
+Clean. Single `statusColors` def in `badgeColors.ts`. No phase/status string literals in Kanban files (CON-005). Placeholders are input attrs (pre-existing, fine). Check `groupFeaturesByColumn` references gone (no output = clean). Check Go build unaffected (no Go changes).
+[0m
+[0m$ [0mwhich go; rtk ls /usr/local/go/bin 2>/dev/null; rtk ls ~/go/bin 2>/dev/null; echo "PATH=$PATH"
+go  14.7M
+gofmt  3.0M
+arch-designer  10.6M
+bd  48.5M
+bf  9.2M
+ct  21.6M
+devteam  15.7M
+gt  47.4M
+llmem  16.9M
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
+[0m
+[0m$ [0mexport PATH=$PATH:/usr/local/go/bin && cd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam && rtk go build ./... 2>&1 | tail -20 && echo "---go vet---" && rtk go vet ./... 2>&1 | tail -20
+Go build: Success
+---go vet---
+Go vet: No issues found
+[0m
+[0m$ [0mcd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam && rtk git status --short && echo "---branch---" && rtk git branch --show-current
+M ui/src/components/FeatureCard.tsx
+ M ui/src/components/KanbanBoard.tsx
+ M ui/src/components/KanbanColumn.tsx
+ M ui/src/components/ViewToggle.tsx
+ D ui/src/lib/groupFeaturesByColumn.ts
+ M ui/src/pages/Dashboard.tsx
+?? ui/node_modules
+?? ui/src/components/KanbanCard.tsx
+?? ui/src/components/badgeColors.ts
+?? ui/src/components/groupFeaturesByPhase.ts
+?? ui/src/hooks/useSessionView.ts---branch---
+feature/kanban-view
+[0m
+Go unaffected, UI builds. Now commit. Reviewer gates the diff against acceptance criteria.
+
+State note: existing `kanban.spec.ts`/`kanban-api.spec.ts` were written by a prior pass and encode the **wrong** interpretation (Backlog column, `feature-card-*` testids inside board, list default). Per dev rules I do **not** modify tests. Tester owns test correctness — flagging that these will fail against spec-compliant impl and need rewrite in Testing phase.
+[0m
+[0m$ [0mcd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam && rtk git check-ignore ui/node_modules 2>&1; rtk cat ui/.gitignore 2>&1
+node_modules/
+dist/
+*.local
+.DS_Store
+test-results/
+playwright-report/
+blob-report/
+[0m
+node_modules untracked — ensure not committed.
+[0m
+[0m$ [0mcd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam && rtk git add -A && rtk git status --short
+ok 11 files changed, 219 insertions(+), 133 deletions(-)
+A  ui/node_modules
+M  ui/src/components/FeatureCard.tsx
+M  ui/src/components/KanbanBoard.tsx
+A  ui/src/components/KanbanCard.tsx
+M  ui/src/components/KanbanColumn.tsx
+M  ui/src/components/ViewToggle.tsx
+A  ui/src/components/badgeColors.ts
+A  ui/src/components/groupFeaturesByPhase.ts
+A  ui/src/hooks/useSessionView.ts
+D  ui/src/lib/groupFeaturesByColumn.ts
+M  ui/src/pages/Dashboard.tsx
+[0m
+[0m$ [0mcd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam && rtk git reset HEAD ui/node_modules 2>&1 && rtk git status --short
+M  ui/src/components/FeatureCard.tsx
+M  ui/src/components/KanbanBoard.tsx
+A  ui/src/components/KanbanCard.tsx
+M  ui/src/components/KanbanColumn.tsx
+M  ui/src/components/ViewToggle.tsx
+A  ui/src/components/badgeColors.ts
+A  ui/src/components/groupFeaturesByPhase.ts
+A  ui/src/hooks/useSessionView.ts
+D  ui/src/lib/groupFeaturesByColumn.ts
+M  ui/src/pages/Dashboard.tsx
+?? ui/node_modules
+[0m
+`ui/node_modules` symlink got staged (gitignore applies to dir contents but the symlink itself isn't ignored by `node_modules/`). Unstage it.
+[0m
+[0m$ [0mcd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam && rtk git commit -m "feat(kanban-view): align board impl with spec/plan
+
+Replaces prior divergent implementation with spec-compliant version:
+
+- groupFeaturesByPhase: 6 phase buckets + defensive 'other' (FR-007, CON-009),
+  partition invariant, all buckets init [] (CON-008). Replaces groupFeaturesByColumn
+  which had a Backlog column and dropped unknown phases.
+- KanbanCard: new component with kanban-card-* testids, ring flags for
+  gate_blocked (red) / waiting_for_human (yellow) (FR-011), local <span>
+  question-badge to avoid nested anchors, gate text byte-identical to FeatureCard
+  (CON-006).
+- badgeColors.ts: extracted shared statusColors map (CON-006). FeatureCard imports it.
+- useSessionView hook: sessionStorage-backed, Board default (FR-002/003),
+  try/catch for private mode.
+- KanbanBoard: props-only, no useQuery (CON-007). Renders 6 phases + conditional
+  'other'. Container h-[calc(100vh-8rem)] overflow-x-auto (FR-014/015).
+- KanbanColumn: w-60 (240px, FR-015), header fixed outside overflow-y-auto body
+  (FR-013), 'No features' placeholder (FR-012).
+- Dashboard: single useQuery (CON-007), Board default via useSessionView,
+  ViewToggle gated to !isLoading && !error && features.length > 0 (FR-004),
+  loading/error/empty branches unchanged (FR-017, CON-008).
+- ViewToggle: added view-toggle container testid (AC-001).
+
+Existing kanban.spec.ts/kanban-api.spec.ts encode the prior (divergent)
+interpretation (Backlog column, feature-card-* testids on board, list default)
+and will fail against this spec-compliant impl; Tester owns test rewrite." 2>&1 | tail -15
+ok 6a7756d
+[0m
+[0m$ [0mcd /home/lobsterdog/source/devteam/worktrees/kanban-view/devteam && rtk git log --oneline -3 && rtk git status --short
+6a7756d feat(kanban-view): align board impl with spec/plan
+c7af01e docs(kanban-view): add planning artifacts (research, data-model, contracts, plan, tasks)
+bd10d23 style(kanban-view): gofmt kanban_smoke_test.go
+?? ui/node_modules
+[0m
+[0m✗ [0mTodos failed
+[91m[1mError: [0mThe todowrite tool was called with invalid arguments: SchemaError(Expected array, got "[{\"content\": \"Align impl with spec/plan: KanbanCard, badgeColors, useSessionView, groupFeaturesByPhase(other), Board default, toggle gating, single useQuery, 240px cols, h-[calc(100vh-8rem)], ring flags, gate text parity\",priority\": \"high\",\"status\": \"completed\",\"priority\":\"high\"},{\"content\": \"Update existing tests to spec or leave for tester (DO NOT write tests per dev rules)\",\"priority\":\"high\",\"status\":\"completed\"},{\"content\": \"Verify build + typecheck\",\"priority\":\"high\",\"status\":\"completed\"},{\"content\": \"Commit to feature/kanban-view worktree\",\"priority\":\"high\",\"status\":\"completed\"}]"
+  at ["todos"]).
+Please rewrite the input so it satisfies the expected schema.
+[0m
+[0m# [0mTodos
+[✓] Align impl with spec/plan
+[✓] Leave tests to Tester (dev rules)
+[✓] Verify build + typecheck
+[✓] Commit to feature/kanban-view worktree
+[0m
+## Construction complete — commit `6a7756d` on `feature/kanban-view`
+
+**What changed** (impl repo: `~/source/devteam/worktrees/kanban-view/devteam`):
+
+| File | Action | Why |
+|---|---|---|
+| `ui/src/components/badgeColors.ts` | CREATE | Shared `statusColors` — single source (CON-006) |
+| `ui/src/components/FeatureCard.tsx` | MODIFY | Import `statusColors` from `badgeColors` |
+| `ui/src/hooks/useSessionView.ts` | CREATE | sessionStorage hook, Board default (FR-002/003), try/catch for private mode |
+| `ui/src/components/groupFeaturesByPhase.ts` | CREATE | Pure partition: 6 phase buckets + `other` (FR-007, CON-009), all `[]` init (CON-008) |
+| `ui/src/components/KanbanCard.tsx` | CREATE | `kanban-card-*` testids, ring flags (FR-011), local `<span>` question badge (no nested anchors), gate text byte-identical to FeatureCard (CON-006) |
+| `ui/src/components/KanbanColumn.tsx` | REWRITE | `w-60` (240px), header outside `overflow-y-auto` body (FR-013), "No features" placeholder (FR-012) |
+| `ui/src/components/KanbanBoard.tsx` | REWRITE | Props-only, no `useQuery` (CON-007). 6 phases + conditional `other`. `h-[calc(100vh-8rem)] overflow-x-auto` (FR-014/015) |
+| `ui/src/components/ViewToggle.tsx` | MODIFY | Added `view-toggle` container testid (AC-001) |
+| `ui/src/pages/Dashboard.tsx` | REWRITE | Single `useQuery` (CON-007), Board default, toggle gated to `!isLoading && !error && features.length > 0` (FR-004), loading/error/empty branches unchanged (FR-017) |
+| `ui/src/lib/groupFeaturesByColumn.ts` | DELETE | Replaced by `groupFeaturesByPhase` |
+
+**Self-verification (evidence, not claims)**:
+- `npm run build` → ✓ 479 modules transformed, built in 2.55s, zero TS errors (`tsc -b` passed)
+- `go build ./...` → Success (backend untouched)
+- `go vet ./...` → No issues
+- Grep `const statusColors` → exactly 1 match (`badgeColors.ts`)
+- Grep Kanban files for phase/status string literals → 0 matches (CON-005)
+- Grep `groupFeaturesByColumn` / `../lib/` refs → 0 (no dangling refs)
+- No TODO/FIXME/HACK in changed files
+
+**Flag for Reviewer/Tester**: existing `ui/e2e/kanban.spec.ts` and `ui/e2e/kanban-api.spec.ts` (committed in a prior pass) encode the **divergent** interpretation — Backlog column, `feature-card-*` testids inside the board, list as default. They will fail against this spec-compliant impl. Per dev rules I did not modify tests. Tester must rewrite them against AC-001..AC-022 as specified in `tasks.md` T011/T012. `app.spec.ts` also needs the click-List fixture (CON-004) since Board is now default.
+
+**Constraint compliance**: CON-001 (no `:8765` refs in app code), CON-002 (components in `ui/src/components/`, hook in `ui/src/hooks/`), CON-003 (no new runtime dep — vitest not added by me; Tester owns that), CON-005 (reused `PHASES`/`PHASE_LABELS`/`STATUS_LABELS`/`PRIORITY_LABELS`), CON-006 (shared `statusColors`, gate text parity), CON-007 (single `useQuery` in Dashboard, board is props-only), CON-008 (loading/error/empty branches preserved, all buckets `[]`), CON-009 (`other` bucket for unknown phases).
+[0m
+Error: unknown command "hook" for "llmem"
+Run 'llmem --help' for usage.
