@@ -329,9 +329,9 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set activeProcess before responding so the UI knows it's processing (only if starting)
+	// Set activeProcess before responding so the UI knows it's processing
 	if req.StartImmediately {
-		s.activeProcess.Store(f.ID, "single-phase")
+		s.activeProcess.Store(f.ID, "autopilot")
 	}
 
 	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
@@ -342,9 +342,8 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auto-start inception phase only (not full autopilot).
-	// UI-created features should be interactive: run one phase, ask questions,
-	// wait for user to review and advance manually.
+	// Auto-start with auto-advance — the pipeline will flow through all phases
+	// automatically, pausing only for questions.
 	go func() {
 		defer s.activeProcess.Delete(f.ID)
 		ctx := context.Background()
@@ -359,7 +358,7 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 			s.broadcastSSE(f.ID, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, f.ID, string(escaped), isStderr))
 		}
 
-		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, false)
+		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
 		if err != nil {
 			log.Printf("error running inception for feature %s: %v", f.ID, err)
 			s.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Inception failed: %s"}`, f.ID, err.Error()))
