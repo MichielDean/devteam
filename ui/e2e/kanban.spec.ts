@@ -337,4 +337,38 @@ test.describe('Kanban view — edge cases', () => {
       await expect(cardLocator(page)).toHaveCount(50);
     });
   });
+
+  // Adversarial: agent failure mode #2 — null vs empty array. The board's
+  // groupFeaturesByPhase guards `features ?? []`, but Dashboard derives
+  // `features = data?.features ?? []` before rendering. A malformed 200
+  // response with `features: null` must not crash the board or emit a
+  // console error; it should render as an empty board (six empty columns).
+  test('CON-011/adversarial [smoke] API returns features:null → six empty columns, no console error', async ({ page }) => {
+    await page.route('**/api/features', route =>
+      route.fulfill({ status: 200, json: { features: null as unknown as FeatureFixture[], total_count: 0 } })
+    );
+    await expectNoConsoleErrors(page, async () => {
+      await page.goto('/');
+      // total_count 0 → Dashboard takes the empty branch (EmptyState + six
+      // empty columns in kanban view).
+      await page.getByTestId('view-toggle-kanban').click();
+      await expect(columnLocator(page)).toHaveCount(6);
+      await expect(page.getByTestId('empty-state-create-button')).toBeVisible();
+    });
+  });
+
+  // Adversarial: agent failure mode #1 — phantom method / crash on
+  // unexpected payload. A feature missing current_phase (undefined) must
+  // land in Other, not throw. groupFeaturesByPhase reads f.current_phase;
+  // undefined is not in the known set → Other bucket.
+  test('CON-011/adversarial [unit] feature missing current_phase → Other column, no crash', async ({ page }) => {
+    await stubFeatures(page, [
+      // current_phase deliberately absent (undefined serializes to omitted in JSON).
+      { ...feature({ id: 'nop', current_phase: 'planning' }), current_phase: undefined as unknown as string },
+    ]);
+    await page.goto('/');
+    await page.getByTestId('view-toggle-kanban').click();
+    await expect(page.getByTestId('kanban-column-other')).toBeVisible();
+    await expect(page.getByTestId('kanban-column-other').getByTestId('feature-card-nop')).toBeVisible();
+  });
 });
