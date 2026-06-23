@@ -2,91 +2,72 @@
   {
     "phase": "inception",
     "role": "pm",
-    "question": "Should the board have a separate \"Backlog\" column for not-yet-started features (status=draft, current_phase=inception), or just the six pipeline phase columns (Inception, Planning, Construction, Review, Testing, Delivery)?",
+    "question": "Should the Kanban board allow drag-and-drop to move feature cards between phase columns (which would change a feature's current phase), or is the board read-only for MVP?",
     "type": "multiple_choice",
     "options": [
-      "Six pipeline columns only — draft features appear in the Inception column",
-      "Seven columns: Backlog + six pipeline phases — draft/unstarted features separated from active inception",
+      "Read-only for MVP — cards display current phase, clicking navigates to detail page only",
+      "Drag-and-drop to move cards between phase columns, which updates the feature's current_phase via the API",
+      "Drag-and-drop with confirmation prompt before changing phase",
       "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "Which view should be the default when a user first opens the Dashboard (no prior selection remembered)?",
+    "question": "How should the user's preferred view (list vs kanban) be persisted across page reloads?",
     "type": "multiple_choice",
     "options": [
-      "List view (existing default — Kanban is opt-in)",
-      "Board/Kanban view (Kanban becomes the primary view, list is the alternate)",
+      "URL query parameter (?view=kanban) so it is shareable and bookmarkable",
+      "Browser localStorage so it persists per-browser without affecting URLs",
+      "Both — URL query param takes precedence, fall back to localStorage default",
+      "In-memory only (resets to list view on each reload)",
       "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "How should the user switch between List and Kanban views?",
+    "question": "How should empty phase columns (phases with zero features) be displayed on the Kanban board?",
     "type": "multiple_choice",
     "options": [
-      "In-page toggle control on the Dashboard (single route, segmented List/Board control)",
-      "Separate route (e.g. /kanban) with nav links between the two",
+      "Always show all six phase columns, with an empty-state message inside empty columns",
+      "Hide columns that have no features",
+      "Always show all six columns, empty columns rendered as a slim placeholder (no empty-state message)",
       "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "How long should the user's view choice persist?",
+    "question": "Which features should appear on the Kanban board? Features currently have statuses: draft, in_progress, gate_blocked, passed, failed, done, cancelled, recirculated, waiting_for_human.",
     "type": "multiple_choice",
     "options": [
-      "Session only (sessionStorage — resets when browser closes)",
-      "Across sessions (localStorage — remembered permanently)",
-      "Do not persist — always start from the default view",
+      "Show all non-cancelled features, placed in the column matching their current_phase (including done/delivered features in the Delivery column)",
+      "Show all features except cancelled and fully-delivered (done) ones",
+      "Show only features currently in an active pipeline state (draft, in_progress, gate_blocked, recirculated, waiting_for_human, passed, failed) — hide done and cancelled",
       "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "Should users be able to drag-and-drop cards between columns to change a feature's phase, or is the board view-only?",
+    "question": "Should each phase column display a count badge showing the number of feature cards in that column?",
     "type": "multiple_choice",
     "options": [
-      "View-only — phase changes happen via the existing pipeline actions on the detail page",
-      "Drag-and-drop enabled — dropping a card in a new column triggers a phase transition",
+      "Yes — show a count badge in each column header (e.g., 'Inception (3)')",
+      "No — column headers show only the phase label",
       "Other"
     ]
   },
   {
     "phase": "inception",
     "role": "pm",
-    "question": "How should features with terminal status (done, cancelled) appear on the board?",
+    "question": "Should the Kanban board support filtering features by priority within the board view for MVP (e.g., show only P1 cards)?",
     "type": "multiple_choice",
     "options": [
-      "Show them in their current_phase column (full retrospective view)",
-      "Hide them from the board (only show active/in-flight work)",
-      "Show them but visually dimmed/greyed in their current_phase column",
-      "Other"
-    ]
-  },
-  {
-    "phase": "inception",
-    "role": "pm",
-    "question": "When a column has more cards than fit the viewport, how should overflow be handled?",
-    "type": "multiple_choice",
-    "options": [
-      "Vertical scroll within each column (board height bounded to viewport, column headers stay fixed)",
-      "Show a count and a \"+N more\" affordance that expands or navigates",
-      "Let the page scroll normally (no per-column scroll)",
-      "Other"
-    ]
-  },
-  {
-    "phase": "inception",
-    "role": "pm",
-    "question": "What should the board show when a phase column has zero features?",
-    "type": "multiple_choice",
-    "options": [
-      "Render the column with header + muted \"No features\" placeholder (pipeline shape always visible)",
-      "Hide empty columns (only show phases that have features)",
+      "No filtering for MVP — show all features in the board; filtering is a later enhancement",
+      "Yes — a priority filter dropdown (All / P1 / P2 / P3) that hides non-matching cards across all columns",
+      "Yes — priority filter plus a status filter (active / blocked / done)",
       "Other"
     ]
   }
