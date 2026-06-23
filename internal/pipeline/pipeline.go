@@ -904,24 +904,41 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	// store the questions, and pause the feature for human input.
 	if gateResult.Passed && (currentPhase == feature.PhaseInception || currentPhase == feature.PhasePlanning) {
 		if p.questionStore != nil {
-			detectedQuestions := feature.DetectQuestions(f.ID, p.specProvider.FeatureDirFromFeature(f))
-			if len(detectedQuestions) > 0 {
-				log.Printf("RunPhaseWithAgentStreaming: detected %d questions for feature %s after %s phase", len(detectedQuestions), f.ID, currentPhase)
-				for i := range detectedQuestions {
-					detectedQuestions[i].FeatureID = f.ID
-					if _, err := p.questionStore.CreateQuestion(ctx, f.ID, detectedQuestions[i]); err != nil {
-						log.Printf("warning: failed to create question for feature %s: %v", f.ID, err)
-						continue
-					}
+			// Only check for questions if we haven't already asked questions for this phase
+			// (prevents re-detection loop when phase is re-run after answers)
+			existingQuestions, _ := p.questionStore.ListQuestions(ctx, f.ID)
+			alreadyAskedForPhase := false
+			for _, q := range existingQuestions {
+				if string(q.Phase) == string(currentPhase) {
+					alreadyAskedForPhase = true
+					break
 				}
-				// Pause for human input
-				if err := f.WaitForHuman(); err != nil {
-					log.Printf("warning: cannot transition feature %s to waiting_for_human: %v", f.ID, err)
-				} else {
-					if err := p.specProvider.SaveFeatureState(f); err != nil {
-						log.Printf("warning: failed to save feature state for %s: %v", f.ID, err)
+			}
+
+			if !alreadyAskedForPhase {
+				detectedQuestions := feature.DetectQuestions(f.ID, p.specProvider.FeatureDirFromFeature(f))
+				if len(detectedQuestions) > 0 {
+					log.Printf("RunPhaseWithAgentStreaming: detected %d questions for feature %s after %s phase", len(detectedQuestions), f.ID, currentPhase)
+					for i := range detectedQuestions {
+						detectedQuestions[i].FeatureID = f.ID
+						if _, err := p.questionStore.CreateQuestion(ctx, f.ID, detectedQuestions[i]); err != nil {
+							log.Printf("warning: failed to create question for feature %s: %v", f.ID, err)
+							continue
+						}
 					}
-					log.Printf("RunPhaseWithAgentStreaming: feature %s paused for human input (%d questions)", f.ID, len(detectedQuestions))
+					// Delete questions.json so it's not re-detected on a future re-run
+					questionsPath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "questions.json")
+					os.Remove(questionsPath)
+
+					// Pause for human input
+					if err := f.WaitForHuman(); err != nil {
+						log.Printf("warning: cannot transition feature %s to waiting_for_human: %v", f.ID, err)
+					} else {
+						if err := p.specProvider.SaveFeatureState(f); err != nil {
+							log.Printf("warning: failed to save feature state for %s: %v", f.ID, err)
+						}
+						log.Printf("RunPhaseWithAgentStreaming: feature %s paused for human input (%d questions)", f.ID, len(detectedQuestions))
+					}
 				}
 			}
 		}
