@@ -240,11 +240,52 @@ func (sp *SpecProvider) BuildCrossRepoContext(featureID string, repoNames []stri
 
 func (sp *SpecProvider) ReadArtifact(featureID string, artType feature.ArtifactType) (string, error) {
 	path := sp.ArtifactPath(featureID, artType)
+
+	// If it's a directory (docs/, contracts/), read all files and concatenate
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return readDirectoryContents(path)
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
+}
+
+// readDirectoryContents reads all .md files in a directory and concatenates them.
+func readDirectoryContents(dir string) (string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+
+	var b strings.Builder
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".md") && !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			continue
+		}
+		b.WriteString(fmt.Sprintf("\n## %s\n\n", name))
+		b.Write(data)
+		b.WriteString("\n")
+	}
+
+	if b.Len() == 0 {
+		return "", fmt.Errorf("no readable files in directory %s", dir)
+	}
+	return b.String(), nil
 }
 
 func (sp *SpecProvider) currentPhase(featureID string) feature.Phase {
