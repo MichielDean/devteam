@@ -165,7 +165,7 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 		if len(onOutput) > 0 {
 			outputCb = onOutput[0]
 		}
-		_, err := p.RunPhaseWithAgentStreaming(ctx, f, outputCb)
+		_, err := p.RunPhaseWithAgentStreaming(ctx, f, outputCb, true)
 		if err != nil {
 			eventCh <- ProcessEvent{
 				Type:      "error",

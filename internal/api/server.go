@@ -119,7 +119,7 @@ func (s *Server) resumeOrphanedFeatures() {
 				s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, featureID, string(escaped), isStderr))
 			}
 
-			result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput)
+			result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
 			if err != nil {
 				log.Printf("resumeOrphanedFeatures: error resuming feature %s: %v", featureID, err)
 				s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Resume failed: %s"}`, featureID, err.Error()))
@@ -359,7 +359,7 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 			s.broadcastSSE(f.ID, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, f.ID, string(escaped), isStderr))
 		}
 
-		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput)
+		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, false)
 		if err != nil {
 			log.Printf("error running inception for feature %s: %v", f.ID, err)
 			s.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Inception failed: %s"}`, f.ID, err.Error()))
@@ -440,7 +440,7 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 			s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","line":%s,"stderr":%v}`, id, currentPhase, string(escaped), isStderr))
 		}
 
-		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput)
+		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
 		if err != nil {
 			log.Printf("error running phase for feature %s: %v", id, err)
 			s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","message":"Phase execution failed: %s"}`, id, currentPhase, err.Error()))
@@ -1095,6 +1095,17 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Only auto-resume in autopilot mode. In single-phase mode (user
+		// manually running phases), the user advances manually after
+		// answering questions.
+		mode := s.ProcessingMode(id)
+		if mode != "autopilot" {
+			log.Printf("all questions answered for feature %s, but in %s mode — waiting for user to advance", id, mode)
+			// Clear the processing state so the user can advance manually
+			s.activeProcess.Delete(id)
+			return
+		}
+
 		if _, loaded := s.activeProcess.LoadOrStore(id, "autopilot"); loaded {
 			return
 		}
@@ -1132,7 +1143,7 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 			s.broadcastSSE(id, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, id, f.Current))
 			s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched"}`, id, f.Current, s.pipeline.PrimaryRole(f.Current)))
 
-			result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput)
+			result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
 			s.activeProcess.Delete(id)
 			if err != nil {
 				log.Printf("error running phase after questions: %v", err)
