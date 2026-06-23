@@ -1,19 +1,17 @@
+feature_id: kanban-view
+# Repositories affected by the kanban-view feature.
+# This feature is a UI-only change to the Dev Team web app. It adds a Kanban
+# board view over the existing GET /api/features response. No backend changes,
+# no new endpoints, no DTO changes — therefore only the devteam repo is in scope.
 repos:
   - name: devteam
-    path: .
+    path: ~/source/devteam
     role: primary
     changes: >
-      Frontend-only change for the read-only Kanban MVP. No backend changes.
-      Add a KanbanBoard view component (ui/src/components/KanbanBoard.tsx) and
-      a KanbanColumn component (or inline) that renders six phase columns using
-      the existing PHASES/PHASE_LABELS from ui/src/types/index.ts. Add a
-      view-toggle segmented control (List | Kanban) and a priority filter
-      control to ui/src/pages/Dashboard.tsx. Persist view preference via
-      ?view= URL query param (precedence) + localStorage['devteam-dashboard-view']
-      fallback. Reuse the existing useQuery({queryKey:['features']}) cache —
-      no new API calls, no new endpoints. Add Playwright E2E tests in
-      ui/e2e/kanban.spec.ts covering toggle, column placement, count badges,
-      empty columns, card navigation, priority filter, view persistence,
-      horizontal scroll, dark mode, and error/loading/empty states. Run on
-      port 18765 per existing playwright.config.ts. Update ui/src/types/index.ts
-      only if a new ViewPreference type is added (client-only UI state).
+      UI-only. Adds KanbanBoard, KanbanColumn, KanbanCard, ViewToggle components
+      and useSessionView hook under ui/src/. Adds groupFeaturesByPhase pure
+      function + unit test. Modifies Dashboard.tsx to render toggle + board.
+      Adds Playwright e2e tests under ui/e2e/kanban.spec.ts. Reuses existing
+      GET /api/features endpoint, FeatureCard visual contract, and react-query
+      ['features'] cache. No changes to internal/api/, internal/feature/, the
+      Go binary, or ui/package.json dependencies.
