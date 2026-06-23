@@ -492,8 +492,14 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if f.Status == feature.StatusWaitingHuman {
-		writeError(w, http.StatusBadRequest, "validation_error", "Cannot advance feature in waiting_for_human status")
-		return
+		// Allow advancing if all questions are answered
+		pending, _ := s.questionStore.PendingCount(r.Context(), id)
+		if pending > 0 {
+			writeError(w, http.StatusBadRequest, "validation_error", "Cannot advance feature with pending questions")
+			return
+		}
+		// All questions answered — transition back to in_progress
+		f.Status = feature.StatusInProgress
 	}
 
 	if f.Current == feature.PhaseDelivery {
@@ -1098,11 +1104,21 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 		// manually running phases), the user advances manually after
 		// answering questions.
 		mode := s.ProcessingMode(id)
-		if mode != "autopilot" {
-			log.Printf("all questions answered for feature %s, but in %s mode — waiting for user to advance", id, mode)
+		if mode == "single-phase" {
+			log.Printf("all questions answered for feature %s, but in single-phase mode — waiting for user to advance", id)
 			// Clear the processing state so the user can advance manually
 			s.activeProcess.Delete(id)
+			// Transition back to in_progress so user can advance
+			f.Status = feature.StatusInProgress
+			s.pipeline.GetFeature(id) // reload
+			s.pipeline.UpdateFeatureStatus(f)
 			return
+		}
+
+		// Auto-resume: transition from waiting_for_human to in_progress
+		f.Status = feature.StatusInProgress
+		if err := s.pipeline.UpdateFeatureStatus(f); err != nil {
+			log.Printf("warning: could not transition feature %s back to in_progress: %v", id, err)
 		}
 
 		if _, loaded := s.activeProcess.LoadOrStore(id, "autopilot"); loaded {

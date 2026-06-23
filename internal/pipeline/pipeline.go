@@ -1142,6 +1142,11 @@ func (p *Pipeline) SaveFeature(f *feature.Feature) error {
 	return p.specProvider.SaveFeatureState(f)
 }
 
+// UpdateFeatureStatus saves a feature's status and current phase.
+func (p *Pipeline) UpdateFeatureStatus(f *feature.Feature) error {
+	return p.specProvider.SaveFeatureState(f)
+}
+
 func (p *Pipeline) getPhaseConfig(phase feature.Phase) (*config.PhaseConfig, error) {
 	for i := range p.config.Pipeline.Phases {
 		if p.config.Pipeline.Phases[i].Name == string(phase) {
