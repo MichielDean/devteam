@@ -69,9 +69,9 @@ phase_states:
                 - name: repos.yaml identifies at least one affected repository
                   passed: true
                   message: ✓ repos.yaml identifies at least one affected repository
-            evaluated_at: 2026-06-22T20:31:12.21042408-06:00
-        started_at: 2026-06-22T20:29:42.670168815-06:00
-        completed_at: 2026-06-22T20:29:42.670168815-06:00
+            evaluated_at: 2026-06-22T20:33:00.012228691-06:00
+        started_at: 2026-06-22T20:31:27.970962955-06:00
+        completed_at: 2026-06-22T20:31:27.970962955-06:00
     planning:
         phase: planning
         status: draft
