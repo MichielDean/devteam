@@ -665,7 +665,7 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 
 		promptContext := roleDef.Instructions + "\n\n---\n\n" + contextStr
 
-		phaseInstruction := p.phaseInstruction(currentPhase, f.ID)
+		phaseInstruction := p.phaseInstruction(currentPhase, f)
 		if phaseInstruction != "" {
 			promptContext = promptContext + "\n\n---\n\n" + phaseInstruction
 		}
@@ -822,7 +822,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 
 		promptContext := roleDef.Instructions + "\n\n---\n\n" + contextStr
 
-		phaseInstruction := p.phaseInstruction(currentPhase, f.ID)
+		phaseInstruction := p.phaseInstruction(currentPhase, f)
 		if phaseInstruction != "" {
 			promptContext = promptContext + "\n\n---\n\n" + phaseInstruction
 		}
@@ -988,7 +988,14 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 			}
 
 			if !alreadyAskedForPhase {
-				detectedQuestions := feature.DetectQuestions(f.ID, p.specProvider.FeatureDirFromFeature(f))
+				// Check for questions in the worktree first, then primary checkout
+				wtDir := p.specProvider.FeatureDirFromFeature(f)
+				primaryDir := filepath.Join(p.specProvider.BaseDir(), "specs", f.ID)
+				detectedQuestions := feature.DetectQuestions(f.ID, wtDir)
+				if len(detectedQuestions) == 0 {
+					// Fallback: check primary checkout
+					detectedQuestions = feature.DetectQuestions(f.ID, primaryDir)
+				}
 				if len(detectedQuestions) > 0 {
 					log.Printf("RunPhaseWithAgentStreaming: detected %d questions for feature %s after %s phase", len(detectedQuestions), f.ID, currentPhase)
 					for i := range detectedQuestions {
@@ -998,9 +1005,9 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 							continue
 						}
 					}
-					// Delete questions.json so it's not re-detected on a future re-run
-					questionsPath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "questions.json")
-					os.Remove(questionsPath)
+					// Delete questions.json from BOTH locations so it's not re-detected
+					os.Remove(filepath.Join(wtDir, "questions.json"))
+					os.Remove(filepath.Join(primaryDir, "questions.json"))
 
 					// Pause for human input
 					if err := f.WaitForHuman(); err != nil {
@@ -1244,10 +1251,14 @@ func (p *Pipeline) getPhaseConfig(phase feature.Phase) (*config.PhaseConfig, err
 	return nil, fmt.Errorf("phase %s not found in config", phase)
 }
 
-func (p *Pipeline) phaseInstruction(phase feature.Phase, featureID string) string {
+func (p *Pipeline) phaseInstruction(phase feature.Phase, f *feature.Feature) string {
+	specDir := p.specProvider.FeatureDirFromFeature(f)
+	featureID := f.ID
+	prefix := fmt.Sprintf("## IMPORTANT: File Locations\n\nWrite ALL spec artifacts to this absolute directory path:\n%s/\n\nDo NOT write to any other location. Do NOT use relative paths. Use the absolute path above.\n\n", specDir)
+	
 	switch phase {
 	case feature.PhaseInception:
-		return fmt.Sprintf(`You are in the INCEPTION phase for feature %s.
+		return prefix + fmt.Sprintf(`You are in the INCEPTION phase for feature %s.
 
 Your task: Explore, clarify, and refine the idea into a structured specification.
 
