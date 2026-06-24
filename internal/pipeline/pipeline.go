@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/MichielDean/devteam/internal/config"
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
@@ -86,10 +88,17 @@ func (p *Pipeline) EnsureSpecWorktree(f *feature.Feature) error {
 	f.WorktreeDir = worktreeDir
 	log.Printf("EnsureSpecWorktree: created worktree at %s on branch %s for feature %s", worktreeDir, branchName, f.ID)
 
-	// Save state with worktree dir (to both primary checkout and worktree)
+	// Save state to the worktree (agents never touch primary checkout)
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
 		return fmt.Errorf("saving feature state with worktree dir: %w", err)
 	}
+
+	// Also save to primary checkout temporarily so ListFeatures can find it
+	// before the worktree scan picks it up
+	primaryStateDir := filepath.Join(p.specProvider.BaseDir(), "specs", f.ID)
+	os.MkdirAll(primaryStateDir, 0755)
+	primaryData, _ := yaml.Marshal(f)
+	os.WriteFile(filepath.Join(primaryStateDir, ".devteam-state.yaml"), primaryData, 0644)
 
 	return nil
 }
@@ -988,14 +997,9 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 			}
 
 			if !alreadyAskedForPhase {
-				// Check for questions in the worktree first, then primary checkout
-				wtDir := p.specProvider.FeatureDirFromFeature(f)
-				primaryDir := filepath.Join(p.specProvider.BaseDir(), "specs", f.ID)
-				detectedQuestions := feature.DetectQuestions(f.ID, wtDir)
-				if len(detectedQuestions) == 0 {
-					// Fallback: check primary checkout
-					detectedQuestions = feature.DetectQuestions(f.ID, primaryDir)
-				}
+				// Read questions from the worktree (agent's CWD)
+				specDir := p.specProvider.FeatureDirFromFeature(f)
+				detectedQuestions := feature.DetectQuestions(f.ID, specDir)
 				if len(detectedQuestions) > 0 {
 					log.Printf("RunPhaseWithAgentStreaming: detected %d questions for feature %s after %s phase", len(detectedQuestions), f.ID, currentPhase)
 					for i := range detectedQuestions {
@@ -1005,9 +1009,8 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 							continue
 						}
 					}
-					// Delete questions.json from BOTH locations so it's not re-detected
-					os.Remove(filepath.Join(wtDir, "questions.json"))
-					os.Remove(filepath.Join(primaryDir, "questions.json"))
+					// Delete questions.json so it's not re-detected on a future re-run
+					os.Remove(filepath.Join(specDir, "questions.json"))
 
 					// Pause for human input
 					if err := f.WaitForHuman(); err != nil {

@@ -2,7 +2,6 @@ package spec
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -68,48 +67,78 @@ func (sp *SpecProvider) LoadFeatureState(featureID string) (*feature.Feature, er
 }
 
 func (sp *SpecProvider) SaveFeatureState(f *feature.Feature) error {
-	// Always save to the primary checkout so ListFeatures can find it
-	primaryDir := filepath.Join(sp.baseDir, "specs", f.ID)
-	if err := os.MkdirAll(primaryDir, 0755); err != nil {
-		return fmt.Errorf("creating feature directory in primary checkout: %w", err)
-	}
 	data, err := yaml.Marshal(f)
 	if err != nil {
 		return fmt.Errorf("marshaling feature state: %w", err)
 	}
-	primaryPath := filepath.Join(primaryDir, ".devteam-state.yaml")
-	if err := os.WriteFile(primaryPath, data, 0644); err != nil {
-		return fmt.Errorf("writing feature state to primary checkout: %w", err)
-	}
 
-	// Also save to the worktree if set
+	// Save to the worktree only — agents never touch the primary checkout
 	if f.WorktreeDir != "" {
 		wtDir := filepath.Join(f.WorktreeDir, "specs", f.ID)
 		if err := os.MkdirAll(wtDir, 0755); err != nil {
-			log.Printf("warning: could not create feature dir in worktree: %v", err)
-			return nil // primary save succeeded
+			return fmt.Errorf("creating feature dir in worktree: %w", err)
 		}
 		wtPath := filepath.Join(wtDir, ".devteam-state.yaml")
 		if err := os.WriteFile(wtPath, data, 0644); err != nil {
-			log.Printf("warning: could not write feature state to worktree: %v", err)
+			return fmt.Errorf("writing feature state to worktree: %w", err)
 		}
+		return nil
 	}
 
+	// No worktree yet (feature just created) — save to primary checkout temporarily
+	// EnsureSpecWorktree will create the worktree and move this
+	primaryDir := filepath.Join(sp.baseDir, "specs", f.ID)
+	if err := os.MkdirAll(primaryDir, 0755); err != nil {
+		return fmt.Errorf("creating feature directory: %w", err)
+	}
+	primaryPath := filepath.Join(primaryDir, ".devteam-state.yaml")
+	if err := os.WriteFile(primaryPath, data, 0644); err != nil {
+		return fmt.Errorf("writing feature state: %w", err)
+	}
 	return nil
 }
 
 func (sp *SpecProvider) ListFeatures() ([]*feature.Feature, error) {
+	var features []*feature.Feature
+	seen := make(map[string]bool)
+
+	// Scan spec worktrees (the primary location for active features)
+	// Only scan if the worktree base exists
+	worktreeBase := filepath.Join(os.Getenv("HOME"), "worktrees", "devteam-specs")
+	if wtEntries, err := os.ReadDir(worktreeBase); err == nil {
+		for _, entry := range wtEntries {
+			if !entry.IsDir() {
+				continue
+			}
+			// State file is at <worktreeBase>/<featureID>/specs/<featureID>/.devteam-state.yaml
+			specDir := filepath.Join(worktreeBase, entry.Name(), "specs", entry.Name())
+			statePath := filepath.Join(specDir, ".devteam-state.yaml")
+			if data, err := os.ReadFile(statePath); err == nil {
+				var f feature.Feature
+				if err := yaml.Unmarshal(data, &f); err == nil {
+					// Only include if this worktree belongs to this SpecProvider's base dir
+					// (prevents test features from picking up real worktrees)
+					if strings.Contains(f.SpecDir, sp.baseDir) || f.SpecDir == "" {
+						features = append(features, &f)
+						seen[f.ID] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Also scan primary checkout for features without worktrees yet
 	specsDir := filepath.Join(sp.baseDir, "specs")
 	entries, err := os.ReadDir(specsDir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+		if len(features) == 0 {
+			return nil, fmt.Errorf("reading specs directory: %w", err)
 		}
-		return nil, fmt.Errorf("reading specs directory: %w", err)
+		// We found worktree features, just return those
+		return features, nil
 	}
-	var features []*feature.Feature
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || seen[entry.Name()] {
 			continue
 		}
 		f, err := sp.LoadFeatureState(entry.Name())
@@ -118,6 +147,7 @@ func (sp *SpecProvider) ListFeatures() ([]*feature.Feature, error) {
 		}
 		features = append(features, f)
 	}
+
 	return features, nil
 }
 
