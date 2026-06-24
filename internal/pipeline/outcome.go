@@ -38,17 +38,9 @@ type ParsedOutcome struct {
 //   pool
 //   Blocked on external dependency
 func (p *Pipeline) ParseOutcome(f *feature.Feature, phase feature.Phase) ParsedOutcome {
-	// Check worktree first, then primary checkout
-	wtDir := p.specProvider.FeatureDirFromFeature(f)
-	primaryDir := filepath.Join(p.specProvider.BaseDir(), "specs", f.ID)
-	
-	outcomePath := filepath.Join(wtDir, "outcome.txt")
+	// Read from the worktree only (agent's CWD)
+	outcomePath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "outcome.txt")
 	data, err := os.ReadFile(outcomePath)
-	if err != nil {
-		// Fallback: check primary checkout
-		outcomePath = filepath.Join(primaryDir, "outcome.txt")
-		data, err = os.ReadFile(outcomePath)
-	}
 	if err != nil {
 		return ParsedOutcome{Result: OutcomePass, HasFile: false}
 	}
@@ -87,12 +79,10 @@ func (p *Pipeline) ParseOutcome(f *feature.Feature, phase feature.Phase) ParsedO
 	return po
 }
 
-// DeleteOutcome removes the outcome file from both locations so it's not re-read.
+// DeleteOutcome removes the outcome file from the worktree.
 func (p *Pipeline) DeleteOutcome(f *feature.Feature) {
-	wtDir := p.specProvider.FeatureDirFromFeature(f)
-	primaryDir := filepath.Join(p.specProvider.BaseDir(), "specs", f.ID)
-	os.Remove(filepath.Join(wtDir, "outcome.txt"))
-	os.Remove(filepath.Join(primaryDir, "outcome.txt"))
+	outcomePath := filepath.Join(p.specProvider.FeatureDirFromFeature(f), "outcome.txt")
+	os.Remove(outcomePath)
 }
 
 // ResolveRecirculateTarget determines which phase to recirculate to.
