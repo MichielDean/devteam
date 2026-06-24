@@ -1,13 +1,13 @@
 id: better-qa-ui
 title: Better Q&A UI
-current_phase: inception
+current_phase: planning
 status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/better-qa-ui/
 worktree_dir: /home/lobsterdog/worktrees/devteam-specs/better-qa-ui
 created_at: 2026-06-23T23:36:41.025921437-06:00
-updated_at: 2026-06-23T23:36:41.02604257-06:00
+updated_at: 2026-06-24T09:56:08.261846696-06:00
 phase_states:
     construction:
         phase: construction
@@ -72,10 +72,89 @@ phase_states:
                   message: ✓ repos.yaml identifies at least one affected repository
             evaluated_at: 2026-06-24T09:56:05.130112563-06:00
         started_at: 2026-06-24T09:49:40.087714697-06:00
-        completed_at: 2026-06-24T09:49:40.087714697-06:00
+        completed_at: 2026-06-24T09:56:08.261846696-06:00
     planning:
         phase: planning
-        status: draft
+        status: passed
+        gate_result:
+            phase: planning
+            passed: true
+            checks:
+                - name: artifact_plan_md_exists
+                  passed: true
+                  message: artifact plan_md present at /home/lobsterdog/worktrees/devteam-specs/better-qa-ui/specs/better-qa-ui/plan.md
+                - name: artifact_tasks_md_exists
+                  passed: true
+                  message: artifact tasks_md present at /home/lobsterdog/worktrees/devteam-specs/better-qa-ui/specs/better-qa-ui/tasks.md
+                - name: artifact_data_model_md_exists
+                  passed: true
+                  message: artifact data_model_md present at /home/lobsterdog/worktrees/devteam-specs/better-qa-ui/specs/better-qa-ui/data-model.md
+                - name: artifact_research_md_exists
+                  passed: true
+                  message: artifact research_md present at /home/lobsterdog/worktrees/devteam-specs/better-qa-ui/specs/better-qa-ui/research.md
+                - name: artifact_contracts_dir_exists
+                  passed: true
+                  message: artifact contracts_dir present at /home/lobsterdog/worktrees/devteam-specs/better-qa-ui/specs/better-qa-ui/contracts
+                - name: plan.md addresses all acceptance criteria from acceptance.md
+                  passed: true
+                  message: ✓ plan.md addresses all acceptance criteria from acceptance.md
+                - name: plan.md includes technical context (language, framework, dependencies)
+                  passed: true
+                  message: ✓ plan.md includes technical context (language, framework, dependencies)
+                - name: plan.md includes constitution check (if constitution exists)
+                  passed: true
+                  message: ✓ plan.md includes constitution check (if constitution exists)
+                - name: plan.md includes project structure with file paths
+                  passed: true
+                  message: ✓ plan.md includes project structure with file paths
+                - name: plan.md includes component design with responsibilities and interfaces
+                  passed: true
+                  message: ✓ plan.md includes component design with responsibilities and interfaces
+                - name: plan.md includes API contracts with request/response schemas and error responses
+                  passed: true
+                  message: ✓ plan.md includes API contracts with request/response schemas and error responses
+                - name: plan.md includes test strategy section with testing levels for each component
+                  passed: true
+                  message: ✓ plan.md includes test strategy section with testing levels for each component
+                - name: plan.md includes agent failure mode checks for AI-generated code
+                  passed: true
+                  message: ✓ plan.md includes agent failure mode checks for AI-generated code
+                - name: plan.md includes constraint verification map tracing constraints to design decisions
+                  passed: true
+                  message: ✓ plan.md includes constraint verification map tracing constraints to design decisions
+                - name: plan.md includes cross-component consistency matrix for shared values
+                  passed: true
+                  message: ✓ plan.md includes cross-component consistency matrix for shared values
+                - name: research.md documents technical research and existing code patterns
+                  passed: true
+                  message: ✓ research.md documents technical research and existing code patterns
+                - name: data-model.md defines entities with attributes, relationships, and constraints
+                  passed: true
+                  message: ✓ data-model.md defines entities with attributes, relationships, and constraints
+                - name: contracts/ directory contains API contract files with request/response schemas
+                  passed: true
+                  message: ✓ contracts/ directory contains API contract files with request/response schemas
+                - name: tasks.md contains specific file paths for implementation
+                  passed: true
+                  message: ✓ tasks.md contains specific file paths for implementation
+                - name: tasks.md includes done conditions with specific verifiable assertions
+                  passed: true
+                  message: ✓ tasks.md includes done conditions with specific verifiable assertions
+                - name: tasks.md includes test level required for each task
+                  passed: true
+                  message: ✓ tasks.md includes test level required for each task
+                - name: tasks.md includes constraint references (CON- IDs) for constrained tasks
+                  passed: true
+                  message: ✓ tasks.md includes constraint references (CON- IDs) for constrained tasks
+                - name: tasks.md organized by user story priority
+                  passed: true
+                  message: ✓ tasks.md organized by user story priority
+                - name: dependencies between tasks are explicit
+                  passed: true
+                  message: ✓ dependencies between tasks are explicit
+            evaluated_at: 2026-06-24T10:05:09.804414244-06:00
+        started_at: 2026-06-24T09:56:08.262469537-06:00
+        completed_at: 2026-06-24T09:56:08.262469537-06:00
     review:
         phase: review
         status: draft
