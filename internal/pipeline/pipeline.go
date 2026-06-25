@@ -1032,7 +1032,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	// - pool → stop, notify user
 	// - pass + !autoAdvance → stop, let user advance manually
 	// - waiting_for_human → stop, let user answer questions
-	if autoAdvance && f.Status != feature.StatusWaitingHuman {
+	if autoAdvance && f.Status != feature.StatusWaitingFeedback {
 		if outcome.Result == OutcomePass && currentPhase != feature.PhaseDelivery {
 			// Advance to next phase
 			nextPhase := feature.NextPhase(currentPhase)

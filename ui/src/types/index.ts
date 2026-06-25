@@ -95,7 +95,7 @@ export type SSEEventType =
   | 'processing_complete'
   | 'phase_complete'
   | 'error'
-  | 'waiting_for_human'
+  | 'waiting_for_feedback'
   | 'questions_answered'
   | 'questions_assumed'
   | 'question_answered';
@@ -219,7 +219,7 @@ export const STATUS_LABELS: Record<string, string> = {
   done: 'Done',
   recirculated: 'Recirculated',
   cancelled: 'Cancelled',
-  waiting_for_human: 'Waiting for Human',
+  waiting_for_feedback: 'Waiting for Human',
 };
 
 export const PRIORITY_LABELS: Record<number, string> = {
