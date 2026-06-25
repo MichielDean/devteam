@@ -172,5 +172,10 @@ phase_states:
         completed_at: 2026-06-24T18:31:44.278114857-06:00
     testing:
         phase: testing
-        status: in_progress
-        started_at: 2026-06-24T18:31:44.278114857-06:00
+        status: passed
+        gate_result:
+            phase: testing
+            passed: true
+            evaluated_at: 2026-06-24T19:10:50.276719332-06:00
+        started_at: 2026-06-24T19:03:14.23467718-06:00
+        completed_at: 2026-06-24T19:03:14.23467718-06:00
