@@ -1,0 +1,15 @@
+repos:
+  - name: devteam
+    path: .
+    role: primary
+    changes: >
+      UI-only feature. Restyle the interactive Q&A flow in ui/ from flat form
+      cards to a guided wizard. Affected frontend files: ui/src/components/QuestionCard.tsx
+      (selectable option cards, textarea step for open-ended, answered/assumed
+      restyle), ui/src/pages/FeatureDetail.tsx (progress indicator, auto-scroll,
+      inline answer summary, single Submit-and-Resume button, phase/role labels),
+      and new e2e tests under ui/e2e/. The Question TypeScript interface
+      (ui/src/types/index.ts) and the backend answer endpoint
+      (internal/api/server.go answerQuestion) are NOT modified — this is a
+      UI-only change. Backend resume-mode semantics (autopilot auto-resume,
+      single-phase manual advance) are preserved as-is.
