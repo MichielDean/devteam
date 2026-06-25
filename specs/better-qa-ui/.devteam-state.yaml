@@ -1,17 +1,18 @@
 id: better-qa-ui
 title: Better Q&A UI
-current_phase: planning
+current_phase: construction
 status: in_progress
 priority: 1
 intake_path: loose_idea
 spec_dir: specs/better-qa-ui/
 worktree_dir: /home/lobsterdog/worktrees/devteam-specs/better-qa-ui
 created_at: 2026-06-23T23:36:41.025921437-06:00
-updated_at: 2026-06-24T09:56:08.261846696-06:00
+updated_at: 2026-06-24T17:57:01.373326644-06:00
 phase_states:
     construction:
         phase: construction
-        status: draft
+        status: in_progress
+        started_at: 2026-06-24T17:57:01.373326644-06:00
     delivery:
         phase: delivery
         status: draft
@@ -154,7 +155,7 @@ phase_states:
                   message: ✓ dependencies between tasks are explicit
             evaluated_at: 2026-06-24T10:05:09.804414244-06:00
         started_at: 2026-06-24T09:56:08.262469537-06:00
-        completed_at: 2026-06-24T09:56:08.262469537-06:00
+        completed_at: 2026-06-24T17:57:01.373326644-06:00
     review:
         phase: review
         status: draft
