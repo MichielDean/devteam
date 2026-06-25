@@ -11,8 +11,13 @@ updated_at: 2026-06-24T17:57:01.373326644-06:00
 phase_states:
     construction:
         phase: construction
-        status: in_progress
-        started_at: 2026-06-24T17:57:01.373326644-06:00
+        status: passed
+        gate_result:
+            phase: construction
+            passed: true
+            evaluated_at: 2026-06-24T18:19:20.274518038-06:00
+        started_at: 2026-06-24T18:16:13.23315041-06:00
+        completed_at: 2026-06-24T18:16:13.23315041-06:00
     delivery:
         phase: delivery
         status: draft
