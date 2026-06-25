@@ -491,7 +491,7 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if f.Status == feature.StatusWaitingHuman {
+	if f.Status == feature.StatusWaitingFeedback {
 		// Allow advancing if all questions are answered
 		pending, _ := s.questionStore.PendingCount(r.Context(), id)
 		if pending > 0 {
@@ -1096,7 +1096,7 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if f.Status != feature.StatusWaitingHuman {
+		if f.Status != feature.StatusWaitingFeedback {
 			return
 		}
 

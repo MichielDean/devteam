@@ -41,7 +41,7 @@ export function useSSE(featureId: string | null, onEvent?: (event: SSEEvent) => 
       // Always invalidate the feature list when any state changes
       queryClient.invalidateQueries({ queryKey: ['features'] });
       // Invalidate questions cache for question-related events
-      if (type === 'waiting_for_human' || type === 'questions_answered' || type === 'questions_assumed') {
+      if (type === 'waiting_for_feedback' || type === 'questions_answered' || type === 'questions_assumed') {
         if (data?.feature_id) {
           queryClient.invalidateQueries({ queryKey: ['questions', data.feature_id] });
         }
@@ -84,7 +84,7 @@ export function useSSE(featureId: string | null, onEvent?: (event: SSEEvent) => 
     es.addEventListener('phase_complete', (e: MessageEvent) => handleEvent('phase_complete', e));
     es.addEventListener('error', (e: MessageEvent) => handleEvent('error', e));
     es.addEventListener('state_change', (e: MessageEvent) => handleEvent('state_change', e));
-    es.addEventListener('waiting_for_human', (e: MessageEvent) => handleEvent('waiting_for_human', e));
+    es.addEventListener('waiting_for_feedback', (e: MessageEvent) => handleEvent('waiting_for_feedback', e));
     es.addEventListener('questions_answered', (e: MessageEvent) => handleEvent('questions_answered', e));
     es.addEventListener('questions_assumed', (e: MessageEvent) => handleEvent('questions_assumed', e));
     es.addEventListener('question_answered', (e: MessageEvent) => handleEvent('question_answered', e));

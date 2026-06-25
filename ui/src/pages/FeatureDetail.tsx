@@ -39,7 +39,7 @@ export default function FeatureDetail() {
     enabled: !!id,
   });
 
-  const isWaitingForHuman = feature?.status === 'waiting_for_human';
+  const isWaitingForHuman = feature?.status === 'waiting_for_feedback';
   const pendingQuestions = questions.filter((q) => q.status === 'pending');
 
   // Auto-scroll to next pending question without a draft, else summary. CON-006.
@@ -55,7 +55,7 @@ export default function FeatureDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, isWaitingForHuman]);
 
-  // Clear draft when leaving waiting_for_human (submit success / status flip).
+  // Clear draft when leaving waiting_for_feedback (submit success / status flip).
   useEffect(() => {
     if (!isWaitingForHuman) setDraft({});
   }, [isWaitingForHuman]);
@@ -285,7 +285,7 @@ export default function FeatureDetail() {
                   ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                   : feature.status === 'in_progress'
                   ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                  : feature.status === 'waiting_for_human'
+                  : feature.status === 'waiting_for_feedback'
                   ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
                   : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
               }`}
@@ -338,10 +338,10 @@ export default function FeatureDetail() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="current-phase-context">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-2xl">
-              {feature.status === 'waiting_for_human' ? '🙋' : '⚙️'}
+              {feature.status === 'waiting_for_feedback' ? '🙋' : '⚙️'}
             </span>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {feature.status === 'waiting_for_human'
+              {feature.status === 'waiting_for_feedback'
                 ? 'We need your input to continue'
                 : isDeliveryPassed
                 ? 'All done!'
@@ -349,13 +349,13 @@ export default function FeatureDetail() {
             </h3>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2" data-testid="phase-description">
-            {feature.status === 'waiting_for_human'
+            {feature.status === 'waiting_for_feedback'
               ? 'Answer the questions below so we can keep going.'
               : isDeliveryPassed
               ? 'All steps are complete. This feature is ready.'
               : phaseDescriptions[currentPhase as PhaseName] || 'Working on this step.'}
           </p>
-          {!feature.status.match('waiting_for_human|done|cancelled') && !isDeliveryPassed && (
+          {!feature.status.match('waiting_for_feedback|done|cancelled') && !isDeliveryPassed && (
             <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
               This step produces: {PHASE_OUTPUTS[currentPhase as PhaseName] || 'deliverables'}
             </p>
@@ -380,7 +380,7 @@ export default function FeatureDetail() {
           )}
 
           {/* Primary Action: Autopilot */}
-          {!isDeliveryPassed && feature.status !== 'waiting_for_human' && (
+          {!isDeliveryPassed && feature.status !== 'waiting_for_feedback' && (
             <div className="mb-4" data-testid="primary-action">
               <button
                 onClick={() => processMutation.mutate()}
@@ -407,7 +407,7 @@ export default function FeatureDetail() {
           )}
 
           {/* Waiting for human actions */}
-          {feature.status === 'waiting_for_human' && (
+          {feature.status === 'waiting_for_feedback' && (
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="waiting-banner">
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
                 Answer the questions below. The pipeline will resume automatically once all questions are answered.
@@ -565,7 +565,7 @@ export default function FeatureDetail() {
             )}
           </div>
 
-          {/* Inline answer summary + single submit. CON-007/008. Only when waiting_for_human. AC-021. */}
+          {/* Inline answer summary + single submit. CON-007/008. Only when waiting_for_feedback. AC-021. */}
           {isWaitingForHuman && (
             <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
               <div

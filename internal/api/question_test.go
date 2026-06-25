@@ -1063,7 +1063,7 @@ func TestIntegrationAdvanceFromWaitingHumanBlocked(t *testing.T) {
 	resp.Body.Close()
 
 	// Now manually set feature to waiting_for_human
-	f.Status = feature.StatusWaitingHuman
+	f.Status = feature.StatusWaitingFeedback
 	sp.SaveFeatureState(f)
 
 	// Try to advance — should get 400

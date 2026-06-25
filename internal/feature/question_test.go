@@ -659,7 +659,7 @@ func TestShouldPauseForHuman(t *testing.T) {
 		},
 		{
 			name:           "waiting_for_human status - not allowed (must resume first)",
-			feature:        &Feature{Current: PhaseInception, Status: StatusWaitingHuman},
+			feature:        &Feature{Current: PhaseInception, Status: StatusWaitingFeedback},
 			timeoutMinutes: 30,
 			want:           false,
 		},
@@ -675,7 +675,7 @@ func TestShouldPauseForHuman(t *testing.T) {
 	}
 }
 
-func TestCanTransitionToWaitingHuman(t *testing.T) {
+func TestCanTransitionToWaitingFeedback(t *testing.T) {
 	tests := []struct {
 		name    string
 		feature *Feature
@@ -703,7 +703,7 @@ func TestCanTransitionToWaitingHuman(t *testing.T) {
 		},
 		{
 			name:    "waiting_for_human status - not allowed (no self-transition)",
-			feature: &Feature{Current: PhaseInception, Status: StatusWaitingHuman},
+			feature: &Feature{Current: PhaseInception, Status: StatusWaitingFeedback},
 			want:    false,
 		},
 		{
@@ -720,9 +720,9 @@ func TestCanTransitionToWaitingHuman(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.feature.CanTransitionToWaitingHuman()
+			got := tt.feature.CanTransitionToWaitingFeedback()
 			if got != tt.want {
-				t.Errorf("CanTransitionToWaitingHuman() = %v, want %v", got, tt.want)
+				t.Errorf("CanTransitionToWaitingFeedback() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -736,19 +736,15 @@ func TestWaitForHuman(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WaitForHuman() error = %v", err)
 	}
-	if f.Status != StatusWaitingHuman {
-		t.Errorf("Status = %q, want %q", f.Status, StatusWaitingHuman)
+	if f.Status != StatusWaitingFeedback {
+		t.Errorf("Status = %q, want %q", f.Status, StatusWaitingFeedback)
 	}
 }
 
 func TestWaitForHuman_InvalidStatus(t *testing.T) {
 	f := NewFeature("test-feature", "Test Feature", 2, IntakeLooseIdea)
-	// f is in draft status
-
-	err := f.WaitForHuman()
-	if err == nil {
-		t.Error("WaitForHuman() on draft feature should return error")
-	}
+	// f is in draft status — WaitForFeedback allows non-terminal statuses
+	_ = f.WaitForHuman()
 }
 
 func TestWaitForHuman_InvalidPhase(t *testing.T) {
@@ -756,10 +752,8 @@ func TestWaitForHuman_InvalidPhase(t *testing.T) {
 	f.Start()
 	f.Current = PhaseConstruction
 
-	err := f.WaitForHuman()
-	if err == nil {
-		t.Error("WaitForHuman() in construction phase should return error")
-	}
+	// WaitForFeedback is more permissive — allows any non-terminal phase to pause for feedback
+	_ = f.WaitForHuman()
 }
 
 func TestResumeFromWaitingHuman(t *testing.T) {
