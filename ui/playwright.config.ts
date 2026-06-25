@@ -1,7 +1,10 @@
 import { defineConfig } from '@playwright/test';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const repoRoot = path.resolve(__dirname, '..');
+// ponytail: ESM-safe __dirname (package.json is "type": "module"; __dirname undefined under Playwright's loader)
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, '..');
 
 export default defineConfig({
   testDir: './e2e',
