@@ -1,0 +1,5 @@
+repos:
+  - name: devteam-specs
+    path: /home/lobsterdog/worktrees/devteam-specs/x
+    role: primary
+    changes: No code changes in inception phase. Spec artifacts (spec.md, acceptance.md, repos.yaml, questions.json, audit.md, outcome.txt) written under specs/x/. Pipeline exercise feature — no source code modified.

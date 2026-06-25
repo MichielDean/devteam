@@ -1,0 +1,35 @@
+id: x
+title: x
+current_phase: inception
+status: in_progress
+priority: 3
+intake_path: loose_idea
+spec_dir: specs/x/
+worktree_dir: /home/lobsterdog/worktrees/devteam-specs/x
+created_at: 2026-06-24T18:58:13.341870617-06:00
+updated_at: 2026-06-24T18:58:13.341983725-06:00
+phase_states:
+    construction:
+        phase: construction
+        status: draft
+    delivery:
+        phase: delivery
+        status: draft
+    inception:
+        phase: inception
+        status: passed
+        gate_result:
+            phase: inception
+            passed: true
+            evaluated_at: 2026-06-24T19:09:35.057340863-06:00
+        started_at: 2026-06-24T19:08:52.513129058-06:00
+        completed_at: 2026-06-24T19:08:52.513129058-06:00
+    planning:
+        phase: planning
+        status: draft
+    review:
+        phase: review
+        status: draft
+    testing:
+        phase: testing
+        status: draft

@@ -1,0 +1,62 @@
+[
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "The feature idea was submitted as the single letter \"x\" with no description. What does this feature actually do?",
+    "type": "multiple_choice",
+    "options": [
+      "It is a test/placeholder feature to exercise the pipeline end-to-end with no real product behavior",
+      "It is a real feature whose description was lost; please describe it via Other",
+      "It is an internal devteam-platform capability (e.g., a new CLI subcommand, API endpoint, or UI view)",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "What is the target surface for feature x?",
+    "type": "multiple_choice",
+    "options": [
+      "Backend-only (Go: new endpoint, CLI flag, or internal package)",
+      "Frontend-only (React/TypeScript UI change)",
+      "Full-stack (Go backend + React UI)",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "What is the intended priority for feature x? (Intake marked it P3.)",
+    "type": "multiple_choice",
+    "options": [
+      "P3 (nice-to-have) as intaked",
+      "P1 (must-have, blocks release)",
+      "P2 (should-have)",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "Should this feature ship any user-visible behavior, or is it internal-only (e.g., scaffolding, metrics, refactor)?",
+    "type": "multiple_choice",
+    "options": [
+      "Internal-only (no user-facing change; e.g., refactor, tooling, telemetry)",
+      "User-facing: a new user action or visible output",
+      "User-facing: a bug fix to existing behavior",
+      "Other"
+    ]
+  },
+  {
+    "phase": "inception",
+    "role": "pm",
+    "question": "What is the success signal for this feature once delivered?",
+    "type": "multiple_choice",
+    "options": [
+      "Pipeline runs end-to-end on feature x without errors (smoke-only verification)",
+      "A specific named capability works as described via Other",
+      "Existing test suite still passes and a new test covers the change",
+      "Other"
+    ]
+  }
+]
