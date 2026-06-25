@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, processFeature, evaluateGate, listQuestions } from '../api/client';
+import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, processFeature, evaluateGate, listQuestions, answerQuestion, ApiError } from '../api/client';
 import { useSSE } from '../hooks/useSSE';
 import { useToast } from '../components/Toast';
 import type { FeatureDetail, PhaseName } from '../types';
@@ -18,6 +18,12 @@ export default function FeatureDetail() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
+  // Wizard draft state: { questionId -> selected/typed answer }. CON-007/008.
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const questionCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const summaryRef = useRef<HTMLDivElement | null>(null);
+
   const { data: feature, isLoading, error } = useQuery({
     queryKey: ['feature', id!],
     queryFn: () => getFeature(id!),
@@ -32,6 +38,78 @@ export default function FeatureDetail() {
     queryFn: () => listQuestions(id!),
     enabled: !!id,
   });
+
+  const isWaitingForHuman = feature?.status === 'waiting_for_human';
+  const pendingQuestions = questions.filter((q) => q.status === 'pending');
+
+  // Auto-scroll to next pending question without a draft, else summary. CON-006.
+  useEffect(() => {
+    if (!isWaitingForHuman || pendingQuestions.length === 0) return;
+    const nextEmpty = pendingQuestions.find((q) => !(draft[q.id]?.trim()));
+    if (nextEmpty) {
+      const el = questionCardRefs.current[nextEmpty.id];
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (summaryRef.current) {
+      summaryRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, isWaitingForHuman]);
+
+  // Clear draft when leaving waiting_for_human (submit success / status flip).
+  useEffect(() => {
+    if (!isWaitingForHuman) setDraft({});
+  }, [isWaitingForHuman]);
+
+  const onSelect = useCallback((qid: string, option: string) => {
+    setDraft((prev) => ({ ...prev, [qid]: option }));
+  }, []);
+  const onType = useCallback((qid: string, text: string) => {
+    setDraft((prev) => ({ ...prev, [qid]: text }));
+  }, []);
+
+  const setCardRef = useCallback(
+    (qid: string) => (el: HTMLDivElement | null) => {
+      questionCardRefs.current[qid] = el;
+    },
+    []
+  );
+
+  const allPendingDrafted = pendingQuestions.every((q) => (draft[q.id]?.trim() ?? '').length > 0);
+
+  // Submit: sequential PATCHes, one per drafted pending question. CON-008.
+  const handleSubmitAll = async () => {
+    if (!id || !allPendingDrafted) return;
+    setIsSubmitting(true);
+    let aborted = false;
+    for (const q of pendingQuestions) {
+      const answer = (draft[q.id] ?? '').trim();
+      if (!answer) continue; // ponytail: client defense, backend enforces anyway
+      try {
+        await answerQuestion(id, q.id, answer);
+      } catch (err) {
+        const apiErr = err instanceof ApiError ? err : null;
+        const code = apiErr?.code ?? 'unknown_error';
+        const details = apiErr?.details ?? (err instanceof Error ? err.message : 'Failed to answer question');
+        if (code === 'conflict') {
+          // Already answered (maybe via SSE between draft and submit). Toast, continue. CON-011.
+          addToast('error', details || 'Question already answered');
+        } else {
+          // 400/404/500: genuine error, abort remaining. CON-010/012.
+          addToast('error', details || `Failed to answer question (${code})`);
+          aborted = true;
+          break;
+        }
+      }
+    }
+    setIsSubmitting(false);
+    if (!aborted) {
+      setDraft({});
+      queryClient.invalidateQueries({ queryKey: ['questions', id!] });
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['features'] });
+      addToast('success', 'Answers submitted — resuming pipeline');
+    }
+  };
 
   const [isProcessing, setIsProcessing] = useState(feature?.is_processing ?? false);
   const [processingMode, setProcessingMode] = useState<'autopilot' | 'single-phase' | null>(
@@ -59,6 +137,10 @@ export default function FeatureDetail() {
       queryClient.invalidateQueries({ queryKey: ['features'] });
     } else if (lastEvent.type === 'agent_dispatch' || lastEvent.type === 'phase_change' || lastEvent.type === 'gate_result') {
       setIsProcessing(true);
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+    } else if (lastEvent.type === 'question_answered') {
+      // Preserve React Query invalidation so answered cards flip in history without reload. FR-014.
+      queryClient.invalidateQueries({ queryKey: ['questions', id!] });
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
     }
   }, [lastEvent, id, queryClient]);
@@ -456,37 +538,93 @@ export default function FeatureDetail() {
         <GateResult gateResult={currentPhaseState.gate_result} />
       )}
 
-      {/* Questions Section */}
+      {/* Questions Section — hidden when zero questions. FR-013 / AC-019. */}
       {questions.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="questions-section">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Questions</h3>
-            {feature.status === 'waiting_for_human' && (
-              <span className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                {questions.filter((q) => q.status === 'pending').length} pending
-              </span>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white" data-testid="questions-header">Questions</h3>
+            <div data-testid="question-progress" className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+              {questions.filter((q) => q.status !== 'pending' || (draft[q.id]?.trim() ?? '').length > 0).length} of {questions.length} questions answered
+            </div>
+          </div>
+          <div className="space-y-4">
+            {questions.map((q) =>
+              q.status === 'pending' ? (
+                <QuestionCard
+                  key={q.id}
+                  question={q}
+                  featureId={feature.id}
+                  draft={draft[q.id]}
+                  onSelect={(opt) => onSelect(q.id, opt)}
+                  onType={(text) => onType(q.id, text)}
+                  ref={setCardRef(q.id)}
+                />
+              ) : (
+                <QuestionCard key={q.id} question={q} featureId={feature.id} />
+              )
             )}
           </div>
-          {feature.status === 'waiting_for_human' && (
-            <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700 rounded-lg" data-testid="waiting-for-human-banner">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
-                The pipeline is paused waiting for your input.
-              </p>
-              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-                Answer all questions below — the pipeline resumes automatically once every question is answered.
-              </p>
-            </div>
-          )}
-          <div className="space-y-4">
-            {questions.map((q) => (
-              <QuestionCard key={q.id} question={q} featureId={feature.id} />
-            ))}
-          </div>
-          {questions.every((q) => q.status !== 'pending') && questions.length > 0 && (
-            <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg" data-testid="all-questions-answered">
-              <p className="text-sm text-green-600 dark:text-green-400 font-medium">
-                ✓ All questions answered. Pipeline will resume automatically.
-              </p>
+
+          {/* Inline answer summary + single submit. CON-007/008. Only when waiting_for_human. AC-021. */}
+          {isWaitingForHuman && (
+            <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+              <div
+                ref={summaryRef}
+                className="mb-4 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-gray-200 dark:border-gray-700"
+                data-testid="answer-summary"
+              >
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Answer summary</h4>
+                <ul className="space-y-2">
+                  {questions.map((q) => {
+                    const answer =
+                      q.status === 'answered'
+                        ? q.answer
+                        : q.status === 'assumed'
+                        ? q.assumption
+                        : draft[q.id] ?? '';
+                    return (
+                      <li key={q.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const el = questionCardRefs.current[q.id];
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }}
+                          className="w-full text-left flex flex-col gap-0.5 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          data-testid={`summary-row-${q.id}`}
+                        >
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{q.phase} · {q.role}</span>
+                          <span className="text-sm text-gray-900 dark:text-white" data-testid="summary-question">{q.question}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300" data-testid="summary-answer">
+                            {answer || <span className="italic text-gray-400 dark:text-gray-500">Not answered yet</span>}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              <button
+                type="button"
+                onClick={handleSubmitAll}
+                disabled={!allPendingDrafted || isSubmitting || pendingQuestions.length === 0}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold shadow-sm"
+                data-testid="submit-answers"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                    Submitting...
+                  </span>
+                ) : (
+                  'Submit Answers & Resume'
+                )}
+              </button>
+              {!allPendingDrafted && pendingQuestions.length > 0 && (
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Answer all pending questions to enable submit.
+                </p>
+              )}
             </div>
           )}
         </div>
