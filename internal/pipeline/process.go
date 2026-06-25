@@ -86,7 +86,7 @@ func (p *Pipeline) ProcessAsync(ctx context.Context, f *feature.Feature, eventCh
 		}
 
 		// If feature is waiting for human input, check if all questions are answered
-		if f.Status == feature.StatusWaitingHuman {
+		if f.Status == feature.StatusWaitingFeedback {
 			pendingCount, err := p.questionStore.PendingCount(ctx, f.ID)
 			if err != nil {
 				log.Printf("error checking pending questions for feature %s: %v", f.ID, err)
@@ -431,7 +431,7 @@ func (p *Pipeline) startTimeoutGoroutine(ctx context.Context, featureID string, 
 				return
 			}
 
-			if f.Status == feature.StatusWaitingHuman {
+			if f.Status == feature.StatusWaitingFeedback {
 				if err := f.ResumeFromWaitingHuman(); err != nil {
 					log.Printf("error resuming feature %s from waiting_for_human: %v", featureID, err)
 					return

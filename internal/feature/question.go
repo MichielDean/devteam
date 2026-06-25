@@ -511,8 +511,40 @@ func ShouldPauseForHuman(f *Feature, timeoutMinutes int) bool {
 	return true
 }
 
-// CanTransitionToWaitingHuman checks if a feature can transition to waiting_for_human status.
-func (f *Feature) CanTransitionToWaitingHuman() bool {
+// WaitForFeedback transitions the feature to waiting_for_feedback status.
+// Used when the PM asks questions that need user answers before proceeding.
+func (f *Feature) WaitForFeedback() error {
+	if f.Status == StatusDone || f.Status == StatusCancelled {
+		return fmt.Errorf("cannot wait for feedback from terminal status %q", f.Status)
+	}
+	f.Status = StatusWaitingFeedback
+	f.UpdatedAt = time.Now()
+	return nil
+}
+
+// WaitForHuman is kept for backward compatibility
+func (f *Feature) WaitForHuman() error {
+	return f.WaitForFeedback()
+}
+
+// ResumeFromFeedback transitions the feature from waiting_for_feedback back to in_progress.
+func (f *Feature) ResumeFromFeedback() error {
+	if f.Status != StatusWaitingFeedback {
+		return fmt.Errorf("feature is not in waiting_for_feedback status (current: %s)", f.Status)
+	}
+	f.Status = StatusInProgress
+	f.UpdatedAt = time.Now()
+	return nil
+}
+
+// ResumeFromWaitingHuman is kept for backward compatibility
+func (f *Feature) ResumeFromWaitingHuman() error {
+	return f.ResumeFromFeedback()
+}
+
+// CanTransitionToWaitingFeedback checks if a feature can transition to waiting_for_feedback.
+// Only inception and planning phases in in_progress status can pause for user feedback.
+func (f *Feature) CanTransitionToWaitingFeedback() bool {
 	if f.Status != StatusInProgress {
 		return false
 	}
@@ -520,26 +552,4 @@ func (f *Feature) CanTransitionToWaitingHuman() bool {
 		return false
 	}
 	return true
-}
-
-// WaitForHuman transitions the feature to waiting_for_human status.
-func (f *Feature) WaitForHuman() error {
-	if !f.CanTransitionToWaitingHuman() {
-		return fmt.Errorf("cannot transition feature in %s status and %s phase to waiting_for_human", f.Status, f.Current)
-	}
-	now := time.Now()
-	f.Status = StatusWaitingHuman
-	f.UpdatedAt = now
-	return nil
-}
-
-// ResumeFromWaitingHuman transitions the feature from waiting_for_human back to in_progress.
-func (f *Feature) ResumeFromWaitingHuman() error {
-	if f.Status != StatusWaitingHuman {
-		return fmt.Errorf("feature is not in waiting_for_human status (current: %s)", f.Status)
-	}
-	now := time.Now()
-	f.Status = StatusInProgress
-	f.UpdatedAt = now
-	return nil
 }
