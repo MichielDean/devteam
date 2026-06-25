@@ -85,6 +85,31 @@ func (p *Pipeline) EnsureSpecWorktree(f *feature.Feature) error {
 		}
 	}
 
+	// Remove all OTHER features' spec directories from the worktree.
+	// The worktree was created from origin/main which includes committed specs
+	// from other features. The agent should only see THIS feature's spec dir.
+	wtSpecsBase := filepath.Join(worktreeDir, "specs")
+	if entries, err := os.ReadDir(wtSpecsBase); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() && entry.Name() != f.ID {
+				os.RemoveAll(filepath.Join(wtSpecsBase, entry.Name()))
+			}
+		}
+	}
+
+	// Also remove .devteam.db and other non-feature files from specs/ that could confuse the agent
+	os.Remove(filepath.Join(worktreeDir, ".devteam.db"))
+	os.Remove(filepath.Join(worktreeDir, ".devteam.db-wal"))
+	os.Remove(filepath.Join(worktreeDir, ".devteam.db-shm"))
+
+	// Write .specify/feature.json so SpecKit scripts and the agent know which
+	// feature is currently being worked on (SpecKit pattern for spec tracking)
+	featureJSON := fmt.Sprintf(`{"feature_directory": "specs/%s"}`, f.ID)
+	featureJSONPath := filepath.Join(worktreeDir, ".specify", "feature.json")
+	os.MkdirAll(filepath.Dir(featureJSONPath), 0755)
+	os.WriteFile(featureJSONPath, []byte(featureJSON), 0644)
+	log.Printf("EnsureSpecWorktree: wrote .specify/feature.json pointing to specs/%s", f.ID)
+
 	f.WorktreeDir = worktreeDir
 	log.Printf("EnsureSpecWorktree: created worktree at %s on branch %s for feature %s", worktreeDir, branchName, f.ID)
 
@@ -981,9 +1006,10 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	}
 
 	// Check for questions after inception/planning phases.
-	// The agent writes questions.json in the spec directory; we detect it,
-	// store the questions, and pause the feature for human input.
-	if ps.GateResult.Passed && (currentPhase == feature.PhaseInception || currentPhase == feature.PhasePlanning) {
+	// This runs REGARDLESS of gate outcome — the agent may write questions.json
+	// and then signal failed/recirculate because it can't proceed without answers.
+	// We detect the questions and pause for human input either way.
+	if currentPhase == feature.PhaseInception || currentPhase == feature.PhasePlanning {
 		if p.questionStore != nil {
 			// Only check for questions if we haven't already asked questions for this phase
 			// (prevents re-detection loop when phase is re-run after answers)
@@ -1029,7 +1055,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	// Outcome-based routing (Cistern pattern):
 	// - pass + autoAdvance → advance to next phase and run it
 	// - recirculate + autoAdvance → route to target phase and run it
-	// - pool → stop, notify user
+	// - failed → stop, notify user
 	// - pass + !autoAdvance → stop, let user advance manually
 	// - waiting_for_human → stop, let user answer questions
 	if autoAdvance && f.Status != feature.StatusWaitingHuman {

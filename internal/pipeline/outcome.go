@@ -16,7 +16,7 @@ type Outcome string
 const (
 	OutcomePass        Outcome = "pass"
 	OutcomeRecirculate Outcome = "recirculate"
-	OutcomePool        Outcome = "pool"
+	OutcomeFailed Outcome = "failed"
 )
 
 // ParsedOutcome is the parsed result from the agent's outcome file.
@@ -35,7 +35,7 @@ type ParsedOutcome struct {
 //   Missing error handling in handler.go:42
 //   recirculate:inception
 //   Spec doesn't define what happens when user is not authenticated
-//   pool
+	//   failed
 //   Blocked on external dependency
 func (p *Pipeline) ParseOutcome(f *feature.Feature, phase feature.Phase) ParsedOutcome {
 	// Read from the worktree only (agent's CWD)
@@ -55,11 +55,11 @@ func (p *Pipeline) ParseOutcome(f *feature.Feature, phase feature.Phase) ParsedO
 
 	po := ParsedOutcome{HasFile: true}
 
-	// Parse first line: pass, recirculate, recirculate:target, or pool
+	// Parse first line: pass, recirculate, recirculate:target, or failed
 	if firstLine == "pass" {
 		po.Result = OutcomePass
-	} else if firstLine == "pool" {
-		po.Result = OutcomePool
+	} else if firstLine == "failed" {
+		po.Result = OutcomeFailed
 	} else if strings.HasPrefix(firstLine, "recirculate") {
 		po.Result = OutcomeRecirculate
 		// Check for target: recirculate:construction
@@ -142,7 +142,7 @@ func outcomeInstructions(phase feature.Phase) string {
 	if recirculateTarget != "" {
 		b.WriteString(fmt.Sprintf("- `recirculate:%s` — you found issues that need to be fixed by the %s phase\n", recirculateTarget, recirculateTarget))
 	}
-	b.WriteString("- `pool` — you are blocked and cannot proceed\n\n")
+	b.WriteString("- `failed` — you are blocked and cannot proceed\n\n")
 
 	if recirculateTarget != "" {
 		b.WriteString(fmt.Sprintf("When recirculating to %s, write the reason on subsequent lines:\n", recirculateTarget))
