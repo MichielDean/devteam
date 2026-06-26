@@ -117,6 +117,39 @@ func main() {
 	case "init":
 		handleInit()
 		return
+	case "questions":
+		// devteam questions <ask|pending|list|answer> <feature-id> [options]
+		// These don't need config — just DB access
+		if len(os.Args) < 4 {
+			fmt.Fprintf(os.Stderr, "Usage: devteam questions <ask|pending|list|answer> <feature-id> [options]\n")
+			os.Exit(1)
+		}
+		handleQuestionsCLI(baseDir, os.Args[2:])
+		return
+	case "signal":
+		// devteam signal <feature-id> <outcome> [--notes "text"]
+		if len(os.Args) < 4 {
+			fmt.Fprintf(os.Stderr, "Usage: devteam signal <feature-id> <pass|recirculate:target|needs_feedback|failed> [--notes \"text\"]\n")
+			os.Exit(1)
+		}
+		handleSignalCLI(baseDir, os.Args[2:])
+		return
+	case "notes":
+		// devteam notes <add|list> <feature-id> [options]
+		if len(os.Args) < 4 {
+			fmt.Fprintf(os.Stderr, "Usage: devteam notes <add|list> <feature-id> [options]\n")
+			os.Exit(1)
+		}
+		handleNotesCLI(baseDir, os.Args[2:])
+		return
+	case "feature":
+		// devteam feature <status|info> <feature-id>
+		if len(os.Args) < 4 {
+			fmt.Fprintf(os.Stderr, "Usage: devteam feature <status|info> <feature-id>\n")
+			os.Exit(1)
+		}
+		handleFeatureCLI(baseDir, os.Args[2:])
+		return
 	}
 
 	cfg, err := config.LoadConfig(filepath.Join(baseDir, "devteam.yaml"))
@@ -767,16 +800,28 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "devteam %s - multi-agent development platform\n\n", version)
 	fmt.Fprintf(os.Stderr, "Usage:\n")
 	fmt.Fprintf(os.Stderr, "  devteam <command> [args]\n\n")
-	fmt.Fprintf(os.Stderr, "Commands:\n")
+	fmt.Fprintf(os.Stderr, "Server:\n")
+	fmt.Fprintf(os.Stderr, "  -http :8080  Start web server\n\n")
+	fmt.Fprintf(os.Stderr, "Pipeline commands:\n")
 	fmt.Fprintf(os.Stderr, "  intake       Submit a new feature (loose idea or external spec)\n")
 	fmt.Fprintf(os.Stderr, "  run          Run the current pipeline phase for a feature (dispatches agents)\n")
 	fmt.Fprintf(os.Stderr, "  process      Autonomously process a feature through the entire pipeline\n")
 	fmt.Fprintf(os.Stderr, "  advance      Advance feature to next phase after gate passes\n")
 	fmt.Fprintf(os.Stderr, "  gate         Evaluate the current phase gate for a feature\n")
 	fmt.Fprintf(os.Stderr, "  recirculate  Send a feature back to an earlier phase\n")
+	fmt.Fprintf(os.Stderr, "  status       Show current pipeline status for all features\n\n")
+	fmt.Fprintf(os.Stderr, "Agent CLI (for use by dispatched agents):\n")
+	fmt.Fprintf(os.Stderr, "  questions ask <feature-id> --file questions.json   Submit questions for user feedback\n")
+	fmt.Fprintf(os.Stderr, "  questions pending <feature-id>                     List pending questions\n")
+	fmt.Fprintf(os.Stderr, "  questions answer <feature-id> <question-id> <ans>  Answer a question\n")
+	fmt.Fprintf(os.Stderr, "  signal <feature-id> <outcome> [--notes \"text\"]     Signal phase outcome (pass/recirculate:target/needs_feedback/failed)\n")
+	fmt.Fprintf(os.Stderr, "  notes add <feature-id> --phase <phase> --content    Add a note for the next phase\n")
+	fmt.Fprintf(os.Stderr, "  notes list <feature-id>                            List all notes for a feature\n")
+	fmt.Fprintf(os.Stderr, "  feature status <feature-id>                        Get feature status\n")
+	fmt.Fprintf(os.Stderr, "  feature info <feature-id>                          Get feature info\n\n")
+	fmt.Fprintf(os.Stderr, "Other:\n")
 	fmt.Fprintf(os.Stderr, "  plugin       Manage pipeline plugins (update, list)\n")
-	fmt.Fprintf(os.Stderr, "  init        Initialize a new devteam project (scaffolds directory structure)\n")
-	fmt.Fprintf(os.Stderr, "  status       Show current pipeline status for all features\n")
+	fmt.Fprintf(os.Stderr, "  init         Initialize a new devteam project\n")
 	fmt.Fprintf(os.Stderr, "  bootstrap    Self-bootstrap: process spec 001 through the pipeline\n")
 	fmt.Fprintf(os.Stderr, "  version      Print version\n\n")
 	fmt.Fprintf(os.Stderr, "Intake options:\n")
