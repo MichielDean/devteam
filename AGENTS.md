@@ -2,6 +2,37 @@
 
 This file provides context for AI agents working in this repository.
 
+## State Management — USE THE CLI
+
+You are an agent in the Dev Team pipeline. Use the `devteam` CLI to manage your state — do NOT write state files manually.
+
+### Submit Questions
+```bash
+# Write questions.json, then:
+devteam questions ask <feature-id> --file questions.json
+devteam signal <feature-id> needs_feedback
+```
+
+### Signal Outcome
+```bash
+devteam signal <feature-id> pass                          # work complete
+devteam signal <feature-id> recirculate:construction --notes "what to fix"  # send back
+devteam signal <feature-id> failed --notes "why"          # blocked
+```
+
+### Add Notes for Next Phase
+```bash
+devteam notes add <feature-id> --phase <phase> --content "what you decided"
+```
+
+### Query State
+```bash
+devteam feature status <feature-id>
+devteam questions pending <feature-id>
+```
+
+The CLI handles all database operations. You do NOT touch SQLite directly. The CLI finds the database automatically.
+
 ## Project Overview
 
 Dev Team is an **AI-Driven Development Life Cycle (AI-DLC) platform** that orchestrates multi-agent software development through structured phases: inception → planning → construction → review → testing → delivery.
