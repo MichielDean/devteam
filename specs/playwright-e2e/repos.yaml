@@ -1,0 +1,5 @@
+repos:
+  - name: devteam
+    path: .
+    role: primary
+    changes: Add GET /api/health handler + route in internal/api/server.go (Go 1.22+ method-pattern ServeMux). Add httptest integration tests in internal/api/server_test.go. Add one Playwright E2E spec under ui/e2e/ asserting the health endpoint against the :18765 test server. No DB changes, no new dependencies.
