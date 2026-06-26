@@ -61,7 +61,13 @@ export default function FeatureDetail() {
   }, [isWaitingForHuman]);
 
   const onSelect = useCallback((qid: string, option: string) => {
-    setDraft((prev) => ({ ...prev, [qid]: option }));
+    if (option === 'Other') {
+      // Clear draft so the free-form text field shows (otherSelected = true
+      // when draft is set but not in options). User types the real answer.
+      setDraft((prev) => ({ ...prev, [qid]: '' }));
+    } else {
+      setDraft((prev) => ({ ...prev, [qid]: option }));
+    }
   }, []);
   const onType = useCallback((qid: string, text: string) => {
     setDraft((prev) => ({ ...prev, [qid]: text }));

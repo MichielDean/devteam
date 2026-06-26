@@ -444,6 +444,44 @@ test.describe('Better Q&A UI — US-003', () => {
     });
   });
 
+  test('AC-OTHER [e2e] selecting "Other" shows free-form text field; typed text is submitted as the answer', async ({ page }) => {
+    const patches: { qid: string; answer: string }[] = [];
+    let featureStatus = 'waiting_for_human';
+    const stub = makeStub({
+      featureId: 'other-1',
+      questions: [q({ id: 'q1', feature_id: 'other-1', question: 'Pick one', options: ['A', 'B', 'Other'] })],
+      onPatch: (qid, body) => {
+        patches.push({ qid, answer: body.answer });
+        featureStatus = 'in_progress';
+        stub.setFeatureStatus(featureStatus);
+        return { status: 200, body: q({ id: qid, feature_id: 'other-1', status: 'answered', answer: body.answer, answered_at: '2026-06-26T00:00:01Z' }) };
+      },
+    });
+    await stub.install(page);
+    await expectNoConsoleErrors(page, async () => {
+      await gotoFeature(page, 'other-1');
+      // Click "Other" (index 2)
+      await page.locator('[data-testid="question-option-2"]').click();
+      // "Other" should show as selected
+      await expect(page.locator('[data-testid="question-option-2"]')).toHaveAttribute('data-selected', 'true');
+      // Free-form text field should appear
+      await expect(page.locator('[data-testid="question-other-input"]')).toBeVisible();
+      // Submit button should be disabled (empty draft)
+      await expect(page.locator('[data-testid="submit-answers"]')).toBeDisabled();
+      // Type a custom answer
+      await page.locator('[data-testid="question-other-input"]').fill('Custom answer here');
+      // Submit should now be enabled
+      await expect(page.locator('[data-testid="submit-answers"]')).toBeEnabled();
+      // Summary should show the typed text
+      await expect(page.locator('[data-testid="summary-row-q1"] [data-testid="summary-answer"]')).toContainText('Custom answer here');
+      // Submit
+      await page.locator('[data-testid="submit-answers"]').click();
+      // The PATCH should contain the typed text, not "Other"
+      expect(patches).toHaveLength(1);
+      expect(patches[0].answer).toBe('Custom answer here');
+    });
+  });
+
   test('AC-012 [e2e] submit sends one PATCH per question and feature status leaves waiting_for_human', async ({ page }) => {
     const patches: { qid: string; answer: string }[] = [];
     let featureStatus = 'waiting_for_human';
