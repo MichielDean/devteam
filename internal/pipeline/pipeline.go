@@ -1322,7 +1322,7 @@ If a constitution.md exists, verify compliance.
 When the spec is complete, signal pass:
   devteam signal %s pass
 
-Inception should almost never fail — it's just a question-answer loop that ends with a spec.`, featureID, featureID, featureID, specDir, specDir, specDir, specDir, featureID)
+Inception should almost never fail — it's just a question-answer loop that ends with a spec.`, featureID, featureID, featureID, specDir, specDir, specDir, featureID)
 
 	case feature.PhasePlanning:
 		return prefix + fmt.Sprintf(`You are in the PLANNING phase for feature %s.
