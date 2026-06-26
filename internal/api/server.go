@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -169,8 +170,13 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("POST /api/features/{id}/process", s.processFeature)
 	mux.HandleFunc("GET /api/features/{id}/gate", s.evaluateGate)
 	mux.HandleFunc("GET /api/features/{id}/artifacts/{type}", s.getArtifact)
+	mux.HandleFunc("POST /api/features/{id}/artifacts/{type}", s.handleSubmitArtifact)
 	mux.HandleFunc("GET /api/features/{id}/stream", s.streamFeature)
 	mux.HandleFunc("GET /api/features/{id}/output", s.getCapturedOutput)
+
+	// Agent CLI endpoints (called by devteam CLI from agents)
+	mux.HandleFunc("POST /api/features/{id}/signal", s.handleSignal)
+	mux.HandleFunc("POST /api/features/{id}/notes", s.handleAddNote)
 
 	// Question endpoints
 	mux.HandleFunc("GET /api/features/{id}/questions/pending", s.listPendingQuestions)
@@ -711,6 +717,17 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Try database first
+	if s.db != nil {
+		artifact, err := s.db.GetArtifact(id, artType)
+		if err == nil && artifact != nil {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Write([]byte(artifact.Content))
+			return
+		}
+	}
+
+	// Fallback: read from disk
 	if _, err := s.pipeline.GetFeature(id); err != nil {
 		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
 		return
@@ -718,6 +735,17 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 
 	featureType, ok := feature.ArtifactAPIPathToType(artType)
 	if !ok {
+		// Try reading as a plain file
+		f, _ := s.pipeline.GetFeature(id)
+		if f != nil {
+			specDir := s.specProvider.FeatureDirFromFeature(f)
+			content, err := readDirOrFile(filepath.Join(specDir, artType))
+			if err == nil {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				w.Write([]byte(content))
+				return
+			}
+		}
 		writeError(w, http.StatusBadRequest, "validation_error", fmt.Sprintf("Invalid artifact type %q", artType))
 		return
 	}

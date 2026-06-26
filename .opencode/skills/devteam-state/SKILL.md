@@ -115,12 +115,35 @@ devteam questions pending <feature-id>
 devteam notes list <feature-id>
 ```
 
+## Submit Spec Artifacts
+
+Spec documents (spec.md, plan.md, tasks.md, acceptance.md, repos.yaml) go in the database, not on disk. Submit them via the CLI:
+
+```bash
+# Submit from a file
+devteam artifact submit <feature-id> spec --file spec.md
+devteam artifact submit <feature-id> plan --file plan.md
+devteam artifact submit <feature-id> tasks --file tasks.md
+devteam artifact submit <feature-id> acceptance --file acceptance.md
+
+# Submit inline content
+devteam artifact submit <feature-id> spec --content "# Spec content here..."
+```
+
+Retrieve an artifact:
+
+```bash
+devteam artifact get <feature-id> spec
+```
+
+Artifact types: `spec`, `plan`, `tasks`, `acceptance`, `repos`, `review`, `test_report`, `delivery_notes`.
+
 ## Key Rules
 
 1. **Always use the CLI** — never write `outcome.txt` or `questions.json` and expect the pipeline to find them
-2. **The CLI handles all database operations** — you never touch SQLite directly
-3. **The CLI finds the database automatically** — you don't need to know where it is
-4. **Questions are scoped to your feature** — they won't leak to other features
-5. **Signal is mandatory** — if you don't signal, the pipeline assumes `pass`
-6. **Notes help the next agent** — leave brief, actionable notes about what you decided or found
-7. **"Other" is mandatory** — every multiple_choice question must include "Other" as the last option
+2. **The CLI calls the API** — all state lives in the database via `http://localhost:8765`
+3. **Questions are scoped to your feature** — they won't leak to other features
+4. **Signal is mandatory** — if you don't signal, the pipeline assumes `pass`
+5. **Notes help the next agent** — leave brief, actionable notes about what you decided or found
+6. **"Other" is mandatory** — every multiple_choice question must include "Other" as the last option
+7. **Artifacts go in the DB** — use `devteam artifact submit`, not file writes
