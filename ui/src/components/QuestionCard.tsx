@@ -84,6 +84,8 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
 
   // Pending state
   const hasOptions = question.options && question.options.length > 0;
+  const otherSelected = hasOptions && draft !== undefined && draft !== null && !question.options.includes(draft);
+
   return (
     <div className={`${cardBase} border-blue-300 dark:border-blue-700`} data-testid={`question-card-${question.id}`} ref={ref}>
       <div className="flex items-center gap-2 mb-2">
@@ -94,27 +96,40 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
       <p className="text-sm text-gray-900 dark:text-white mb-3" data-testid="question-text">{question.question}</p>
 
       {hasOptions ? (
-        <div className="flex flex-col gap-2" data-testid="question-options">
-          {question.options.map((option, idx) => {
-            const selected = draft === option;
-            return (
-              <button
-                key={idx}
-                onClick={() => onSelect?.(option)}
-                className={`px-4 py-3 text-left text-sm rounded-lg border transition-colors break-words whitespace-normal ${
-                  selected
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 ring-2 ring-blue-400'
-                    : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
-                data-testid={`question-option-${idx}`}
-                aria-pressed={selected}
-                data-selected={selected ? 'true' : 'false'}
-              >
-                {option}
-              </button>
-            );
-          })}
-        </div>
+        <>
+          <div className="flex flex-col gap-2" data-testid="question-options">
+            {question.options.map((option, idx) => {
+              const selected = draft === option || (option === 'Other' && otherSelected);
+              return (
+                <button
+                  key={idx}
+                  onClick={() => onSelect?.(option)}
+                  className={`px-4 py-3 text-left text-sm rounded-lg border transition-colors break-words whitespace-normal ${
+                    selected
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 ring-2 ring-blue-400'
+                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                  data-testid={`question-option-${idx}`}
+                  aria-pressed={selected}
+                  data-selected={selected ? 'true' : 'false'}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
+          {otherSelected && (
+            <textarea
+              value={draft}
+              onChange={(e) => onType?.(e.target.value)}
+              placeholder="Please specify..."
+              rows={3}
+              autoFocus
+              className="mt-3 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+              data-testid="question-other-input"
+            />
+          )}
+        </>
       ) : (
         <textarea
           value={draft ?? ''}
