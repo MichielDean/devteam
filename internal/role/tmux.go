@@ -110,10 +110,11 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	// Always pass PATH so the agent can find binaries
 	tmuxPath := os.Getenv("PATH")
 	if home := os.Getenv("HOME"); home != "" {
-		// Ensure .opencode/bin is in PATH for agent sessions
-		opencodeBin := home + "/.opencode/bin"
-		if !strings.Contains(tmuxPath, opencodeBin) {
-			tmuxPath = opencodeBin + ":" + tmuxPath
+		// Ensure .opencode/bin and go/bin are in PATH for agent sessions
+		for _, binDir := range []string{home + "/.opencode/bin", home + "/go/bin"} {
+			if !strings.Contains(tmuxPath, binDir) {
+				tmuxPath = binDir + ":" + tmuxPath
+			}
 		}
 	}
 	if tmuxPath != "" {
