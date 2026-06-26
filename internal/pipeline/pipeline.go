@@ -1497,6 +1497,18 @@ func buildContextMD(featureID, phase, role, promptContext string) string {
 	b.WriteString(fmt.Sprintf("Feature: %s\n", featureID))
 	b.WriteString(fmt.Sprintf("Phase: %s\n", phase))
 	b.WriteString(fmt.Sprintf("Role: %s\n\n", role))
+
+	// State management instructions — agent MUST use the CLI
+	b.WriteString("---\n\n")
+	b.WriteString("## State Management — USE THE CLI\n\n")
+	b.WriteString(fmt.Sprintf("You are working on feature `%s`. Use the `devteam` CLI to manage state:\n\n", featureID))
+	b.WriteString(fmt.Sprintf("- Submit questions: `devteam questions ask %s --file questions.json` then `devteam signal %s needs_feedback`\n", featureID, featureID))
+	b.WriteString(fmt.Sprintf("- Signal complete: `devteam signal %s pass`\n", featureID))
+	b.WriteString(fmt.Sprintf("- Send work back: `devteam signal %s recirculate:<target> --notes \"what to fix\"`\n", featureID))
+	b.WriteString(fmt.Sprintf("- Add notes: `devteam notes add %s --phase %s --content \"what you decided\"`\n", featureID, phase))
+	b.WriteString(fmt.Sprintf("- Check status: `devteam feature status %s`\n\n", featureID))
+	b.WriteString("Do NOT write outcome.txt or questions.json manually and expect the pipeline to find them. The CLI handles all database operations.\n\n")
+
 	b.WriteString("---\n\n")
 	b.WriteString(promptContext)
 	return b.String()
