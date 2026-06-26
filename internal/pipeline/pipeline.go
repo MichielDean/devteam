@@ -89,6 +89,7 @@ func (p *Pipeline) EnsureSpecWorktree(f *feature.Feature) error {
 	log.Printf("EnsureSpecWorktree: created worktree at %s on branch %s for feature %s", worktreeDir, branchName, f.ID)
 
 	// Save state to the worktree (agents never touch primary checkout)
+	p.syncFeatureToDB(f)
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
 		return fmt.Errorf("saving feature state with worktree dir: %w", err)
 	}
@@ -295,6 +296,15 @@ func (p *Pipeline) SetDatabase(database *db.DB) {
 	p.database = database
 }
 
+// syncFeatureToDB inserts/updates the feature in SQLite so foreign key constraints work.
+func (p *Pipeline) syncFeatureToDB(f *feature.Feature) {
+	if p.database == nil {
+		return
+	}
+	p.database.Exec(`INSERT OR REPLACE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, worktree_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		f.ID, f.Title, string(f.Current), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.WorktreeDir, f.CreatedAt, f.UpdatedAt, 0)
+}
+
 // SetQuestionStore overrides the default question store (e.g., with DBQuestionStore).
 func (p *Pipeline) SetQuestionStore(qs feature.QuestionStore) {
 	p.questionStore = qs
@@ -408,6 +418,7 @@ func (p *Pipeline) PrepareImplRepos(f *feature.Feature) error {
 		})
 	}
 	f.PreparedRepos = prepared
+	p.syncFeatureToDB(f)
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
 		return fmt.Errorf("saving prepared repos on feature state: %w", err)
 	}
@@ -435,6 +446,7 @@ func (p *Pipeline) CleanupImplRepos(f *feature.Feature) {
 		log.Printf("warning: could not remove impl repo worktrees for %s: %v", f.ID, err)
 	}
 	f.PreparedRepos = nil
+	p.syncFeatureToDB(f)
 	_ = p.specProvider.SaveFeatureState(f)
 }
 
@@ -733,6 +745,7 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		Duration:    time.Since(now),
 	}
 
+	p.syncFeatureToDB(f)
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
 		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
@@ -961,6 +974,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		Duration:    time.Since(now),
 	}
 
+	p.syncFeatureToDB(f)
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
 		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
@@ -976,7 +990,8 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	// When delivery gate passes, mark feature done and create a pull request.
 	if ps.GateResult.Passed && currentPhase == feature.PhaseDelivery {
 		f.MarkDone()
-		if err := p.specProvider.SaveFeatureState(f); err != nil {
+		p.syncFeatureToDB(f)
+	if err := p.specProvider.SaveFeatureState(f); err != nil {
 			log.Printf("warning: could not save feature state after MarkDone: %v", err)
 		}
 		if err := p.createPullRequest(f); err != nil {
@@ -1020,7 +1035,8 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 					if err := f.WaitForHuman(); err != nil {
 						log.Printf("warning: cannot transition feature %s to waiting_for_human: %v", f.ID, err)
 					} else {
-						if err := p.specProvider.SaveFeatureState(f); err != nil {
+						p.syncFeatureToDB(f)
+	if err := p.specProvider.SaveFeatureState(f); err != nil {
 							log.Printf("warning: failed to save feature state for %s: %v", f.ID, err)
 						}
 						log.Printf("RunPhaseWithAgentStreaming: feature %s paused for human input (%d questions)", f.ID, len(detectedQuestions))
@@ -1186,6 +1202,7 @@ func (p *Pipeline) AdvanceFeature(f *feature.Feature) (*feature.Feature, error) 
 	if err := f.AdvanceTo(nextPhase); err != nil {
 		return nil, fmt.Errorf("advancing from %s to %s: %w", fromPhase, nextPhase, err)
 	}
+	p.syncFeatureToDB(f)
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
 		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
@@ -1211,6 +1228,7 @@ func (p *Pipeline) AdvanceFeatureFrom(f *feature.Feature, fromPhase feature.Phas
 	if err := f.AdvanceTo(nextPhase); err != nil {
 		return nil, fmt.Errorf("advancing from %s to %s: %w", fromPhase, nextPhase, err)
 	}
+	p.syncFeatureToDB(f)
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
 		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
@@ -1221,6 +1239,7 @@ func (p *Pipeline) RecirculateFeature(f *feature.Feature, targetPhase feature.Ph
 	if err := f.RecirculateTo(targetPhase); err != nil {
 		return nil, fmt.Errorf("recirculating from %s to %s: %w", f.CurrentPhase(), targetPhase, err)
 	}
+	p.syncFeatureToDB(f)
 	if err := p.specProvider.SaveFeatureState(f); err != nil {
 		return nil, fmt.Errorf("saving feature state: %w", err)
 	}

@@ -329,6 +329,12 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Insert feature into SQLite so foreign key constraints on questions/notes/etc. work
+	if s.db != nil {
+		s.db.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+			f.ID, f.Title, string(f.Current), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.CreatedAt, f.UpdatedAt)
+	}
+
 	// Set activeProcess before responding so the UI knows it's processing
 	if req.StartImmediately {
 		s.activeProcess.Store(f.ID, "autopilot")
