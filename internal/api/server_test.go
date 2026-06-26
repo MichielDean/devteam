@@ -1044,3 +1044,251 @@ func TestAdvanceFeatureWaitingHumanBlocked(t *testing.T) {
 		t.Errorf("expected error=validation_error, got %s", errResp.Error)
 	}
 }
+
+// setupHealthTestServer builds an in-process httptest.Server with a Config.Version
+// preset. Mirrors setupTestServer but lets callers control the version (CON-003, AC-003).
+func setupHealthTestServer(t *testing.T, version string) *httptest.Server {
+	t.Helper()
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Version: version,
+		Pipeline: config.PipelineConfig{
+			Phases: []config.PhaseConfig{
+				{Name: "inception", Roles: []string{"pm"}},
+				{Name: "planning", Roles: []string{"architect"}},
+				{Name: "construction", Roles: []string{"developer"}},
+				{Name: "review", Roles: []string{"reviewer"}},
+				{Name: "testing", Roles: []string{"tester"}},
+				{Name: "delivery", Roles: []string{"ops"}},
+			},
+		},
+	}
+	sp := spec.NewSpecProvider(tmpDir)
+	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	return httptest.NewServer(s.httpServer.Handler)
+}
+
+// healthBody reads, trims the trailing newline from json.Encoder, and returns the body string.
+func healthBody(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// T002 / AC-001, CON-001, CON-004, CON-006: GET /api/health → 200, application/json, byte-exact body.
+func TestHealthGETReturns200AndBody(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("GET /api/health failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "application/json") {
+		t.Errorf("expected Content-Type to contain application/json, got %q", ct)
+	}
+	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+		t.Errorf("expected byte-exact body, got %q", got)
+	}
+}
+
+// T002 / AC-002: body-less GET must not error — handler never decodes r.Body.
+func TestHealthGETNoRequestBody(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/health", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+		t.Errorf("expected standard body, got %q", got)
+	}
+}
+
+// T002 / AC-003, CON-003: version is sourced from Config.Version, not hardcoded.
+func TestHealthVersionFromConfig(t *testing.T) {
+	ts := setupHealthTestServer(t, "9.9.9-test")
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if got := healthBody(t, resp); got != `{"status":"ok","version":"9.9.9-test"}` {
+		t.Errorf("expected config-sourced version, got %q", got)
+	}
+}
+
+// T002 / AC-004: query params are ignored.
+func TestHealthGETIgnoresQueryParams(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/health?cb=123")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+		t.Errorf("expected standard body with query ignored, got %q", got)
+	}
+}
+
+// T002 / AC-005, CON-002: induced handler panic → recovery middleware returns 500,
+// and the server stays alive for subsequent requests.
+func TestHealthPanicReturns500(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Version: "1.0",
+		Pipeline: config.PipelineConfig{
+			Phases: []config.PhaseConfig{
+				{Name: "inception", Roles: []string{"pm"}},
+				{Name: "planning", Roles: []string{"architect"}},
+				{Name: "construction", Roles: []string{"developer"}},
+				{Name: "review", Roles: []string{"reviewer"}},
+				{Name: "testing", Roles: []string{"tester"}},
+				{Name: "delivery", Roles: []string{"ops"}},
+			},
+		},
+	}
+	sp := spec.NewSpecProvider(tmpDir)
+	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+
+	panicMux := http.NewServeMux()
+	panicMux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
+		panic("induced test panic")
+	})
+	handler := s.recoveryMiddleware(s.corsMiddleware(panicMux))
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusInternalServerError {
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		t.Fatalf("expected 500 from recovery middleware, got %d body=%s", resp.StatusCode, b)
+	}
+	resp.Body.Close()
+
+	// Real server still alive: a fresh non-panicking server returns 200.
+	ts2 := setupHealthTestServer(t, "1.0")
+	defer ts2.Close()
+	resp2, err := http.Get(ts2.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("second GET failed: %v", err)
+	}
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("expected follow-up 200, got %d", resp2.StatusCode)
+	}
+	resp2.Body.Close()
+}
+
+// T004 / AC-006, CON-007: POST → 405.
+func TestHealthPOSTReturns405(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	resp, err := http.Post(ts.URL+"/api/health", "application/json", strings.NewReader(""))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-007, CON-007: PUT → 405.
+func TestHealthPUTReturns405(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	req, _ := http.NewRequest(http.MethodPut, ts.URL+"/api/health", strings.NewReader(""))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-008, CON-007: DELETE → 405.
+func TestHealthDELETEReturns405(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/health", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-009, CON-007: PATCH → 405.
+func TestHealthPATCHReturns405(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	req, _ := http.NewRequest(http.MethodPatch, ts.URL+"/api/health", strings.NewReader(""))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-010: GET remains 200 alongside the 405s (positive control).
+func TestHealthGETStill200After405s(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-011: trailing slash is not registered → 404.
+func TestHealthTrailingSlash404(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/api/health/")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404 for trailing slash, got %d", resp.StatusCode)
+	}
+}
