@@ -10,7 +10,6 @@ import (
 	"github.com/MichielDean/devteam/internal/config"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/repo"
-	"github.com/MichielDean/devteam/internal/spec"
 )
 
 // minimalTestConfig returns a Config with all 6 phases and 6 roles required
@@ -78,8 +77,8 @@ func makeBareRemote(t *testing.T, tmpDir, name string) string {
 // repos.yaml is treated as spec-only: PreparedRepos stays nil, no error.
 func TestPrepareImplRepos_NoReposYaml(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-spec-only", "Spec Only", 2, feature.IntakeLooseIdea)
 	if err := writer.CreateFeatureDir(f.ID); err != nil {
@@ -106,19 +105,16 @@ func TestPrepareImplRepos_WithReposYaml(t *testing.T) {
 	bareA := makeBareRemote(t, tmpDir, "repoA")
 	bareB := makeBareRemote(t, tmpDir, "repoB")
 
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-multi", "Multi Repo", 2, feature.IntakeLooseIdea)
-	if err := writer.CreateFeatureDir(f.ID); err != nil {
+	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 	// Write repos.yaml declaring two impl repos.
 	reposYAML := "feature: 001-multi\nrepos:\n  - name: repoA\n    url: " + bareA + "\n    branch: feature/001-multi\n  - name: repoB\n    url: " + bareB + "\n    branch: feature/001-multi\n"
 	if err := writer.WriteArtifact(f.ID, feature.ArtifactReposYAML, []byte(reposYAML)); err != nil {
-		t.Fatal(err)
-	}
-	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 
@@ -173,7 +169,7 @@ func TestPrepareImplRepos_WithReposYaml(t *testing.T) {
 // spec repo as CWD and impl phases use the first prepared repo.
 func TestDispatchWorkingDirForPhase(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
 	p := NewPipeline(minimalTestConfig(), provider)
 
 	f := feature.NewFeature("001-dir", "Dir Test", 2, feature.IntakeLooseIdea)
@@ -211,7 +207,7 @@ func TestDispatchWorkingDirForPhase(t *testing.T) {
 // is empty for spec-only phases and contains worktree paths for impl phases.
 func TestImplRepoContext(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
 	p := NewPipeline(minimalTestConfig(), provider)
 
 	f := feature.NewFeature("001-ctx", "Ctx Test", 2, feature.IntakeLooseIdea)
@@ -261,18 +257,15 @@ func TestPushPhaseChanges_PerRepo(t *testing.T) {
 	bareA := makeBareRemote(t, tmpDir, "repoA")
 	bareB := makeBareRemote(t, tmpDir, "repoB")
 
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-push", "Push Test", 2, feature.IntakeLooseIdea)
-	if err := writer.CreateFeatureDir(f.ID); err != nil {
+	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 	reposYAML := "feature: 001-push\nrepos:\n  - name: repoA\n    url: " + bareA + "\n    branch: feature/001-push\n  - name: repoB\n    url: " + bareB + "\n    branch: feature/001-push\n"
 	if err := writer.WriteArtifact(f.ID, feature.ArtifactReposYAML, []byte(reposYAML)); err != nil {
-		t.Fatal(err)
-	}
-	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 
@@ -322,7 +315,7 @@ func TestPushPhaseChanges_PerRepo(t *testing.T) {
 // the path doesn't panic and returns an error we can ignore.
 func TestPushPhaseChanges_SpecOnly(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
 
 	f := feature.NewFeature("001-spec", "Spec Only Push", 2, feature.IntakeLooseIdea)
 
@@ -339,18 +332,15 @@ func TestCleanupImplRepos(t *testing.T) {
 	tmpDir := t.TempDir()
 	bare := makeBareRemote(t, tmpDir, "repo")
 
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-clean", "Cleanup Test", 2, feature.IntakeLooseIdea)
-	if err := writer.CreateFeatureDir(f.ID); err != nil {
+	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 	reposYAML := "feature: 001-clean\nrepos:\n  - name: repo\n    url: " + bare + "\n    branch: feature/001-clean\n"
 	if err := writer.WriteArtifact(f.ID, feature.ArtifactReposYAML, []byte(reposYAML)); err != nil {
-		t.Fatal(err)
-	}
-	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 
@@ -385,11 +375,11 @@ func TestCleanupImplRepos(t *testing.T) {
 // the declared RepoRefs.
 func TestSpecProviderLoadFeatureRepos(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-repos", "Repos Test", 2, feature.IntakeLooseIdea)
-	if err := writer.CreateFeatureDir(f.ID); err != nil {
+	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 	reposYAML := "feature: 001-repos\nrepos:\n  - name: alpha\n    url: git@github.com:foo/alpha.git\n    branch: feature/001-repos\n  - name: beta\n    url: git@github.com:foo/beta.git\n    branch: feature/001-repos\n"
@@ -413,8 +403,8 @@ func TestSpecProviderLoadFeatureRepos(t *testing.T) {
 // repos.yaml returns an empty slice, not an error.
 func TestSpecProviderLoadFeatureRepos_Missing(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-none", "No Repos", 2, feature.IntakeLooseIdea)
 	if err := writer.CreateFeatureDir(f.ID); err != nil {

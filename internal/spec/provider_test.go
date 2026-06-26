@@ -38,14 +38,9 @@ func TestSpecProviderArtifactPath(t *testing.T) {
 }
 
 func TestSpecProviderSaveAndLoad(t *testing.T) {
-	tmpDir := t.TempDir()
-	sp := NewSpecProvider(tmpDir)
-	sw := NewSpecWriter(tmpDir)
+	sp, _ := newTestProvider(t)
 
 	f := feature.NewFeature("001-test-feature", "Test Feature", 2, feature.IntakeLooseIdea)
-	if err := sw.CreateFeatureDir(f.ID); err != nil {
-		t.Fatalf("CreateFeatureDir() error: %v", err)
-	}
 	if err := sp.SaveFeatureState(f); err != nil {
 		t.Fatalf("SaveFeatureState() error: %v", err)
 	}
@@ -66,13 +61,12 @@ func TestSpecProviderSaveAndLoad(t *testing.T) {
 }
 
 func TestSpecProviderArtifactExists(t *testing.T) {
-	tmpDir := t.TempDir()
-	sp := NewSpecProvider(tmpDir)
-	sw := NewSpecWriter(tmpDir)
+	sw, sp, _ := newTestWriter(t)
 
 	fid := "001-artifact-test"
-	if err := sw.CreateFeatureDir(fid); err != nil {
-		t.Fatalf("CreateFeatureDir() error: %v", err)
+	f := feature.NewFeature(fid, "Artifact Test", 2, feature.IntakeLooseIdea)
+	if err := sp.SaveFeatureState(f); err != nil {
+		t.Fatalf("SaveFeatureState: %v", err)
 	}
 
 	if sp.ArtifactExists(fid, feature.ArtifactSpecMD) {
@@ -89,16 +83,11 @@ func TestSpecProviderArtifactExists(t *testing.T) {
 }
 
 func TestSpecWriterRecordArtifact(t *testing.T) {
-	tmpDir := t.TempDir()
-	sp := NewSpecProvider(tmpDir)
-	sw := NewSpecWriter(tmpDir)
+	sw, sp, _ := newTestWriter(t)
 
 	f := feature.NewFeature("001-record-test", "Record Test", 2, feature.IntakeLooseIdea)
-	if err := sw.CreateFeatureDir(f.ID); err != nil {
-		t.Fatalf("CreateFeatureDir() error: %v", err)
-	}
 	if err := sp.SaveFeatureState(f); err != nil {
-		t.Fatalf("SaveFeatureState() error: %v", err)
+		t.Fatalf("SaveFeatureState: %v", err)
 	}
 
 	if err := sw.WriteArtifact(f.ID, feature.ArtifactSpecMD, []byte("# Spec")); err != nil {

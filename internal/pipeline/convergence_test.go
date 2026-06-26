@@ -5,16 +5,15 @@ import (
 	"testing"
 
 	"github.com/MichielDean/devteam/internal/feature"
-	"github.com/MichielDean/devteam/internal/spec"
 )
 
 func TestConvergenceDetector_UnrefinedSpec(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-conv", "Convergence Test", 2, feature.IntakeLooseIdea)
-	if err := writer.CreateFeatureDir(f.ID); err != nil {
+	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 
@@ -73,11 +72,11 @@ func TestConvergenceDetector_UnrefinedSpec(t *testing.T) {
 
 func TestConvergenceDetector_RefinedSpec_NoDrift(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-refined", "Refined Test", 2, feature.IntakeLooseIdea)
-	if err := writer.CreateFeatureDir(f.ID); err != nil {
+	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 
