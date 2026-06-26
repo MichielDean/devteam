@@ -139,28 +139,25 @@ func outcomeInstructions(phase feature.Phase) string {
 
 	var b strings.Builder
 	b.WriteString("\n\n---\n\n## Outcome Signal (MANDATORY)\n\n")
-	b.WriteString("After completing your work, write a file called `outcome.txt` in the spec directory (`specs/<feature-id>/outcome.txt`).\n\n")
-	b.WriteString("The FIRST line must be one of:\n")
-	b.WriteString("- `pass` — your work is complete and verified\n")
+	b.WriteString("After completing your work, signal your outcome using the devteam CLI:\n\n")
+	b.WriteString("- `devteam signal <feature-id> pass` — your work is complete and verified\n")
 	if recirculateTarget != "" {
-		b.WriteString(fmt.Sprintf("- `recirculate:%s` — you found issues that need to be fixed by the %s phase\n", recirculateTarget, recirculateTarget))
+		b.WriteString(fmt.Sprintf("- `devteam signal <feature-id> recirculate:%s --notes \"what needs fixing\"` — send work back to %s\n", recirculateTarget, recirculateTarget))
 	}
-	b.WriteString("- `needs_feedback` — you have written questions.json and need the user to answer them\n")
-	b.WriteString("- `failed` — you are blocked and cannot proceed\n\n")
+	b.WriteString("- `devteam signal <feature-id> needs_feedback` — you submitted questions and need user answers\n")
+	b.WriteString("- `devteam signal <feature-id> failed --notes \"why\"` — you are blocked\n\n")
 
 	if recirculateTarget != "" {
-		b.WriteString(fmt.Sprintf("When recirculating to %s, write the reason on subsequent lines:\n", recirculateTarget))
+		b.WriteString(fmt.Sprintf("Example recirculate command:\n"))
 		b.WriteString("```\n")
-		b.WriteString(fmt.Sprintf("recirculate:%s\n", recirculateTarget))
-		b.WriteString("Missing error handling in handler.go:42 — returns 500 instead of 400 for invalid input\n")
-		b.WriteString("Null pointer in FeatureList.tsx when features array is empty\n")
+		b.WriteString(fmt.Sprintf("devteam signal <feature-id> recirculate:%s --notes \"Missing error handling in handler.go:42\"\n", recirculateTarget))
 		b.WriteString("```\n\n")
 		b.WriteString(fmt.Sprintf("These notes will be passed to the %s agent so they know exactly what to fix.\n", recirculateTarget))
 	} else {
-		b.WriteString("Write `pass` when your work is complete. Nothing else needed.\n")
+		b.WriteString("Write `devteam signal <feature-id> pass` when your work is complete.\n")
 	}
 
-	b.WriteString("\nThe pipeline reads this file to decide what to do next. If you don't write it, the pipeline will assume `pass`.\n")
+	b.WriteString("\nThe pipeline reads the signal to decide what to do next. If you don't signal, the pipeline will assume `pass`.\n")
 
 	return b.String()
 }

@@ -1293,28 +1293,36 @@ Your task: Gather requirements through interactive questions, then generate the 
 
 ## Step 1: Ask Clarifying Questions (AIDLC pattern)
 
-If this is a loose idea (not an external spec), write a questions.json file at %s/questions.json with 3-8 clarifying questions:
+If this is a loose idea (not an external spec), write a questions.json file with 3-8 clarifying questions:
 [
   {"phase":"inception","role":"pm","question":"Your question here","type":"multiple_choice","options":["Option A","Option B","Other"]},
 ]
 Every question MUST include "Other" as the last option.
 
+Then submit the questions using the devteam CLI:
+  devteam questions ask %s --file questions.json
+
 The pipeline will pause and show these questions to the user. Their answers will be provided to you on the next run.
 If you can resolve something by reading existing code, do that instead of asking.
-Write questions.json and write "needs_feedback" to outcome.txt. The pipeline will pause and show your questions to the user.
 
-When you receive answers, check if you need MORE questions. If so, write more questions.json and signal "needs_feedback" again. Repeat until you have enough clarity.
+After submitting questions, signal that you need feedback:
+  devteam signal %s needs_feedback
+
+When you receive answers, check if you need MORE questions. If so, repeat. If you have enough clarity, proceed to Step 2.
 
 ## Step 2: Generate the Spec
 
-When you have enough clarity (either from answers or because the idea was already clear), use the SpecKit spec template at .specify/templates/spec-template.md to write:
+When you have enough clarity, use the SpecKit spec template at .specify/templates/spec-template.md to write:
 - %s/spec.md — user stories with priorities, acceptance scenarios, functional requirements, success criteria, assumptions
 - %s/acceptance.md — acceptance criteria in Given/When/Then format with test levels
 - %s/repos.yaml — affected repositories
 
 If a constitution.md exists, verify compliance.
 
-When the spec is complete, write "pass" to outcome.txt. Inception should almost never fail — it's just a question-answer loop that ends with a spec.`, featureID, specDir, specDir, specDir, specDir)
+When the spec is complete, signal pass:
+  devteam signal %s pass
+
+Inception should almost never fail — it's just a question-answer loop that ends with a spec.`, featureID, featureID, featureID, specDir, specDir, specDir, specDir, featureID)
 
 	case feature.PhasePlanning:
 		return prefix + fmt.Sprintf(`You are in the PLANNING phase for feature %s.
@@ -1323,11 +1331,13 @@ Your task: Generate the implementation plan and task list using SpecKit template
 
 ## Step 1: Ask Clarifying Questions (optional)
 
-If the spec leaves architectural decisions open, write questions to %s/questions.json:
+If the spec leaves architectural decisions open, write a questions.json file:
 [
   {"phase":"planning","role":"architect","question":"...","type":"multiple_choice","options":["A","B","Other"]},
 ]
-Signal "needs_feedback" to outcome.txt to pause for feedback. If the spec is clear, skip this step.
+Submit via: devteam questions ask %s --file questions.json
+Signal: devteam signal %s needs_feedback
+If the spec is clear, skip this step.
 
 ## Step 2: Generate the Plan
 
@@ -1346,7 +1356,7 @@ Use the SpecKit tasks template at .specify/templates/tasks-template.md to write:
 
 The plan MUST address all acceptance criteria from acceptance.md. Every task must reference specific files.
 
-When done, write "pass" to outcome.txt.`, featureID, specDir, specDir, specDir, specDir, specDir)
+When done, signal pass: devteam signal %s pass`, featureID, featureID, featureID, specDir, specDir, specDir, specDir, specDir, featureID)
 
 	case feature.PhaseConstruction:
 		return fmt.Sprintf(`You are in the CONSTRUCTION phase for feature %s.
@@ -1359,10 +1369,11 @@ Your task: Build the spec. Read the spec, plan, and tasks. Write the code. Commi
 4. Verify the build succeeds (discover and run the project's build command)
 5. Commit all changes: git add -A && git commit -m "feat: implement %s"
 6. Push to the current branch: git push origin HEAD
+7. Signal pass: devteam signal %s pass
 
-That's it. Build to spec. Commit. Push.
+That's it. Build to spec. Commit. Push. Signal.
 
-DO NOT write tests, review code, or write documentation — other phases handle those.`, featureID, featureID)
+DO NOT write tests, review code, or write documentation — other phases handle those.`, featureID, featureID, featureID)
 
 	case feature.PhaseReview:
 		return fmt.Sprintf(`You are in the REVIEW phase for feature %s.
