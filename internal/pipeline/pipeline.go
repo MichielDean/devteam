@@ -945,7 +945,11 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		if p.database != nil {
 			p.database.AddRecirculation(f.ID, string(currentPhase), string(target), "agent_recirculate", outcome.Notes)
 		}
+	} else if outcome.Result == OutcomeNeedsFeedback {
+		// Agent wrote questions.json and needs user feedback — NOT a failure
+		ps.Status = feature.StatusInProgress
 	} else {
+		// OutcomeFailed or unknown
 		ps.Status = feature.StatusGateBlocked
 	}
 
@@ -1029,11 +1033,14 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	// Outcome-based routing (Cistern pattern):
 	// - pass + autoAdvance → advance to next phase and run it
 	// - recirculate + autoAdvance → route to target phase and run it
-	// - pool → stop, notify user
+	// - needs_feedback → stop, let user answer questions (NOT a failure)
+	// - failed → stop, notify user
 	// - pass + !autoAdvance → stop, let user advance manually
-	// - waiting_for_human → stop, let user answer questions
+	// - waiting_for_feedback → stop, let user answer questions
 	if autoAdvance && f.Status != feature.StatusWaitingFeedback {
-		if outcome.Result == OutcomePass && currentPhase != feature.PhaseDelivery {
+		if outcome.Result == OutcomeNeedsFeedback {
+			// Don't auto-advance — the question detection block below will handle pausing
+		} else if outcome.Result == OutcomePass && currentPhase != feature.PhaseDelivery {
 			// Advance to next phase
 			nextPhase := feature.NextPhase(currentPhase)
 			if nextPhase != "" {
@@ -1275,9 +1282,9 @@ Every question MUST include "Other" as the last option.
 
 The pipeline will pause and show these questions to the user. Their answers will be provided to you on the next run.
 If you can resolve something by reading existing code, do that instead of asking.
-Write questions.json and write "failed" to outcome.txt. The pipeline will pause for feedback.
+Write questions.json and write "needs_feedback" to outcome.txt. The pipeline will pause and show your questions to the user.
 
-When you receive answers, check if you need MORE questions. If so, write more questions.json and signal "failed" again. Repeat until you have enough clarity.
+When you receive answers, check if you need MORE questions. If so, write more questions.json and signal "needs_feedback" again. Repeat until you have enough clarity.
 
 ## Step 2: Generate the Spec
 
@@ -1301,7 +1308,7 @@ If the spec leaves architectural decisions open, write questions to %s/questions
 [
   {"phase":"planning","role":"architect","question":"...","type":"multiple_choice","options":["A","B","Other"]},
 ]
-Signal "failed" to outcome.txt to pause for feedback. If the spec is clear, skip this step.
+Signal "needs_feedback" to outcome.txt to pause for feedback. If the spec is clear, skip this step.
 
 ## Step 2: Generate the Plan
 
