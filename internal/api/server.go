@@ -187,6 +187,8 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("GET /api/features/{id}/churn", s.getChurnMetrics)
 	mux.HandleFunc("GET /api/metrics/sessions", s.getSessionMetrics)
 
+	mux.HandleFunc("GET /api/health", s.healthHandler)
+
 	if staticFS != nil {
 		mux.Handle("/", s.spaHandler(staticFS))
 	}
@@ -903,6 +905,22 @@ func writeJSON(w http.ResponseWriter, code int, data interface{}) {
 
 func writeError(w http.ResponseWriter, code int, errorCode string, details string) {
 	writeJSON(w, code, ErrorResponse{Error: errorCode, Details: details})
+}
+
+// healthResponse is the body for GET /api/health. Field order (status, version)
+// is fixed so json.Encoder emits byte-exact {"status":"ok","version":"..."} (CON-006).
+type healthResponse struct {
+	Status  string `json:"status"`
+	Version string `json:"version"`
+}
+
+// healthHandler serves GET /api/health — liveness + deployed version.
+// Version is sourced from config, not hardcoded (CON-003). No body decode (GET).
+func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, healthResponse{
+		Status:  "ok",
+		Version: s.pipeline.Config().Version,
+	})
 }
 
 // Question API handlers

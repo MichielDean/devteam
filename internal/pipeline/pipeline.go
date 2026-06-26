@@ -40,6 +40,9 @@ func (p *Pipeline) Dispatcher() *role.Dispatcher {
 	return p.dispatcher
 }
 
+// Config returns the loaded configuration (for handlers that need config-sourced values like Version).
+func (p *Pipeline) Config() *config.Config { return p.config }
+
 // EnsureSpecWorktree creates a per-feature git worktree if it doesn't exist yet.
 // All agents dispatch with CWD = the worktree dir. Spec artifacts are written
 // there and committed on the spec/<feature-id> branch.
