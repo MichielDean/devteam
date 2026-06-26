@@ -1,18 +1,16 @@
 package pipeline
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/MichielDean/devteam/internal/feature"
-	"github.com/MichielDean/devteam/internal/spec"
 )
 
 func TestGateEvaluator_InceptionGate_MissingArtifacts(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-test", "Test Feature", 2, feature.IntakeLooseIdea)
 	if err := writer.CreateFeatureDir(f.ID); err != nil {
@@ -38,8 +36,8 @@ func TestGateEvaluator_InceptionGate_MissingArtifacts(t *testing.T) {
 
 func TestGateEvaluator_InceptionGate_AllArtifactsPresent(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-test", "Test Feature", 2, feature.IntakeLooseIdea)
 	if err := writer.CreateFeatureDir(f.ID); err != nil {
@@ -80,8 +78,8 @@ func TestGateEvaluator_InceptionGate_AllArtifactsPresent(t *testing.T) {
 
 func TestGateEvaluator_PlanningGate(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-test", "Test Feature", 2, feature.IntakeLooseIdea)
 	if err := writer.CreateFeatureDir(f.ID); err != nil {
@@ -183,13 +181,8 @@ T002 depends on T001.
 	if err := writer.WriteArtifact(f.ID, feature.ArtifactDataModelMD, []byte("# Data Model\n\n## Entities\n\n### Feature\n- Attributes: id, title, priority\n- Relationships: none\n- Constraints: unique id")); err != nil {
 		t.Fatal(err)
 	}
-	// contracts/ is a directory — WriteArtifact writes a file at the path, so
-	// create the directory and a contract file inside it directly.
-	contractsDir := filepath.Join(tmpDir, "specs", f.ID, "contracts")
-	if err := os.MkdirAll(contractsDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(contractsDir, "GET-api-features.md"), []byte("# GET /api/features\n\nResponse 200: [{feature}]"), 0644); err != nil {
+	// contracts/ is stored as a single artifact in the DB
+	if err := writer.WriteArtifact(f.ID, feature.ArtifactContractsDir, []byte("# API Contracts\n\n## GET /api/features\n\nResponse 200: [{feature}]")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -211,11 +204,11 @@ T002 depends on T001.
 
 func TestGateEvaluator_AdvanceFeature(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-test", "Test Feature", 2, feature.IntakeLooseIdea)
-	if err := writer.CreateFeatureDir(f.ID); err != nil {
+	if err := provider.SaveFeatureState(f); err != nil {
 		t.Fatal(err)
 	}
 
@@ -278,8 +271,8 @@ func TestGateEvaluator_RecirculateFeature(t *testing.T) {
 
 func TestPipeline_AdvanceAndRecirculate(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(filepath.Join(tmpDir, "devteam"))
-	writer := spec.NewSpecWriter(filepath.Join(tmpDir, "devteam"))
+	provider, _ := newTestProvider(t, filepath.Join(tmpDir, "devteam"))
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-advance-test", "Advance Test", 2, feature.IntakeLooseIdea)
 	if err := writer.CreateFeatureDir(f.ID); err != nil {

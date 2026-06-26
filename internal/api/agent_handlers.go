@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -154,46 +152,8 @@ func (s *Server) handleSubmitArtifact(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ensureFeatureInDB is defined above with the db import
-
 func escapeJSON(s string) string {
 	s = strings.ReplaceAll(s, "\n", "\\n")
 	s = strings.ReplaceAll(s, "\"", "\\\"")
 	return s
-}
-
-// readDirOrFile reads a directory (concatenating .md files) or a single file
-func readDirOrFile(path string) (string, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", err
-	}
-	if info.IsDir() {
-		entries, err := os.ReadDir(path)
-		if err != nil {
-			return "", err
-		}
-		var b strings.Builder
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-				continue
-			}
-			data, err := os.ReadFile(filepath.Join(path, entry.Name()))
-			if err != nil {
-				continue
-			}
-			b.WriteString(fmt.Sprintf("\n## %s\n\n", entry.Name()))
-			b.Write(data)
-			b.WriteString("\n")
-		}
-		if b.Len() == 0 {
-			return "", fmt.Errorf("no readable files in %s", path)
-		}
-		return b.String(), nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }

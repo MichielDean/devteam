@@ -5,13 +5,12 @@ import (
 	"testing"
 
 	"github.com/MichielDean/devteam/internal/feature"
-	"github.com/MichielDean/devteam/internal/spec"
 )
 
 func TestEvaluateGate_MissingArtifacts(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-test", "Test", 2, feature.IntakeLooseIdea)
 	if err := writer.CreateFeatureDir(f.ID); err != nil {
@@ -32,8 +31,8 @@ func TestEvaluateGate_MissingArtifacts(t *testing.T) {
 
 func TestEvaluateGate_WithArtifacts(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(tmpDir)
-	writer := spec.NewSpecWriter(tmpDir)
+	provider, _ := newTestProvider(t, tmpDir)
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-test", "Test", 2, feature.IntakeLooseIdea)
 	if err := writer.CreateFeatureDir(f.ID); err != nil {
@@ -79,8 +78,8 @@ func TestGateDefinitions(t *testing.T) {
 
 func TestPipelineRunPhase(t *testing.T) {
 	tmpDir := t.TempDir()
-	provider := spec.NewSpecProvider(filepath.Join(tmpDir, "devteam"))
-	writer := spec.NewSpecWriter(filepath.Join(tmpDir, "devteam"))
+	provider, _ := newTestProvider(t, filepath.Join(tmpDir, "devteam"))
+	writer := newTestWriter(provider)
 
 	f := feature.NewFeature("001-pipeline-test", "Pipeline Test", 2, feature.IntakeLooseIdea)
 	if err := writer.CreateFeatureDir(f.ID); err != nil {

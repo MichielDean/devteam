@@ -533,7 +533,7 @@ func (p *Pipeline) PushPhaseChanges(f *feature.Feature, phase feature.Phase) err
 	return p.gitClient.CommitAndPush(branchName, message)
 }
 
-// cleanPhaseArtifacts removes artifacts from the current phase's spec directory
+// cleanPhaseArtifacts removes artifacts for the current phase from the DB
 // before running the phase. This ensures the agent starts fresh and doesn't
 // skip work because it finds existing artifacts from a previous run.
 func (p *Pipeline) cleanPhaseArtifacts(f *feature.Feature, phase feature.Phase) {
@@ -541,15 +541,12 @@ func (p *Pipeline) cleanPhaseArtifacts(f *feature.Feature, phase feature.Phase) 
 	if gateDef == nil {
 		return
 	}
-
+	if p.database == nil {
+		return
+	}
 	for _, artType := range gateDef.RequiredArts {
-		path := p.specProvider.ArtifactPath(f.ID, artType)
-		if _, err := os.Stat(path); err == nil {
-			if err := os.Remove(path); err != nil {
-				log.Printf("warning: could not remove existing artifact %s: %v", path, err)
-			} else {
-				log.Printf("cleanPhaseArtifacts: removed existing %s for phase %s", artType, phase)
-			}
+		if err := p.database.DeleteArtifact(f.ID, string(artType)); err != nil {
+			log.Printf("warning: could not delete artifact %s: %v", artType, err)
 		}
 	}
 }
@@ -1097,45 +1094,10 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 
 	return result, nil
 }
-// Unlike PushPhaseChanges (which creates feature branches and PRs), this just
-// commits to whatever branch is currently checked out — usually main for spec-only features.
+// commitSpecArtifacts is a no-op now that artifacts live in the DB.
+// Previously committed spec files to a git branch; with DB storage there's
+// nothing on disk to commit. Kept as no-op to avoid changing call sites.
 func (p *Pipeline) commitSpecArtifacts(f *feature.Feature, phase feature.Phase) error {
-	// Use a git client that operates in the worktree (if set) or the base dir
-	workDir := p.WorktreeDir(f)
-	wtGitClient := gitops.NewGitClient(workDir)
-
-	specDir := p.specProvider.FeatureDirFromFeature(f)
-	relPath, err := filepath.Rel(workDir, specDir)
-	if err != nil {
-		relPath = filepath.Join("specs", f.ID)
-	}
-
-	// Stage just the spec directory
-	if _, err := wtGitClient.Run("add", relPath); err != nil {
-		return fmt.Errorf("staging spec dir %s: %w", relPath, err)
-	}
-
-	hasChanges, err := wtGitClient.HasStagedChanges()
-	if err != nil {
-		return err
-	}
-	if !hasChanges {
-		log.Printf("commitSpecArtifacts: no changes to commit for %s phase %s", f.ID, phase)
-		return nil
-	}
-
-	message := fmt.Sprintf("spec: %s phase complete for %s", phase, f.ID)
-	if err := wtGitClient.Commit(message); err != nil {
-		return fmt.Errorf("committing spec artifacts: %w", err)
-	}
-
-	// Push the spec branch to origin
-	branchName := "spec/" + f.ID
-	if err := wtGitClient.Push(branchName); err != nil {
-		log.Printf("commitSpecArtifacts: warning: could not push spec branch %s: %v", branchName, err)
-	}
-
-	log.Printf("commitSpecArtifacts: committed %s phase artifacts for %s on branch %s", phase, f.ID, branchName)
 	return nil
 }
 
@@ -1281,9 +1243,8 @@ func (p *Pipeline) getPhaseConfig(phase feature.Phase) (*config.PhaseConfig, err
 }
 
 func (p *Pipeline) phaseInstruction(phase feature.Phase, f *feature.Feature) string {
-	specDir := p.specProvider.FeatureDirFromFeature(f)
 	featureID := f.ID
-	prefix := fmt.Sprintf("## IMPORTANT: File Locations\n\nWrite ALL spec artifacts to this absolute directory path:\n%s/\n\nDo NOT write to any other location. Do NOT use relative paths. Use the absolute path above.\n\n", specDir)
+	prefix := fmt.Sprintf("## IMPORTANT: Submit Artifacts via CLI\n\nSpec artifacts (spec.md, plan.md, tasks.md, etc.) are stored in the database, NOT on disk.\nSubmit them using the devteam CLI:\n\n  devteam artifact submit %s <type> --file <filename>\n  devteam artifact submit %s <type> --content \"inline content\"\n\nArtifact types: spec, acceptance, repos, plan, tasks, research, data_model, review_report, test_report, docs, contracts\n\nDo NOT write spec artifacts to disk. Use the CLI.\n", featureID, featureID)
 	
 	switch phase {
 	case feature.PhaseInception:
@@ -1313,16 +1274,21 @@ When you receive answers, check if you need MORE questions. If so, repeat. If yo
 ## Step 2: Generate the Spec
 
 When you have enough clarity, use the SpecKit spec template at .specify/templates/spec-template.md to write:
-- %s/spec.md — user stories with priorities, acceptance scenarios, functional requirements, success criteria, assumptions
-- %s/acceptance.md — acceptance criteria in Given/When/Then format with test levels
-- %s/repos.yaml — affected repositories
+- spec.md — user stories with priorities, acceptance scenarios, functional requirements, success criteria, assumptions
+- acceptance.md — acceptance criteria in Given/When/Then format with test levels
+- repos.yaml — affected repositories
+
+Submit each artifact via CLI:
+  devteam artifact submit %s spec --file spec.md
+  devteam artifact submit %s acceptance --file acceptance.md
+  devteam artifact submit %s repos --file repos.yaml
 
 If a constitution.md exists, verify compliance.
 
 When the spec is complete, signal pass:
   devteam signal %s pass
 
-Inception should almost never fail — it's just a question-answer loop that ends with a spec.`, featureID, featureID, featureID, specDir, specDir, specDir, featureID)
+Inception should almost never fail — it's just a question-answer loop that ends with a spec.`, featureID, featureID, featureID, featureID, featureID, featureID, featureID)
 
 	case feature.PhasePlanning:
 		return prefix + fmt.Sprintf(`You are in the PLANNING phase for feature %s.
@@ -1342,21 +1308,30 @@ If the spec is clear, skip this step.
 ## Step 2: Generate the Plan
 
 Use the SpecKit plan template at .specify/templates/plan-template.md to write:
-- %s/plan.md — technical context, project structure, component design, API contracts, test strategy
-- %s/research.md — existing code patterns, library choices, alternatives considered
-- %s/data-model.md — entity definitions, attributes, relationships, validation
-- %s/contracts/ — one file per API endpoint with request/response schemas
+- plan.md — technical context, project structure, component design, API contracts, test strategy
+- research.md — existing code patterns, library choices, alternatives considered
+- data-model.md — entity definitions, attributes, relationships, validation
+- contracts/ — one file per API endpoint with request/response schemas
+
+Submit each artifact via CLI:
+  devteam artifact submit %s plan --file plan.md
+  devteam artifact submit %s research --file research.md
+  devteam artifact submit %s data_model --file data-model.md
+  devteam artifact submit %s contracts --file contracts/index.md
 
 If a constitution.md exists, perform a constitution check.
 
 ## Step 3: Generate the Task List
 
 Use the SpecKit tasks template at .specify/templates/tasks-template.md to write:
-- %s/tasks.md — tasks grouped by user story priority, each with file paths, done conditions, dependencies, test levels
+- tasks.md — tasks grouped by user story priority, each with file paths, done conditions, dependencies, test levels
+
+Submit via CLI:
+  devteam artifact submit %s tasks --file tasks.md
 
 The plan MUST address all acceptance criteria from acceptance.md. Every task must reference specific files.
 
-When done, signal pass: devteam signal %s pass`, featureID, featureID, featureID, specDir, specDir, specDir, specDir, specDir, featureID)
+When done, signal pass: devteam signal %s pass`, featureID, featureID, featureID, featureID, featureID, featureID, featureID, featureID, featureID)
 
 	case feature.PhaseConstruction:
 		return fmt.Sprintf(`You are in the CONSTRUCTION phase for feature %s.
@@ -1386,7 +1361,10 @@ Review process:
 3. Check for missing implementations: any spec requirements with no corresponding code?
 4. Security review for P1 features: authentication, authorization, input validation
 
-Write your findings to specs/%s/review-report.md with:
+Write your findings to review-report.md and submit via CLI:
+  devteam artifact submit %s review_report --file review-report.md
+
+With:
 - Per-criterion analysis: every AC-NNN from acceptance.md with MET or NOT MET status
 - Quoted evidence: specific code with file path and line number
 - Over-engineering findings: line count vs expected
@@ -1442,7 +1420,10 @@ DO NOT:
 - Write documentation — that's the Delivery phase's job
 - Run build commands (beyond what's needed to compile tests)
 
-Write your test report to specs/%s/test-report.md with:
+Write your test report to test-report.md and submit via CLI:
+  devteam artifact submit %s test_report --file test-report.md
+
+With:
 - Spec-implementation drift findings
 - Test commands discovered and run (exact commands with output)
 - Smoke test results: what was started, what was hit, what status codes returned
@@ -1466,7 +1447,10 @@ Your task: Write documentation ONLY. The previous phases already built, reviewed
 
 The Testing phase ran the full test suite. The Review phase verified acceptance criteria. The Construction phase built the code. Your job is documentation.
 
-Write documentation to specs/%s/docs/ with:
+Write documentation to a local docs/ directory, then submit via CLI:
+  devteam artifact submit %s docs --file docs/index.md
+
+With:
 1. **API documentation** — for every endpoint in the plan: method, path, request/response schemas, error responses
 2. **User-facing documentation** — for every user story in the spec, using spec terminology
 3. **Changelog** — reference the spec number in every entry

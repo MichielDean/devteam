@@ -1,8 +1,6 @@
 package intake
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/MichielDean/devteam/internal/feature"
@@ -10,8 +8,9 @@ import (
 )
 
 func TestLooseIdeaIntake(t *testing.T) {
-	tmpDir := t.TempDir()
-	li := NewLooseIdeaIntake(tmpDir)
+	dir, database := setupTestIntake(t)
+	li := NewLooseIdeaIntake(dir)
+	li.SetDatabase(database)
 
 	f, err := li.Submit("User Authentication", "We need user auth with GitHub and email login", 2, nil)
 	if err != nil {
@@ -27,7 +26,8 @@ func TestLooseIdeaIntake(t *testing.T) {
 		t.Errorf("expected intake path loose_idea, got %s", f.IntakePath)
 	}
 
-	provider := spec.NewSpecProvider(tmpDir)
+	provider := spec.NewSpecProvider(dir)
+	provider.SetDatabase(database)
 	if !provider.ArtifactExists(f.ID, feature.ArtifactInputMD) {
 		t.Error("expected input.md to exist after intake")
 	}
@@ -42,8 +42,9 @@ func TestLooseIdeaIntake(t *testing.T) {
 }
 
 func TestLooseIdeaIntakeWithRepos(t *testing.T) {
-	tmpDir := t.TempDir()
-	li := NewLooseIdeaIntake(tmpDir)
+	dir, database := setupTestIntake(t)
+	li := NewLooseIdeaIntake(dir)
+	li.SetDatabase(database)
 
 	repos := []feature.RepoRef{
 		{Name: "cistern", URL: "git@github.com:MichielDean/cistern.git"},
@@ -57,35 +58,38 @@ func TestLooseIdeaIntakeWithRepos(t *testing.T) {
 		t.Errorf("expected 2 repos, got %d", len(f.Repos))
 	}
 
-	provider := spec.NewSpecProvider(tmpDir)
+	provider := spec.NewSpecProvider(dir)
+	provider.SetDatabase(database)
 	if !provider.ArtifactExists(f.ID, feature.ArtifactReposYAML) {
 		t.Error("expected repos.yaml to exist when repos are provided")
 	}
 }
 
 func TestLooseIdeaInputContent(t *testing.T) {
-	tmpDir := t.TempDir()
-	li := NewLooseIdeaIntake(tmpDir)
+	dir, database := setupTestIntake(t)
+	li := NewLooseIdeaIntake(dir)
+	li.SetDatabase(database)
 
 	f, err := li.Submit("Test Feature", "A test description", 2, nil)
 	if err != nil {
 		t.Fatalf("Submit() error: %v", err)
 	}
 
-	inputPath := filepath.Join(tmpDir, "specs", f.ID, "input.md")
-	data, err := os.ReadFile(inputPath)
+	provider := spec.NewSpecProvider(dir)
+	provider.SetDatabase(database)
+	inputContent, err := provider.ReadArtifact(f.ID, feature.ArtifactInputMD)
 	if err != nil {
 		t.Fatalf("reading input.md: %v", err)
 	}
-	content := string(data)
-	if len(content) == 0 {
+	if len(inputContent) == 0 {
 		t.Error("input.md is empty")
 	}
 }
 
 func TestExternalSpecIntake(t *testing.T) {
-	tmpDir := t.TempDir()
-	es := NewExternalSpecIntake(tmpDir)
+	dir, database := setupTestIntake(t)
+	es := NewExternalSpecIntake(dir)
+	es.SetDatabase(database)
 
 	prd := `# Product Requirements Document
 
@@ -109,7 +113,8 @@ This document describes the requirements for a new API rate limiting feature.
 		t.Errorf("expected intake path external_spec, got %s", f.IntakePath)
 	}
 
-	provider := spec.NewSpecProvider(tmpDir)
+	provider := spec.NewSpecProvider(dir)
+	provider.SetDatabase(database)
 	if !provider.ArtifactExists(f.ID, feature.ArtifactInputMD) {
 		t.Error("expected input.md to exist after external intake")
 	}

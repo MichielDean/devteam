@@ -79,6 +79,7 @@ func main() {
 		questionStore := feature.NewDBQuestionStore(database)
 		p.SetDatabase(database)
 		p.SetQuestionStore(questionStore)
+		specProvider.SetDatabase(database)
 
 		// Serve frontend: use local filesystem (development or after go generate)
 		var staticFS fs.FS
@@ -187,7 +188,8 @@ func main() {
 }
 
 func handleStatus(baseDir string) {
-	provider := spec.NewSpecProvider(baseDir)
+	provider, database := newDBProvider(baseDir)
+	defer database.Close()
 	features, err := provider.ListFeatures()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error listing features: %v\n", err)
@@ -216,21 +218,23 @@ func handleIntake(baseDir string) {
 	}
 
 	intakeType, title, priority := parseIntakeArgs()
+	database := openDB(baseDir)
 
 	switch intakeType {
 	case "loose":
 		li := intake.NewLooseIdeaIntake(baseDir)
+		li.SetDatabase(database)
 		f, err := li.Submit(title, title, priority, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error submitting loose idea: %v\n", err)
 			os.Exit(1)
 		}
 		fmt.Printf("Feature created: %s\n", f.ID)
-		fmt.Printf("Spec directory: %s\n", filepath.Join("specs", f.ID))
 		fmt.Printf("Phase: %s\n", f.CurrentPhase())
 		fmt.Printf("Intake path: loose_idea\n")
 	case "external":
 		ei := intake.NewExternalSpecIntake(baseDir)
+		ei.SetDatabase(database)
 		result, err := ei.Submit(title, "External specification", priority, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error submitting external spec: %v\n", err)
@@ -238,13 +242,44 @@ func handleIntake(baseDir string) {
 		}
 		for _, f := range result.Features {
 			fmt.Printf("Feature created: %s\n", f.ID)
-			fmt.Printf("Spec directory: %s\n", filepath.Join("specs", f.ID))
 			fmt.Printf("Intake path: external_spec\n")
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "unknown intake type: %s (use 'loose' or 'external')\n", intakeType)
 		os.Exit(1)
 	}
+}
+
+// openDB opens the devteam database for CLI commands that need DB access.
+func openDB(baseDir string) *db.DB {
+	dbPath := filepath.Join(baseDir, ".devteam.db")
+	database, err := db.Open(db.Config{}, dbPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error opening database: %v\n", err)
+		os.Exit(1)
+	}
+	return database
+}
+
+// newDBProvider creates a SpecProvider wired to the database.
+func newDBProvider(baseDir string) (*spec.SpecProvider, *db.DB) {
+	provider := spec.NewSpecProvider(baseDir)
+	database := openDB(baseDir)
+	provider.SetDatabase(database)
+	return provider, database
+}
+
+// newDBPipeline creates a Pipeline wired to the database.
+func newDBPipeline(baseDir string) (*pipeline.Pipeline, *spec.SpecProvider, *db.DB) {
+	provider, database := newDBProvider(baseDir)
+	cfg, err := config.LoadConfig(filepath.Join(baseDir, "devteam.yaml"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
+		os.Exit(1)
+	}
+	p := pipeline.NewPipeline(cfg, provider)
+	p.SetDatabase(database)
+	return p, provider, database
 }
 
 func handleRun(baseDir string, cfg *config.Config) {
@@ -254,7 +289,8 @@ func handleRun(baseDir string, cfg *config.Config) {
 	}
 	featureID := os.Args[2]
 
-	provider := spec.NewSpecProvider(baseDir)
+	provider, database := newDBProvider(baseDir)
+	defer database.Close()
 	f, err := provider.LoadFeatureState(featureID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
@@ -265,6 +301,7 @@ func handleRun(baseDir string, cfg *config.Config) {
 	fmt.Printf("Running phase %s for feature %s...\n", currentPhase, featureID)
 
 	p := pipeline.NewPipeline(cfg, provider)
+	p.SetDatabase(database)
 	result, err := p.RunPhaseWithAgent(context.Background(), f)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error running phase: %v\n", err)
@@ -314,7 +351,8 @@ func handleAdvance(baseDir string, cfg *config.Config) {
 	}
 	featureID := os.Args[2]
 
-	provider := spec.NewSpecProvider(baseDir)
+	provider, database := newDBProvider(baseDir)
+	defer database.Close()
 	f, err := provider.LoadFeatureState(featureID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
@@ -322,6 +360,7 @@ func handleAdvance(baseDir string, cfg *config.Config) {
 	}
 
 	p := pipeline.NewPipeline(cfg, provider)
+	p.SetDatabase(database)
 
 	gateResult, err := p.EvaluateGate(f)
 	if err != nil {
@@ -382,7 +421,8 @@ func handleGate(baseDir string, cfg *config.Config) {
 	}
 	featureID := os.Args[2]
 
-	provider := spec.NewSpecProvider(baseDir)
+	provider, database := newDBProvider(baseDir)
+	defer database.Close()
 	f, err := provider.LoadFeatureState(featureID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
@@ -390,6 +430,7 @@ func handleGate(baseDir string, cfg *config.Config) {
 	}
 
 	p := pipeline.NewPipeline(cfg, provider)
+	p.SetDatabase(database)
 	result, err := p.EvaluateGate(f)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error evaluating gate: %v\n", err)
@@ -439,7 +480,8 @@ func handleRecirculate(baseDir string, cfg *config.Config) {
 
 	targetPhase := feature.ParsePhase(targetPhaseStr)
 
-	provider := spec.NewSpecProvider(baseDir)
+	provider, database := newDBProvider(baseDir)
+	defer database.Close()
 	f, err := provider.LoadFeatureState(featureID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
@@ -513,7 +555,8 @@ func handlePluginList(baseDir string, cfg *config.Config) {
 
 func handleBootstrap(baseDir string, cfg *config.Config) {
 	featureID := "001-dev-team-platform"
-	provider := spec.NewSpecProvider(baseDir)
+	provider, database := newDBProvider(baseDir)
+	defer database.Close()
 
 	f, err := provider.LoadFeatureState(featureID)
 	if err != nil {
@@ -578,7 +621,8 @@ func handleProcess(baseDir string, cfg *config.Config) {
 		}
 	}
 
-	provider := spec.NewSpecProvider(baseDir)
+	provider, database := newDBProvider(baseDir)
+	defer database.Close()
 	f, err := provider.LoadFeatureState(featureID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
@@ -586,6 +630,7 @@ func handleProcess(baseDir string, cfg *config.Config) {
 	}
 
 	p := pipeline.NewPipeline(cfg, provider)
+	p.SetDatabase(database)
 	recirculations := 0
 
 	fmt.Printf("Processing feature: %s\n", f.ID)

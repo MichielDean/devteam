@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/spec"
 )
@@ -14,6 +15,7 @@ type ExternalSpecIntake struct {
 	specWriter *spec.SpecWriter
 	specDir    string
 	baseDir    string
+	provider   *spec.SpecProvider
 }
 
 func NewExternalSpecIntake(baseDir string) *ExternalSpecIntake {
@@ -21,7 +23,14 @@ func NewExternalSpecIntake(baseDir string) *ExternalSpecIntake {
 		specWriter: spec.NewSpecWriter(baseDir),
 		specDir:    filepath.Join(baseDir, "specs"),
 		baseDir:    baseDir,
+		provider:   spec.NewSpecProvider(baseDir),
 	}
+}
+
+// SetDatabase wires the database for artifact and state storage.
+func (es *ExternalSpecIntake) SetDatabase(database *db.DB) {
+	es.provider.SetDatabase(database)
+	es.specWriter.SetProvider(es.provider)
 }
 
 type DecompositionResult struct {
@@ -34,8 +43,9 @@ func (es *ExternalSpecIntake) Submit(title string, documentContent string, prior
 	f := feature.NewFeature(id, title, priority, feature.IntakeExternalSpec)
 	f.Repos = repos
 
-	if err := es.specWriter.CreateFeatureDir(f.ID); err != nil {
-		return nil, fmt.Errorf("creating feature directory: %w", err)
+	f.Start()
+	if err := es.provider.SaveFeatureState(f); err != nil {
+		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
 
 	inputContent := es.generateInputFromExternal(f, documentContent)
@@ -48,13 +58,6 @@ func (es *ExternalSpecIntake) Submit(title string, documentContent string, prior
 		if err := es.specWriter.WriteArtifact(f.ID, feature.ArtifactReposYAML, []byte(reposContent)); err != nil {
 			return nil, fmt.Errorf("writing repos.yaml: %w", err)
 		}
-	}
-
-	f.Start()
-
-	provider := spec.NewSpecProvider(es.baseDir)
-	if err := provider.SaveFeatureState(f); err != nil {
-		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
 
 	result := &DecompositionResult{

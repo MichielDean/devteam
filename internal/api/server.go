@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -306,6 +305,9 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	switch req.Type {
 	case "loose_idea":
 		looseIntake := intake.NewLooseIdeaIntake(s.specProvider.BaseDir())
+		if s.db != nil {
+			looseIntake.SetDatabase(s.db)
+		}
 		var err error
 		f, err = looseIntake.Submit(req.Title, req.Description, req.Priority, nil)
 		if err != nil {
@@ -319,6 +321,9 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		extIntake := intake.NewExternalSpecIntake(s.specProvider.BaseDir())
+		if s.db != nil {
+			extIntake.SetDatabase(s.db)
+		}
 		result, err := extIntake.Submit(req.Title, req.FileContent, req.Priority, nil)
 		if err != nil {
 			log.Printf("error creating feature: %v", err)
@@ -717,52 +722,19 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try database first
-	if s.db != nil {
-		artifact, err := s.db.GetArtifact(id, artType)
-		if err == nil && artifact != nil {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.Write([]byte(artifact.Content))
-			return
-		}
-	}
-
-	// Fallback: read from disk
-	if _, err := s.pipeline.GetFeature(id); err != nil {
-		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
+	if s.db == nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Database not configured")
 		return
 	}
 
-	featureType, ok := feature.ArtifactAPIPathToType(artType)
-	if !ok {
-		// Try reading as a plain file
-		f, _ := s.pipeline.GetFeature(id)
-		if f != nil {
-			specDir := s.specProvider.FeatureDirFromFeature(f)
-			content, err := readDirOrFile(filepath.Join(specDir, artType))
-			if err == nil {
-				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-				w.Write([]byte(content))
-				return
-			}
-		}
-		writeError(w, http.StatusBadRequest, "validation_error", fmt.Sprintf("Invalid artifact type %q", artType))
-		return
-	}
-
-	if !s.specProvider.ArtifactExists(id, featureType) {
-		writeError(w, http.StatusNotFound, "artifact_not_found", fmt.Sprintf("Artifact %s not found for feature %s", artType, id))
-		return
-	}
-
-	content, err := s.specProvider.ReadArtifactContent(id, featureType)
-	if err != nil {
+	artifact, err := s.db.GetArtifact(id, artType)
+	if err != nil || artifact == nil {
 		writeError(w, http.StatusNotFound, "artifact_not_found", fmt.Sprintf("Artifact %s not found for feature %s", artType, id))
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write([]byte(content))
+	w.Write([]byte(artifact.Content))
 }
 
 func (s *Server) getCapturedOutput(w http.ResponseWriter, r *http.Request) {

@@ -108,12 +108,22 @@ func (s *DBQuestionStore) ListPendingQuestions(ctx context.Context, featureID st
 }
 
 func (s *DBQuestionStore) AnswerQuestion(ctx context.Context, featureID string, questionID string, answer string) (*Question, error) {
-	_, err := s.db.Exec(
-		`UPDATE questions SET answer = ?, status = 'answered', answered_at = ? WHERE id = ?`,
+	// Atomic check-and-update to prevent race: only update if status is pending
+	result, err := s.db.Exec(
+		`UPDATE questions SET answer = ?, status = 'answered', answered_at = ? WHERE id = ? AND status = 'pending'`,
 		answer, time.Now().UTC(), questionID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("answering question: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		// Either not found or already answered/assumed
+		existing, err := s.GetQuestion(ctx, featureID, questionID)
+		if err != nil {
+			return nil, fmt.Errorf("question %s not found: %w", questionID, err)
+		}
+		return nil, &QuestionConflictError{QuestionID: questionID, Status: existing.Status}
 	}
 	return s.GetQuestion(ctx, featureID, questionID)
 }

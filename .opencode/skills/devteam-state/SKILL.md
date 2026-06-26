@@ -136,7 +136,7 @@ Retrieve an artifact:
 devteam artifact get <feature-id> spec
 ```
 
-Artifact types: `spec`, `plan`, `tasks`, `acceptance`, `repos`, `review`, `test_report`, `delivery_notes`.
+Artifact types: `spec`, `acceptance`, `repos`, `plan`, `tasks`, `research`, `data_model`, `review_report`, `test_report`, `docs`, `contracts`. Spec documents are stored in the database — never write them to disk.
 
 ## Key Rules
 
