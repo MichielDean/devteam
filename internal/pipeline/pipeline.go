@@ -694,7 +694,9 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 		promptContext = promptContext + p.implRepoContext(f, currentPhase)
 
 		contextMD := buildContextMD(f.ID, string(currentPhase), roleName, promptContext)
-		contextPath := filepath.Join(p.specProvider.FeatureDir(f.ID), "CONTEXT.md")
+		contextDir := p.specProvider.FeatureDir(f.ID)
+		os.MkdirAll(contextDir, 0755)
+		contextPath := filepath.Join(contextDir, "CONTEXT.md")
 		if err := os.WriteFile(contextPath, []byte(contextMD), 0644); err != nil {
 			return nil, fmt.Errorf("writing CONTEXT.md: %w", err)
 		}
@@ -852,7 +854,9 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		promptContext = promptContext + p.implRepoContext(f, currentPhase)
 
 		contextMD := buildContextMD(f.ID, string(currentPhase), roleName, promptContext)
-		contextPath := filepath.Join(p.specProvider.FeatureDir(f.ID), "CONTEXT.md")
+		contextDir := p.specProvider.FeatureDir(f.ID)
+		os.MkdirAll(contextDir, 0755)
+		contextPath := filepath.Join(contextDir, "CONTEXT.md")
 		if err := os.WriteFile(contextPath, []byte(contextMD), 0644); err != nil {
 			return nil, fmt.Errorf("writing CONTEXT.md: %w", err)
 		}
