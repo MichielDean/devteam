@@ -985,12 +985,12 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	}
 
 	// Check for questions after inception/planning phases.
-	// The agent writes questions.json in the spec directory; we detect it,
-	// store the questions, and pause the feature for human input.
-	if ps.GateResult.Passed && (currentPhase == feature.PhaseInception || currentPhase == feature.PhasePlanning) {
+	// Go code checks for questions.json REGARDLESS of gate outcome or agent outcome.
+	// The agent may write questions.json without writing outcome.txt — that's fine.
+	// Go code is the state machine: it reads the file, stores questions, pauses.
+	if currentPhase == feature.PhaseInception || currentPhase == feature.PhasePlanning {
 		if p.questionStore != nil {
 			// Only check for questions if we haven't already asked questions for this phase
-			// (prevents re-detection loop when phase is re-run after answers)
 			existingQuestions, _ := p.questionStore.ListQuestions(ctx, f.ID)
 			alreadyAskedForPhase := false
 			for _, q := range existingQuestions {
