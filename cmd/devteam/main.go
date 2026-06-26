@@ -118,37 +118,39 @@ func main() {
 		handleInit()
 		return
 	case "questions":
-		// devteam questions <ask|pending|list|answer> <feature-id> [options]
-		// These don't need config — just DB access
 		if len(os.Args) < 4 {
 			fmt.Fprintf(os.Stderr, "Usage: devteam questions <ask|pending|list|answer> <feature-id> [options]\n")
 			os.Exit(1)
 		}
-		handleQuestionsCLI(baseDir, os.Args[2:])
+		handleQuestionsAPICLI(os.Args[2:])
 		return
 	case "signal":
-		// devteam signal <feature-id> <outcome> [--notes "text"]
 		if len(os.Args) < 4 {
-			fmt.Fprintf(os.Stderr, "Usage: devteam signal <feature-id> <pass|recirculate:target|needs_feedback|failed> [--notes \"text\"]\n")
+			fmt.Fprintf(os.Stderr, "Usage: devteam signal <feature-id> <outcome> [--notes \"text\"]\n")
 			os.Exit(1)
 		}
-		handleSignalCLI(baseDir, os.Args[2:])
+		handleSignalAPICLI(os.Args[2:])
 		return
 	case "notes":
-		// devteam notes <add|list> <feature-id> [options]
 		if len(os.Args) < 4 {
 			fmt.Fprintf(os.Stderr, "Usage: devteam notes <add|list> <feature-id> [options]\n")
 			os.Exit(1)
 		}
-		handleNotesCLI(baseDir, os.Args[2:])
+		handleNotesAPICLI(os.Args[2:])
+		return
+	case "artifact":
+		if len(os.Args) < 5 {
+			fmt.Fprintf(os.Stderr, "Usage: devteam artifact <submit|get> <feature-id> <type> [options]\n")
+			os.Exit(1)
+		}
+		handleArtifactAPICLI(os.Args[2:])
 		return
 	case "feature":
-		// devteam feature <status|info> <feature-id>
 		if len(os.Args) < 4 {
 			fmt.Fprintf(os.Stderr, "Usage: devteam feature <status|info> <feature-id>\n")
 			os.Exit(1)
 		}
-		handleFeatureCLI(baseDir, os.Args[2:])
+		handleFeatureAPICLI(os.Args[2:])
 		return
 	}
 
