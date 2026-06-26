@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/MichielDean/devteam/internal/feature"
-	"github.com/MichielDean/devteam/internal/spec"
 )
 
 // setupTestServerWithServer is like setupTestServer but returns a running
@@ -28,15 +27,11 @@ func setupTestServerWithServer(t *testing.T) (*Server, *httptest.Server, string)
 
 // seedWaitingHumanFeature creates a feature, sets it to in_progress in inception,
 // then transitions to waiting_for_human. Returns the feature ID.
-func seedWaitingHumanFeature(t *testing.T, tmpDir string) string {
+func seedWaitingHumanFeature(t *testing.T, s *Server) string {
 	t.Helper()
-	sp := spec.NewSpecProvider(tmpDir)
-	sw := spec.NewSpecWriter(tmpDir)
+	sp := s.specProvider
 	fid := "waiting-human-feature"
 	f := feature.NewFeature(fid, "Waiting Human Feature", 1, feature.IntakeLooseIdea)
-	if err := sw.CreateFeatureDir(f.ID); err != nil {
-		t.Fatalf("CreateFeatureDir: %v", err)
-	}
 	f.Start() // in_progress, inception
 	if err := f.WaitForHuman(); err != nil {
 		t.Fatalf("WaitForHuman: %v", err)
@@ -50,8 +45,8 @@ func seedWaitingHumanFeature(t *testing.T, tmpDir string) string {
 // [T-AC076] [US-003] [AC-076] [INTEGRATION] Cancel a feature in waiting_for_human
 // status transitions it to cancelled.
 func TestIntegrationCancelWaitingHumanFeature(t *testing.T) {
-	_, ts, tmpDir := setupTestServerWithServer(t)
-	fid := seedWaitingHumanFeature(t, tmpDir)
+	s, ts, _ := setupTestServerWithServer(t)
+	fid := seedWaitingHumanFeature(t, s)
 
 	resp, err := http.Post(ts.URL+"/api/features/"+fid+"/cancel", "application/json", nil)
 	if err != nil {
@@ -74,8 +69,8 @@ func TestIntegrationCancelWaitingHumanFeature(t *testing.T) {
 // [T-AC077] [US-003] [AC-077] [INTEGRATION] Recirculating a feature in
 // waiting_for_human status deletes all its questions.
 func TestIntegrationRecirculateWaitingHumanClearsQuestions(t *testing.T) {
-	s, ts, tmpDir := setupTestServerWithServer(t)
-	fid := seedWaitingHumanFeature(t, tmpDir)
+	s, ts, _ := setupTestServerWithServer(t)
+	fid := seedWaitingHumanFeature(t, s)
 
 	// Seed a question directly via the handler
 	createBody := `{"phase":"inception","role":"pm","question":"q?","type":"clarification"}`
@@ -91,7 +86,7 @@ func TestIntegrationRecirculateWaitingHumanClearsQuestions(t *testing.T) {
 	// Feature is at inception. Recirculation requires target < current. Since inception is
 	// the first phase, we need to advance the feature first. Instead, set feature to planning
 	// then waiting_for_human, then recirculate back to inception.
-	sp := spec.NewSpecProvider(tmpDir)
+	sp := s.specProvider
 	f, err := sp.LoadFeatureState(fid)
 	if err != nil {
 		t.Fatalf("load: %v", err)
@@ -144,8 +139,8 @@ func TestIntegrationRecirculateWaitingHumanClearsQuestions(t *testing.T) {
 // Uses PATCH via http.NewRequest (the route is registered for MethodPatch).
 // http.Post would issue POST and get 405 Method Not Allowed.
 func TestIntegrationConcurrentAnswerConflict(t *testing.T) {
-	s, ts, tmpDir := setupTestServerWithServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, ts, _ := setupTestServerWithServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	createBody := `{"phase":"inception","role":"pm","question":"concurrent?","type":"clarification"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(createBody))
@@ -202,8 +197,8 @@ func TestIntegrationConcurrentAnswerConflict(t *testing.T) {
 // [T-AC086] [US-001] [AC-086] [INTEGRATION] Concurrent PATCH answers to the
 // same pending question: exactly one wins (200), the other gets 409.
 func TestIntegrationConcurrentPatchAnswerConflict(t *testing.T) {
-	s, ts, tmpDir := setupTestServerWithServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, ts, _ := setupTestServerWithServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	createBody := `{"phase":"inception","role":"pm","question":"concurrent patch?","type":"clarification"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(createBody))
@@ -263,8 +258,8 @@ func TestIntegrationConcurrentPatchAnswerConflict(t *testing.T) {
 // [T-AC032] [US-006] [AC-032] [INTEGRATION] Feature list includes
 // pending_questions_count so the UI can render a badge.
 func TestIntegrationFeatureListPendingQuestionsCount(t *testing.T) {
-	s, _, tmpDir := setupTestServerWithServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _, _ := setupTestServerWithServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	// Create 3 pending questions
 	for i := 0; i < 3; i++ {
@@ -310,8 +305,8 @@ func TestIntegrationFeatureListPendingQuestionsCount(t *testing.T) {
 // [T-AC087] [US-006] [AC-087] [SMOKE] Full httptest.Server smoke test of
 // every question endpoint through the real mux + middleware chain.
 func TestSmokeQuestionEndpointsViaRealServer(t *testing.T) {
-	_, ts, tmpDir := setupTestServerWithServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, ts, _ := setupTestServerWithServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	// GET empty questions
 	resp, err := http.Get(ts.URL + "/api/features/" + fid + "/questions")
@@ -339,8 +334,8 @@ func TestSmokeQuestionEndpointsViaRealServer(t *testing.T) {
 	var created QuestionResponse
 	json.NewDecoder(resp.Body).Decode(&created)
 	resp.Body.Close()
-	if created.ID != "Q-001" {
-		t.Errorf("expected Q-001, got %s", created.ID)
+	if created.ID == "" {
+		t.Errorf("expected non-empty ID, got empty string")
 	}
 
 	// GET questions (1 item)

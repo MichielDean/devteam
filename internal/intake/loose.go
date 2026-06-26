@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/spec"
 )
@@ -14,6 +15,7 @@ type LooseIdeaIntake struct {
 	specWriter *spec.SpecWriter
 	specDir   string
 	baseDir   string
+	provider  *spec.SpecProvider
 }
 
 func NewLooseIdeaIntake(baseDir string) *LooseIdeaIntake {
@@ -21,7 +23,14 @@ func NewLooseIdeaIntake(baseDir string) *LooseIdeaIntake {
 		specWriter: spec.NewSpecWriter(baseDir),
 		specDir:    filepath.Join(baseDir, "specs"),
 		baseDir:    baseDir,
+		provider:   spec.NewSpecProvider(baseDir),
 	}
+}
+
+// SetDatabase wires the database for artifact and state storage.
+func (li *LooseIdeaIntake) SetDatabase(database *db.DB) {
+	li.provider.SetDatabase(database)
+	li.specWriter.SetProvider(li.provider)
 }
 
 func (li *LooseIdeaIntake) Submit(title string, description string, priority int, repos []feature.RepoRef) (*feature.Feature, error) {
@@ -29,8 +38,9 @@ func (li *LooseIdeaIntake) Submit(title string, description string, priority int
 	f := feature.NewFeature(id, title, priority, feature.IntakeLooseIdea)
 	f.Repos = repos
 
-	if err := li.specWriter.CreateFeatureDir(f.ID); err != nil {
-		return nil, fmt.Errorf("creating feature directory: %w", err)
+	f.Start()
+	if err := li.provider.SaveFeatureState(f); err != nil {
+		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
 
 	inputContent := li.generateInputContent(f, description)
@@ -43,13 +53,6 @@ func (li *LooseIdeaIntake) Submit(title string, description string, priority int
 		if err := li.specWriter.WriteArtifact(f.ID, feature.ArtifactReposYAML, []byte(reposContent)); err != nil {
 			return nil, fmt.Errorf("writing repos.yaml: %w", err)
 		}
-	}
-
-	f.Start()
-
-	provider := spec.NewSpecProvider(li.baseDir)
-	if err := provider.SaveFeatureState(f); err != nil {
-		return nil, fmt.Errorf("saving feature state: %w", err)
 	}
 
 	return f, nil

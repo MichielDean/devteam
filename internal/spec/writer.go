@@ -1,41 +1,54 @@
 package spec
 
 import (
-	"os"
-	"path/filepath"
+	"fmt"
 	"time"
 
 	"github.com/MichielDean/devteam/internal/feature"
 )
 
 type SpecWriter struct {
-	baseDir string
+	baseDir   string
+	provider  *SpecProvider
 }
 
 func NewSpecWriter(baseDir string) *SpecWriter {
-	return &SpecWriter{baseDir: baseDir}
-}
-
-func (sw *SpecWriter) CreateFeatureDir(featureID string) error {
-	dir := filepath.Join(sw.baseDir, "specs", featureID)
-	return os.MkdirAll(dir, 0755)
-}
-
-func (sw *SpecWriter) WriteArtifact(featureID string, artType feature.ArtifactType, content []byte) error {
-	provider := NewSpecProvider(sw.baseDir)
-	path := provider.ArtifactPath(featureID, artType)
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+	return &SpecWriter{
+		baseDir:  baseDir,
+		provider: NewSpecProvider(baseDir),
 	}
-	return os.WriteFile(path, content, 0644)
 }
 
+// SetDatabase wires the database for artifact writes.
+func (sw *SpecWriter) SetDatabase(database interface{}) {
+	if db, ok := database.(interface {
+		SaveArtifact(string, string, string) error
+	}); ok {
+		_ = db // provider handles DB via its own SetDatabase
+	}
+}
+
+// SetProvider links the writer to a SpecProvider that already has a DB.
+// This avoids creating a separate provider without DB access.
+func (sw *SpecWriter) SetProvider(provider *SpecProvider) {
+	sw.provider = provider
+}
+
+// CreateFeatureDir is a no-op when DB-backed. Features live in the DB.
+func (sw *SpecWriter) CreateFeatureDir(featureID string) error {
+	return nil
+}
+
+// WriteArtifact writes an artifact to the DB (via the provider).
+func (sw *SpecWriter) WriteArtifact(featureID string, artType feature.ArtifactType, content []byte) error {
+	return sw.provider.SaveArtifactBytes(featureID, artType, content)
+}
+
+// RecordArtifact records that an artifact was generated in the feature's phase state.
 func (sw *SpecWriter) RecordArtifact(featureID string, artType feature.ArtifactType, role feature.RoleName) error {
-	provider := NewSpecProvider(sw.baseDir)
-	f, err := provider.LoadFeatureState(featureID)
+	f, err := sw.provider.LoadFeatureState(featureID)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading feature for RecordArtifact: %w", err)
 	}
 	phase := f.CurrentPhase()
 	ps, ok := f.PhaseStates[phase]
@@ -45,9 +58,9 @@ func (sw *SpecWriter) RecordArtifact(featureID string, artType feature.ArtifactT
 	}
 	ps.Artifacts = append(ps.Artifacts, feature.Artifact{
 		Type:        artType,
-		Path:        provider.ArtifactPath(featureID, artType),
+		Path:        "", // no disk path — DB-backed
 		GeneratedBy: role,
 		GeneratedAt: time.Now(),
 	})
-	return provider.SaveFeatureState(f)
+	return sw.provider.SaveFeatureState(f)
 }

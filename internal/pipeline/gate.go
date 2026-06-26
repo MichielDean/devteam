@@ -606,14 +606,12 @@ func (ge *GateEvaluator) evaluateDesc(f *feature.Feature, desc string) bool {
 		return strings.Contains(lower, "entit") || strings.Contains(lower, "attribute") || strings.Contains(lower, "relationship")
 
 	case strings.Contains(desc, "contracts/ directory contains"):
-		// Check if contracts/ directory exists and has files
-		specDir := ge.specProvider.FeatureDirFromFeature(f)
-		contractsDir := filepath.Join(specDir, "contracts")
-		entries, err := os.ReadDir(contractsDir)
+		// Contracts are stored as a single artifact in the DB
+		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactContractsDir)
 		if err != nil {
 			return false
 		}
-		return len(entries) > 0
+		return strings.Contains(strings.ToLower(content), "request") || strings.Contains(strings.ToLower(content), "response") || strings.Contains(strings.ToLower(content), "endpoint")
 
 	case strings.Contains(desc, "organized by user story"):
 		content, err := ge.specProvider.ReadArtifact(f.ID, feature.ArtifactTasksMD)

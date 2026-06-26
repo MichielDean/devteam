@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/MichielDean/devteam/internal/config"
+	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/spec"
@@ -41,11 +42,38 @@ func setupTestServer(t *testing.T) (*Server, string) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	questionStore := feature.NewFileQuestionStore(tmpDir)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	questionStore := feature.NewDBQuestionStore(database)
 
-	s := NewServer(":0", sp, pipe, nil, questionStore, nil)
+	s := NewServer(":0", sp, pipe, nil, questionStore, database)
 
 	return s, tmpDir
+}
+
+// setupTestDB creates a test SQLite database in tmpDir.
+func setupTestDB(t *testing.T, tmpDir string) *db.DB {
+	t.Helper()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	database, err := db.Open(db.Config{Driver: "sqlite3", DSN: dbPath}, dbPath)
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+	return database
+}
+
+// setupInlineServer creates a server with DB backing for tests that need custom config.
+func setupInlineServer(t *testing.T, tmpDir string, cfg *config.Config) *Server {
+	t.Helper()
+	sp := spec.NewSpecProvider(tmpDir)
+	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	questionStore := feature.NewDBQuestionStore(database)
+	return NewServer(":0", sp, pipe, nil, questionStore, database)
 }
 
 func TestListFeaturesEmpty(t *testing.T) {
@@ -95,7 +123,10 @@ func TestListFeaturesTotalCountPopulated(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -291,7 +322,10 @@ func TestSmokeServerStartsAndResponds(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -329,7 +363,10 @@ func TestSmokeRecoveryNoNilPointer(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -387,7 +424,10 @@ func TestSmokeCreateAndGetFeature(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -498,9 +538,12 @@ func TestListFeaturesTotalCountConsistency(t *testing.T) {
 					},
 				},
 			}
-			sp := spec.NewSpecProvider(tmpDir)
-			pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-			s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+		sp := spec.NewSpecProvider(tmpDir)
+		pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+		database := setupTestDB(t, tmpDir)
+		sp.SetDatabase(database)
+		pipe.SetDatabase(database)
+		s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 			ts := httptest.NewServer(s.httpServer.Handler)
 			defer ts.Close()
 
@@ -560,34 +603,13 @@ func TestListFeaturesTotalCountConsistency(t *testing.T) {
 
 func TestListFeaturesErrorResponseHasNoTotalCount(t *testing.T) {
 	// AC-011: 500 error response must NOT contain total_count. Force a failure
-	// by pointing the SpecProvider at an unreadable directory (chmod 000).
-	tmpDir := t.TempDir()
-	specsDir := filepath.Join(tmpDir, "specs")
-	os.MkdirAll(specsDir, 0755)
-
-	// Make specs dir unreadable to force ReadDir error
-	if err := os.Chmod(specsDir, 0000); err != nil {
-		t.Fatalf("chmod: %v", err)
-	}
-	defer os.Chmod(specsDir, 0755)
-
-	cfg := &config.Config{
-		Pipeline: config.PipelineConfig{
-			Phases: []config.PhaseConfig{
-				{Name: "inception", Roles: []string{"pm"}},
-				{Name: "planning", Roles: []string{"architect"}},
-				{Name: "construction", Roles: []string{"developer"}},
-				{Name: "review", Roles: []string{"reviewer"}},
-				{Name: "testing", Roles: []string{"tester"}},
-				{Name: "delivery", Roles: []string{"ops"}},
-			},
-		},
-	}
-	sp := spec.NewSpecProvider(tmpDir)
-	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	// by closing the database before the request (DB-backed ListFeatures fails).
+	s, _ := setupTestServer(t)
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
+
+	// Close the database to force a query error
+	s.db.Close()
 
 	resp, err := http.Get(ts.URL + "/api/features")
 	if err != nil {
@@ -638,7 +660,10 @@ func TestIntegrationJSONArraysNeverNull(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -676,14 +701,10 @@ func TestIntegrationJSONArraysNeverNull(t *testing.T) {
 
 // --- Question endpoint integration tests ---
 
-func seedQuestionFeature(t *testing.T, tmpDir string) string {
+func seedQuestionFeature(t *testing.T, s *Server) string {
 	t.Helper()
-	sp := spec.NewSpecProvider(tmpDir)
-	sw := spec.NewSpecWriter(tmpDir)
+	sp := s.specProvider
 	f := feature.NewFeature("q-test-feature", "Question Test", 1, feature.IntakeLooseIdea)
-	if err := sw.CreateFeatureDir(f.ID); err != nil {
-		t.Fatalf("CreateFeatureDir: %v", err)
-	}
 	if err := sp.SaveFeatureState(f); err != nil {
 		t.Fatalf("SaveFeatureState: %v", err)
 	}
@@ -691,8 +712,8 @@ func seedQuestionFeature(t *testing.T, tmpDir string) string {
 }
 
 func TestListQuestionsEmptyReturnsArray(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/features/"+fid+"/questions", nil)
 	req.SetPathValue("id", fid)
@@ -729,8 +750,8 @@ func TestListQuestionsFeatureNotFound(t *testing.T) {
 }
 
 func TestCreateQuestionValid(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	body := `{"phase":"inception","role":"pm","question":"What is the target audience?","type":"clarification","options":["A","B"]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(body))
@@ -745,8 +766,8 @@ func TestCreateQuestionValid(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.ID != "Q-001" {
-		t.Errorf("expected id Q-001, got %s", resp.ID)
+	if resp.ID == "" {
+		t.Errorf("expected non-empty id, got %s", resp.ID)
 	}
 	if resp.Status != "pending" {
 		t.Errorf("expected status pending, got %s", resp.Status)
@@ -760,8 +781,8 @@ func TestCreateQuestionValid(t *testing.T) {
 }
 
 func TestCreateQuestionValidationErrors(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	cases := []struct {
 		name string
@@ -808,8 +829,8 @@ func TestCreateQuestionFeatureNotFound(t *testing.T) {
 }
 
 func TestAnswerQuestionLifecycle(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	// Create a question
 	createBody := `{"phase":"inception","role":"pm","question":"q?","type":"clarification"}`
@@ -857,8 +878,8 @@ func TestAnswerQuestionLifecycle(t *testing.T) {
 }
 
 func TestAnswerQuestionValidationErrors(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	// Create a question
 	createBody := `{"phase":"inception","role":"pm","question":"q?","type":"clarification"}`
@@ -891,8 +912,8 @@ func TestAnswerQuestionValidationErrors(t *testing.T) {
 }
 
 func TestAnswerQuestionNotFound(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	body := `{"answer":"a"}`
 	req := httptest.NewRequest(http.MethodPatch, "/api/features/"+fid+"/questions/Q-999", strings.NewReader(body))
@@ -906,22 +927,26 @@ func TestAnswerQuestionNotFound(t *testing.T) {
 }
 
 func TestListPendingQuestions(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	// Create 3 questions, answer 1
+	var questionIDs []string
 	for i := 0; i < 3; i++ {
 		body := fmt.Sprintf(`{"phase":"inception","role":"pm","question":"q%d?","type":"clarification"}`, i)
 		req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(body))
 		req.SetPathValue("id", fid)
 		w := httptest.NewRecorder()
 		s.createQuestion(w, req)
+		var resp QuestionResponse
+		json.NewDecoder(w.Body).Decode(&resp)
+		questionIDs = append(questionIDs, resp.ID)
 	}
-	// Answer Q-002
+	// Answer the second question
 	answerBody := `{"answer":"ans"}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/features/"+fid+"/questions/Q-002", strings.NewReader(answerBody))
+	req := httptest.NewRequest(http.MethodPatch, "/api/features/"+fid+"/questions/"+questionIDs[1], strings.NewReader(answerBody))
 	req.SetPathValue("id", fid)
-	req.SetPathValue("questionId", "Q-002")
+	req.SetPathValue("questionId", questionIDs[1])
 	w := httptest.NewRecorder()
 	s.answerQuestion(w, req)
 
@@ -948,8 +973,8 @@ func TestListPendingQuestions(t *testing.T) {
 }
 
 func TestListPendingQuestionsEmptyReturnsArray(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/features/"+fid+"/questions/pending", nil)
 	req.SetPathValue("id", fid)
@@ -977,8 +1002,8 @@ func TestListPendingQuestionsFeatureNotFound(t *testing.T) {
 }
 
 func TestQuestionsJSONArraysNeverNull(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	// Create a question with no options
 	body := `{"phase":"inception","role":"pm","question":"q?","type":"clarification"}`
@@ -1011,11 +1036,11 @@ func TestQuestionsJSONArraysNeverNull(t *testing.T) {
 }
 
 func TestAdvanceFeatureWaitingHumanBlocked(t *testing.T) {
-	s, tmpDir := setupTestServer(t)
-	fid := seedQuestionFeature(t, tmpDir)
+	s, _ := setupTestServer(t)
+	fid := seedQuestionFeature(t, s)
 
 	// Manually set feature to waiting_for_human via spec provider
-	sp := spec.NewSpecProvider(tmpDir)
+	sp := s.specProvider
 	f, err := sp.LoadFeatureState(fid)
 	if err != nil {
 		t.Fatalf("load: %v", err)

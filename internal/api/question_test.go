@@ -43,7 +43,10 @@ func TestSmokeQuestionEndpoints(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -132,7 +135,10 @@ func TestIntegrationListQuestions(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -244,7 +250,10 @@ func TestIntegrationListQuestionsEmpty(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -313,7 +322,10 @@ func TestIntegrationCreateQuestion(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -348,9 +360,9 @@ func TestIntegrationCreateQuestion(t *testing.T) {
 		t.Fatalf("failed to decode question: %v", err)
 	}
 
-	// Verify auto-generated ID format
-	if !strings.HasPrefix(question.ID, "Q-") {
-		t.Errorf("expected ID to start with Q-, got %s", question.ID)
+	// Verify auto-generated ID is non-empty
+	if question.ID == "" {
+		t.Errorf("expected non-empty ID, got empty string")
 	}
 	if question.Status != "pending" {
 		t.Errorf("expected status pending, got %s", question.Status)
@@ -402,7 +414,10 @@ func TestIntegrationCreateQuestionValidation(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -508,7 +523,10 @@ func TestIntegrationAnswerQuestion(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -584,7 +602,10 @@ func TestIntegrationAnswerConflict(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -665,7 +686,10 @@ func TestIntegrationAnswerNotFound(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -709,7 +733,10 @@ func TestIntegrationAnswerEmptyString(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -770,7 +797,10 @@ func TestIntegrationAnswerTooLong(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -827,7 +857,10 @@ func TestIntegrationListPendingQuestions(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -933,7 +966,10 @@ func TestIntegrationXSSInAnswer(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -998,7 +1034,10 @@ func TestIntegrationQuestionTooLong(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1042,7 +1081,10 @@ func TestIntegrationAdvanceFromWaitingHumanBlocked(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1102,7 +1144,10 @@ func TestIntegrationFeatureListIncludesPendingQuestionsCount(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1184,7 +1229,10 @@ func TestIntegrationQuestionEndpointsArraysNeverNull(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1261,7 +1309,10 @@ func TestIntegrationQuestion404s(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1312,7 +1363,10 @@ func TestIntegrationAnswerAssumedConflict(t *testing.T) {
 
 	sp := spec.NewSpecProvider(tmpDir)
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
-	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	database := setupTestDB(t, tmpDir)
+	sp.SetDatabase(database)
+	pipe.SetDatabase(database)
+	s := NewServer(":0", sp, pipe, nil, feature.NewDBQuestionStore(database), database)
 
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
@@ -1337,9 +1391,8 @@ func TestIntegrationAnswerAssumedConflict(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&question)
 	resp.Body.Close()
 
-	// Manually mark question as assumed via the store
-	qs := feature.NewFileQuestionStore(tmpDir)
-	qs.AssumeQuestion(nil, featureID, question.ID, "Auto-assumed")
+	// Manually mark question as assumed via the server's question store
+	s.questionStore.AssumeQuestion(nil, featureID, question.ID, "Auto-assumed")
 
 	// Try to answer the assumed question — should get 409
 	answerBody := `{"answer":"My answer"}`

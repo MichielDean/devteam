@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,39 +11,43 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 )
 
 type SpecProvider struct {
-	baseDir string
+	baseDir   string
+	database  *db.DB
 }
 
 func NewSpecProvider(baseDir string) *SpecProvider {
 	return &SpecProvider{baseDir: baseDir}
 }
 
+// SetDatabase wires the database for state and artifact storage.
+// Once set, all reads/writes go through the DB — no disk for spec artifacts or state.
+func (sp *SpecProvider) SetDatabase(database *db.DB) {
+	sp.database = database
+}
+
 func (sp *SpecProvider) BaseDir() string {
 	return sp.baseDir
 }
 
-// FeatureDir returns the spec directory for a feature. If the feature has
-// a WorktreeDir set, it returns the spec dir inside the worktree. Otherwise
-// it falls back to the base dir (primary checkout).
+// FeatureDir returns the worktree spec directory for a feature.
+// This is used for ephemeral files (CONTEXT.md, outcome.txt, etc.) that
+// agents read/write during a run. Spec artifacts themselves live in the DB.
 func (sp *SpecProvider) FeatureDir(featureID string) string {
-	// Check if this feature has a worktree by loading its state
-	statePath := filepath.Join(sp.baseDir, "specs", featureID, ".devteam-state.yaml")
-	if data, err := os.ReadFile(statePath); err == nil {
-		var f feature.Feature
-		if err := yaml.Unmarshal(data, &f); err == nil && f.WorktreeDir != "" {
+	if sp.database != nil {
+		f, err := sp.LoadFeatureState(featureID)
+		if err == nil && f.WorktreeDir != "" {
 			return filepath.Join(f.WorktreeDir, "specs", featureID)
 		}
 	}
 	return filepath.Join(sp.baseDir, "specs", featureID)
 }
 
-// FeatureDirFromFeature returns the spec directory using the feature's
-// WorktreeDir if set. More efficient than FeatureDir when the feature
-// is already loaded.
+// FeatureDirFromFeature returns the spec directory using the feature's WorktreeDir.
 func (sp *SpecProvider) FeatureDirFromFeature(f *feature.Feature) string {
 	if f.WorktreeDir != "" {
 		return filepath.Join(f.WorktreeDir, "specs", f.ID)
@@ -50,7 +55,40 @@ func (sp *SpecProvider) FeatureDirFromFeature(f *feature.Feature) string {
 	return filepath.Join(sp.baseDir, "specs", f.ID)
 }
 
+// artifactTypeToDBKey maps ArtifactType to the string key used in spec_artifacts table.
+func artifactTypeToDBKey(artType feature.ArtifactType) string {
+	return string(artType)
+}
+
+// SaveArtifact writes an artifact to the DB.
+func (sp *SpecProvider) SaveArtifact(featureID string, artType feature.ArtifactType, content string) error {
+	if sp.database == nil {
+		return fmt.Errorf("database not configured")
+	}
+	return sp.database.SaveArtifact(featureID, artifactTypeToDBKey(artType), content)
+}
+
+// SaveArtifactBytes writes artifact bytes to the DB.
+func (sp *SpecProvider) SaveArtifactBytes(featureID string, artType feature.ArtifactType, content []byte) error {
+	return sp.SaveArtifact(featureID, artType, string(content))
+}
+
 func (sp *SpecProvider) LoadFeatureState(featureID string) (*feature.Feature, error) {
+	if sp.database != nil {
+		data, err := sp.database.LoadFeatureData(featureID)
+		if err != nil {
+			return nil, err
+		}
+		var f feature.Feature
+		if err := json.Unmarshal(data, &f); err != nil {
+			return nil, fmt.Errorf("parsing feature state for %s: %w", featureID, err)
+		}
+		return &f, nil
+	}
+	return sp.loadFeatureStateFromDisk(featureID)
+}
+
+func (sp *SpecProvider) loadFeatureStateFromDisk(featureID string) (*feature.Feature, error) {
 	statePath := filepath.Join(sp.FeatureDir(featureID), ".devteam-state.yaml")
 	data, err := os.ReadFile(statePath)
 	if err != nil {
@@ -67,57 +105,63 @@ func (sp *SpecProvider) LoadFeatureState(featureID string) (*feature.Feature, er
 }
 
 func (sp *SpecProvider) SaveFeatureState(f *feature.Feature) error {
+	if sp.database != nil {
+		data, err := json.Marshal(f)
+		if err != nil {
+			return fmt.Errorf("marshaling feature state: %w", err)
+		}
+		return sp.database.SaveFeatureData(f.ID, f.Title, string(f.Current), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.WorktreeDir, f.CreatedAt, 0, data)
+	}
+	return sp.saveFeatureStateToDisk(f)
+}
+
+func (sp *SpecProvider) saveFeatureStateToDisk(f *feature.Feature) error {
 	data, err := yaml.Marshal(f)
 	if err != nil {
 		return fmt.Errorf("marshaling feature state: %w", err)
 	}
-
-	// Save to the worktree only — agents never touch the primary checkout
-	if f.WorktreeDir != "" {
-		wtDir := filepath.Join(f.WorktreeDir, "specs", f.ID)
-		if err := os.MkdirAll(wtDir, 0755); err != nil {
-			return fmt.Errorf("creating feature dir in worktree: %w", err)
-		}
-		wtPath := filepath.Join(wtDir, ".devteam-state.yaml")
-		if err := os.WriteFile(wtPath, data, 0644); err != nil {
-			return fmt.Errorf("writing feature state to worktree: %w", err)
-		}
-		return nil
+	dir := sp.FeatureDirFromFeature(f)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("creating feature dir: %w", err)
 	}
-
-	// No worktree yet (feature just created) — save to primary checkout temporarily
-	// EnsureSpecWorktree will create the worktree and move this
-	primaryDir := filepath.Join(sp.baseDir, "specs", f.ID)
-	if err := os.MkdirAll(primaryDir, 0755); err != nil {
-		return fmt.Errorf("creating feature directory: %w", err)
-	}
-	primaryPath := filepath.Join(primaryDir, ".devteam-state.yaml")
-	if err := os.WriteFile(primaryPath, data, 0644); err != nil {
-		return fmt.Errorf("writing feature state: %w", err)
-	}
-	return nil
+	statePath := filepath.Join(dir, ".devteam-state.yaml")
+	return os.WriteFile(statePath, data, 0644)
 }
 
 func (sp *SpecProvider) ListFeatures() ([]*feature.Feature, error) {
+	if sp.database != nil {
+		rawFeatures, err := sp.database.ListAllFeatureData()
+		if err != nil {
+			return nil, err
+		}
+		var features []*feature.Feature
+		for _, raw := range rawFeatures {
+			var f feature.Feature
+			if err := json.Unmarshal(raw, &f); err != nil {
+				continue
+			}
+			features = append(features, &f)
+		}
+		return features, nil
+	}
+	return sp.listFeaturesFromDisk()
+}
+
+func (sp *SpecProvider) listFeaturesFromDisk() ([]*feature.Feature, error) {
 	var features []*feature.Feature
 	seen := make(map[string]bool)
 
-	// Scan spec worktrees (the primary location for active features)
-	// Only scan if the worktree base exists
 	worktreeBase := filepath.Join(os.Getenv("HOME"), "worktrees", "devteam-specs")
 	if wtEntries, err := os.ReadDir(worktreeBase); err == nil {
 		for _, entry := range wtEntries {
 			if !entry.IsDir() {
 				continue
 			}
-			// State file is at <worktreeBase>/<featureID>/specs/<featureID>/.devteam-state.yaml
 			specDir := filepath.Join(worktreeBase, entry.Name(), "specs", entry.Name())
 			statePath := filepath.Join(specDir, ".devteam-state.yaml")
 			if data, err := os.ReadFile(statePath); err == nil {
 				var f feature.Feature
 				if err := yaml.Unmarshal(data, &f); err == nil {
-					// Only include if this worktree belongs to this SpecProvider's base dir
-					// (prevents test features from picking up real worktrees)
 					if strings.Contains(f.SpecDir, sp.baseDir) || f.SpecDir == "" {
 						features = append(features, &f)
 						seen[f.ID] = true
@@ -127,14 +171,12 @@ func (sp *SpecProvider) ListFeatures() ([]*feature.Feature, error) {
 		}
 	}
 
-	// Also scan primary checkout for features without worktrees yet
 	specsDir := filepath.Join(sp.baseDir, "specs")
 	entries, err := os.ReadDir(specsDir)
 	if err != nil {
 		if len(features) == 0 {
 			return nil, fmt.Errorf("reading specs directory: %w", err)
 		}
-		// We found worktree features, just return those
 		return features, nil
 	}
 	for _, entry := range entries {
@@ -147,7 +189,6 @@ func (sp *SpecProvider) ListFeatures() ([]*feature.Feature, error) {
 		}
 		features = append(features, f)
 	}
-
 	return features, nil
 }
 
@@ -166,6 +207,8 @@ func (sp *SpecProvider) ReadArtifactContent(featureID string, artType feature.Ar
 	return sp.ReadArtifact(featureID, artType)
 }
 
+// ArtifactPath returns the on-disk path for backward compatibility (tests, aux files).
+// Spec artifacts live in the DB — this is only for ephemeral files.
 func (sp *SpecProvider) ArtifactPath(featureID string, artType feature.ArtifactType) string {
 	dir := sp.FeatureDir(featureID)
 	switch artType {
@@ -201,8 +244,11 @@ func (sp *SpecProvider) ArtifactPath(featureID string, artType feature.ArtifactT
 }
 
 func (sp *SpecProvider) ArtifactExists(featureID string, artType feature.ArtifactType) bool {
-	path := sp.ArtifactPath(featureID, artType)
-	_, err := os.Stat(path)
+	if sp.database != nil {
+		_, err := sp.database.GetArtifact(featureID, artifactTypeToDBKey(artType))
+		return err == nil
+	}
+	_, err := os.Stat(sp.ArtifactPath(featureID, artType))
 	return err == nil
 }
 
@@ -223,9 +269,9 @@ func (sp *SpecProvider) ValidateArtifacts(featureID string, requiredArts []featu
 			Passed: exists,
 			Message: func() string {
 				if exists {
-					return fmt.Sprintf("artifact %s present at %s", art, sp.ArtifactPath(featureID, art))
+					return fmt.Sprintf("artifact %s present", art)
 				}
-				return fmt.Sprintf("artifact %s missing (expected at %s)", art, sp.ArtifactPath(featureID, art))
+				return fmt.Sprintf("artifact %s missing", art)
 			}(),
 		})
 	}
@@ -269,9 +315,18 @@ func (sp *SpecProvider) BuildCrossRepoContext(featureID string, repoNames []stri
 }
 
 func (sp *SpecProvider) ReadArtifact(featureID string, artType feature.ArtifactType) (string, error) {
-	path := sp.ArtifactPath(featureID, artType)
+	if sp.database != nil {
+		a, err := sp.database.GetArtifact(featureID, artifactTypeToDBKey(artType))
+		if err == nil && a != nil {
+			return a.Content, nil
+		}
+		return "", fmt.Errorf("artifact %s not found for feature %s", artType, featureID)
+	}
+	return sp.readArtifactFromDisk(featureID, artType)
+}
 
-	// If it's a directory (docs/, contracts/), read all files and concatenate
+func (sp *SpecProvider) readArtifactFromDisk(featureID string, artType feature.ArtifactType) (string, error) {
+	path := sp.ArtifactPath(featureID, artType)
 	info, err := os.Stat(path)
 	if err != nil {
 		return "", err
@@ -279,7 +334,6 @@ func (sp *SpecProvider) ReadArtifact(featureID string, artType feature.ArtifactT
 	if info.IsDir() {
 		return readDirectoryContents(path)
 	}
-
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -287,13 +341,11 @@ func (sp *SpecProvider) ReadArtifact(featureID string, artType feature.ArtifactT
 	return string(data), nil
 }
 
-// readDirectoryContents reads all .md files in a directory and concatenates them.
 func readDirectoryContents(dir string) (string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", err
 	}
-
 	var b strings.Builder
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -311,7 +363,6 @@ func readDirectoryContents(dir string) (string, error) {
 		b.Write(data)
 		b.WriteString("\n")
 	}
-
 	if b.Len() == 0 {
 		return "", fmt.Errorf("no readable files in directory %s", dir)
 	}
@@ -326,26 +377,17 @@ func (sp *SpecProvider) currentPhase(featureID string) feature.Phase {
 	return f.CurrentPhase()
 }
 
-// LoadFeatureRepos reads the feature's repos.yaml and returns the declared
-// RepoRefs. Returns an empty slice (not an error) if repos.yaml is absent
-// — features that only touch the spec repo legitimately have no repos.yaml.
+// LoadFeatureRepos reads repos.yaml from the DB and returns the declared RepoRefs.
 func (sp *SpecProvider) LoadFeatureRepos(featureID string) ([]feature.RepoRef, error) {
-	path := sp.ArtifactPath(featureID, feature.ArtifactReposYAML)
-	data, err := os.ReadFile(path)
+	content, err := sp.ReadArtifact(featureID, feature.ArtifactReposYAML)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("reading repos.yaml for %s: %w", featureID, err)
+		return nil, nil // no repos.yaml = no external repos, that's fine
 	}
-	// repos.yaml uses the same shape as the global repos config but with
-	// feature-specific fields (name, url, branch, scope). We only need
-	// name+url+branch here.
 	var parsed struct {
 		Feature string            `yaml:"feature"`
 		Repos   []feature.RepoRef `yaml:"repos"`
 	}
-	if err := yaml.Unmarshal(data, &parsed); err != nil {
+	if err := yaml.Unmarshal([]byte(content), &parsed); err != nil {
 		return nil, fmt.Errorf("parsing repos.yaml for %s: %w", featureID, err)
 	}
 	return parsed.Repos, nil
