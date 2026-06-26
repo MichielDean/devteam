@@ -14,9 +14,10 @@ import (
 type Outcome string
 
 const (
-	OutcomePass        Outcome = "pass"
-	OutcomeRecirculate Outcome = "recirculate"
-	OutcomePool        Outcome = "pool"
+	OutcomePass          Outcome = "pass"
+	OutcomeRecirculate   Outcome = "recirculate"
+	OutcomeFailed        Outcome = "failed"
+	OutcomeNeedsFeedback Outcome = "needs_feedback"
 )
 
 // ParsedOutcome is the parsed result from the agent's outcome file.
@@ -58,8 +59,10 @@ func (p *Pipeline) ParseOutcome(f *feature.Feature, phase feature.Phase) ParsedO
 	// Parse first line: pass, recirculate, recirculate:target, or pool
 	if firstLine == "pass" {
 		po.Result = OutcomePass
-	} else if firstLine == "pool" {
-		po.Result = OutcomePool
+	} else if firstLine == "failed" {
+		po.Result = OutcomeFailed
+	} else if firstLine == "needs_feedback" {
+		po.Result = OutcomeNeedsFeedback
 	} else if strings.HasPrefix(firstLine, "recirculate") {
 		po.Result = OutcomeRecirculate
 		// Check for target: recirculate:construction
@@ -142,7 +145,8 @@ func outcomeInstructions(phase feature.Phase) string {
 	if recirculateTarget != "" {
 		b.WriteString(fmt.Sprintf("- `recirculate:%s` — you found issues that need to be fixed by the %s phase\n", recirculateTarget, recirculateTarget))
 	}
-	b.WriteString("- `pool` — you are blocked and cannot proceed\n\n")
+	b.WriteString("- `needs_feedback` — you have written questions.json and need the user to answer them\n")
+	b.WriteString("- `failed` — you are blocked and cannot proceed\n\n")
 
 	if recirculateTarget != "" {
 		b.WriteString(fmt.Sprintf("When recirculating to %s, write the reason on subsequent lines:\n", recirculateTarget))
