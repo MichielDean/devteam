@@ -4,13 +4,15 @@
 **Reviewer**: Code Reviewer
 **Phase**: review
 **Date**: 2026-06-25
+**Reviewed commit**: HEAD (cd8ccd5) — supersedes stale report deleted in working tree.
 
 ## Summary
 
-- Acceptance criteria: 13 total, 12 MET, 1 NOT MET
-- Findings: 1 critical (BLOCKING), 0 required, 0 noted
-- Implementation LOC: ~30 (handler 14 + accessor 1 + Playwright 9) — minimal, no over-engineering
-- **Gate: BLOCKED** — AC-001..AC-011 (Go integration tests) have no implementation. T002/T004 from tasks.md were not executed.
+- Acceptance criteria: 13 total, 13 MET, 0 NOT MET
+- Constraints: 7 total, 7 MET, 0 NOT MET
+- Findings: 0 blocking, 0 required, 1 noted
+- Implementation LOC: ~30 (handler 14 + struct 4 + accessor 1 + route 1 + Playwright 9) + 248 test LOC — minimal, no over-engineering
+- **Gate: PASSED**
 
 ---
 
@@ -20,170 +22,265 @@
 - **Source**: repo convention, server.go:160-188
 - **Status**: MET
 - **Trace**:
-  1. `NewServer` line 160: `mux := http.NewServeMux()`
-  2. Line 190: `mux.HandleFunc("GET /api/health", s.healthHandler)` — exact method-pattern form
-  3. Route registered BEFORE staticFS catch-all (line 192-194) ✓
+  1. `NewServer` constructs `mux := http.NewServeMux()` then registers feature routes (:176-188)
+  2. `server.go:190` — `mux.HandleFunc("GET /api/health", s.healthHandler)` — exact Go 1.22+ method-pattern form
+  3. Registered BEFORE `staticFS` catch-all at `:192-194` (`mux.Handle("/", s.spaHandler(staticFS))`) — order correct, no shadowing ✓
 - **Evidence**: `internal/api/server.go:190` — `mux.HandleFunc("GET /api/health", s.healthHandler)`
 
 ### CON-002 — Health route covered by recoveryMiddleware + corsMiddleware
 - **Source**: repo convention, server.go:194
-- **Status**: MET (code); NOT VERIFIABLE (no test for panic→500)
+- **Status**: MET
 - **Trace**:
-  1. Line 190: health route registered on `mux`
-  2. Line 196: `handler := s.recoveryMiddleware(s.corsMiddleware(mux))` — wraps entire mux
-  3. `recoveryMiddleware` (server.go:228-238) has `defer recover()` → `writeError(w, 500, ...)` ✓
-  4. Recovery is outermost (after CORS) ✓
-- **Evidence**: `internal/api/server.go:196` — `handler := s.recoveryMiddleware(s.corsMiddleware(mux))`; `:228-238` — recovery with `writeError(w, http.StatusInternalServerError, ...)`
-- **Note**: Code path is correct; AC-005 test (induced panic → 500) was NOT implemented (see F-001).
+  1. `:190` health route registered on `mux`
+  2. `:196` — `handler := s.recoveryMiddleware(s.corsMiddleware(mux))` — wraps entire mux; health route cannot bypass ✓
+  3. `recoveryMiddleware` (:228-237) has `defer recover()` → on panic: `log.Printf` + `writeError(w, http.StatusInternalServerError, "internal_error", ...)` ✓
+  4. Recovery is OUTERMOST (wraps CORS which wraps mux) — panics in CORS or handler both caught ✓
+  5. Test `TestHealthPanicReturns500` (server_test.go) induces panic via a `panicMux` wrapped by the same middleware chain, asserts 500, then asserts a fresh non-panicking server returns 200 (server alive) ✓
+- **Evidence**: `internal/api/server.go:196`, `:228-237`; `internal/api/server_test.go` `TestHealthPanicReturns500`
 
 ### CON-003 — version sourced from Config, not hardcoded
 - **Source**: repo convention, config.go
-- **Status**: MET (code); NOT VERIFIABLE (no test)
+- **Status**: MET
 - **Trace**:
-  1. Handler `healthHandler` server.go:919-924 calls `s.pipeline.Config().Version`
-  2. `Pipeline.Config()` pipeline.go:44 returns `p.config`
-  3. `p.config` set in all 3 constructors (NewPipeline:285, NewPipelineWithDispatcher:319, NewPipelineWithQuestionStore:334) ✓
-  4. No hardcoded "1.0" literal in handler — `Status: "ok"` is the only literal, version is dynamic ✓
-- **Evidence**: `internal/api/server.go:922` — `Version: s.pipeline.Config().Version`; `internal/pipeline/pipeline.go:44` — `func (p *Pipeline) Config() *config.Config { return p.config }`
+  1. `healthHandler` `:919-923` builds `healthResponse{Status: "ok", Version: s.pipeline.Config().Version}`
+  2. `Pipeline.Config()` `pipeline.go:44` — `func (p *Pipeline) Config() *config.Config { return p.config }`
+  3. `p.config` set in ALL 3 constructors: `NewPipeline:285`, `NewPipelineWithDispatcher:319`, `NewPipelineWithQuestionStore:334` — each `config: cfg` ✓
+  4. No hardcoded "1.0" literal in handler — only `Status: "ok"` is literal; version is dynamic ✓
+  5. Test `TestHealthVersionFromConfig` constructs `Config{Version:"9.9.9-test"}` via `setupHealthTestServer` and asserts body `{"status":"ok","version":"9.9.9-test"}` ✓
+- **Evidence**: `internal/api/server.go:922`; `internal/pipeline/pipeline.go:44,285,319,334`; `server_test.go` `TestHealthVersionFromConfig`
 
 ### CON-004 — httptest in-process server pattern
 - **Source**: repo convention, server_test.go
-- **Status**: NOT MET — no Go tests added
-- **Evidence**: `git diff main...HEAD -- internal/api/server_test.go` shows no changes; `grep TestHealth internal/api/server_test.go` returns 0 matches
-- **Explanation**: tasks.md T002 + T004 mandate 11 `TestHealth*` functions in `server_test.go`; none exist. AC-001..AC-011 have no Go-level verification.
-
-### CON-005 — E2E on :18765 via Playwright baseURL
-- **Source**: repo convention, ui/e2e
 - **Status**: MET
 - **Trace**:
-  1. `ui/e2e/health.spec.ts:4` — `request.get('/api/health')` (relative)
-  2. `ui/playwright.config.ts:16` — `baseURL: process.env.BASE_URL || 'http://localhost:18765'`
-  3. `request` fixture resolves against baseURL → :18765 ✓
-- **Evidence**: `ui/e2e/health.spec.ts:4`; `ui/playwright.config.ts:16`
+  1. `setupHealthTestServer` builds `httptest.NewServer(s.httpServer.Handler)` — in-process, no external spawn ✓
+  2. All 11 `TestHealth*` functions use it (or build their own `httptest.NewServer` in the panic test) ✓
+  3. Helper `healthBody` reads body via `io.ReadAll` + `strings.TrimSpace` (trims json.Encoder trailing newline) ✓
+- **Evidence**: `internal/api/server_test.go` `setupHealthTestServer`, `healthBody`, `TestHealthGETReturns200AndBody`..`TestHealthTrailingSlash404`
+
+### CON-005 — E2E on :18765 via Playwright baseURL
+- **Source**: repo convention, ui/e2e, AGENTS.md :18765
+- **Status**: MET
+- **Trace**:
+  1. `ui/e2e/health.spec.ts:4` — `await request.get('/api/health')` (relative URL)
+  2. `request` fixture resolves against `baseURL`; `ui/playwright.config.ts:16` — `baseURL: process.env.BASE_URL || 'http://localhost:18765'` ✓
+  3. `webServer` (:19-31) starts `~/go/bin/devteam -http :18765` on port 18765 (not prod :8765) ✓
+  4. No hardcoded `http://localhost:18765` in the spec — uses baseURL as plan required ✓
+- **Evidence**: `ui/e2e/health.spec.ts:4`; `ui/playwright.config.ts:16,24,26`
 
 ### CON-006 — exact body `{"status":"ok","version":"1.0"}`
 - **Source**: input.md idea
-- **Status**: MET (code); NOT VERIFIABLE (no byte-assertion test)
+- **Status**: MET
 - **Trace**:
-  1. `healthResponse` struct fields ordered `Status` then `Version` (server.go:912-915)
-  2. JSON tags `"status"`, `"version"` ✓
-  3. `json.NewEncoder(w).Encode(data)` (writeJSON:903) emits keys in struct field order → `{"status":"ok","version":"1.0"}` (with trailing newline) ✓
-- **Evidence**: `internal/api/server.go:912-915` — struct with `Status` before `Version`; `:903` — `json.NewEncoder(w).Encode(data)`
-- **Note**: byte-exactness is structurally guaranteed but no integration test asserts it (F-001).
+  1. `healthResponse` struct `:912-915` — fields ordered `Status` then `Version`, JSON tags `"status"`, `"version"`
+  2. `writeJSON:900-904` — `json.NewEncoder(w).Encode(data)` emits keys in struct field order → `{"status":"ok","version":"1.0"}` (+ trailing newline) ✓
+  3. Test `TestHealthGETReturns200AndBody` asserts `healthBody(...) != \`{"status":"ok","version":"1.0"}\`` — byte-exact (after trim) ✓
+- **Evidence**: `internal/api/server.go:912-915`, `:900-904`; `server_test.go` `TestHealthGETReturns200AndBody`
 
 ### CON-007 — 405 for non-GET (RFC 9110 §15.5.5)
 - **Source**: HTTP semantics
-- **Status**: MET (code); NOT VERIFIABLE (no tests)
+- **Status**: MET
 - **Trace**:
-  1. Only `GET /api/health` registered (server.go:190)
-  2. Go 1.22+ ServeMux method-pattern: POST/PUT/DELETE/PATCH → 405 automatically with `Allow: GET, HEAD` header
+  1. Only `GET /api/health` registered (`:190`); no other method routes
+  2. Go 1.22+ ServeMux method-pattern: POST/PUT/DELETE/PATCH → 405 automatically (with `Allow` header) ✓
   3. `/api/health/` (trailing slash) not registered → 404 ✓
-- **Evidence**: `internal/api/server.go:190` — single `GET /api/health` registration; no other method routes
+  4. Tests: `TestHealthPOSTReturns405`, `TestHealthPUTReturns405`, `TestHealthDELETEReturns405`, `TestHealthPATCHReturns405` each assert `http.StatusMethodNotAllowed`; `TestHealthTrailingSlash404` asserts `http.StatusNotFound` ✓
+- **Evidence**: `internal/api/server.go:190`; `server_test.go` `TestHealthPOSTReturns405`, `TestHealthPUTReturns405`, `TestHealthDELETEReturns405`, `TestHealthPATCHReturns405`, `TestHealthTrailingSlash404`
 
 ---
 
 ## Phase 2: Acceptance Criteria Review
 
-### AC-001: GET /api/health → 200, application/json, body `{"status":"ok","version":"1.0"}`
-- **Status**: MET (impl) / NOT MET (test)
-- **Evidence**: `server.go:190` route, `:919-924` handler, `:901` sets Content-Type, struct order guarantees body. **No integration test exists** (`server_test.go` unchanged).
-- **Explanation**: Implementation correct; verification artifact missing.
+### AC-001: GET /api/health → 200, application/json, byte-exact body `{"status":"ok","version":"1.0"}`
+- **Status**: MET
+- **Evidence**: `server.go:190` route; `:919-924` handler; `:901` `w.Header().Set("Content-Type", "application/json")`; struct field order guarantees body. `server_test.go` `TestHealthGETReturns200AndBody` asserts 200 + `Content-Type` contains `application/json` + byte-exact body.
 
 ### AC-002: GET with no body → 200 same body (no r.Body decode)
 - **Status**: MET
-- **Evidence**: `server.go:919-924` — `healthHandler` never references `r.Body`
-- **Explanation**: Handler reads only config; body-less GET returns 200. (No dedicated test — F-001.)
+- **Evidence**: `server.go:919-923` — `healthHandler` never references `r.Body`. `TestHealthGETNoRequestBody` issues GET with `nil` body, asserts 200 + standard body.
 
 ### AC-003: custom Config.Version="9.9.9-test" → body reflects it
-- **Status**: MET (impl) / NOT VERIFIABLE (no test)
-- **Evidence**: `server.go:922` — `Version: s.pipeline.Config().Version` (dynamic)
-- **Explanation**: Version is config-sourced, not hardcoded. No test exercises custom config.
-
-### AC-004: GET /api/health?cb=123 → 200 standard body
 - **Status**: MET
-- **Evidence**: handler ignores `r.URL.RawQuery`; no query parsing. ServeMux matches path regardless of query string.
-- **Explanation**: Query params ignored by omission. (No dedicated test — F-001.)
+- **Evidence**: `server.go:922` — `Version: s.pipeline.Config().Version` (dynamic). `TestHealthVersionFromConfig` builds `Config{Version:"9.9.9-test"}`, asserts body `{"status":"ok","version":"9.9.9-test"}`.
+
+### AC-004: GET /api/health?cb=123 → 200 standard body (query ignored)
+- **Status**: MET
+- **Evidence**: `healthHandler` ignores `r.URL.RawQuery`; ServeMux matches path regardless of query string. `TestHealthGETIgnoresQueryParams` hits `?cb=123`, asserts 200 + `{"status":"ok","version":"1.0"}`.
 
 ### AC-005: handler panic → 500, server survives
-- **Status**: NOT MET (no test)
-- **Evidence**: `server.go:228-238` recovery middleware exists and wraps mux, but **no test induces panic + asserts 500 + subsequent 200**.
-- **Explanation**: Code path present; AC requires verification of induced-panic path per acceptance.md verification text. Not implemented.
+- **Status**: MET
+- **Evidence**: `server.go:228-237` recovery middleware wraps mux (`:196`). `TestHealthPanicReturns500` builds a `panicMux` with a panicking handler, wraps via `s.recoveryMiddleware(s.corsMiddleware(panicMux))`, asserts 500, then hits a fresh non-panicking server and asserts 200 (process alive).
 
 ### AC-006: POST → 405
+- **Status**: MET — `TestHealthPOSTReturns405` asserts `http.StatusMethodNotAllowed`.
+
 ### AC-007: PUT → 405
+- **Status**: MET — `TestHealthPUTReturns405` asserts 405.
+
 ### AC-008: DELETE → 405
+- **Status**: MET — `TestHealthDELETEReturns405` asserts 405.
+
 ### AC-009: PATCH → 405
-- **Status**: MET (impl, via stdlib) / NOT MET (no tests)
-- **Evidence**: only `GET /api/health` registered → stdlib emits 405. No `TestHealth*Returns405` functions exist.
+- **Status**: MET — `TestHealthPATCHReturns405` asserts 405.
 
 ### AC-010: GET → 200 (positive control)
-- **Status**: MET (impl) / NOT MET (no test)
+- **Status**: MET — `TestHealthGETStill200After405s` asserts 200.
 
 ### AC-011: GET /api/health/ (trailing slash) → 404
-- **Status**: MET (impl) / NOT MET (no test)
-- **Evidence**: exact-path registration; trailing-slash path not registered → ServeMux 404. No test.
+- **Status**: MET — `TestHealthTrailingSlash404` asserts `http.StatusNotFound`. Exact-path registration confirmed at `:190`.
 
 ### AC-012: Playwright E2E asserts 200 + `{status:"ok", version:"1.0"}`
 - **Status**: MET
-- **Evidence**: `ui/e2e/health.spec.ts:4-8` — asserts `response.status()===200`, `body.status==='ok'`, `body.version==='1.0'`
-- **Explanation**: All three required assertions present.
+- **Evidence**: `ui/e2e/health.spec.ts:4-8` — asserts `response.status()===200`, `body.status==='ok'`, `body.version==='1.0'`. Uses `request` fixture (baseURL-resolved).
 
 ### AC-013: suite discovers + passes health spec (no .skip)
-- **Status**: MET (structural)
-- **Evidence**: `ui/e2e/health.spec.ts` uses `test(...)` (not `test.skip`); file under `ui/e2e/` matches `testDir: './e2e'` (config:10)
-- **Explanation**: Will be discovered. (Execution pass is Tester's job, not Reviewer's.)
+- **Status**: MET (structural — execution is Tester's job)
+- **Evidence**: `ui/e2e/health.spec.ts:3` uses `test(...)` (not `test.skip`); file under `ui/e2e/` matches `testDir: './e2e'` (`playwright.config.ts:10`). Will be discovered.
 
 ---
 
 ## Phase 3: Negative Test Vector Verification
 
-| Vector | Impl rejects? | Test? |
-|---|---|---|
-| POST /api/health → 405 | YES (stdlib) | **NO** — TestHealthPOSTReturns405 missing |
-| PUT → 405 | YES | **NO** |
-| DELETE → 405 | YES | **NO** |
-| PATCH → 405 | YES | **NO** |
-| /api/health/ → 404 | YES (exact path) | **NO** |
-| handler panic → 500 | YES (recovery) | **NO** — AC-005 test missing |
+| Vector | Impl rejects? | Test? | Status |
+|---|---|---|---|
+| POST /api/health → 405 | YES (stdlib method-pattern) | `TestHealthPOSTReturns405` | MET |
+| PUT → 405 | YES | `TestHealthPUTReturns405` | MET |
+| DELETE → 405 | YES | `TestHealthDELETEReturns405` | MET |
+| PATCH → 405 | YES | `TestHealthPATCHReturns405` | MET |
+| /api/health/ (trailing slash) → 404 | YES (exact path) | `TestHealthTrailingSlash404` | MET |
+| handler panic → 500 | YES (recovery middleware) | `TestHealthPanicReturns500` | MET |
 
-All rejection logic correct in code; **zero negative-vector tests present**. This is F-001.
+All negative vectors rejected with correct response; each has a dedicated test.
 
 ---
 
 ## Phase 4: Cross-Component Consistency
 
-Single producer per value. Matrix trivial per plan.md.
-- `version`: `config.Config.Version` → `Pipeline.Config()` → `healthHandler` → response. Single path, no transform. **Consistent.**
-- Response shape: struct field order = JSON key order = expected body. **Consistent.**
-- No multi-provider split. No findings.
+Feature has single producer per shared value (per plan.md matrix). Verified:
+- **`version` string**: `config.Config.Version` → `Pipeline.Config()` → `healthHandler` → response. Single path, no transform. Consistent. Verified by `TestHealthVersionFromConfig`.
+- **Response JSON shape**: `healthResponse` struct field order (Status, Version) = JSON key order = byte-exact expectation. Consistent. Verified by `TestHealthGETReturns200AndBody`.
+- **405 method set**: stdlib emits 405 for exactly POST/PUT/DELETE/PATCH (only GET registered). Consistent with AC-006..009.
+- **500 panic path**: `recoveryMiddleware` outermost, covers all routes. Consistent with AC-005.
+
+No multi-provider split → no cross-component inconsistency possible. No findings.
 
 ---
 
 ## Phase 5: Language-Specific Footgun Review
 
-**Go**: No nil-map writes. `s.pipeline.Config()` could return nil only if constructors didn't set `config:` — verified all 3 set it (pipeline.go:285,319,334). `s.pipeline` set in NewServer before handler invocation (server.go:153). No overflow, no modulo. **No footguns.**
+**Go**:
+- Nil map writes: none — handler does no map writes.
+- `s.pipeline.Config()` could return nil only if a constructor didn't set `config:` — verified all 3 set it (`pipeline.go:285,319,334`). Safe.
+- `s.pipeline` set in `NewServer` before any request served. Safe.
+- `Config().Version` deref: if `Config()` returned nil this would panic, but all constructors set `config: cfg` with a non-nil cfg (callers pass `&config.Config{...}`). Safe.
+- Integer overflow / modulo: none — handler does no arithmetic.
+- No nil-channel/interface-nil pitfalls.
 
-**TypeScript** (Playwright spec): no `any`, uses `===` via `expect().toBe()`, no optional chaining. **No footguns.**
+**TypeScript** (Playwright spec):
+- No `any` — `body` typed via `await response.json()`.
+- Uses `expect().toBe()` (strict equality, no `==`).
+- No optional chaining hiding null.
+
+**No footguns.** No findings.
+
+---
+
+## Phase 6: Spec-Implementation Drift (Plan vs Spec)
+
+- Every user story in spec.md has corresponding tasks in tasks.md and code: US-1 → handler+route+tests, US-2 → 405 tests, US-3 → Playwright spec.
+- Every acceptance criterion has a done condition and implementation/test evidence.
+- No tasks trace to no user story (no scope creep).
+- No user stories lack tasks (no missing implementation).
+
+No drift.
+
+---
+
+## Over-Engineering Check
+
+| Component | Plan estimate | Actual | Verdict |
+|---|---|---|---|
+| healthHandler | ~5 LOC | 6 LOC (919-924) | minimal |
+| healthResponse struct | — | 4 LOC (912-915) | minimal, needed for CON-006 field order |
+| Pipeline.Config() accessor | 1 LOC | 1 LOC (pipeline.go:44) | minimal |
+| Route registration | 1 line | 1 line (server.go:190) | minimal |
+| Playwright spec | ~9 LOC | 9 LOC | minimal |
+| Go tests | 11 funcs + 2 helpers | 248 LOC | appropriate — one test per AC, no redundant suites |
+
+No abstractions, no factories, no speculative config, no dead code. Implementation is the minimum that satisfies the done conditions. `setupHealthTestServer` helper reuses the existing `setupTestServer` shape rather than inventing a new pattern — correct.
+
+---
+
+## Security Review
+
+P3 feature — security extension not mandatory. Reviewed for common issues:
+- **Auth**: none on `/api/health`, consistent with all existing `/api/*` endpoints (FR-007). No auth bypass — there's no auth to bypass. Correct by design.
+- **Input validation**: GET, no body decode, no query parsing. Nothing to validate. Handler reads only `config.Version`. Correct.
+- **Output filtering**: response exposes only `status:"ok"` + config version. Version is already public via service behavior. No sensitive data leak.
+- **Error messages**: recovery middleware returns generic `"An unexpected error occurred"` (`:233`), no stack trace in response (only in `log.Printf`). Correct.
+- **CORS**: `corsMiddleware` present in chain (`:196`). Unchanged by feature.
+- **Rate limiting**: N/A — liveness probe; not in scope.
+
+No security findings.
+
+---
+
+## Constitution Compliance
+
+No `constitution.md` at repo root or `.specify/constitution.md` (verified by spec §Constitution Compliance). No principles to check. N/A.
+
+---
+
+## Null Pointer Safety
+
+- `s.pipeline`: set in `NewServer` before handlers reachable. Verified.
+- `s.pipeline.Config()` → `p.config`: set in all 3 Pipeline constructors. Verified.
+- `Config().Version`: string field, zero-value `""` if config has empty version — spec assumption says response reflects `""` faithfully. Not a nil deref.
+- No JSON arrays/maps in response (single flat object). No null-vs-empty-array bug possible.
+- No map writes in handler. No nil-map panic possible.
+
+No null-safety findings.
+
+---
+
+## Error Path Coverage
+
+| Path | Code | Test |
+|---|---|---|
+| 200 happy GET | `:920` `writeJSON(w, 200, ...)` | `TestHealthGETReturns200AndBody` |
+| 400 invalid input | N/A — GET, no input parsed | N/A |
+| 404 missing path (`/api/health/`) | exact-path registration → ServeMux 404 | `TestHealthTrailingSlash404` |
+| 405 wrong method | stdlib method-pattern | `TestHealthPOSTReturns405` etc. |
+| 500 panic | `recoveryMiddleware:233` | `TestHealthPanicReturns500` |
+| Empty state | N/A — single object, no collection | N/A |
+
+All applicable error paths covered.
+
+---
+
+## Middleware Chain
+
+- `:196` — `handler := s.recoveryMiddleware(s.corsMiddleware(mux))`
+- Recovery is OUTERMOST (catches panics in CORS + all handlers including health) ✓
+- CORS present (unchanged by feature) ✓
+- Request body size limit: not set in this feature — pre-existing repo state, not a regression introduced here.
+- Health route registered on `mux` before the `staticFS` catch-all (`:192-194`) — not shadowed ✓
+
+No middleware findings.
 
 ---
 
 ## Findings
 
-### F-001: Go integration tests NOT implemented (BLOCKING)
-- **Severity**: needs fixing — BLOCKING
-- **Criterion**: AC-001..AC-011, CON-004, tasks.md T002 + T004
-- **Code**: `internal/api/server_test.go` — UNCHANGED (`git diff main...HEAD` empty for this file)
-- **Description**: tasks.md T002 mandates 5 tests (`TestHealthGETReturns200AndBody`, `TestHealthGETNoRequestBody`, `TestHealthVersionFromConfig`, `TestHealthGETIgnoresQueryParams`, `TestHealthPanicReturns500`) and T004 mandates 6 more (`TestHealthPOSTReturns405`, `TestHealthPUTReturns405`, `TestHealthDELETEReturns405`, `TestHealthPATCHReturns405`, `TestHealthGETStill200After405s`, `TestHealthTrailingSlash404`) plus a `setupHealthTestServer` helper. **None exist.** `grep TestHealth internal/api/server_test.go` = 0 matches. This violates CON-004 (httptest pattern) and leaves 11 of 13 acceptance criteria unverified at their specified test level (smoke/integration). Spec.md FR-006 + acceptance.md test levels mandate these.
-- **Fix needed**: Implement T002 + T004 tests in `internal/api/server_test.go` using `httptest.NewServer(s.httpServer.Handler)` pattern matching existing `setupTestServer`. The implementation code is correct; only the verification artifact is missing.
+### F-001 (noted): `Config()` returns `*config.Config` with no nil guard
+- **Severity**: noted — does not need fixing
+- **Criterion**: CON-003 (consistency)
+- **Code**: `internal/pipeline/pipeline.go:44` — `func (p *Pipeline) Config() *config.Config { return p.config }`
+- **Description**: If a caller constructed a `Pipeline` without going through the 3 existing constructors, `p.config` would be nil and `healthHandler`'s `s.pipeline.Config().Version` would panic (caught by recovery middleware → 500, so still safe at runtime). All 3 existing constructors set `config: cfg`, so under current usage this is unreachable. The recovery middleware converts any such panic to 500, so no crash risk.
+- **Why noted, not required**: All production paths use the constructors. The panic path is covered by recovery middleware (CON-002). Adding a nil guard would be defensive code for an unreachable state — ponytail: YAGNI.
 
 ### No other findings
-- Over-engineering: NONE. Handler 14 LOC, accessor 1 LOC, spec 9 LOC — matches plan estimate (~5 LOC handler + 1 LOC accessor).
-- Missing implementation (non-test): NONE. FR-001..FR-007 all addressed (route, handler, version-from-config, Content-Type, 405 auto, Playwright spec, no auth).
-- Security: N/A — P3 feature, no auth by design (FR-007), no input to validate (GET, no body decode).
-- Constitution: no `constitution.md` exists — N/A.
-- Null safety: `s.pipeline` + `p.config` both set before use in all constructors. Safe.
-- Error paths: 405 (stdlib), 404 (exact path), 500 (recovery middleware) all present in code.
-- Middleware chain: recovery outermost (server.go:196), CORS present. Unchanged by feature. Correct.
+- 0 blocking, 0 required.
 
 ---
 
@@ -191,24 +288,26 @@ Single producer per value. Matrix trivial per plan.md.
 
 | Gate item | Status |
 |---|---|
-| Every constraint checked w/ evidence | DONE (7/7) |
-| Every AC checked w/ evidence | DONE (13/13) |
-| Negative vectors verified | CODE-ONLY — no tests (F-001) |
+| Every constraint checked w/ evidence + trace | DONE (7/7 MET) |
+| Every AC checked w/ evidence | DONE (13/13 MET) |
+| Negative vectors verified (reject + test) | DONE (6/6) |
 | Cross-component consistency | DONE (trivial, consistent) |
-| Security review | N/A (P3) |
+| Security review | DONE (N/A P3, no findings) |
 | Null safety | DONE (safe) |
-| Error paths | DONE (405/404/500 in code) |
-| Middleware chain | DONE (unchanged, correct) |
+| Error paths | DONE (200/404/405/500) |
+| Middleware chain | DONE (recovery outermost, unchanged) |
 | Over-engineering | DONE (minimal) |
 | Footguns | DONE (none) |
-| Execution paths traced | DONE |
+| Execution paths traced | DONE (per constraint) |
+| Spec-implementation drift | DONE (none) |
+| Constitution | N/A (no constitution.md) |
 
-**GATE: NOT PASSED** — F-001 (BLOCKING). 11 acceptance criteria lack the Go integration tests mandated by their test level and by tasks.md T002/T004. The implementation code is correct and minimal; the gap is purely the missing test artifact.
+**GATE: PASSED** — all 13 acceptance criteria and all 7 constraints MET with quoted evidence. No blocking or required findings. Implementation is minimal and correct.
 
 ---
 
 ## Recommendation
 
-**RECIRCULATE to construction** with note: "Go integration tests for AC-001..AC-011 missing. `internal/api/server_test.go` unchanged. Implement tasks.md T002 (5 tests: TestHealthGETReturns200AndBody, TestHealthGETNoRequestBody, TestHealthVersionFromConfig, TestHealthGETIgnoresQueryParams, TestHealthPanicReturns500) and T004 (6 tests: TestHealthPOSTReturns405, TestHealthPUTReturns405, TestHealthDELETEReturns405, TestHealthPATCHReturns405, TestHealthGETStill200After405s, TestHealthTrailingSlash404) + setupHealthTestServer helper. Implementation code (handler, accessor, route) is correct — only tests missing."
+**PASS** — signal `devteam signal playwright-e2e pass`.
 
-Alternatively, since the implementation is correct and the missing artifact is a test file (Tester's domain overlaps), construction may implement T002/T004 or the Tester phase may be directed to add them. Per tasks.md ownership, T002/T004 are construction-phase deliverables.
+The implementation correctly satisfies every acceptance criterion and constraint. The handler is minimal (6 LOC), version is config-sourced (not hardcoded), 405s come free from Go 1.22+ method-pattern routing, the recovery middleware covers the route, and all 11 Go integration tests + 1 Playwright E2E spec are present and structurally correct. One noted finding (F-001) is unreachable under current constructor usage and covered by recovery middleware regardless — not action-required.
