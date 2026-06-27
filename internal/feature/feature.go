@@ -51,6 +51,7 @@ type PhaseState struct {
 	GateResult  *GateResult `yaml:"gate_result,omitempty" json:"gate_result,omitempty"`
 	StartedAt   *time.Time  `yaml:"started_at,omitempty" json:"started_at,omitempty"`
 	CompletedAt *time.Time  `yaml:"completed_at,omitempty" json:"completed_at,omitempty"`
+	ResumeCount int         `yaml:"resume_count,omitempty" json:"resume_count,omitempty"`
 }
 
 type Artifact struct {

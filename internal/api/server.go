@@ -94,13 +94,35 @@ func (s *Server) resumeOrphanedFeatures() {
 			continue
 		}
 
-		log.Printf("resumeOrphanedFeatures: found orphaned feature %s (phase %s, status %s) — resuming current phase", f.ID, f.Current, f.Status)
+		// Circuit breaker: don't resume a phase more than 3 times automatically.
+		// Prevents crash-loops from burning LLM credits. User can manually
+		// re-run from the UI after investigating.
+		if ok && currentPhaseState.ResumeCount >= 3 {
+			log.Printf("resumeOrphanedFeatures: feature %s phase %s resumed %d times — NOT resuming (circuit breaker). User must manually re-run.", f.ID, f.Current, currentPhaseState.ResumeCount)
+			f.Status = feature.StatusFailed
+			s.pipeline.SaveFeature(f)
+			s.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Auto-resume disabled after 3 attempts. Investigate and re-run manually."}`, f.ID))
+			continue
+		}
+
+		log.Printf("resumeOrphanedFeatures: found orphaned feature %s (phase %s, status %s, resume #%d) — resuming current phase", f.ID, f.Current, f.Status, currentPhaseState.ResumeCount+1)
+
+		// Increment resume count before dispatching
+		if ok {
+			currentPhaseState.ResumeCount++
+		}
 
 		// Resume in single-phase mode — run current phase only, then stop.
 		// Don't auto-advance; user advances manually through the UI.
 		s.activeProcess.Store(f.ID, "single-phase")
 		go func(featureID string) {
 			defer s.activeProcess.Delete(featureID)
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("resumeOrphanedFeatures: PANIC resuming feature %s: %v", featureID, r)
+					s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error during resume (recovered). Check logs."}`, featureID))
+				}
+			}()
 
 			f, err := s.pipeline.GetFeature(featureID)
 			if err != nil {
@@ -363,6 +385,12 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	// automatically, pausing only for questions.
 	go func() {
 		defer s.activeProcess.Delete(f.ID)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC in startFeature goroutine for %s: %v", f.ID, r)
+				s.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error (recovered). Check logs."}`, f.ID))
+			}
+		}()
 		ctx := context.Background()
 		currentPhase := f.Current
 
@@ -444,6 +472,12 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer s.activeProcess.Delete(id)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC in runPhase goroutine for %s: %v", id, r)
+				s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error (recovered). Check logs."}`, id))
+			}
+		}()
 		ctx := context.Background()
 		currentPhase := f.Current
 		log.Printf("runPhase goroutine started for feature %s, phase %s", id, currentPhase)
@@ -687,6 +721,12 @@ func (s *Server) processFeature(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer s.activeProcess.Delete(id)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC in processFeature goroutine for %s: %v", id, r)
+				s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error (recovered). Check logs."}`, id))
+			}
+		}()
 		ctx := context.Background()
 		eventCh := make(chan pipeline.ProcessEvent, 100)
 
@@ -1109,6 +1149,12 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 
 	// Check if all questions are answered — if so, auto-resume the pipeline
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC in auto-resume goroutine for %s: %v", id, r)
+				s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error during auto-resume (recovered). Check logs."}`, id))
+			}
+		}()
 		pending, err := s.questionStore.PendingCount(context.Background(), id)
 		if err != nil {
 			log.Printf("error checking pending count for feature %s: %v", id, err)

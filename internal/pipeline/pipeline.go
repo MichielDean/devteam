@@ -766,7 +766,18 @@ type OutputLineCallback func(line string, isStderr bool)
 
 // RunPhaseWithAgentStreaming is the same as RunPhaseWithAgent but streams agent output
 // to the callback in real time.
-func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Feature, onOutput OutputLineCallback, autoAdvance bool) (*RunResult, error) {
+func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Feature, onOutput OutputLineCallback, autoAdvance bool) (result *RunResult, err error) {
+	// Panic recovery — prevents a nil dereference or other panic from
+	// killing the server process. Converts panic to error so the caller
+	// can handle it gracefully instead of crashing the whole server.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("RunPhaseWithAgentStreaming: PANIC recovered for feature %s phase %s: %v", f.ID, f.CurrentPhase(), r)
+			result = &RunResult{Phase: f.CurrentPhase()}
+			err = fmt.Errorf("internal error (panic recovered): %v", r)
+		}
+	}()
+
 	currentPhase := f.CurrentPhase()
 	log.Printf("RunPhaseWithAgentStreaming: starting for phase %s, feature %s", currentPhase, f.ID)
 
@@ -967,7 +978,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		ps.Status = feature.StatusGateBlocked
 	}
 
-	result := &RunResult{
+	result = &RunResult{
 		Phase:       currentPhase,
 		RoleResults: roleResults,
 		GateResult:  ps.GateResult,
@@ -983,6 +994,7 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 	// Commit spec artifacts to git after gate passes.
 	// This ensures specs are tracked and survive branch switches / resets.
 	if ps.GateResult.Passed {
+		ps.ResumeCount = 0 // reset circuit breaker on success
 		if err := p.commitSpecArtifacts(f, currentPhase); err != nil {
 			log.Printf("warning: could not commit spec artifacts for %s phase %s: %v", f.ID, currentPhase, err)
 		}
