@@ -571,8 +571,8 @@ export default function FeatureDetail() {
             )}
           </div>
 
-          {/* Inline answer summary + single submit. CON-007/008. Only when waiting_for_feedback. AC-021. */}
-          {isWaitingForHuman && (
+          {/* Inline answer summary + single submit. Show when waiting_for_feedback OR when there are pending questions. */}
+          {(isWaitingForHuman || pendingQuestions.length > 0) && (
             <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
               <div
                 ref={summaryRef}
