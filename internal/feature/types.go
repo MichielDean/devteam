@@ -146,6 +146,7 @@ func ArtifactAPIPathToType(apiPath string) (ArtifactType, bool) {
 		"test_report":    ArtifactTestReport,
 		"docs":           ArtifactDocs,
 		"data_model":     ArtifactDataModelMD,
+		"research":       ArtifactResearchMD,
 		"quickstart":     ArtifactQuickstartMD,
 		"contracts":      ArtifactContractsDir,
 	}
