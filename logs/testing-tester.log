@@ -1273,3 +1273,763 @@ Per pipeline rules: did not push (pipeline handles pushes); stayed on `feature/k
 [0m
 Error: unknown command "hook" for "llmem"
 Run 'llmem --help' for usage.
+Error: unknown command "context" for "llmem"
+Run 'llmem --help' for usage.
+2026/06/25 23:13:57 INFO llmem: store: vec shadow table populated embeddings=517 total=517
+[0m
+> tester · glm-5.2:cloud
+[0m
+[0m→ [0mRead /tmp/devteam-tester-3078326752/CONTEXT.md
+[0m→ [0mRead /tmp/devteam-tester-3078326752/agents/tester.md
+[0m→ [0mRead /tmp/devteam-tester-3078326752/CONTEXT.md[90m [offset=770][0m
+[0m→ [0mRead /tmp/devteam-tester-3078326752/CONTEXT.md[90m [offset=1741][0m
+[0m
+[0m$ [0mrtk git status && rtk git log --oneline -10 && rtk git branch --show-current
+* spec/playwright-e2e...origin/spec/playwright-e2e
+ M .devteam.db
+ M .devteam.db-shm
+ M .devteam.db-wal
+ M specs/playwright-e2e/.devteam-state.yaml
+ M specs/playwright-e2e/CONTEXT.md
+e444ee7 spec: review phase complete for playwright-e2e
+cd8ccd5 spec: construction phase complete for playwright-e2e
+788592c feat(playwright-e2e): add Go integration tests for /api/health + fix pipeline vet warning
+6b6c21d spec: construction phase complete for playwright-e2e
+4577d85 spec: construction phase complete for playwright-e2e
+621691b feat(playwright-e2e): add GET /api/health endpoint + Playwright E2E spec
+a1f7a56 spec: planning phase complete for playwright-e2e
+793cb0d spec: inception phase complete for playwright-e2e
+1b1099c feat: agent skill for Dev Team state management via CLI (#60)
+63426c7 feat: agent skill for state management — CLI instructions in CONTEXT.md (#59)
+spec/playwright-e2e
+[0m
+Now let me explore the implementation repo to see what was built.
+[0m
+[0m$ [0mrtk git diff origin/spec/playwright-e2e -- internal/ ui/ --stat
+[0m
+[0m$ [0mrtk git show 621691b --stat && echo "---" && rtk git show 788592c --stat
+commit 621691bdb105c282e3c827d29a8ba95a8eccc1e2
+Author: Lobsterdog Contributors <noreply@lobsterdog.dev>
+Date:   Thu Jun 25 23:00:49 2026 -0600
+
+    feat(playwright-e2e): add GET /api/health endpoint + Playwright E2E spec
+    
+    - internal/pipeline/pipeline.go: add Config() accessor (1 line) exposing
+      loaded *config.Config so handlers can read config-sourced values
+      (CON-003).
+    - internal/api/server.go: add healthResponse struct + healthHandler on
+      *Server emitting {"status":"ok","version":"<config.Version>"}
+      via existing writeJSON; register GET /api/health with Go 1.22+
+      method-pattern routing before the staticFS catch-all (CON-001, CON-006).
+      405 for non-GET and 404 for trailing slash come free from stdlib
+      method-pattern routing (CON-007, AC-011). Route covered by existing
+      recoveryMiddleware+corsMiddleware chain (CON-002).
+    - ui/e2e/health.spec.ts: Playwright E2E spec issuing GET /api/health
+      against baseURL (:18765) asserting 200 + JSON body (CON-005, FR-006).
+
+ internal/api/server.go        | 18 ++++++++++++++++++
+ internal/pipeline/pipeline.go |  3 +++
+ ui/e2e/health.spec.ts         |  9 +++++++++
+ 3 files changed, 30 insertions(+)
+---
+commit 788592cf8404dcd1bb20d3dee690ce94baf851a0
+Author: Lobsterdog Contributors <noreply@lobsterdog.dev>
+Date:   Thu Jun 25 23:11:41 2026 -0600
+
+    feat(playwright-e2e): add Go integration tests for /api/health + fix pipeline vet warning
+    
+    T002/T004 from tasks.md: 11 TestHealth* functions covering AC-001..AC-011.
+    setupHealthTestServer helper uses httptest.NewServer (CON-004).
+    Also fixes pre-existing fmt.Sprintf arg-count vet warning in
+    phaseInstruction (inception block) that blocked the construction gate:
+    7 %s placeholders, was passed 8 args (extra specDir made
+    'devteam signal %s pass' print specDir instead of featureID).
+
+ internal/api/server_test.go   | 248 ++++++++++++++++++++++++++++++++++++++++++
+ internal/pipeline/pipeline.go |   2 +-
+ 2 files changed, 249 insertions(+), 1 deletion(-)
+[0m
+[0m$ [0mrtk git show 621691b -- internal/api/server.go internal/pipeline/pipeline.go ui/e2e/health.spec.ts
+621691b feat(playwright-e2e): add GET /api/health endpoint + Playwright E2E spec (13 minutes ago) <Lobsterdog Contributors>
+internal/api/server.go        | 18 ++++++++++++++++++
+ internal/pipeline/pipeline.go |  3 +++
+ ui/e2e/health.spec.ts         |  9 +++++++++
+ 3 files changed, 30 insertions(+)
+
+internal/api/server.go
+  @@ -187,6 +187,8 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
+  +	mux.HandleFunc("GET /api/health", s.healthHandler)
+  +
+   	if staticFS != nil {
+   		mux.Handle("/", s.spaHandler(staticFS))
+   	}
+  @@ -905,6 +907,22 @@ func writeError(w http.ResponseWriter, code int, errorCode string, details strin
+  +// healthResponse is the body for GET /api/health. Field order (status, version)
+  +// is fixed so json.Encoder emits byte-exact {"status":"ok","version":"..."} (CON-006).
+  +type healthResponse struct {
+  +	Status  string `json:"status"`
+  +	Version string `json:"version"`
+  +}
+  +
+  +// healthHandler serves GET /api/health — liveness + deployed version.
+  +// Version is sourced from config, not hardcoded (CON-003). No body decode (GET).
+  +func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+  +	writeJSON(w, http.StatusOK, healthResponse{
+  +		Status:  "ok",
+  +		Version: s.pipeline.Config().Version,
+  +	})
+  +}
+  +
+   // Question API handlers
+   
+   func (s *Server) listQuestions(w http.ResponseWriter, r *http.Request) {
+  +18 -0
+
+internal/pipeline/pipeline.go
+  @@ -40,6 +40,9 @@ func (p *Pipeline) Dispatcher() *role.Dispatcher {
+  +// Config returns the loaded configuration (for handlers that need config-sourced values like Version).
+  +func (p *Pipeline) Config() *config.Config { return p.config }
+  +
+   // EnsureSpecWorktree creates a per-feature git worktree if it doesn't exist yet.
+   // All agents dispatch with CWD = the worktree dir. Spec artifacts are written
+   // there and committed on the spec/<feature-id> branch.
+  +3 -0
+
+ui/e2e/health.spec.ts
+  @@ -0,0 +1,9 @@
+  +import { test, expect } from '@playwright/test';
+  +
+  +test('GET /api/health returns 200 with status ok and version 1.0', async ({ request }) => {
+  +  const response = await request.get('/api/health');
+  +  expect(response.status()).toBe(200);
+  +  const body = await response.json();
+  +  expect(body.status).toBe('ok');
+  +  expect(body.version).toBe('1.0');
+  +});
+  +9 -0
+[0m
+[0m$ [0mrtk git show 788592c -- internal/api/server_test.go
+788592c feat(playwright-e2e): add Go integration tests for /api/health + fix pipeline vet warning (3 minutes ago) <Lobsterdog Contributors>
+internal/api/server_test.go | 248 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 248 insertions(+)
+
+internal/api/server_test.go
+  @@ -1044,3 +1044,251 @@ func TestAdvanceFeatureWaitingHumanBlocked(t *testing.T) {
+  +
+  +// setupHealthTestServer builds an in-process httptest.Server with a Config.Version
+  +// preset. Mirrors setupTestServer but lets callers control the version (CON-003, AC-003).
+  +func setupHealthTestServer(t *testing.T, version string) *httptest.Server {
+  +	t.Helper()
+  +	tmpDir := t.TempDir()
+  +	cfg := &config.Config{
+  +		Version: version,
+  +		Pipeline: config.PipelineConfig{
+  +			Phases: []config.PhaseConfig{
+  +				{Name: "inception", Roles: []string{"pm"}},
+  +				{Name: "planning", Roles: []string{"architect"}},
+  +				{Name: "construction", Roles: []string{"developer"}},
+  +				{Name: "review", Roles: []string{"reviewer"}},
+  +				{Name: "testing", Roles: []string{"tester"}},
+  +				{Name: "delivery", Roles: []string{"ops"}},
+  +			},
+  +		},
+  +	}
+  +	sp := spec.NewSpecProvider(tmpDir)
+  +	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+  +	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+  +	return httptest.NewServer(s.httpServer.Handler)
+  +}
+  +
+  +// healthBody reads, trims the trailing newline from json.Encoder, and returns the body string.
+  +func healthBody(t *testing.T, resp *http.Response) string {
+  +	t.Helper()
+  +	defer resp.Body.Close()
+  +	b, err := io.ReadAll(resp.Body)
+  +	if err != nil {
+  +		t.Fatalf("read body: %v", err)
+  +	}
+  +	return strings.TrimSpace(string(b))
+  +}
+  +
+  +// T002 / AC-001, CON-001, CON-004, CON-006: GET /api/health → 200, application/json, byte-exact body.
+  +func TestHealthGETReturns200AndBody(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "1.0")
+  +	defer ts.Close()
+  +
+  +	resp, err := http.Get(ts.URL + "/api/health")
+  +	if err != nil {
+  +		t.Fatalf("GET /api/health failed: %v", err)
+  +	}
+  +	if resp.StatusCode != http.StatusOK {
+  +		t.Fatalf("expected 200, got %d", resp.StatusCode)
+  +	}
+  +	ct := resp.Header.Get("Content-Type")
+  +	if !strings.Contains(ct, "application/json") {
+  +		t.Errorf("expected Content-Type to contain application/json, got %q", ct)
+  +	}
+  +	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+  +		t.Errorf("expected byte-exact body, got %q", got)
+  +	}
+  +}
+  +
+  +// T002 / AC-002: body-less GET must not error — handler never decodes r.Body.
+  +func TestHealthGETNoRequestBody(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "1.0")
+  +	defer ts.Close()
+  +
+  +	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/health", nil)
+  +	resp, err := http.DefaultClient.Do(req)
+  +	if err != nil {
+  +		t.Fatalf("GET failed: %v", err)
+  +	}
+  +	if resp.StatusCode != http.StatusOK {
+  +		t.Fatalf("expected 200, got %d", resp.StatusCode)
+  +	}
+  +	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+  +		t.Errorf("expected standard body, got %q", got)
+  +	}
+  +}
+  +
+  +// T002 / AC-003, CON-003: version is sourced from Config.Version, not hardcoded.
+  +func TestHealthVersionFromConfig(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "9.9.9-test")
+  +	defer ts.Close()
+  +
+  +	resp, err := http.Get(ts.URL + "/api/health")
+  +	if err != nil {
+  +		t.Fatalf("GET failed: %v", err)
+  +	}
+  +	if resp.StatusCode != http.StatusOK {
+  +		t.Fatalf("expected 200, got %d", resp.StatusCode)
+  +	}
+  +	if got := healthBody(t, resp); got != `{"status":"ok","version":"9.9.9-test"}` {
+  +		t.Errorf("expected config-sourced version, got %q", got)
+  +	}
+  +}
+  +
+  +// T002 / AC-004: query params are ignored.
+  +func TestHealthGETIgnoresQueryParams(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "1.0")
+  +	defer ts.Close()
+  +
+  +	resp, err := http.Get(ts.URL + "/api/health?cb=123")
+  +	if err != nil {
+  +		t.Fatalf("GET failed: %v", err)
+  ... (148 lines truncated)
+  +248 -0
+[full diff: rtk git diff --no-compact]
+[0m
+[0m$ [0mrtk git show 788592c -- internal/api/server_test.go | rtk tail -180
+788592c feat(playwright-e2e): add Go integration tests for /api/health + fix pipeline vet warning (3 minutes ago) <Lobsterdog Contributors>
+internal/api/server_test.go | 248 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 248 insertions(+)
+
+internal/api/server_test.go
+  @@ -1044,3 +1044,251 @@ func TestAdvanceFeatureWaitingHumanBlocked(t *testing.T) {
+  +
+  +// setupHealthTestServer builds an in-process httptest.Server with a Config.Version
+  +// preset. Mirrors setupTestServer but lets callers control the version (CON-003, AC-003).
+  +func setupHealthTestServer(t *testing.T, version string) *httptest.Server {
+  +	t.Helper()
+  +	tmpDir := t.TempDir()
+  +	cfg := &config.Config{
+  +		Version: version,
+  +		Pipeline: config.PipelineConfig{
+  +			Phases: []config.PhaseConfig{
+  +				{Name: "inception", Roles: []string{"pm"}},
+  +				{Name: "planning", Roles: []string{"architect"}},
+  +				{Name: "construction", Roles: []string{"developer"}},
+  +				{Name: "review", Roles: []string{"reviewer"}},
+  +				{Name: "testing", Roles: []string{"tester"}},
+  +				{Name: "delivery", Roles: []string{"ops"}},
+  +			},
+  +		},
+  +	}
+  +	sp := spec.NewSpecProvider(tmpDir)
+  +	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+  +	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+  +	return httptest.NewServer(s.httpServer.Handler)
+  +}
+  +
+  +// healthBody reads, trims the trailing newline from json.Encoder, and returns the body string.
+  +func healthBody(t *testing.T, resp *http.Response) string {
+  +	t.Helper()
+  +	defer resp.Body.Close()
+  +	b, err := io.ReadAll(resp.Body)
+  +	if err != nil {
+  +		t.Fatalf("read body: %v", err)
+  +	}
+  +	return strings.TrimSpace(string(b))
+  +}
+  +
+  +// T002 / AC-001, CON-001, CON-004, CON-006: GET /api/health → 200, application/json, byte-exact body.
+  +func TestHealthGETReturns200AndBody(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "1.0")
+  +	defer ts.Close()
+  +
+  +	resp, err := http.Get(ts.URL + "/api/health")
+  +	if err != nil {
+  +		t.Fatalf("GET /api/health failed: %v", err)
+  +	}
+  +	if resp.StatusCode != http.StatusOK {
+  +		t.Fatalf("expected 200, got %d", resp.StatusCode)
+  +	}
+  +	ct := resp.Header.Get("Content-Type")
+  +	if !strings.Contains(ct, "application/json") {
+  +		t.Errorf("expected Content-Type to contain application/json, got %q", ct)
+  +	}
+  +	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+  +		t.Errorf("expected byte-exact body, got %q", got)
+  +	}
+  +}
+  +
+  +// T002 / AC-002: body-less GET must not error — handler never decodes r.Body.
+  +func TestHealthGETNoRequestBody(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "1.0")
+  +	defer ts.Close()
+  +
+  +	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/health", nil)
+  +	resp, err := http.DefaultClient.Do(req)
+  +	if err != nil {
+  +		t.Fatalf("GET failed: %v", err)
+  +	}
+  +	if resp.StatusCode != http.StatusOK {
+  +		t.Fatalf("expected 200, got %d", resp.StatusCode)
+  +	}
+  +	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+  +		t.Errorf("expected standard body, got %q", got)
+  +	}
+  +}
+  +
+  +// T002 / AC-003, CON-003: version is sourced from Config.Version, not hardcoded.
+  +func TestHealthVersionFromConfig(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "9.9.9-test")
+  +	defer ts.Close()
+  +
+  +	resp, err := http.Get(ts.URL + "/api/health")
+  +	if err != nil {
+  +		t.Fatalf("GET failed: %v", err)
+  +	}
+  +	if resp.StatusCode != http.StatusOK {
+  +		t.Fatalf("expected 200, got %d", resp.StatusCode)
+  +	}
+  +	if got := healthBody(t, resp); got != `{"status":"ok","version":"9.9.9-test"}` {
+  +		t.Errorf("expected config-sourced version, got %q", got)
+  +	}
+  +}
+  +
+  +// T002 / AC-004: query params are ignored.
+  +func TestHealthGETIgnoresQueryParams(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "1.0")
+  +	defer ts.Close()
+  +
+  +	resp, err := http.Get(ts.URL + "/api/health?cb=123")
+  +	if err != nil {
+  +		t.Fatalf("GET failed: %v", err)
+  ... (148 lines truncated)
+  +248 -0
+[full diff: rtk git diff --no-compact]
+[0m
+[0m$ [0mrtk grep -n "^func TestHealth\|^func setupHealth\|^func healthBody\|^//" /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/internal/api/server_test.go | rtk tail -60
+29 matches in 1 files:
+
+/.../api/server_test.go:677:// --- Question endpoint integration tests ---
+/.../api/server_test.go:1048:// setupHealthTestServer builds an in-process httptest.Server with a Config.V...
+/.../api/server_test.go:1049:// preset. Mirrors setupTestServer but lets callers control the version (CON-...
+/.../api/server_test.go:1050:func setupHealthTestServer(t *testing.T, version string) *httptest.Server {
+/.../api/server_test.go:1072:// healthBody reads, trims the trailing newline from json.Encoder, and return...
+/.../api/server_test.go:1073:func healthBody(t *testing.T, resp *http.Response) string {
+/.../api/server_test.go:1083:// T002 / AC-001, CON-001, CON-004, CON-006: GET /api/health → 200, applicati...
+/.../api/server_test.go:1084:func TestHealthGETReturns200AndBody(t *testing.T) {
+/.../api/server_test.go:1104:// T002 / AC-002: body-less GET must not error — handler never decodes r.Body.
+/.../api/server_test.go:1105:func TestHealthGETNoRequestBody(t *testing.T) {
+/.../api/server_test.go:1122:// T002 / AC-003, CON-003: version is sourced from Config.Version, not hardco...
+/.../api/server_test.go:1123:func TestHealthVersionFromConfig(t *testing.T) {
+/.../api/server_test.go:1139:// T002 / AC-004: query params are ignored.
+/.../api/server_test.go:1140:func TestHealthGETIgnoresQueryParams(t *testing.T) {
+/.../api/server_test.go:1156:// T002 / AC-005, CON-002: induced handler panic → recovery middleware return...
+/.../api/server_test.go:1157:// and the server stays alive for subsequent requests.
+/.../api/server_test.go:1158:func TestHealthPanicReturns500(t *testing.T) {
+/.../api/server_test.go:1209:// T004 / AC-006, CON-007: POST → 405.
+/.../api/server_test.go:1210:func TestHealthPOSTReturns405(t *testing.T) {
+/.../api/server_test.go:1223:// T004 / AC-007, CON-007: PUT → 405.
+/.../api/server_test.go:1224:func TestHealthPUTReturns405(t *testing.T) {
+/.../api/server_test.go:1238:// T004 / AC-008, CON-007: DELETE → 405.
+/.../api/server_test.go:1239:func TestHealthDELETEReturns405(t *testing.T) {
+/.../api/server_test.go:1253:// T004 / AC-009, CON-007: PATCH → 405.
+/.../api/server_test.go:1254:func TestHealthPATCHReturns405(t *testing.T) {
+[+4 more]
+[0m
+Let me read the full test file directly to see all tests:
+[0m
+[0m→ [0mRead internal/api/server_test.go[90m [offset=1044][0m
+[0m
+[0m$ [0mrtk ls ui/ && rtk cat ui/playwright.config.ts 2>/dev/null | rtk head -50
+e2e/
+src/
+.gitignore  83B
+index.html  356B
+package-lock.json  130.0K
+package.json  830B
+playwright.config.ts  1.2K
+tsconfig.json  688B
+vite.config.ts  647B
+import { defineConfig } from '@playwright/test';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ponytail: ESM-safe __dirname (package.json is "type": "module"; __dirname undefined under Playwright's loader)
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, '..');
+
+export default defineConfig({
+  testDir: './e2e',
+  timeout: 30000,
+  expect: { timeout: 10000 },
+  fullyParallel: false,
+  retries: 1,
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:18765',
+    trace: 'on-first-retry',
+  },
+  webServer: {
+    // Use port 18765 for tests to avoid conflicts with the production
+    // devteam-web service running on :8765.
+    // SERVER_BINARY should be a full command including cd if needed, e.g.:
+    //   SERVER_BINARY="cd /path/to/repo && /path/to/binary -http :18765"
+    command: process.env.SERVER_BINARY || `cd ${repoRoot} && ~/go/bin/devteam -http :18765`,
+    cwd: repoRoot,
+    port: parseInt(process.env.SERVER_PORT || '18765'),
+    // Reuse an existing server on the port if one is running.
+    // Set START_SERVER=1 to force Playwright to start its own server.
+    reuseExistingServer: !process.env.START_SERVER,
+    timeout: 15000,
+  },
+});
+[0m
+All 11 Go ACs covered. Now run tests to verify they actually pass.
+[0m
+[0m→ [0mRead ui/package.json
+[0m
+[0m$ [0mrtk ls ui/e2e/
+app.spec.ts  6.8K
+health.spec.ts  345B
+questions.spec.ts  39.9K
+[0m
+[0m$ [0mrtk go build ./... 2>&1 | rtk tail -20
+rtk: Failed to run go build: Failed to spawn process: No such file or directory (os error 2)
+[0m
+Now run the Go tests:
+[0m
+[0m$ [0mwhich go || rtk ls ~/go/bin/ 2>/dev/null; rtk bash -lc 'which go' 2>&1; echo PATH=$PATH
+arch-designer  10.6M
+bd  48.5M
+bf  9.2M
+ct  21.6M
+devteam  15.8M
+devteam-kanban-test  15.8M
+gt  47.4M
+llmem  16.9M
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
+[0m
+[0m$ [0mrtk bash -lc 'ls /usr/local/go/bin 2>/dev/null; ls /usr/lib/go*/bin 2>/dev/null; find / -name go -type f -executable 2>/dev/null | rtk head -5'
+go
+gofmt
+/home/lobsterdog/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.1.linux-amd64/bin/go
+/home/lobsterdog/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.4.linux-amd64/bin/go
+/usr/local/go/bin/go
+[0m
+[0m$ [0mexport PATH=/usr/local/go/bin:$HOME/go/bin:$PATH; rtk go version; rtk go build ./... 2>&1 | rtk tail -20
+go version go1.26.1 linux/amd64
+Go build: Success
+[0m
+[0m$ [0mexport PATH=/usr/local/go/bin:$HOME/go/bin:$PATH; rtk go test ./internal/api/ -run TestHealth -v 2>&1 | rtk tail -80
+Go test: 11 passed in 1 packages
+[0m
+[0m$ [0mexport PATH=/usr/local/go/bin:$HOME/go/bin:$PATH; rtk go test ./internal/api/ -run TestHealth -v 2>&1 | rtk grep -E "^=== RUN|^--- (PASS|FAIL)|^PASS|^FAIL|^ok" | rtk head -40
+(no output)
+[0m
+[0m$ [0mexport PATH=/usr/local/go/bin:$HOME/go/bin:$PATH; cd /home/lobsterdog/worktrees/devteam-specs/playwright-e2e && rtk go test ./internal/api/ -run TestHealth -v 2>&1 | tail -60
+Go test: 11 passed in 1 packages
+[0m
+The `rtk` wrapper is suppressing the output. Let me bypass it:
+[0m
+[0m$ [0mexport PATH=/usr/local/go/bin:$HOME/go/bin:$PATH; /usr/local/go/bin/go test ./internal/api/ -run TestHealth -v 2>&1 | tail -60
+=== RUN   TestHealthGETReturns200AndBody
+--- PASS: TestHealthGETReturns200AndBody (0.00s)
+=== RUN   TestHealthGETNoRequestBody
+--- PASS: TestHealthGETNoRequestBody (0.00s)
+=== RUN   TestHealthVersionFromConfig
+--- PASS: TestHealthVersionFromConfig (0.00s)
+=== RUN   TestHealthGETIgnoresQueryParams
+--- PASS: TestHealthGETIgnoresQueryParams (0.00s)
+=== RUN   TestHealthPanicReturns500
+2026/06/25 23:14:53 panic recovered: induced test panic
+--- PASS: TestHealthPanicReturns500 (0.00s)
+=== RUN   TestHealthPOSTReturns405
+--- PASS: TestHealthPOSTReturns405 (0.00s)
+=== RUN   TestHealthPUTReturns405
+--- PASS: TestHealthPUTReturns405 (0.00s)
+=== RUN   TestHealthDELETEReturns405
+--- PASS: TestHealthDELETEReturns405 (0.00s)
+=== RUN   TestHealthPATCHReturns405
+--- PASS: TestHealthPATCHReturns405 (0.00s)
+=== RUN   TestHealthGETStill200After405s
+--- PASS: TestHealthGETStill200After405s (0.00s)
+=== RUN   TestHealthTrailingSlash404
+--- PASS: TestHealthTrailingSlash404 (0.00s)
+PASS
+ok  	github.com/MichielDean/devteam/internal/api	0.009s
+[0m
+All 11 health tests pass. Run the full `internal/api` suite to ensure no regressions:
+[0m
+[0m$ [0mexport PATH=/usr/local/go/bin:$HOME/go/bin:$PATH; /usr/local/go/bin/go test ./internal/api/ 2>&1 | tail -10
+ok  	github.com/MichielDean/devteam/internal/api	0.133s
+[0m
+[0m$ [0mexport PATH=/usr/local/go/bin:$HOME/go/bin:$PATH; /usr/local/go/bin/go test ./... 2>&1 | tail -20
+?   	github.com/MichielDean/devteam/cmd/devteam	[no test files]
+ok  	github.com/MichielDean/devteam/internal/api	(cached)
+ok  	github.com/MichielDean/devteam/internal/config	0.005s
+?   	github.com/MichielDean/devteam/internal/db	[no test files]
+ok  	github.com/MichielDean/devteam/internal/feature	0.011s
+?   	github.com/MichielDean/devteam/internal/gitops	[no test files]
+ok  	github.com/MichielDean/devteam/internal/init	0.007s
+ok  	github.com/MichielDean/devteam/internal/intake	0.006s
+ok  	github.com/MichielDean/devteam/internal/pipeline	0.204s
+?   	github.com/MichielDean/devteam/internal/plugins	[no test files]
+ok  	github.com/MichielDean/devteam/internal/repo	2.148s
+ok  	github.com/MichielDean/devteam/internal/role	0.003s
+ok  	github.com/MichielDean/devteam/internal/rules	0.006s
+ok  	github.com/MichielDean/devteam/internal/spec	0.003s
+[0m
+All packages pass. Now E2E: build binary, run playwright.
+[0m
+[0m$ [0mexport PATH=/usr/local/go/bin:$HOME/go/bin:$PATH; /usr/local/go/bin/go build -o /tmp/devteam-health-test ./cmd/devteam 2>&1 | tail -5; rtk ls -la /tmp/devteam-health-test
+775  /tmp/devteam-health-test  15.8M
+[0m
+[0m$ [0mrtk ls ui/node_modules/@playwright 2>/dev/null; rtk ls ~/.cache/ms-playwright 2>/dev/null | head; export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH; cd /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/ui && SERVER_BINARY="/tmp/devteam-health-test -http :18765" START_SERVER=1 rtk playwright test health.spec.ts --reporter=line 2>&1 | tail -40
+[RTK:PASSTHROUGH] playwright parser: All parsing tiers failed
+[0m
+[0m$ [0mrtk ls ui/node_modules 2>/dev/null | head -5; rtk ls ~/.cache/ms-playwright 2>/dev/null | head -10
+(no output)
+[0m
+[0m$ [0mrtk ls -la ui/node_modules 2>&1 | head -3; rtk ls ~/.cache/ms-playwright 2>&1 | head -5
+/usr/bin/ls: cannot access 'ui/node_modules': No such file or directory
+/usr/bin/ls: cannot access '/home/lobsterdog/.cache/ms-playwright': No such file or directory
+[0m
+[0m$ [0mwhich npm node 2>&1; rtk bash -lc 'which npm node' 2>&1
+/usr/bin/npm
+/usr/bin/node
+/usr/bin/npm
+/usr/bin/node
+[0m
+node_modules missing — need npm install. Let me try:
+[0m
+[0m$ [0mcd /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/ui && npm install 2>&1 | tail -15
+added 177 packages, and audited 178 packages in 2s
+
+87 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+[0m
+[0m$ [0mcd /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/ui && SERVER_BINARY="/tmp/devteam-health-test -http :18765" START_SERVER=1 rtk playwright install chromium 2>&1 | tail -15
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 177 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 177 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 177 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 177 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 177 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 177 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 177 MiB
+Chrome for Testing 149.0.7827.55 (playwright chromium v1228) downloaded to /home/lobsterdog/.cache/ms-playwright/chromium-1228
+BEWARE: your OS is not officially supported by Playwright; downloading fallback build for ubuntu24.04-x64.
+Downloading FFmpeg (playwright ffmpeg v1011)[2m from https://cdn.playwright.dev/dbazure/download/playwright/builds/ffmpeg/1011/ffmpeg-linux.zip[22m
+|                                                                                |   0% of 2.3 MiB
+|■■■■■■■■                                                                        |  10% of 2.3 MiB
+|■■■■■■■■■■■■■■■■                                       
+
+[RTK:PASSTHROUGH] Output truncated (4509 chars → 2000 chars)
+[0m
+[0m$ [0mcd /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/ui && SERVER_BINARY="/tmp/devteam-health-test -http :18765" START_SERVER=1 rtk playwright test health.spec.ts --reporter=line 2>&1 | tail -40
+PASS (1) FAIL (0)
+
+Time: 583ms
+[0m
+[0m$ [0mcd /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/ui && SERVER_BINARY="/tmp/devteam-health-test -http :18765" START_SERVER=1 rtk playwright test health.spec.ts 2>&1 | tail -30
+PASS (1) FAIL (0)
+
+Time: 576ms
+[0m
+Let me get fuller output to capture actual evidence:
+[0m
+[0m$ [0mcd /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/ui && SERVER_BINARY="/tmp/devteam-health-test -http :18765" START_SERVER=1 rtk playwright test health.spec.ts --reporter=list 2>&1 | tail -30
+PASS (1) FAIL (0)
+
+Time: 585ms
+[0m
+[0m$ [0mcd /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/ui && SERVER_BINARY="/tmp/devteam-health-test -http :18765" START_SERVER=1 rtk playwright test health.spec.ts --reporter=list 2>&1
+PASS (1) FAIL (0)
+
+Time: 577ms
+[0m
+rtk is filtering output. Let me bypass:
+[0m
+[0m$ [0mcd /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/ui && SERVER_BINARY="/tmp/devteam-health-test -http :18765" START_SERVER=1 ./node_modules/.bin/playwright test health.spec.ts --reporter=list 2>&1 | tail -30
+[WebServer] 2026/06/25 23:15:51 db: migrations complete (1 total, 0 pending)
+[WebServer] 2026/06/25 23:15:51 db: opened sqlite at /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/.devteam.db
+[WebServer] 2026/06/25 23:15:51 restored active process for feature playwright-e2e from tmux session
+[WebServer] 2026/06/25 23:15:51 Dev Team Web UI starting on :18765
+
+Running 1 test using 1 worker
+
+  ✓  1 e2e/health.spec.ts:3:1 › GET /api/health returns 200 with status ok and version 1.0 (30ms)
+
+  1 passed (576ms)
+[0m
+E2E passes. Now verify the full e2e suite isn't broken by my new binary — but the binary built fine. Let me verify a real curl against a running server to add a manual smoke probe:
+[0m
+[0m$ [0m/tmp/devteam-health-test -http :18790 2>&1 &
+SRVPID=$!
+sleep 1
+echo "=== GET /api/health ==="
+curl -sS -i http://localhost:18790/api/health
+echo ""
+echo "=== POST /api/health ==="
+curl -sS -i -X POST http://localhost:18790/api/health
+echo ""
+echo "=== GET /api/health?cb=123 ==="
+curl -sS -i "http://localhost:18790/api/health?cb=123"
+echo ""
+echo "=== GET /api/health/ (trailing slash) ==="
+curl -sS -i "http://localhost:18790/api/health/"
+echo ""
+kill $SRVPID 2>/dev/null
+wait $SRVPID 2>/dev/null
+2026/06/25 23:15:55 db: migrations complete (1 total, 0 pending)
+2026/06/25 23:15:55 db: opened sqlite at /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/.devteam.db
+2026/06/25 23:15:55 restored active process for feature playwright-e2e from tmux session
+Dev Team Web UI starting on :18790
+2026/06/25 23:15:55 Dev Team Web UI starting on :18790
+=== GET /api/health ===
+HTTP/1.1 200 OK
+Access-Control-Allow-Headers: Content-Type
+Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS
+Access-Control-Allow-Origin: *
+Content-Type: application/json
+Date: Fri, 26 Jun 2026 05:15:56 GMT
+Content-Length: 32
+
+{"status":"ok","version":"1.0"}
+
+=== POST /api/health ===
+HTTP/1.1 405 Method Not Allowed
+Access-Control-Allow-Headers: Content-Type
+Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS
+Access-Control-Allow-Origin: *
+Allow: GET, HEAD
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+Date: Fri, 26 Jun 2026 05:15:56 GMT
+Content-Length: 19
+
+Method Not Allowed
+
+=== GET /api/health?cb=123 ===
+HTTP/1.1 200 OK
+Access-Control-Allow-Headers: Content-Type
+Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS
+Access-Control-Allow-Origin: *
+Content-Type: application/json
+Date: Fri, 26 Jun 2026 05:15:56 GMT
+Content-Length: 32
+
+{"status":"ok","version":"1.0"}
+
+=== GET /api/health/ (trailing slash) ===
+HTTP/1.1 404 Not Found
+Access-Control-Allow-Headers: Content-Type
+Access-Control-Allow-Methods: GET, POST, PATCH, OPTIONS
+Access-Control-Allow-Origin: *
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+Date: Fri, 26 Jun 2026 05:15:56 GMT
+Content-Length: 19
+
+404 page not found
+[0m
+[0m$ [0mrtk ls specs/playwright-e2e/ 2>&1
+contracts/
+.devteam-state.yaml  1.7K
+CONTEXT.md  133.1K
+REVISION_NOTES.md  1002B
+acceptance.md  4.7K
+audit.md  2.5K
+data-model.md  1.3K
+input.md  699B
+plan.md  14.6K
+repos.yaml  368B
+research.md  4.9K
+review-report.md  16.8K
+spec.md  14.5K
+tasks.md  13.7K
+[0m
+All scenarios verified live. The spec drift check — let me confirm. Spec drift: everything matches. Now write test-report.md to spec repo.
+[0m
+[0m← [0mWrite specs/playwright-e2e/test-report.md
+Wrote file successfully.
+[0m
+[0m$ [0mrtk git add specs/playwright-e2e/test-report.md && rtk git commit -m "test(playwright-e2e): testing phase complete — all ACs verified" 2>&1 | tail -10
+ok 1 file changed, 270 insertions(+)
+ok 2106c61
+[0m
+[0m$ [0mrtk git show --stat HEAD | rtk head -15; echo "---"; rtk git status --short | rtk head -10
+commit 2106c61f3156b8f5d401326e36ea9176856dcb3d
+Author: Lobsterdog Contributors <noreply@lobsterdog.dev>
+Date:   Thu Jun 25 23:16:29 2026 -0600
+
+    test(playwright-e2e): testing phase complete — all ACs verified
+
+ specs/playwright-e2e/test-report.md | 270 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 270 insertions(+)
+---
+ M .devteam.db
+ M .devteam.db-shm
+ M .devteam.db-wal
+ M specs/playwright-e2e/.devteam-state.yaml
+ M specs/playwright-e2e/CONTEXT.md
+[0m
+Wait — the worktree's dirty files included `.devteam.db` etc. Let me check what got committed:
+[0m
+[0m$ [0mrtk devteam signal playwright-e2e pass 2>&1 | tail -20
+[rtk: No such file or directory (os error 2)]
+[0m
+Clean — only the test report committed. Now signal pass:
+[0m
+[0m$ [0m~/go/bin/devteam signal playwright-e2e pass 2>&1 | tail -20
+2026/06/25 23:16:37 db: migrations complete (1 total, 0 pending)
+2026/06/25 23:16:37 db: opened sqlite at /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/.devteam.db
+Signal recorded: pass for feature playwright-e2e
+[0m
+Done. Tester phase complete.
+
+## Summary
+
+**Feature**: playwright-e2e (GET /api/health)
+**Outcome**: PASS — signaled via `devteam signal playwright-e2e pass`
+
+### What verified
+
+- **Drift check**: spec.md US-001..003, acceptance.md AC-001..013, constraint register CON-001..007 all trace to code (commits `621691b`, `788592c`) and tests. Zero drift.
+- **Smoke (Level 1)**: `httptest.NewServer` in-process + live binary on :18790 via curl — `GET` 200, `POST` 405, `?cb=123` 200, trailing slash 404. CORS headers present. No nil pointer panics.
+- **Integration (Level 2)**: 11 Go tests in `internal/api/server_test.go` (lines 1048–1294), all pass. Byte-exact body assertion, custom-config version, induced-panic → 500. `go test ./...` green, no regressions.
+- **E2E (Level 3)**: `ui/e2e/health.spec.ts` ran via `npx playwright test` against webServer on :18765 — 1 passed. Asserts `status` and `version`.
+- **Agent failure modes**: all clean. Over-engineering check: ~18 LOC feature vs 248 LOC tests — healthy ratio.
+- **No findings** — implementation is the minimal correct slice the spec asked for.
+
+### Artifacts
+
+- `specs/playwright-e2e/test-report.md` (committed `2106c61`) — full traceability, exact commands + output, proof of work.
+- No new test files written (construction phase already delivered the 11 Go tests + Playwright spec; tester role verifies, doesn't duplicate). All existing tests confirmed passing.
+[0m
+Error: unknown command "hook" for "llmem"
+Run 'llmem --help' for usage.

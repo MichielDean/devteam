@@ -996,6 +996,22 @@ func (s *Server) createQuestion(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "validation_error", "options must have at most 10 items")
 		return
 	}
+	if req.Type == "multiple_choice" {
+		hasOther := false
+		for _, opt := range req.Options {
+			if opt == "Other" {
+				hasOther = true
+			}
+		}
+		if !hasOther {
+			writeError(w, http.StatusBadRequest, "validation_error", "multiple_choice questions must include 'Other' as the last option")
+			return
+		}
+		if req.Options[len(req.Options)-1] != "Other" {
+			writeError(w, http.StatusBadRequest, "validation_error", "'Other' must be the last option")
+			return
+		}
+	}
 	for _, opt := range req.Options {
 		if len(opt) > 500 {
 			writeError(w, http.StatusBadRequest, "validation_error", "each option must be 1-500 characters")

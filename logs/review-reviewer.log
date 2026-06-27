@@ -717,3 +717,1325 @@ Not committing per reviewer discipline — pipeline handles pushes.
 [0m
 Error: unknown command "hook" for "llmem"
 Run 'llmem --help' for usage.
+Error: unknown command "context" for "llmem"
+Run 'llmem --help' for usage.
+2026/06/25 23:01:11 INFO llmem: store: vec shadow table populated embeddings=517 total=517
+[0m
+> reviewer · glm-5.2:cloud
+[0m
+[0m→ [0mRead /tmp/devteam-reviewer-3814758496/CONTEXT.md
+[0m→ [0mRead /tmp/devteam-reviewer-3814758496/agents/reviewer.md
+[0m→ [0mRead /tmp/devteam-reviewer-3814758496/CONTEXT.md[90m [offset=966][0m
+[0m
+[0m$ [0mpwd && rtk git branch --show-current && rtk git log --oneline -5 && rtk git status
+/home/lobsterdog/worktrees/devteam-specs/playwright-e2e
+spec/playwright-e2e
+4577d85 spec: construction phase complete for playwright-e2e
+621691b feat(playwright-e2e): add GET /api/health endpoint + Playwright E2E spec
+a1f7a56 spec: planning phase complete for playwright-e2e
+793cb0d spec: inception phase complete for playwright-e2e
+1b1099c feat: agent skill for Dev Team state management via CLI (#60)
+* spec/playwright-e2e...origin/spec/playwright-e2e
+ M .devteam.db
+ D .devteam.db-shm
+ D .devteam.db-wal
+ M specs/playwright-e2e/.devteam-state.yaml
+ M specs/playwright-e2e/CONTEXT.md
+[0m
+[0m$ [0mrtk ls -la /home/lobsterdog/worktrees/ 2>/dev/null; rtk ls -la /home/lobsterdog/worktrees/devteam-specs/ 2>/dev/null
+775  adcp-salesagent-fix/
+775  adcp-sdk-java-fix/
+775  adcp-sdk-java-track4/
+775  cistern-installer-fix/
+775  devteam-feat/
+775  devteam-fix/
+775  devteam-specs/
+775  kotlin-sdk-roots-sample/
+775  better-qa-ui/
+775  playwright-e2e/
+775  x/
+[0m
+[0m$ [0mrtk grep -n "Implementation Repositor\|worktree\|PRIMARY\|feature/" /tmp/devteam-reviewer-3814758496/CONTEXT.md | head -40
+8 matches in 1 files:
+
+/tmp/devteam-reviewer-3814758496/CONTEXT.md:120:## Working with Implementation Repositories
+/tmp/devteam-reviewer-3814758496/CONTEXT.md:122:Your CWD is an implementation repository worktree on the `feature/<id>` branc...
+/tmp/devteam-reviewer-3814758496/CONTEXT.md:124:**Read CONTEXT.md first.** The "Implementation Repositories" section lists ev...
+/tmp/devteam-reviewer-3814758496/CONTEXT.md:129:- **Implementation code** lives in your CWD and any sibling worktrees listed ...
+/tmp/devteam-reviewer-3814758496/CONTEXT.md:431:## Working with Implementation Repositories
+/tmp/devteam-reviewer-3814758496/CONTEXT.md:433:Your CWD is an implementation repository worktree on the `feature/<id>` branc...
+/tmp/devteam-reviewer-3814758496/CONTEXT.md:435:**Read CONTEXT.md first.** The "Implementation Repositories" section lists ev...
+/tmp/devteam-reviewer-3814758496/CONTEXT.md:440:- **Implementation code** lives in your CWD and any sibling worktrees listed ...
+[0m
+[0m$ [0mrtk ls -la /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/ ; rtk git -C /home/lobsterdog/worktrees/devteam-specs/playwright-e2e worktree list
+775  .opencode/
+775  .playwright-mcp/
+775  .specify/
+775  cmd/
+775  internal/
+775  logs/
+775  plugins/
+775  roles/
+775  rules/
+775  specs/
+775  ui/
+775  worktrees/
+664  .devteam.db  100.0K
+664  .git  70B
+664  .gitignore  375B
+664  AGENTS.md  7.6K
+664  README.md  5.6K
+664  devteam.yaml  4.3K
+664  go.mod  160B
+664  go.sum  692B
+664  opencode.json  183B
+664  repos.yaml  959B
+~/source/devteam cac93de [main]
+~/source/devteam/worktrees/kanban-view/devteam 131b6c3 [feature/kanban-view]
+~/worktrees/devteam-fix/clean-artifacts-before-phase 4f00403 [fix/clean-artifacts-before-phase]
+~/worktrees/devteam-fix/delivery-no-retest f6dc656 [fix/delivery-no-retest]
+~/worktrees/devteam-specs/better-qa-ui 4d2ecba [spec/better-qa-ui]
+~/worktrees/devteam-specs/playwright-e2e 4577d85 [spec/playwright-e2e]
+~/worktrees/devteam-specs/x af8e38c [spec/x]
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/worktrees/devteam-specs/playwright-e2e diff main...HEAD --stat
+internal/api/server.go                           |   18 +
+ internal/pipeline/pipeline.go                    |    3 +
+ specs/playwright-e2e/.devteam-state.yaml         |   47 +
+ specs/playwright-e2e/CONTEXT.md                  | 1589 ++++++++++++++++++++++
+ specs/playwright-e2e/acceptance.md               |   73 +
+ specs/playwright-e2e/audit.md                    |   26 +
+ specs/playwright-e2e/contracts/GET-api-health.md |   83 ++
+ specs/playwright-e2e/data-model.md               |   31 +
+ specs/playwright-e2e/input.md                    |   19 +
+ specs/playwright-e2e/plan.md                     |  229 ++++
+ specs/playwright-e2e/repos.yaml                  |    5 +
+ specs/playwright-e2e/research.md                 |   51 +
+ specs/playwright-e2e/spec.md                     |  166 +++
+ specs/playwright-e2e/tasks.md                    |  235 ++++
+ ui/e2e/health.spec.ts                            |    9 +
+ 15 files changed, 2584 insertions(+)
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/worktrees/devteam-specs/playwright-e2e diff main...HEAD -- internal/api/server.go internal/pipeline/pipeline.go ui/e2e/health.spec.ts
+internal/api/server.go        | 18 ++++++++++++++++++
+ internal/pipeline/pipeline.go |  3 +++
+ ui/e2e/health.spec.ts         |  9 +++++++++
+ 3 files changed, 30 insertions(+)
+
+Changes:
+
+internal/api/server.go
+  @@ -187,6 +187,8 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
+  +	mux.HandleFunc("GET /api/health", s.healthHandler)
+  +
+   	if staticFS != nil {
+   		mux.Handle("/", s.spaHandler(staticFS))
+   	}
+  @@ -905,6 +907,22 @@ func writeError(w http.ResponseWriter, code int, errorCode string, details strin
+  +// healthResponse is the body for GET /api/health. Field order (status, version)
+  +// is fixed so json.Encoder emits byte-exact {"status":"ok","version":"..."} (CON-006).
+  +type healthResponse struct {
+  +	Status  string `json:"status"`
+  +	Version string `json:"version"`
+  +}
+  +
+  +// healthHandler serves GET /api/health — liveness + deployed version.
+  +// Version is sourced from config, not hardcoded (CON-003). No body decode (GET).
+  +func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+  +	writeJSON(w, http.StatusOK, healthResponse{
+  +		Status:  "ok",
+  +		Version: s.pipeline.Config().Version,
+  +	})
+  +}
+  +
+   // Question API handlers
+   
+   func (s *Server) listQuestions(w http.ResponseWriter, r *http.Request) {
+  +18 -0
+
+internal/pipeline/pipeline.go
+  @@ -40,6 +40,9 @@ func (p *Pipeline) Dispatcher() *role.Dispatcher {
+  +// Config returns the loaded configuration (for handlers that need config-sourced values like Version).
+  +func (p *Pipeline) Config() *config.Config { return p.config }
+  +
+   // EnsureSpecWorktree creates a per-feature git worktree if it doesn't exist yet.
+   // All agents dispatch with CWD = the worktree dir. Spec artifacts are written
+   // there and committed on the spec/<feature-id> branch.
+  +3 -0
+
+ui/e2e/health.spec.ts
+  @@ -0,0 +1,9 @@
+  +import { test, expect } from '@playwright/test';
+  +
+  +test('GET /api/health returns 200 with status ok and version 1.0', async ({ request }) => {
+  +  const response = await request.get('/api/health');
+  +  expect(response.status()).toBe(200);
+  +  const body = await response.json();
+  +  expect(body.status).toBe('ok');
+  +  expect(body.version).toBe('1.0');
+  +});
+  +9 -0
+[0m
+[0m→ [0mRead internal/api/server.go[90m [offset=175, limit=35][0m
+[0m→ [0mRead internal/api/server.go[90m [offset=895, limit=30][0m
+[0m→ [0mRead ui/playwright.config.ts
+[0m
+[0m$ [0mrtk grep -n "setupTestServer\|func Test\|pipeline\.New\|NewPipeline\|Config{" /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/internal/api/server_test.go | head -50
+rg: regex parse error:
+    (?:setupTestServer|func Test|pipeline\.New|NewPipeline|Config{)
+                                                                  ^
+error: repetition quantifier expects a valid decimal
+0 matches for 'setupTestServer\|func Test\|pipeline\.New\|NewPipeline\|Config{'
+[0m
+[0m→ [0mRead internal/pipeline/pipeline.go[90m [offset=20, limit=30][0m
+[0m
+[0m$ [0mrtk grep -n "setupTestServer|func Test|NewPipeline|Config\{|health" /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/internal/api/server_test.go | head -60
+87 matches in 1 files:
+
+/.../api/server_test.go:22:func setupTestServer(t *testing.T) (*Server, string) {
+/.../api/server_test.go:29:cfg := &config.Config{
+/.../api/server_test.go:30:Pipeline: config.PipelineConfig{
+/.../api/server_test.go:31:Phases: []config.PhaseConfig{
+/.../api/server_test.go:43:pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+/.../api/server_test.go:51:func TestListFeaturesEmpty(t *testing.T) {
+/.../api/server_test.go:52:s, _ := setupTestServer(t)
+/.../api/server_test.go:80:func TestListFeaturesTotalCountPopulated(t *testing.T) {
+/.../api/server_test.go:81:_, tmpDir := setupTestServer(t)
+/.../api/server_test.go:83:cfg := &config.Config{
+/.../api/server_test.go:84:Pipeline: config.PipelineConfig{
+/.../api/server_test.go:85:Phases: []config.PhaseConfig{
+/.../api/server_test.go:97:pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+/.../api/server_test.go:147:func TestErrorResponseShape(t *testing.T) {
+/.../api/server_test.go:171:func TestGetFeatureNotFound(t *testing.T) {
+/.../api/server_test.go:172:s, _ := setupTestServer(t)
+/.../api/server_test.go:184:func TestEvaluateGateFeatureNotFound(t *testing.T) {
+/.../api/server_test.go:185:s, _ := setupTestServer(t)
+/.../api/server_test.go:197:func TestGetArtifactFeatureNotFound(t *testing.T) {
+/.../api/server_test.go:198:s, _ := setupTestServer(t)
+/.../api/server_test.go:211:func TestCancelFeatureNotFound(t *testing.T) {
+/.../api/server_test.go:212:s, _ := setupTestServer(t)
+/.../api/server_test.go:224:func TestRecoveryMiddleware(t *testing.T) {
+/.../api/server_test.go:225:s, _ := setupTestServer(t)
+/.../api/server_test.go:240:func TestFeatureToDetailResponse(t *testing.T) {
+[+62 more]
+[0m
+[0m$ [0mrtk grep -ni "health" /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/internal/api/server_test.go
+(no output)
+[0m
+[0m→ [0mRead specs/playwright-e2e/tasks.md
+[0m
+No Go tests for health. Let me confirm the full tasks.md and check what test files were supposed to exist.
+[0m
+[0m$ [0mrtk grep -rni "health\|TestHealth" /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/internal/api/server_test.go | head; echo "---END---"
+---END---
+[0m
+[0m$ [0mrtk git -C /home/lobsterdog/worktrees/devteam-specs/playwright-e2e diff main...HEAD -- internal/api/server_test.go | head -20; echo "---END---"
+---END---
+[0m
+[0m→ [0mRead internal/api/server.go[90m [limit=30, offset=210][0m
+[0m
+[0m$ [0mrtk grep -n "corsMiddleware|recoveryMiddleware|Access-Control|Allow" /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/internal/api/server.go | head -20
+8 matches in 1 files:
+
+/.../api/server.go:196:handler := s.recoveryMiddleware(s.corsMiddleware(mux))
+/.../api/server.go:215:func (s *Server) corsMiddleware(next http.Handler) http.Handler {
+/.../api/server.go:217:w.Header().Set("Access-Control-Allow-Origin", "*")
+/.../api/server.go:218:w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+/.../api/server.go:219:w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+/.../api/server.go:228:func (s *Server) recoveryMiddleware(next http.Handler) http.Handler {
+/.../api/server.go:503:// Allow advancing if all questions are answered
+/.../api/server.go:787:w.Header().Set("Access-Control-Allow-Origin", "*")
+[0m
+Confirmed: zero Go integration tests for the health endpoint. AC-001 through AC-011 all mandate `httptest.NewServer` integration tests — none exist. Let me check a few more things.
+[0m
+[0m→ [0mRead internal/api/server.go[90m [limit=15, offset=145][0m
+[0m
+[0m$ [0mrtk grep -n "Version" /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/internal/config/config.go | head; rtk grep -n "version" /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/devteam.yaml | head
+1 matches in 1 files:
+
+/.../config/config.go:11:Version    string                     `yaml:"version"`
+1 matches in 1 files:
+
+/.../playwright-e2e/devteam.yaml:3:version: "1.0"
+[0m
+I have enough. Now writing the review report. The implementation code itself is minimal and correct (ponytail-approved), but the spec mandates 11 Go integration tests (AC-001..AC-011) and tasks.md T002/T004 explicitly require them — none were written. The spec also lists a `version` config field — let me verify it exists.
+[0m
+[0m← [0mWrite specs/playwright-e2e/review-report.md
+Wrote file successfully.
+[0m
+Now writing the report.
+[0m
+[0m$ [0mrtk devteam signal playwright-e2e recirculate:construction --notes "F-001 CRITICAL: All 11 mandated Go integration tests missing. internal/api/server_test.go was never modified on this branch (git diff main...HEAD empty, rg -ni health returns 0 matches). Implementation code (server.go:190,910-924 + pipeline.go:44 + ui/e2e/health.spec.ts) is correct and minimal, but AC-001..AC-011 are unverifiable. tasks.md T002 and T004 mandate 11 TestHealth* functions using httptest.NewServer: TestHealthGETReturns200AndBody (AC-001, byte-exact body via strings.TrimSpace), TestHealthGETNoRequestBody (AC-002), TestHealthVersionFromConfig (AC-003, Config{Version:9.9.9-test}), TestHealthGETIgnoresQueryParams (AC-004), TestHealthPanicReturns500 (AC-005), TestHealthPOSTReturns405 (AC-006), TestHealthPUTReturns405 (AC-007), TestHealthDELETEReturns405 (AC-008), TestHealthPATCHReturns405 (AC-009), TestHealthGETStill200After405s (AC-010), TestHealthTrailingSlash404 (AC-011). Add a setupHealthTestServer(t, version) helper. See specs/playwright-e2e/review-report.md F-001 and tasks.md T002/T004."
+[rtk: No such file or directory (os error 2)]
+[0m
+[0m$ [0mwhich devteam; devteam --version 2>&1 | head; rtk ls ~/go/bin/devteam 2>&1
+/bin/bash: line 1: devteam: command not found
+/home/lobsterdog/go/bin/devteam  15.8M
+[0m
+[0m$ [0m~/go/bin/devteam signal playwright-e2e recirculate:construction --notes "F-001 CRITICAL: All 11 mandated Go integration tests missing. internal/api/server_test.go never modified on this branch (git diff main...HEAD empty, rg -ni health returns 0 matches). Implementation code (server.go:190,910-924 + pipeline.go:44 + ui/e2e/health.spec.ts) correct and minimal, but AC-001..AC-011 unverifiable. tasks.md T002 and T004 mandate 11 TestHealth* functions using httptest.NewServer: TestHealthGETReturns200AndBody (AC-001, byte-exact body via strings.TrimSpace), TestHealthGETNoRequestBody (AC-002), TestHealthVersionFromConfig (AC-003, Config{Version:9.9.9-test}), TestHealthGETIgnoresQueryParams (AC-004), TestHealthPanicReturns500 (AC-005), TestHealthPOSTReturns405 (AC-006), TestHealthPUTReturns405 (AC-007), TestHealthDELETEReturns405 (AC-008), TestHealthPATCHReturns405 (AC-009), TestHealthGETStill200After405s (AC-010), TestHealthTrailingSlash404 (AC-011). Add setupHealthTestServer(t, version) helper. See specs/playwright-e2e/review-report.md F-001 and tasks.md T002/T004."
+2026/06/25 23:03:34 db: migrations complete (1 total, 0 pending)
+2026/06/25 23:03:34 db: opened sqlite at /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/.devteam.db
+Signal recorded: recirculate:construction for feature playwright-e2e
+Notes: F-001 CRITICAL: All 11 mandated Go integration tests missing. internal/api/server_test.go never modified on this branch (git diff main...HEAD empty, rg -ni health returns 0 matches). Implementation code (server.go:190,910-924 + pipeline.go:44 + ui/e2e/health.spec.ts) correct and minimal, but AC-001..AC-011 unverifiable. tasks.md T002 and T004 mandate 11 TestHealth* functions using httptest.NewServer: TestHealthGETReturns200AndBody (AC-001, byte-exact body via strings.TrimSpace), TestHealthGETNoRequestBody (AC-002), TestHealthVersionFromConfig (AC-003, Config{Version:9.9.9-test}), TestHealthGETIgnoresQueryParams (AC-004), TestHealthPanicReturns500 (AC-005), TestHealthPOSTReturns405 (AC-006), TestHealthPUTReturns405 (AC-007), TestHealthDELETEReturns405 (AC-008), TestHealthPATCHReturns405 (AC-009), TestHealthGETStill200After405s (AC-010), TestHealthTrailingSlash404 (AC-011). Add setupHealthTestServer(t, version) helper. See specs/playwright-e2e/review-report.md F-001 and tasks.md T002/T004.
+[0m
+Done. Review complete.
+
+## Summary
+
+**Outcome: RECIRCULATE TO CONSTRUCTION** (signal sent via `devteam signal`)
+
+**Finding F-001 (CRITICAL)**: All 11 mandated Go integration tests are missing. `internal/api/server_test.go` was never modified on the feature branch — `git diff main...HEAD` is empty, `rg -ni health` returns 0 matches. tasks.md T002 (5 tests) and T004 (6 tests) were skipped entirely.
+
+**What's good**: The implementation code itself is correct and minimal (ponytail-clean):
+- `internal/api/server.go:190` — route registered with method-pattern
+- `internal/api/server.go:910-924` — `healthResponse` struct (correct field order → byte-exact JSON) + `healthHandler` (config-sourced version, no body decode)
+- `internal/pipeline/pipeline.go:44` — 1-line `Config()` accessor
+- `ui/e2e/health.spec.ts` — 9-line Playwright spec, no `.skip`, asserts both fields
+
+**What's missing**: 11 `TestHealth*` functions covering AC-001..AC-011. The code would pass them, but they don't exist, leaving 10 of 13 acceptance criteria unverifiable. CON-004 (httptest pattern) is NOT MET.
+
+**Result**: 13 ACs → 3 MET (AC-012, AC-013, and the handler behaviorally), 10 NOT MET (no tests). Constraint register: 6 MET, 1 NOT MET (CON-004). No over-engineering, no security issues, no Go footguns, null safety verified, middleware chain correct.
+
+Report at `specs/playwright-e2e/review-report.md`. Recirculate notes passed to construction with exact test names and the `setupHealthTestServer(t, version)` helper requirement.
+[0m
+Error: unknown command "hook" for "llmem"
+Run 'llmem --help' for usage.
+Error: unknown command "context" for "llmem"
+Run 'llmem --help' for usage.
+2026/06/25 23:07:09 INFO llmem: store: vec shadow table populated embeddings=517 total=517
+[0m
+> reviewer · glm-5.2:cloud
+[0m
+[0m→ [0mRead /tmp/devteam-reviewer-3920548610/CONTEXT.md
+[0m→ [0mRead /tmp/devteam-reviewer-3920548610/agents/reviewer.md
+[0m→ [0mRead /tmp/devteam-reviewer-3920548610/CONTEXT.md[90m [offset=966][0m
+[0m
+[0m$ [0mpwd && rtk git branch --show-current && rtk git log --oneline -5
+/home/lobsterdog/worktrees/devteam-specs/playwright-e2e
+spec/playwright-e2e
+6b6c21d spec: construction phase complete for playwright-e2e
+4577d85 spec: construction phase complete for playwright-e2e
+621691b feat(playwright-e2e): add GET /api/health endpoint + Playwright E2E spec
+a1f7a56 spec: planning phase complete for playwright-e2e
+793cb0d spec: inception phase complete for playwright-e2e
+[0m
+[0m$ [0mrtk git diff main...HEAD --stat
+internal/api/server.go                           |   18 +
+ internal/pipeline/pipeline.go                    |    3 +
+ specs/playwright-e2e/.devteam-state.yaml         |   52 +
+ specs/playwright-e2e/CONTEXT.md                  | 1589 ++++++++++++++++++++++
+ specs/playwright-e2e/REVISION_NOTES.md           |   12 +
+ specs/playwright-e2e/acceptance.md               |   73 +
+ specs/playwright-e2e/audit.md                    |   26 +
+ specs/playwright-e2e/contracts/GET-api-health.md |   83 ++
+ specs/playwright-e2e/data-model.md               |   31 +
+ specs/playwright-e2e/input.md                    |   19 +
+ specs/playwright-e2e/plan.md                     |  229 ++++
+ specs/playwright-e2e/repos.yaml                  |    5 +
+ specs/playwright-e2e/research.md                 |   51 +
+ specs/playwright-e2e/review-report.md            |  345 +++++
+ specs/playwright-e2e/spec.md                     |  166 +++
+ specs/playwright-e2e/tasks.md                    |  235 ++++
+ ui/e2e/health.spec.ts                            |    9 +
+ 17 files changed, 2946 insertions(+)
+[0m
+Now find implementation repo + spec repo.
+[0m
+[0m→ [0mRead specs/playwright-e2e/repos.yaml
+[0m
+[0m$ [0mrtk git diff main...HEAD -- internal/api/server.go internal/pipeline/pipeline.go ui/e2e/health.spec.ts
+internal/api/server.go        | 18 ++++++++++++++++++
+ internal/pipeline/pipeline.go |  3 +++
+ ui/e2e/health.spec.ts         |  9 +++++++++
+ 3 files changed, 30 insertions(+)
+
+Changes:
+
+internal/api/server.go
+  @@ -187,6 +187,8 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
+  +	mux.HandleFunc("GET /api/health", s.healthHandler)
+  +
+   	if staticFS != nil {
+   		mux.Handle("/", s.spaHandler(staticFS))
+   	}
+  @@ -905,6 +907,22 @@ func writeError(w http.ResponseWriter, code int, errorCode string, details strin
+  +// healthResponse is the body for GET /api/health. Field order (status, version)
+  +// is fixed so json.Encoder emits byte-exact {"status":"ok","version":"..."} (CON-006).
+  +type healthResponse struct {
+  +	Status  string `json:"status"`
+  +	Version string `json:"version"`
+  +}
+  +
+  +// healthHandler serves GET /api/health — liveness + deployed version.
+  +// Version is sourced from config, not hardcoded (CON-003). No body decode (GET).
+  +func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+  +	writeJSON(w, http.StatusOK, healthResponse{
+  +		Status:  "ok",
+  +		Version: s.pipeline.Config().Version,
+  +	})
+  +}
+  +
+   // Question API handlers
+   
+   func (s *Server) listQuestions(w http.ResponseWriter, r *http.Request) {
+  +18 -0
+
+internal/pipeline/pipeline.go
+  @@ -40,6 +40,9 @@ func (p *Pipeline) Dispatcher() *role.Dispatcher {
+  +// Config returns the loaded configuration (for handlers that need config-sourced values like Version).
+  +func (p *Pipeline) Config() *config.Config { return p.config }
+  +
+   // EnsureSpecWorktree creates a per-feature git worktree if it doesn't exist yet.
+   // All agents dispatch with CWD = the worktree dir. Spec artifacts are written
+   // there and committed on the spec/<feature-id> branch.
+  +3 -0
+
+ui/e2e/health.spec.ts
+  @@ -0,0 +1,9 @@
+  +import { test, expect } from '@playwright/test';
+  +
+  +test('GET /api/health returns 200 with status ok and version 1.0', async ({ request }) => {
+  +  const response = await request.get('/api/health');
+  +  expect(response.status()).toBe(200);
+  +  const body = await response.json();
+  +  expect(body.status).toBe('ok');
+  +  expect(body.version).toBe('1.0');
+  +});
+  +9 -0
+[0m
+[0m$ [0mrtk git diff main...HEAD -- internal/api/server_test.go | head -100
+[0m✱ [0mGrep "func writeJSON|func \(s \*Server\) writeJSON|json.NewEncoder|json.Marshal|recoveryMiddleware|corsMiddleware|s.pipeline|pipeline\s+\*pipeline|httpServer"[90m in internal/api/server.go · 71 matches[0m
+[0m
+[0m$ [0mrtk grep -n -i "health" internal/api/server_test.go | head -20; echo "---"; rtk grep -n "func setupTestServer|func TestHealth|func Test.*Health" internal/api/server_test.go
+---
+1 matches in 1 files:
+
+internal/api/server_test.go:22:func setupTestServer(t *testing.T) (*Server, string) {
+[0m
+[0m→ [0mRead internal/api/server.go[90m [offset=895, limit=35][0m
+[0m→ [0mRead ui/playwright.config.ts
+[0m
+server_test.go 未更改。没有 Go 集成测试。验证中。
+[0m
+[0m→ [0mRead specs/playwright-e2e/tasks.md
+[0m→ [0mRead internal/pipeline/pipeline.go[90m [offset=26, limit=25][0m
+[0m✱ [0mGrep "config:|p\.config\s*=|func NewPipeline"[90m in internal/pipeline/pipeline.go · 6 matches[0m
+[0m→ [0mRead internal/api/server.go[90m [limit=45, offset=150][0m
+[0m→ [0mRead internal/api/server.go[90m [limit=25, offset=215][0m
+[0m
+[0m$ [0mrtk grep -c "TestHealth" internal/api/server_test.go; echo "---"; rtk grep -n "setupHealthTestServer" internal/api/server_test.go; echo "exit:$?"
+0
+---
+0 matches for 'setupHealthTestServer'
+exit:1
+[0m
+我已经收集好所有证据了。实现代码极简且正确。问题在于：根据 tasks.md (T002, T004) 的要求，应该在 `server_test.go` 中添加 Go 集成测试，但该文件并未被修改。这是主要的发现。让我来撰写报告。
+[0m
+[0m← [0mWrite specs/playwright-e2e/review-report.md
+Wrote file successfully.
+[0m
+确认：没有 Go 测试。现在请编写报告。
+[0m
+[0m$ [0mrtk devteam signal playwright-e2e recirculate:construction --notes "F-001 BLOCKING: Go integration tests for AC-001..AC-011 missing. internal/api/server_test.go unchanged by feature branch. Implement tasks.md T002 (5 tests: TestHealthGETReturns200AndBody, TestHealthGETNoRequestBody, TestHealthVersionFromConfig, TestHealthGETIgnoresQueryParams, TestHealthPanicReturns500) and T004 (6 tests: TestHealthPOSTReturns405, TestHealthPUTReturns405, TestHealthDELETEReturns405, TestHealthPATCHReturns405, TestHealthGETStill200After405s, TestHealthTrailingSlash404) plus setupHealthTestServer helper using httptest.NewServer pattern. Implementation code (healthHandler server.go:919-924, route :190, Pipeline.Config() pipeline.go:44, Playwright spec ui/e2e/health.spec.ts) is correct and minimal — only the Go test artifact is missing. See specs/playwright-e2e/review-report.md."
+[rtk: No such file or directory (os error 2)]
+[0m
+[0m$ [0mwhich devteam; devteam --help 2>&1 | head -5
+/bin/bash: line 1: devteam: command not found
+[0m
+[0m$ [0mrtk ls ~/go/bin/devteam 2>&1; rtk ls ~/.cargo/bin/devteam 2>&1; find ~ -name devteam -type f 2>/dev/null | head -5
+/home/lobsterdog/go/bin/devteam  15.8M
+/usr/bin/ls: cannot access '/home/lobsterdog/.cargo/bin/devteam': No such file or directory
+/home/lobsterdog/go/bin/devteam
+/home/lobsterdog/source/devteam/devteam
+[0m
+[0m$ [0m~/go/bin/devteam signal playwright-e2e recirculate:construction --notes "F-001 BLOCKING: Go integration tests for AC-001..AC-011 missing. internal/api/server_test.go unchanged by feature branch. Implement tasks.md T002 (5 tests: TestHealthGETReturns200AndBody, TestHealthGETNoRequestBody, TestHealthVersionFromConfig, TestHealthGETIgnoresQueryParams, TestHealthPanicReturns500) and T004 (6 tests: TestHealthPOSTReturns405, TestHealthPUTReturns405, TestHealthDELETEReturns405, TestHealthPATCHReturns405, TestHealthGETStill200After405s, TestHealthTrailingSlash404) plus setupHealthTestServer helper using httptest.NewServer pattern. Implementation code (healthHandler, route, Pipeline.Config(), Playwright spec) is correct and minimal — only the Go test artifact is missing. See specs/playwright-e2e/review-report.md."
+2026/06/25 23:08:48 db: migrations complete (1 total, 0 pending)
+2026/06/25 23:08:48 db: opened sqlite at /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/.devteam.db
+Signal recorded: recirculate:construction for feature playwright-e2e
+Notes: F-001 BLOCKING: Go integration tests for AC-001..AC-011 missing. internal/api/server_test.go unchanged by feature branch. Implement tasks.md T002 (5 tests: TestHealthGETReturns200AndBody, TestHealthGETNoRequestBody, TestHealthVersionFromConfig, TestHealthGETIgnoresQueryParams, TestHealthPanicReturns500) and T004 (6 tests: TestHealthPOSTReturns405, TestHealthPUTReturns405, TestHealthDELETEReturns405, TestHealthPATCHReturns405, TestHealthGETStill200After405s, TestHealthTrailingSlash404) plus setupHealthTestServer helper using httptest.NewServer pattern. Implementation code (healthHandler, route, Pipeline.Config(), Playwright spec) is correct and minimal — only the Go test artifact is missing. See specs/playwright-e2e/review-report.md.
+[0m
+Review complete. Reported.
+
+## Summary
+
+**F-001 BLOCKING**: `internal/api/server_test.go` unchanged — 0 Go integration tests. tasks.md T002 (5 tests) + T004 (6 tests) + `setupHealthTestServer` helper all missing. Leaves AC-001..AC-011 unverified at mandated smoke/integration level, violates CON-004.
+
+**Impl code = correct + minimal** (~30 LOC):
+- `server.go:190` route via method-pattern ✓
+- `server.go:919-924` handler, version from `Pipeline.Config()`, no `r.Body` decode ✓
+- `pipeline.go:44` 1-line accessor, `config` set in all 3 constructors ✓
+- `health.spec.ts` asserts status + both JSON fields, uses `request` fixture against baseURL :18765 ✓
+- 405/404/500 paths all present in code (stdlib + recovery middleware)
+
+Cross-component, footguns, null safety, middleware, over-engineering — all clean. No other findings.
+
+Signal sent: `recirculate:construction` with exact missing test names + file refs.
+[0m
+Error: unknown command "hook" for "llmem"
+Run 'llmem --help' for usage.
+Error: unknown command "context" for "llmem"
+Run 'llmem --help' for usage.
+2026/06/25 23:11:59 INFO llmem: store: vec shadow table populated embeddings=517 total=517
+[0m
+> reviewer · glm-5.2:cloud
+[0m
+[0m→ [0mRead /tmp/devteam-reviewer-3645736190/CONTEXT.md
+[0m→ [0mRead /tmp/devteam-reviewer-3645736190/agents/reviewer.md
+[0m→ [0mRead /tmp/devteam-reviewer-3645736190/CONTEXT.md[90m [offset=966][0m
+[0m
+[0m$ [0mpwd && rtk git branch --show-current && rtk git log --oneline -10
+/home/lobsterdog/worktrees/devteam-specs/playwright-e2e
+spec/playwright-e2e
+cd8ccd5 spec: construction phase complete for playwright-e2e
+788592c feat(playwright-e2e): add Go integration tests for /api/health + fix pipeline vet warning
+6b6c21d spec: construction phase complete for playwright-e2e
+4577d85 spec: construction phase complete for playwright-e2e
+621691b feat(playwright-e2e): add GET /api/health endpoint + Playwright E2E spec
+a1f7a56 spec: planning phase complete for playwright-e2e
+793cb0d spec: inception phase complete for playwright-e2e
+1b1099c feat: agent skill for Dev Team state management via CLI (#60)
+63426c7 feat: agent skill for state management — CLI instructions in CONTEXT.md (#59)
+7c502da feat: devteam CLI for agent state management — questions, signal, notes (#58)
+[0m
+[0m$ [0mrtk git diff main...HEAD --stat
+internal/api/server.go                           |   18 +
+ internal/api/server_test.go                      |  248 ++++
+ internal/pipeline/pipeline.go                    |    5 +-
+ specs/playwright-e2e/.devteam-state.yaml         |   52 +
+ specs/playwright-e2e/CONTEXT.md                  | 1589 ++++++++++++++++++++++
+ specs/playwright-e2e/REVISION_NOTES.md           |   12 +
+ specs/playwright-e2e/acceptance.md               |   73 +
+ specs/playwright-e2e/audit.md                    |   26 +
+ specs/playwright-e2e/contracts/GET-api-health.md |   83 ++
+ specs/playwright-e2e/data-model.md               |   31 +
+ specs/playwright-e2e/input.md                    |   19 +
+ specs/playwright-e2e/plan.md                     |  229 ++++
+ specs/playwright-e2e/repos.yaml                  |    5 +
+ specs/playwright-e2e/research.md                 |   51 +
+ specs/playwright-e2e/review-report.md            |  214 +++
+ specs/playwright-e2e/spec.md                     |  166 +++
+ specs/playwright-e2e/tasks.md                    |  235 ++++
+ ui/e2e/health.spec.ts                            |    9 +
+ 18 files changed, 3064 insertions(+), 1 deletion(-)
+[0m
+Context loaded. Now reviewing implementation. Find worktree, get diff.
+[0m
+[0m$ [0mrtk git diff main...HEAD -- internal/api/server.go internal/pipeline/pipeline.go ui/e2e/health.spec.ts
+internal/api/server.go        | 18 ++++++++++++++++++
+ internal/pipeline/pipeline.go |  5 ++++-
+ ui/e2e/health.spec.ts         |  9 +++++++++
+ 3 files changed, 31 insertions(+), 1 deletion(-)
+
+Changes:
+
+internal/api/server.go
+  @@ -187,6 +187,8 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
+  +	mux.HandleFunc("GET /api/health", s.healthHandler)
+  +
+   	if staticFS != nil {
+   		mux.Handle("/", s.spaHandler(staticFS))
+   	}
+  @@ -905,6 +907,22 @@ func writeError(w http.ResponseWriter, code int, errorCode string, details strin
+  +// healthResponse is the body for GET /api/health. Field order (status, version)
+  +// is fixed so json.Encoder emits byte-exact {"status":"ok","version":"..."} (CON-006).
+  +type healthResponse struct {
+  +	Status  string `json:"status"`
+  +	Version string `json:"version"`
+  +}
+  +
+  +// healthHandler serves GET /api/health — liveness + deployed version.
+  +// Version is sourced from config, not hardcoded (CON-003). No body decode (GET).
+  +func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+  +	writeJSON(w, http.StatusOK, healthResponse{
+  +		Status:  "ok",
+  +		Version: s.pipeline.Config().Version,
+  +	})
+  +}
+  +
+   // Question API handlers
+   
+   func (s *Server) listQuestions(w http.ResponseWriter, r *http.Request) {
+  +18 -0
+
+internal/pipeline/pipeline.go
+  @@ -40,6 +40,9 @@ func (p *Pipeline) Dispatcher() *role.Dispatcher {
+  +// Config returns the loaded configuration (for handlers that need config-sourced values like Version).
+  +func (p *Pipeline) Config() *config.Config { return p.config }
+  +
+   // EnsureSpecWorktree creates a per-feature git worktree if it doesn't exist yet.
+   // All agents dispatch with CWD = the worktree dir. Spec artifacts are written
+   // there and committed on the spec/<feature-id> branch.
+  @@ -1322,7 +1325,7 @@ If a constitution.md exists, verify compliance.
+  -Inception should almost never fail — it's just a question-answer loop that ends with a spec.`, featureID, featureID, featureID, specDir, specDir, specDir, specDir, featureID)
+  +Inception should almost never fail — it's just a question-answer loop that ends with a spec.`, featureID, featureID, featureID, specDir, specDir, specDir, featureID)
+   
+   	case feature.PhasePlanning:
+   		return prefix + fmt.Sprintf(`You are in the PLANNING phase for feature %s.
+  +4 -1
+
+ui/e2e/health.spec.ts
+  @@ -0,0 +1,9 @@
+  +import { test, expect } from '@playwright/test';
+  +
+  +test('GET /api/health returns 200 with status ok and version 1.0', async ({ request }) => {
+  +  const response = await request.get('/api/health');
+  +  expect(response.status()).toBe(200);
+  +  const body = await response.json();
+  +  expect(body.status).toBe('ok');
+  +  expect(body.version).toBe('1.0');
+  +});
+  +9 -0
+[0m
+[0m✗ [0mRead specs/playwright-e2e/review-report.md failed
+[91m[1mError: [0mFile not found: /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/specs/playwright-e2e/review-report.md
+[0m
+Wait — review-report.md already exists. Let me check it and the implementation.
+[0m
+[0m$ [0mrtk git ls-tree HEAD specs/playwright-e2e/ | grep review; rtk ls -la specs/playwright-e2e/ 2>/dev/null | head -30
+100644 blob e6ae455a8f340be50cbdeb5d3a40e529597b17d2	specs/playwright-e2e/review-report.md
+775  contracts/
+664  .devteam-state.yaml  1.6K
+664  CONTEXT.md  89.9K
+644  REVISION_NOTES.md  1002B
+664  acceptance.md  4.7K
+664  audit.md  2.5K
+664  data-model.md  1.3K
+644  input.md  699B
+664  plan.md  14.6K
+664  repos.yaml  368B
+664  research.md  4.9K
+664  spec.md  14.5K
+664  tasks.md  13.7K
+[0m
+The diff stat showed review-report.md but read says not found. Let me check — that's in the diff of feature branch. The CWD is the worktree. Let me look properly.
+[0m
+[0m$ [0mrtk ls specs/playwright-e2e/review-report.md; rtk git log --oneline -2 -- specs/playwright-e2e/review-report.md
+/usr/bin/ls: cannot access 'specs/playwright-e2e/review-report.md': No such file or directory
+cd8ccd5 spec: construction phase complete for playwright-e2e
+6b6c21d spec: construction phase complete for playwright-e2e
+[0m
+Stale review-report from prior partial run. Need overwrite. Per instructions: write to spec repo's spec dir. This IS the spec repo worktree (branch `spec/playwright-e2e`). Let me verify.
+[0m
+[0m$ [0mrtk git status --short; rtk git show HEAD:specs/playwright-e2e/review-report.md | head -30
+M .devteam.db
+ M .devteam.db-shm
+ M .devteam.db-wal
+ M specs/playwright-e2e/.devteam-state.yaml
+ M specs/playwright-e2e/CONTEXT.md
+ D specs/playwright-e2e/review-report.md# Review Report
+
+**Feature**: playwright-e2e (GET /api/health)
+**Reviewer**: Code Reviewer
+**Phase**: review
+**Date**: 2026-06-25
+
+## Summary
+
+- Acceptance criteria: 13 total, 12 MET, 1 NOT MET
+- Findings: 1 critical (BLOCKING), 0 required, 0 noted
+- Implementation LOC: ~30 (handler 14 + accessor 1 + Playwright 9) — minimal, no over-engineering
+- **Gate: BLOCKED** — AC-001..AC-011 (Go integration tests) have no implementation. T002/T004 from tasks.md were not executed.
+
+---
+
+## Phase 1: Constraint Register Review (MANDATORY FIRST)
+
+### CON-001 — Route via Go 1.22+ method-pattern `mux.HandleFunc("GET /api/health", ...)`
+- **Source**: repo convention, server.go:160-188
+- **Status**: MET
+- **Trace**:
+  1. `NewServer` line 160: `mux := http.NewServeMux()`
+  2. Line 190: `mux.HandleFunc("GET /api/health", s.healthHandler)` — exact method-pattern form
+  3. Route registered BEFORE staticFS catch-all (line 192-194) ✓
+- **Evidence**: `internal/api/server.go:190` — `mux.HandleFunc("GET /api/health", s.healthHandler)`
+
+### CON-002 — Health route covered by recoveryMiddleware + corsMiddleware
+- **Source**: repo convention, server.go:194
+- **Status**: MET (code); NOT VERIFIABLE (no test for panic→500)
+[0m
+Tree has it but disk doesn't — uncommitted/working state mismatch, or worktree clean issue. Let me check status.
+[0m
+[0m$ [0mrtk git show HEAD:specs/playwright-e2e/review-report.md
+# Review Report
+
+**Feature**: playwright-e2e (GET /api/health)
+**Reviewer**: Code Reviewer
+**Phase**: review
+**Date**: 2026-06-25
+
+## Summary
+
+- Acceptance criteria: 13 total, 12 MET, 1 NOT MET
+- Findings: 1 critical (BLOCKING), 0 required, 0 noted
+- Implementation LOC: ~30 (handler 14 + accessor 1 + Playwright 9) — minimal, no over-engineering
+- **Gate: BLOCKED** — AC-001..AC-011 (Go integration tests) have no implementation. T002/T004 from tasks.md were not executed.
+
+---
+
+## Phase 1: Constraint Register Review (MANDATORY FIRST)
+
+### CON-001 — Route via Go 1.22+ method-pattern `mux.HandleFunc("GET /api/health", ...)`
+- **Source**: repo convention, server.go:160-188
+- **Status**: MET
+- **Trace**:
+  1. `NewServer` line 160: `mux := http.NewServeMux()`
+  2. Line 190: `mux.HandleFunc("GET /api/health", s.healthHandler)` — exact method-pattern form
+  3. Route registered BEFORE staticFS catch-all (line 192-194) ✓
+- **Evidence**: `internal/api/server.go:190` — `mux.HandleFunc("GET /api/health", s.healthHandler)`
+
+### CON-002 — Health route covered by recoveryMiddleware + corsMiddleware
+- **Source**: repo convention, server.go:194
+- **Status**: MET (code); NOT VERIFIABLE (no test for panic→500)
+- **Trace**:
+  1. Line 190: health route registered on `mux`
+  2. Line 196: `handler := s.recoveryMiddleware(s.corsMiddleware(mux))` — wraps entire mux
+  3. `recoveryMiddleware` (server.go:228-238) has `defer recover()` → `writeError(w, 500, ...)` ✓
+  4. Recovery is outermost (after CORS) ✓
+- **Evidence**: `internal/api/server.go:196` — `handler := s.recoveryMiddleware(s.corsMiddleware(mux))`; `:228-238` — recovery with `writeError(w, http.StatusInternalServerError, ...)`
+- **Note**: Code path is correct; AC-005 test (induced panic → 500) was NOT implemented (see F-001).
+
+### CON-003 — version sourced from Config, not hardcoded
+- **Source**: repo convention, config.go
+- **Status**: MET (code); NOT VERIFIABLE (no test)
+- **Trace**:
+  1. Handler `healthHandler` server.go:919-924 calls `s.pipeline.Config().Version`
+  2. `Pipeline.Config()` pipeline.go:44 returns `p.config`
+  3. `p.config` set in all 3 constructors (NewPipeline:285, NewPipelineWithDispatcher:319, NewPipelineWithQuestionStore:334) ✓
+  4. No hardcoded "1.0" literal in handler — `Status: "ok"` is the only literal, version is dynamic ✓
+- **Evidence**: `internal/api/server.go:922` — `Version: s.pipeline.Config().Version`; `internal/pipeline/pipeline.go:44` — `func (p *Pipeline) Config() *config.Config { return p.config }`
+
+### CON-004 — httptest in-process server pattern
+- **Source**: repo convention, server_test.go
+- **Status**: NOT MET — no Go tests added
+- **Evidence**: `git diff main...HEAD -- internal/api/server_test.go` shows no changes; `grep TestHealth internal/api/server_test.go` returns 0 matches
+- **Explanation**: tasks.md T002 + T004 mandate 11 `TestHealth*` functions in `server_test.go`; none exist. AC-001..AC-011 have no Go-level verification.
+
+### CON-005 — E2E on :18765 via Playwright baseURL
+- **Source**: repo convention, ui/e2e
+- **Status**: MET
+- **Trace**:
+  1. `ui/e2e/health.spec.ts:4` — `request.get('/api/health')` (relative)
+  2. `ui/playwright.config.ts:16` — `baseURL: process.env.BASE_URL || 'http://localhost:18765'`
+  3. `request` fixture resolves against baseURL → :18765 ✓
+- **Evidence**: `ui/e2e/health.spec.ts:4`; `ui/playwright.config.ts:16`
+
+### CON-006 — exact body `{"status":"ok","version":"1.0"}`
+- **Source**: input.md idea
+- **Status**: MET (code); NOT VERIFIABLE (no byte-assertion test)
+- **Trace**:
+  1. `healthResponse` struct fields ordered `Status` then `Version` (server.go:912-915)
+  2. JSON tags `"status"`, `"version"` ✓
+  3. `json.NewEncoder(w).Encode(data)` (writeJSON:903) emits keys in struct field order → `{"status":"ok","version":"1.0"}` (with trailing newline) ✓
+- **Evidence**: `internal/api/server.go:912-915` — struct with `Status` before `Version`; `:903` — `json.NewEncoder(w).Encode(data)`
+- **Note**: byte-exactness is structurally guaranteed but no integration test asserts it (F-001).
+
+### CON-007 — 405 for non-GET (RFC 9110 §15.5.5)
+- **Source**: HTTP semantics
+- **Status**: MET (code); NOT VERIFIABLE (no tests)
+- **Trace**:
+  1. Only `GET /api/health` registered (server.go:190)
+  2. Go 1.22+ ServeMux method-pattern: POST/PUT/DELETE/PATCH → 405 automatically with `Allow: GET, HEAD` header
+  3. `/api/health/` (trailing slash) not registered → 404 ✓
+- **Evidence**: `internal/api/server.go:190` — single `GET /api/health` registration; no other method routes
+
+---
+
+## Phase 2: Acceptance Criteria Review
+
+### AC-001: GET /api/health → 200, application/json, body `{"status":"ok","version":"1.0"}`
+- **Status**: MET (impl) / NOT MET (test)
+- **Evidence**: `server.go:190` route, `:919-924` handler, `:901` sets Content-Type, struct order guarantees body. **No integration test exists** (`server_test.go` unchanged).
+- **Explanation**: Implementation correct; verification artifact missing.
+
+### AC-002: GET with no body → 200 same body (no r.Body decode)
+- **Status**: MET
+- **Evidence**: `server.go:919-924` — `healthHandler` never references `r.Body`
+- **Explanation**: Handler reads only config; body-less GET returns 200. (No dedicated test — F-001.)
+
+### AC-003: custom Config.Version="9.9.9-test" → body reflects it
+- **Status**: MET (impl) / NOT VERIFIABLE (no test)
+- **Evidence**: `server.go:922` — `Version: s.pipeline.Config().Version` (dynamic)
+- **Explanation**: Version is config-sourced, not hardcoded. No test exercises custom config.
+
+### AC-004: GET /api/health?cb=123 → 200 standard body
+- **Status**: MET
+- **Evidence**: handler ignores `r.URL.RawQuery`; no query parsing. ServeMux matches path regardless of query string.
+- **Explanation**: Query params ignored by omission. (No dedicated test — F-001.)
+
+### AC-005: handler panic → 500, server survives
+- **Status**: NOT MET (no test)
+- **Evidence**: `server.go:228-238` recovery middleware exists and wraps mux, but **no test induces panic + asserts 500 + subsequent 200**.
+- **Explanation**: Code path present; AC requires verification of induced-panic path per acceptance.md verification text. Not implemented.
+
+### AC-006: POST → 405
+### AC-007: PUT → 405
+### AC-008: DELETE → 405
+### AC-009: PATCH → 405
+- **Status**: MET (impl, via stdlib) / NOT MET (no tests)
+- **Evidence**: only `GET /api/health` registered → stdlib emits 405. No `TestHealth*Returns405` functions exist.
+
+### AC-010: GET → 200 (positive control)
+- **Status**: MET (impl) / NOT MET (no test)
+
+### AC-011: GET /api/health/ (trailing slash) → 404
+- **Status**: MET (impl) / NOT MET (no test)
+- **Evidence**: exact-path registration; trailing-slash path not registered → ServeMux 404. No test.
+
+### AC-012: Playwright E2E asserts 200 + `{status:"ok", version:"1.0"}`
+- **Status**: MET
+- **Evidence**: `ui/e2e/health.spec.ts:4-8` — asserts `response.status()===200`, `body.status==='ok'`, `body.version==='1.0'`
+- **Explanation**: All three required assertions present.
+
+### AC-013: suite discovers + passes health spec (no .skip)
+- **Status**: MET (structural)
+- **Evidence**: `ui/e2e/health.spec.ts` uses `test(...)` (not `test.skip`); file under `ui/e2e/` matches `testDir: './e2e'` (config:10)
+- **Explanation**: Will be discovered. (Execution pass is Tester's job, not Reviewer's.)
+
+---
+
+## Phase 3: Negative Test Vector Verification
+
+| Vector | Impl rejects? | Test? |
+|---|---|---|
+| POST /api/health → 405 | YES (stdlib) | **NO** — TestHealthPOSTReturns405 missing |
+| PUT → 405 | YES | **NO** |
+| DELETE → 405 | YES | **NO** |
+| PATCH → 405 | YES | **NO** |
+| /api/health/ → 404 | YES (exact path) | **NO** |
+| handler panic → 500 | YES (recovery) | **NO** — AC-005 test missing |
+
+All rejection logic correct in code; **zero negative-vector tests present**. This is F-001.
+
+---
+
+## Phase 4: Cross-Component Consistency
+
+Single producer per value. Matrix trivial per plan.md.
+- `version`: `config.Config.Version` → `Pipeline.Config()` → `healthHandler` → response. Single path, no transform. **Consistent.**
+- Response shape: struct field order = JSON key order = expected body. **Consistent.**
+- No multi-provider split. No findings.
+
+---
+
+## Phase 5: Language-Specific Footgun Review
+
+**Go**: No nil-map writes. `s.pipeline.Config()` could return nil only if constructors didn't set `config:` — verified all 3 set it (pipeline.go:285,319,334). `s.pipeline` set in NewServer before handler invocation (server.go:153). No overflow, no modulo. **No footguns.**
+
+**TypeScript** (Playwright spec): no `any`, uses `===` via `expect().toBe()`, no optional chaining. **No footguns.**
+
+---
+
+## Findings
+
+### F-001: Go integration tests NOT implemented (BLOCKING)
+- **Severity**: needs fixing — BLOCKING
+- **Criterion**: AC-001..AC-011, CON-004, tasks.md T002 + T004
+- **Code**: `internal/api/server_test.go` — UNCHANGED (`git diff main...HEAD` empty for this file)
+- **Description**: tasks.md T002 mandates 5 tests (`TestHealthGETReturns200AndBody`, `TestHealthGETNoRequestBody`, `TestHealthVersionFromConfig`, `TestHealthGETIgnoresQueryParams`, `TestHealthPanicReturns500`) and T004 mandates 6 more (`TestHealthPOSTReturns405`, `TestHealthPUTReturns405`, `TestHealthDELETEReturns405`, `TestHealthPATCHReturns405`, `TestHealthGETStill200After405s`, `TestHealthTrailingSlash404`) plus a `setupHealthTestServer` helper. **None exist.** `grep TestHealth internal/api/server_test.go` = 0 matches. This violates CON-004 (httptest pattern) and leaves 11 of 13 acceptance criteria unverified at their specified test level (smoke/integration). Spec.md FR-006 + acceptance.md test levels mandate these.
+- **Fix needed**: Implement T002 + T004 tests in `internal/api/server_test.go` using `httptest.NewServer(s.httpServer.Handler)` pattern matching existing `setupTestServer`. The implementation code is correct; only the verification artifact is missing.
+
+### No other findings
+- Over-engineering: NONE. Handler 14 LOC, accessor 1 LOC, spec 9 LOC — matches plan estimate (~5 LOC handler + 1 LOC accessor).
+- Missing implementation (non-test): NONE. FR-001..FR-007 all addressed (route, handler, version-from-config, Content-Type, 405 auto, Playwright spec, no auth).
+- Security: N/A — P3 feature, no auth by design (FR-007), no input to validate (GET, no body decode).
+- Constitution: no `constitution.md` exists — N/A.
+- Null safety: `s.pipeline` + `p.config` both set before use in all constructors. Safe.
+- Error paths: 405 (stdlib), 404 (exact path), 500 (recovery middleware) all present in code.
+- Middleware chain: recovery outermost (server.go:196), CORS present. Unchanged by feature. Correct.
+
+---
+
+## Quality Gate Status
+
+| Gate item | Status |
+|---|---|
+| Every constraint checked w/ evidence | DONE (7/7) |
+| Every AC checked w/ evidence | DONE (13/13) |
+| Negative vectors verified | CODE-ONLY — no tests (F-001) |
+| Cross-component consistency | DONE (trivial, consistent) |
+| Security review | N/A (P3) |
+| Null safety | DONE (safe) |
+| Error paths | DONE (405/404/500 in code) |
+| Middleware chain | DONE (unchanged, correct) |
+| Over-engineering | DONE (minimal) |
+| Footguns | DONE (none) |
+| Execution paths traced | DONE |
+
+**GATE: NOT PASSED** — F-001 (BLOCKING). 11 acceptance criteria lack the Go integration tests mandated by their test level and by tasks.md T002/T004. The implementation code is correct and minimal; the gap is purely the missing test artifact.
+
+---
+
+## Recommendation
+
+**RECIRCULATE to construction** with note: "Go integration tests for AC-001..AC-011 missing. `internal/api/server_test.go` unchanged. Implement tasks.md T002 (5 tests: TestHealthGETReturns200AndBody, TestHealthGETNoRequestBody, TestHealthVersionFromConfig, TestHealthGETIgnoresQueryParams, TestHealthPanicReturns500) and T004 (6 tests: TestHealthPOSTReturns405, TestHealthPUTReturns405, TestHealthDELETEReturns405, TestHealthPATCHReturns405, TestHealthGETStill200After405s, TestHealthTrailingSlash404) + setupHealthTestServer helper. Implementation code (handler, accessor, route) is correct — only tests missing."
+
+Alternatively, since the implementation is correct and the missing artifact is a test file (Tester's domain overlaps), construction may implement T002/T004 or the Tester phase may be directed to add them. Per tasks.md ownership, T002/T004 are construction-phase deliverables.
+[0m
+Previous report was deleted in working tree. Let me see full prior report, then check the actual current implementation against it. The prior report claims Go tests missing — but diff shows server_test.go +248. Let me read the actual current code.
+[0m
+[0m$ [0mrtk git diff main...HEAD -- internal/api/server_test.go
+internal/api/server_test.go | 248 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 248 insertions(+)
+
+Changes:
+
+internal/api/server_test.go
+  @@ -1044,3 +1044,251 @@ func TestAdvanceFeatureWaitingHumanBlocked(t *testing.T) {
+  +
+  +// setupHealthTestServer builds an in-process httptest.Server with a Config.Version
+  +// preset. Mirrors setupTestServer but lets callers control the version (CON-003, AC-003).
+  +func setupHealthTestServer(t *testing.T, version string) *httptest.Server {
+  +	t.Helper()
+  +	tmpDir := t.TempDir()
+  +	cfg := &config.Config{
+  +		Version: version,
+  +		Pipeline: config.PipelineConfig{
+  +			Phases: []config.PhaseConfig{
+  +				{Name: "inception", Roles: []string{"pm"}},
+  +				{Name: "planning", Roles: []string{"architect"}},
+  +				{Name: "construction", Roles: []string{"developer"}},
+  +				{Name: "review", Roles: []string{"reviewer"}},
+  +				{Name: "testing", Roles: []string{"tester"}},
+  +				{Name: "delivery", Roles: []string{"ops"}},
+  +			},
+  +		},
+  +	}
+  +	sp := spec.NewSpecProvider(tmpDir)
+  +	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+  +	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+  +	return httptest.NewServer(s.httpServer.Handler)
+  +}
+  +
+  +// healthBody reads, trims the trailing newline from json.Encoder, and returns the body string.
+  +func healthBody(t *testing.T, resp *http.Response) string {
+  +	t.Helper()
+  +	defer resp.Body.Close()
+  +	b, err := io.ReadAll(resp.Body)
+  +	if err != nil {
+  +		t.Fatalf("read body: %v", err)
+  +	}
+  +	return strings.TrimSpace(string(b))
+  +}
+  +
+  +// T002 / AC-001, CON-001, CON-004, CON-006: GET /api/health → 200, application/json, byte-exact body.
+  +func TestHealthGETReturns200AndBody(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "1.0")
+  +	defer ts.Close()
+  +
+  +	resp, err := http.Get(ts.URL + "/api/health")
+  +	if err != nil {
+  +		t.Fatalf("GET /api/health failed: %v", err)
+  +	}
+  +	if resp.StatusCode != http.StatusOK {
+  +		t.Fatalf("expected 200, got %d", resp.StatusCode)
+  +	}
+  +	ct := resp.Header.Get("Content-Type")
+  +	if !strings.Contains(ct, "application/json") {
+  +		t.Errorf("expected Content-Type to contain application/json, got %q", ct)
+  +	}
+  +	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+  +		t.Errorf("expected byte-exact body, got %q", got)
+  +	}
+  +}
+  +
+  +// T002 / AC-002: body-less GET must not error — handler never decodes r.Body.
+  +func TestHealthGETNoRequestBody(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "1.0")
+  +	defer ts.Close()
+  +
+  +	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/health", nil)
+  +	resp, err := http.DefaultClient.Do(req)
+  +	if err != nil {
+  +		t.Fatalf("GET failed: %v", err)
+  +	}
+  +	if resp.StatusCode != http.StatusOK {
+  +		t.Fatalf("expected 200, got %d", resp.StatusCode)
+  +	}
+  +	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+  +		t.Errorf("expected standard body, got %q", got)
+  +	}
+  +}
+  +
+  +// T002 / AC-003, CON-003: version is sourced from Config.Version, not hardcoded.
+  +func TestHealthVersionFromConfig(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "9.9.9-test")
+  +	defer ts.Close()
+  +
+  +	resp, err := http.Get(ts.URL + "/api/health")
+  +	if err != nil {
+  +		t.Fatalf("GET failed: %v", err)
+  +	}
+  +	if resp.StatusCode != http.StatusOK {
+  +		t.Fatalf("expected 200, got %d", resp.StatusCode)
+  +	}
+  +	if got := healthBody(t, resp); got != `{"status":"ok","version":"9.9.9-test"}` {
+  +		t.Errorf("expected config-sourced version, got %q", got)
+  +	}
+  +}
+  +
+  +// T002 / AC-004: query params are ignored.
+  +func TestHealthGETIgnoresQueryParams(t *testing.T) {
+  +	ts := setupHealthTestServer(t, "1.0")
+  +	defer ts.Close()
+  +
+  +	resp, err := http.Get(ts.URL + "/api/health?cb=123")
+  +	if err != nil {
+  +		t.Fatalf("GET failed: %v", err)
+  ... (148 lines truncated)
+  +248 -0
+[full diff: rtk git diff --no-compact]
+[0m
+Prior report STALE — wrote before commit 788592c added tests. Re-review against current HEAD. Read the actual test file.
+[0m
+[0m$ [0mrtk git show HEAD:internal/api/server_test.go | sed -n '1290,1295p; 1300,1350p'
+defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404 for trailing slash, got %d", resp.StatusCode)
+	}
+}
+[0m
+[0m$ [0mrtk git show HEAD:internal/api/server_test.go | awk 'NR>=1044'
+t.Errorf("expected error=validation_error, got %s", errResp.Error)
+	}
+}
+
+// setupHealthTestServer builds an in-process httptest.Server with a Config.Version
+// preset. Mirrors setupTestServer but lets callers control the version (CON-003, AC-003).
+func setupHealthTestServer(t *testing.T, version string) *httptest.Server {
+	t.Helper()
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Version: version,
+		Pipeline: config.PipelineConfig{
+			Phases: []config.PhaseConfig{
+				{Name: "inception", Roles: []string{"pm"}},
+				{Name: "planning", Roles: []string{"architect"}},
+				{Name: "construction", Roles: []string{"developer"}},
+				{Name: "review", Roles: []string{"reviewer"}},
+				{Name: "testing", Roles: []string{"tester"}},
+				{Name: "delivery", Roles: []string{"ops"}},
+			},
+		},
+	}
+	sp := spec.NewSpecProvider(tmpDir)
+	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+	return httptest.NewServer(s.httpServer.Handler)
+}
+
+// healthBody reads, trims the trailing newline from json.Encoder, and returns the body string.
+func healthBody(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// T002 / AC-001, CON-001, CON-004, CON-006: GET /api/health → 200, application/json, byte-exact body.
+func TestHealthGETReturns200AndBody(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("GET /api/health failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "application/json") {
+		t.Errorf("expected Content-Type to contain application/json, got %q", ct)
+	}
+	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+		t.Errorf("expected byte-exact body, got %q", got)
+	}
+}
+
+// T002 / AC-002: body-less GET must not error — handler never decodes r.Body.
+func TestHealthGETNoRequestBody(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/health", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+		t.Errorf("expected standard body, got %q", got)
+	}
+}
+
+// T002 / AC-003, CON-003: version is sourced from Config.Version, not hardcoded.
+func TestHealthVersionFromConfig(t *testing.T) {
+	ts := setupHealthTestServer(t, "9.9.9-test")
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if got := healthBody(t, resp); got != `{"status":"ok","version":"9.9.9-test"}` {
+		t.Errorf("expected config-sourced version, got %q", got)
+	}
+}
+
+// T002 / AC-004: query params are ignored.
+func TestHealthGETIgnoresQueryParams(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/health?cb=123")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if got := healthBody(t, resp); got != `{"status":"ok","version":"1.0"}` {
+		t.Errorf("expected standard body with query ignored, got %q", got)
+	}
+}
+
+// T002 / AC-005, CON-002: induced handler panic → recovery middleware returns 500,
+// and the server stays alive for subsequent requests.
+func TestHealthPanicReturns500(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Version: "1.0",
+		Pipeline: config.PipelineConfig{
+			Phases: []config.PhaseConfig{
+				{Name: "inception", Roles: []string{"pm"}},
+				{Name: "planning", Roles: []string{"architect"}},
+				{Name: "construction", Roles: []string{"developer"}},
+				{Name: "review", Roles: []string{"reviewer"}},
+				{Name: "testing", Roles: []string{"tester"}},
+				{Name: "delivery", Roles: []string{"ops"}},
+			},
+		},
+	}
+	sp := spec.NewSpecProvider(tmpDir)
+	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	s := NewServer(":0", sp, pipe, nil, feature.NewFileQuestionStore(tmpDir), nil)
+
+	panicMux := http.NewServeMux()
+	panicMux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
+		panic("induced test panic")
+	})
+	handler := s.recoveryMiddleware(s.corsMiddleware(panicMux))
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusInternalServerError {
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		t.Fatalf("expected 500 from recovery middleware, got %d body=%s", resp.StatusCode, b)
+	}
+	resp.Body.Close()
+
+	// Real server still alive: a fresh non-panicking server returns 200.
+	ts2 := setupHealthTestServer(t, "1.0")
+	defer ts2.Close()
+	resp2, err := http.Get(ts2.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("second GET failed: %v", err)
+	}
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("expected follow-up 200, got %d", resp2.StatusCode)
+	}
+	resp2.Body.Close()
+}
+
+// T004 / AC-006, CON-007: POST → 405.
+func TestHealthPOSTReturns405(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	resp, err := http.Post(ts.URL+"/api/health", "application/json", strings.NewReader(""))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-007, CON-007: PUT → 405.
+func TestHealthPUTReturns405(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	req, _ := http.NewRequest(http.MethodPut, ts.URL+"/api/health", strings.NewReader(""))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-008, CON-007: DELETE → 405.
+func TestHealthDELETEReturns405(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/health", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-009, CON-007: PATCH → 405.
+func TestHealthPATCHReturns405(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	req, _ := http.NewRequest(http.MethodPatch, ts.URL+"/api/health", strings.NewReader(""))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-010: GET remains 200 alongside the 405s (positive control).
+func TestHealthGETStill200After405s(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/api/health")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// T004 / AC-011: trailing slash is not registered → 404.
+func TestHealthTrailingSlash404(t *testing.T) {
+	ts := setupHealthTestServer(t, "1.0")
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/api/health/")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404 for trailing slash, got %d", resp.StatusCode)
+	}
+}
+[0m
+[0m$ [0mrtk grep -n "healthHandler\|healthResponse\|GET /api/health\|func (p \*Pipeline) Config" internal/api/server.go internal/pipeline/pipeline.go
+6 matches in 1 files:
+
+internal/api/server.go:190:mux.HandleFunc("GET /api/health", s.healthHandler)
+internal/api/server.go:910:// healthResponse is the body for GET /api/health. Field order (status, version)
+internal/api/server.go:912:type healthResponse struct {
+internal/api/server.go:917:// healthHandler serves GET /api/health — liveness + deployed version.
+internal/api/server.go:919:func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+internal/api/server.go:920:writeJSON(w, http.StatusOK, healthResponse{
+[0m
+All 11 tests + helpers present. Verify line numbers in current code.
+[0m
+[0m→ [0mRead internal/api/server.go[90m [offset=185, limit=15][0m
+[0m→ [0mRead internal/api/server.go[90m [offset=895, limit=35][0m
+[0m→ [0mRead ui/e2e/health.spec.ts
+[0m→ [0mRead ui/playwright.config.ts
+[0m
+[0m$ [0mrtk grep -n "recoveryMiddleware\|corsMiddleware" internal/api/server.go | head -20
+3 matches in 1 files:
+
+internal/api/server.go:196:handler := s.recoveryMiddleware(s.corsMiddleware(mux))
+internal/api/server.go:215:func (s *Server) corsMiddleware(next http.Handler) http.Handler {
+internal/api/server.go:228:func (s *Server) recoveryMiddleware(next http.Handler) http.Handler {
+[0m
+All verified. Recovery middleware location — confirm outermost.
+[0m
+[0m→ [0mRead internal/api/server.go[90m [limit=25, offset=228][0m
+[0m
+[0m$ [0mrtk grep -n "func NewPipeline\|p.config =" internal/pipeline/pipeline.go | head
+3 matches in 1 files:
+
+internal/pipeline/pipeline.go:282:func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeli...
+internal/pipeline/pipeline.go:316:func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecPro...
+internal/pipeline/pipeline.go:331:func NewPipelineWithQuestionStore(cfg *config.Config, specProvider *spec.Spec...
+[0m
+[0m$ [0mrtk grep -n "p.config\s*=\|p\.config\s*:" internal/pipeline/pipeline.go; rtk grep -n "Config()\|p\.config" internal/pipeline/pipeline.go | head
+0 matches for 'p.config\s*=\|p\.config\s*:'
+22 matches in 1 files:
+
+internal/pipeline/pipeline.go:26:config        *config.Config
+internal/pipeline/pipeline.go:43:// Config returns the loaded configuration (for handlers that need config-sou...
+internal/pipeline/pipeline.go:44:func (p *Pipeline) Config() *config.Config { return p.config }
+internal/pipeline/pipeline.go:282:func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeli...
+internal/pipeline/pipeline.go:288:ruleLoader:    rules.NewRuleLoaderWithConfig(baseDir, cfg),
+internal/pipeline/pipeline.go:316:func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecPro...
+internal/pipeline/pipeline.go:322:ruleLoader:    rules.NewRuleLoaderWithConfig(baseDir, cfg),
+internal/pipeline/pipeline.go:331:func NewPipelineWithQuestionStore(cfg *config.Config, specProvider *spec.Spec...
+[0m
+[0m→ [0mRead internal/pipeline/pipeline.go[90m [limit=60, offset=282][0m
+[0m
+[0m← [0mWrite specs/playwright-e2e/review-report.md
+Wrote file successfully.
+[0m
+All 3 constructors set `config:`. `Config()` accessor correct. Implementation complete and minimal. Now write fresh review-report.md.
+[0m
+[0m$ [0mrtk devteam signal playwright-e2e pass --notes "Review PASS. 13/13 AC MET, 7/7 constraints MET with evidence+traces. All 11 Go integration tests + Playwright E2E spec present and structurally correct. Implementation minimal (~30 LOC impl). 1 noted finding (F-001: Config() nil guard unreachable, covered by recovery middleware). Gate PASSED."
+[rtk: No such file or directory (os error 2)]
+[0m
+Report written. Signal pass.
+[0m
+[0m$ [0mwhich devteam; command -v devteam; rtk ls ~/.cargo/bin/devteam ~/.local/bin/devteam 2>/dev/null; rtk --version 2>&1 | head -2
+rtk 0.42.4
+[0m
+[0m$ [0mrtk type devteam 2>&1 | head; rtk sh -c 'command -v devteam' 2>&1; rtk find ~ -name devteam -type f 2>/dev/null | head
+[rtk: No such file or directory (os error 2)]
+1F 1D:
+
+go/bin/ devteam
+[0m
+[0m$ [0m~/go/bin/devteam signal playwright-e2e pass --notes "Review PASS. 13/13 AC MET, 7/7 constraints MET with evidence+traces. All 11 Go integration tests + Playwright E2E spec present and structurally correct. Implementation minimal (~30 LOC impl). 1 noted finding (F-001: Config() nil guard unreachable, covered by recovery middleware). Gate PASSED."
+2026/06/25 23:13:45 db: migrations complete (1 total, 0 pending)
+2026/06/25 23:13:45 db: opened sqlite at /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/.devteam.db
+Signal recorded: pass for feature playwright-e2e
+Notes: Review PASS. 13/13 AC MET, 7/7 constraints MET with evidence+traces. All 11 Go integration tests + Playwright E2E spec present and structurally correct. Implementation minimal (~30 LOC impl). 1 noted finding (F-001: Config() nil guard unreachable, covered by recovery middleware). Gate PASSED.
+[0m
+Done. Review complete.
+
+## Summary
+
+**Review PASS** — `playwright-e2e` (GET /api/health).
+
+- **review-report.md** written to `specs/playwright-e2e/review-report.md` (overwrote stale deleted report from prior partial run that predated the test commit).
+- **13/13 AC MET**, **7/7 constraints MET** with execution-path traces + quoted evidence.
+- All 11 Go integration tests (`TestHealthGETReturns200AndBody`..`TestHealthTrailingSlash404`) + Playwright E2E spec present and structurally correct.
+- Implementation minimal: 6-LOC handler, 4-LOC struct, 1-LOC accessor, 1 route line, 9-LOC Playwright spec. No over-engineering.
+- 1 **noted** finding (F-001: `Config()` no nil guard — unreachable under existing constructors, covered by recovery middleware regardless). Not action-required.
+- Signal: `pass` recorded.
+
+skipped: re-running tests (Tester's job per phase rules), build (Construction's job). Gate PASSED.
+[0m
+Error: unknown command "hook" for "llmem"
+Run 'llmem --help' for usage.

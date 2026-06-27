@@ -2966,3 +2966,287 @@ No commit per ops rules (pipeline commits). State file shows stale `gate_blocked
 [0m
 Error: unknown command "hook" for "llmem"
 Run 'llmem --help' for usage.
+Error: unknown command "context" for "llmem"
+Run 'llmem --help' for usage.
+2026/06/25 23:16:50 INFO llmem: store: vec shadow table populated embeddings=517 total=517
+[0m
+> ops · glm-5.2:cloud
+[0m
+[0m→ [0mRead /tmp/devteam-ops-1706002434/CONTEXT.md
+[0m→ [0mRead /tmp/devteam-ops-1706002434/agents/ops.md
+[0m→ [0mRead /tmp/devteam-ops-1706002434/CONTEXT.md[90m [offset=932][0m
+[0m
+[0m$ [0mrtk ls -la && rtk git branch --show-current && rtk git log --oneline -5
+775  .opencode/
+775  .playwright-mcp/
+775  .specify/
+775  cmd/
+775  internal/
+775  logs/
+775  plugins/
+775  roles/
+775  rules/
+775  specs/
+775  ui/
+775  worktrees/
+664  .devteam.db  100.0K
+664  .devteam.db-shm  32.0K
+664  .devteam.db-wal  36.2K
+664  .git  70B
+664  .gitignore  375B
+664  AGENTS.md  7.6K
+664  README.md  5.6K
+664  devteam.yaml  4.3K
+664  go.mod  160B
+664  go.sum  692B
+664  opencode.json  183B
+664  repos.yaml  959B
+spec/playwright-e2e
+2abc841 spec: testing phase complete for playwright-e2e
+2106c61 test(playwright-e2e): testing phase complete — all ACs verified
+e444ee7 spec: review phase complete for playwright-e2e
+cd8ccd5 spec: construction phase complete for playwright-e2e
+788592c feat(playwright-e2e): add Go integration tests for /api/health + fix pipeline vet warning
+[0m
+[0m$ [0mfind / -type d -name "playwright-e2e" 2>/dev/null | head -20
+/home/lobsterdog/source/devteam/specs/playwright-e2e
+/home/lobsterdog/source/devteam/.git/worktrees/playwright-e2e
+/home/lobsterdog/worktrees/devteam-specs/playwright-e2e
+/home/lobsterdog/worktrees/devteam-specs/playwright-e2e/specs/playwright-e2e
+[0m
+[0m$ [0mrtk ls -la specs/playwright-e2e/ && echo "---docs---" && rtk ls -la specs/playwright-e2e/docs/ 2>/dev/null || echo "no docs dir"
+775  contracts/
+664  .devteam-state.yaml  2.0K
+664  CONTEXT.md  73.0K
+644  REVISION_NOTES.md  1002B
+664  acceptance.md  4.7K
+664  audit.md  2.5K
+664  data-model.md  1.3K
+644  input.md  699B
+664  plan.md  14.6K
+664  repos.yaml  368B
+664  research.md  4.9K
+664  review-report.md  16.8K
+664  spec.md  14.5K
+664  tasks.md  13.7K
+664  test-report.md  13.5K
+---docs---
+no docs dir
+[0m
+[0m$ [0mrtk ls specs/playwright-e2e/contracts/ 2>/dev/null; echo "---"; rtk cat specs/playwright-e2e/repos.yaml 2>/dev/null
+GET-api-health.md  2.8K
+---
+repos:
+  - name: devteam
+    path: .
+    role: primary
+    changes: Add GET /api/health handler + route in internal/api/server.go (Go 1.22+ method-pattern ServeMux). Add httptest integration tests in internal/api/server_test.go. Add one Playwright E2E spec under ui/e2e/ asserting the health endpoint against the :18765 test server. No DB changes, no new dependencies.
+[0m
+[0m→ [0mRead specs/playwright-e2e/contracts/GET-api-health.md
+[0m→ [0mRead specs/playwright-e2e/data-model.md
+[0m
+[0m$ [0mrtk cat devteam.yaml
+# Dev Team Configuration
+
+version: "1.0"
+
+# Database configuration for operational data (features, gate results, sessions, etc.)
+# Defaults to SQLite at .devteam.db in the repo root.
+# For shared/multi-user deployments, use PostgreSQL:
+#   database:
+#     driver: postgres
+#     dsn: "host=localhost port=5432 user=devteam dbname=devteam sslmode=disable"
+# Environment variables override this config:
+#   DEVTEAM_DB_DRIVER=postgres
+#   DEVTEAM_DB_DSN="host=localhost ..."
+database:
+  driver: sqlite3
+  dsn: ""
+
+pipeline:
+  human_interaction_timeout_minutes: 30
+  phases:
+    - name: inception
+      roles: [pm]
+      gate: spec_approved
+      artifacts: [spec.md, acceptance.md, repos.yaml]
+      rules: rules/aidlc/core-workflow.md
+
+    - name: planning
+      roles: [architect]
+      gate: plan_approved
+      artifacts: [plan.md, research.md, data-model.md, contracts/, tasks.md]
+      rules: rules/aidlc-rule-details/construction/
+
+    - name: construction
+      roles: [developer]
+      gate: tasks_complete
+      artifacts: [implementation across repos]
+      rules: rules/aidlc-rule-details/construction/code-generation.md
+
+    - name: review
+      roles: [reviewer]
+      gate: criteria_met
+      artifacts: [review report]
+      rules: rules/aidlc-rule-details/construction/functional-design.md
+
+    - name: testing
+      roles: [tester]
+      gate: tests_pass
+      artifacts: [test report]
+      rules: rules/aidlc-rule-details/construction/build-and-test.md
+
+    - name: delivery
+      roles: [ops]
+      gate: docs_match_spec
+      artifacts: [docs, release]
+      rules: rules/aidlc-rule-details/operations/operations.md
+
+roles:
+  pm:
+    name: Product Manager
+    description: Owns the what and why. Explores, clarifies, refines ideas into specs. Decomposes external roadmaps into feature specs.
+    instructions: roles/pm/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/inception/
+
+  architect:
+    name: Architect
+    description: Owns the how. Creates technical plans, designs cross-repo boundaries, validates spec feasibility.
+    instructions: roles/architect/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/construction/functional-design.md
+
+  developer:
+    name: Developer
+    description: Writes code across repos. Follows spec, plan, and task breakdown.
+    instructions: roles/developer/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/construction/code-generation.md
+
+  reviewer:
+    name: Code Reviewer
+    description: Adversarial review against spec acceptance criteria. Verifies the right thing was built.
+    instructions: roles/reviewer/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/construction/build-and-test.md
+
+  tester:
+    name: Tester
+    description: Writes and runs tests from user stories. Traces tests to spec requirements.
+    instructions: roles/tester/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/construction/build-and-test.md
+
+  ops:
+    name: Release Engineer
+    description: Owns deployment, docs, and cross-repo coordination. Ensures docs match spec terminology.
+    instructions: roles/ops/INSTRUCTIONS.md
+    phase_rules: rules/aidlc-rule-details/operations/operations.md
+
+extensions:
+  security:
+    opt_in: true
+    load_for_priority: [1]
+    rules: rules/aidlc-rule-details/extensions/security/baseline/security-baseline.md
+
+  resiliency:
+    opt_in: true
+    load_for_priority: [1, 2]
+    rules: rules/aidlc-rule-details/extensions/resiliency/baseline/resiliency-baseline.md
+
+  property_based_testing:
+    opt_in: true
+    load_for_priority: [1]
+    rules: rules/aidlc-rule-details/extensions/testing/property-based/property-based-testing.md
+
+  deep_review:
+    opt_in: true
+    load_for_priority: [1]
+    rules: rules/pipeline/extensions/deep-review/rules.md
+
+plugins:
+  ponytail:
+    source: https://github.com/DietrichGebert/ponytail
+    phases: [construction]
+    roles: [developer]
+    mode: full
+
+intake:
+  loose_idea:
+    description: Rough idea, sentence, or vague description. PM explores and refines into structured spec.
+    output: [spec.md, acceptance.md, repos.yaml]
+
+  external_spec:
+    description: PRD, RFC, roadmap, Jira epic, or other formal requirements document. PM decomposes into N feature specs.
+    output: [N x spec.md, acceptance.md, repos.yaml]
+
+spec_repo:
+  path: .
+  specs_dir: specs/
+  constitution_dir: constitution/
+[0m
+[0m$ [0mmkdir -p specs/playwright-e2e/docs && echo ok
+ok
+[0m
+[0m← [0mWrite specs/playwright-e2e/docs/api.md
+Wrote file successfully.
+[0m
+[0m← [0mWrite specs/playwright-e2e/docs/user-guide.md
+Wrote file successfully.
+[0m
+[0m← [0mWrite specs/playwright-e2e/docs/CHANGELOG.md
+Wrote file successfully.
+[0m
+[0m← [0mWrite specs/playwright-e2e/docs/release.md
+Wrote file successfully.
+[0m
+[0m← [0mWrite specs/playwright-e2e/docs/configuration.md
+Wrote file successfully.
+[0m
+[0m← [0mWrite specs/playwright-e2e/docs/README.md
+Wrote file successfully.
+[0m
+[0m$ [0mrtk ls specs/playwright-e2e/docs/
+CHANGELOG.md  2.3K
+README.md  2.2K
+api.md  5.1K
+configuration.md  2.8K
+release.md  2.7K
+user-guide.md  5.2K
+[0m
+[0m$ [0mdevteam signal playwright-e2e pass
+/bin/bash: line 1: devteam: command not found
+[0m
+[0m$ [0mwhich devteam; rtk ls ~/go/bin/devteam 2>/dev/null; find ~ -name devteam -type f -executable 2>/dev/null | head -5
+/home/lobsterdog/go/bin/devteam  15.8M
+/home/lobsterdog/go/bin/devteam
+/home/lobsterdog/source/devteam/devteam
+[0m
+[0m$ [0m~/go/bin/devteam signal playwright-e2e pass
+2026/06/25 23:18:06 db: migrations complete (1 total, 0 pending)
+2026/06/25 23:18:06 db: opened sqlite at /home/lobsterdog/worktrees/devteam-specs/playwright-e2e/.devteam.db
+Signal recorded: pass for feature playwright-e2e
+[0m
+Done. Delivery phase complete.
+
+## Artifacts written to `specs/playwright-e2e/docs/`:
+
+| File | Purpose |
+|---|---|
+| `README.md` | Index + quality-gate coverage map |
+| `api.md` | `GET /api/health` endpoint reference — 200/405/404/500, examples, constraint trace |
+| `user-guide.md` | One section per user story (US-001 Probe, US-002 Method Restriction, US-003 Playwright E2E) |
+| `CHANGELOG.md` | `v1.0` entries, every one cites `spec playwright-e2e` |
+| `release.md` | Single-repo release order (no cross-repo ordering needed), deploy verification summary |
+| `configuration.md` | `devteam.yaml` `version` field, env vars (none new), deps, ports `:8765`/`:18765`, DB, auth, caching |
+
+## Gate check
+
+- Docs exist for every user story → `user-guide.md` covers US-001/002/003
+- Spec terminology used → `HealthStatus`, `Config.Version`, `recoveryMiddleware`, `Health Check Probe`, `Method Restriction`, `End-to-End Playwright Coverage` — no code-internal names
+- Release order documented → `release.md` (single-repo, order collapses to one step)
+- Changelog references spec number → every `CHANGELOG.md` entry cites `spec playwright-e2e`
+- Configuration documented → `configuration.md`
+
+No build/test/run commands executed (docs-only phase, per instructions). Signal `pass` recorded via `devteam signal playwright-e2e pass`.
+
+Skipped: re-running build/tests/service-start — Testing + Review phases already proved those; delivery rules explicitly forbid re-verifying. Add when: a future phase requires redeployment verification.
+[0m
+Error: unknown command "hook" for "llmem"
+Run 'llmem --help' for usage.
