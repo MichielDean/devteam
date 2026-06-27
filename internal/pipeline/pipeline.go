@@ -709,6 +709,22 @@ func (p *Pipeline) RunPhaseWithAgent(ctx context.Context, f *feature.Feature) (*
 			WorkingDir: p.dispatchWorkingDirForPhase(f, currentPhase),
 		}
 
+		// Resolve per-role provider config (CON-002, CON-006). Fail fast
+		// on missing api_key_env before spawning opencode (CON-005).
+		resolved, rerr := p.config.ResolveProvider(roleName)
+		if rerr != nil {
+			result := &role.DispatchResult{
+				FeatureID: f.ID,
+				Phase:     string(currentPhase),
+				Role:      roleName,
+				Success:   false,
+				Error:     rerr.Error(),
+			}
+			roleResults = append(roleResults, result)
+			continue
+		}
+		req.Provider = resolved
+
 		result, err := p.dispatcher.Dispatch(ctx, req)
 		if err != nil {
 			return nil, fmt.Errorf("dispatching role %s for phase %s: %w", roleName, currentPhase, err)
@@ -868,6 +884,21 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 			Context:    promptContext,
 			WorkingDir: p.dispatchWorkingDirForPhase(f, currentPhase),
 		}
+
+		// Resolve per-role provider config (CON-002, CON-006). Fail fast
+		// on missing api_key_env before spawning opencode (CON-005).
+		resolved, rerr := p.config.ResolveProvider(roleName)
+		if rerr != nil {
+			roleResults = append(roleResults, &role.DispatchResult{
+				FeatureID: f.ID,
+				Phase:     string(currentPhase),
+				Role:      roleName,
+				Success:   false,
+				Error:     rerr.Error(),
+			})
+			continue
+		}
+		req.Provider = resolved
 
 		log.Printf("RunPhaseWithAgentStreaming: dispatching role %s for phase %s", roleName, currentPhase)
 

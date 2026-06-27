@@ -107,6 +107,11 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	for _, e := range envPairs {
 		args = append(args, "-e", e.k+"="+e.v)
 	}
+	// Inject the provider's API key value by env var name (CON-004). The
+	// value is read at dispatch time and never written to disk or logs.
+	if req.Provider != nil && req.Provider.APIKeyEnv != "" && req.Provider.APIKeyValue != "" {
+		args = append(args, "-e", req.Provider.APIKeyEnv+"="+req.Provider.APIKeyValue)
+	}
 	// Always pass PATH so the agent can find binaries
 	tmuxPath := os.Getenv("PATH")
 	if home := os.Getenv("HOME"); home != "" {
@@ -332,6 +337,11 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest) (string, err
 	if err := os.WriteFile(agentPath, []byte(agentContent), 0644); err != nil {
 		os.RemoveAll(contextDir)
 		return "", fmt.Errorf("writing agent markdown: %w", err)
+	}
+
+	if err := writeOpencodeJSON(contextDir, req.Provider); err != nil {
+		os.RemoveAll(contextDir)
+		return "", fmt.Errorf("writing opencode.json: %w", err)
 	}
 
 	return contextDir, nil

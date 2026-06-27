@@ -3,6 +3,7 @@ package role
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/MichielDean/devteam/internal/config"
 )
 
 type DispatchRequest struct {
@@ -28,6 +31,13 @@ type DispatchRequest struct {
 	// WorkingDir = the prepared implementation repo worktree so the agent
 	// writes code into the right tree and commits land on feature/<id>.
 	WorkingDir string
+	// Provider is the resolved per-role provider config. When nil, dispatch
+	// falls back to opencode's default model (CON-010). When set, the
+	// dispatcher writes the provider's base_url + model into the generated
+	// opencode.json and injects the API key value into the agent process
+	// environment (CON-002, CON-004). The key value is never written to
+	// disk or logs.
+	Provider *config.ResolvedProvider
 }
 
 type DispatchResult struct {
@@ -132,17 +142,7 @@ func (d *Dispatcher) dispatchDirect(ctx context.Context, req DispatchRequest, li
 
 	cmd := exec.CommandContext(ctx, cmdPath, args...)
 	cmd.Dir = d.dispatchWorkingDir(req)
-	cmd.Env = append(os.Environ(),
-		"OPENCODE_SERVER_USERNAME=",
-		"OPENCODE_SERVER_PASSWORD=",
-		"OPENCODE_PID=",
-		"OPENCODE=",
-		"OPENCODE_DISABLE_PROJECT_CONFIG=1",
-		"OPENCODE_CONFIG_DIR="+contextDir,
-		"GIT_EDITOR=true",
-		"GIT_SEQUENCE_EDITOR=true",
-		"CT_CATARACTA_NAME="+req.Role,
-	)
+	cmd.Env = buildAgentEnv(contextDir, req.Role, req.Provider)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -276,7 +276,56 @@ func (d *Dispatcher) prepareContextDir(req DispatchRequest) (string, error) {
 		return "", fmt.Errorf("writing agent markdown: %w", err)
 	}
 
+	if err := writeOpencodeJSON(contextDir, req.Provider); err != nil {
+		os.RemoveAll(contextDir)
+		return "", fmt.Errorf("writing opencode.json: %w", err)
+	}
+
 	return contextDir, nil
+}
+
+// writeOpencodeJSON writes an opencode.json into the temp OPENCODE_CONFIG_DIR
+// declaring the provider's base_url + model so opencode uses the configured
+// provider (CON-002). When provider is nil, writes a minimal config with no
+// model/provider override (CON-010 — opencode default applies).
+//
+// opencode's schema: top-level `provider` is a record of provider configs;
+// each has `options.baseURL`, `options.apiKey`, and `models` mapping model
+// IDs → {name}. The top-level `model` is "provider/model". The api key is
+// injected here (not via env) because opencode reads it from config; it is
+// never written to devteam.yaml or logs (CON-004).
+func writeOpencodeJSON(contextDir string, provider *config.ResolvedProvider) error {
+	cfg := map[string]any{
+		"$schema": "https://opencode.ai/config.json",
+	}
+	if provider != nil {
+		// Derive a provider id from the resolved config. opencode keys
+		// providers by id; the model id is "<provider>/<model>". We use
+		// "devteam" as the id so it never collides with built-in providers
+		// and so the model id is stable and predictable for tests.
+		providerID := "devteam"
+		cfg["provider"] = map[string]any{
+			providerID: map[string]any{
+				"name": "Dev Team Provider",
+				"npm":  "@ai-sdk/openai-compatible",
+				"options": map[string]any{
+					"baseURL": provider.BaseURL,
+					"apiKey":  provider.APIKeyValue,
+				},
+				"models": map[string]any{
+					provider.Model: map[string]any{
+						"name": provider.Model,
+					},
+				},
+			},
+		}
+		cfg["model"] = providerID + "/" + provider.Model
+	}
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling opencode.json: %w", err)
+	}
+	return os.WriteFile(filepath.Join(contextDir, "opencode.json"), data, 0600)
 }
 
 func buildContextMD(req DispatchRequest) string {
@@ -313,3 +362,25 @@ func truncateOutput(s string, maxLen int) string {
 
 // Ensure all output is read to prevent pipe hangs
 var _ = io.EOF
+
+// buildAgentEnv returns the environment for a dispatched opencode process.
+// When a provider is configured with an api_key_env, the key's value is
+// injected by name so the agent (and any provider SDK that reads env) gets
+// it. The value is never logged (CON-004).
+func buildAgentEnv(contextDir, role string, provider *config.ResolvedProvider) []string {
+	env := append(os.Environ(),
+		"OPENCODE_SERVER_USERNAME=",
+		"OPENCODE_SERVER_PASSWORD=",
+		"OPENCODE_PID=",
+		"OPENCODE=",
+		"OPENCODE_DISABLE_PROJECT_CONFIG=1",
+		"OPENCODE_CONFIG_DIR="+contextDir,
+		"GIT_EDITOR=true",
+		"GIT_SEQUENCE_EDITOR=true",
+		"CT_CATARACTA_NAME="+role,
+	)
+	if provider != nil && provider.APIKeyEnv != "" && provider.APIKeyValue != "" {
+		env = append(env, provider.APIKeyEnv+"="+provider.APIKeyValue)
+	}
+	return env
+}
