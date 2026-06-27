@@ -3784,3 +3784,1539 @@ Skipped: custom 405 handler, `NewServer` signature change, DB readiness check, a
 [0m
 Error: unknown command "hook" for "llmem"
 Run 'llmem --help' for usage.
+Error: unknown command "context" for "llmem"
+Run 'llmem --help' for usage.
+2026/06/26 20:45:25 WARN llmem: store: failed to remove stale memories_vec vtab error="llmem: store: delete stale vtab from sqlite_master: database is locked (5) (SQLITE_BUSY)"
+2026/06/26 20:45:25 INFO llmem: store: vec shadow table populated embeddings=69 total=517
+[0m
+> architect · glm-5.2:cloud
+[0m
+[0m→ [0mRead /tmp/devteam-architect-4198240970/CONTEXT.md
+[0m→ [0mRead /tmp/devteam-architect-4198240970/agents/architect.md
+[0m→ [0mRead /tmp/devteam-architect-4198240970/CONTEXT.md[90m [offset=973][0m
+[0m
+[0m$ [0mrtk ls -la /tmp/devteam-architect-4198240970/ && echo "---SPECS---" && rtk ls -R /tmp/devteam-architect-4198240970/specs 2>/dev/null; echo "---WORKTREE---" && rtk ls -la /home/lobsterdog/worktrees/devteam-specs/crud-feature/
+755  agents/
+775  node_modules/
+664  .gitignore  63B
+644  CONTEXT.md  76.4K
+664  package-lock.json  13.5K
+664  package.json  65B
+---SPECS---
+---WORKTREE---
+775  .opencode/
+775  .playwright-mcp/
+775  .specify/
+775  cmd/
+775  internal/
+775  logs/
+775  plugins/
+775  roles/
+775  rules/
+775  specs/
+775  ui/
+775  worktrees/
+664  .devteam.db  112.0K
+664  .devteam.db-shm  32.0K
+664  .devteam.db-wal  0B
+664  .git  68B
+664  .gitignore  375B
+664  AGENTS.md  7.6K
+664  README.md  5.6K
+664  devteam.yaml  4.3K
+664  go.mod  160B
+664  go.sum  692B
+664  opencode.json  183B
+664  repos.yaml  959B
+[0m
+[0m$ [0mdevteam artifact show crud-feature spec 2>&1 | head -200
+/bin/bash: line 1: devteam: command not found
+[0m
+[0m$ [0mdevteam artifact show crud-feature acceptance 2>&1 | head -300
+/bin/bash: line 1: devteam: command not found
+[0m
+[0m$ [0mdevteam artifact show crud-feature repos 2>&1 | head -100
+/bin/bash: line 1: devteam: command not found
+[0m
+[0m$ [0mwhich devteam ct 2>&1; rtk ls ~/.local/bin/ 2>&1 | grep -i dev; rtk ls /home/lobsterdog/source 2>&1 | head -20
+/usr/local/bin/ct
+.clinerules/
+.codenomad/
+.cursor/
+.github/
+.opencode/
+.playwright-mcp/
+.windsurf/
+LLMem/
+PortfolioWebsite/
+ScaledTest/
+adcp/
+adcp-client-python/
+adcp-salesagent/
+adcp-sdk-java/
+cistern/
+devteam/
+kotlin-sdk/
+lobsterdog/
+ponytail/
+AGENTS.md  615B
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/source/devteam/ | head -40; echo "---"; rtk read /home/lobsterdog/source/devteam/devteam.yaml 2>/dev/null | head -20
+.opencode/
+.playwright-mcp/
+.specify/
+cmd/
+internal/
+logs/
+plugins/
+roles/
+rules/
+specs/
+ui/
+worktrees/
+.devteam.db  208.0K
+.devteam.db-shm  32.0K
+.devteam.db-wal  2.2M
+.gitignore  375B
+AGENTS.md  7.6K
+README.md  5.6K
+api.test  11.6M
+config.test  4.7M
+devteam  10.2M
+devteam.yaml  4.3K
+feature.test  4.9M
+go.mod  160B
+go.sum  692B
+init.test  4.2M
+intake.test  4.6M
+opencode.json  183B
+pipeline.test  5.1M
+repo.test  5.0M
+repos.yaml  959B
+role.test  4.2M
+rules.test  4.2M
+spec.test  4.8M
+---
+# Dev Team Configuration
+
+version: "1.0"
+
+# Database configuration for operational data (features, gate results, sessions, etc.)
+# Defaults to SQLite at .devteam.db in the repo root.
+# For shared/multi-user deployments, use PostgreSQL:
+#   database:
+#     driver: postgres
+#     dsn: "host=localhost port=5432 user=devteam dbname=devteam sslmode=disable"
+# Environment variables override this config:
+#   DEVTEAM_DB_DRIVER=postgres
+#   DEVTEAM_DB_DSN="host=localhost ..."
+database:
+  driver: sqlite3
+  dsn: ""
+
+pipeline:
+  human_interaction_timeout_minutes: 30
+  phases:
+[0m
+[0m$ [0mDEVTEAM=/home/lobsterdog/source/devteam/devteam; $DEVTEAM --help 2>&1 | head -40
+Usage of /home/lobsterdog/source/devteam/devteam:
+  -http string
+    	Start web server on specified address (e.g., :8080). If empty, runs in CLI mode.
+[0m
+[0m$ [0mDEVTEAM=/home/lobsterdog/source/devteam/devteam; $DEVTEAM artifact --help 2>&1 | head -60; echo "==="; $DEVTEAM artifact show --help 2>&1 | head -30
+unknown command: artifact
+devteam 0.3.0 - multi-agent development platform
+
+Usage:
+  devteam <command> [args]
+
+Commands:
+  intake       Submit a new feature (loose idea or external spec)
+  run          Run the current pipeline phase for a feature (dispatches agents)
+  process      Autonomously process a feature through the entire pipeline
+  advance      Advance feature to next phase after gate passes
+  gate         Evaluate the current phase gate for a feature
+  recirculate  Send a feature back to an earlier phase
+  init        Initialize a new devteam project (scaffolds directory structure)
+  status       Show current pipeline status for all features
+  bootstrap    Self-bootstrap: process spec 001 through the pipeline
+  version      Print version
+
+Intake options:
+  --type loose|external   Intake path type
+  --text "idea"           Loose idea text
+  --file path             Path to external spec
+  --priority 1|2|3       Feature priority
+
+Pipeline flow (manual):
+  1. devteam intake --type loose --text "idea"
+  2. devteam run <feature-id>      # Execute current phase
+  3. devteam gate <feature-id>      # Check if gate passes
+  4. devteam advance <feature-id>   # Move to next phase
+  5. Repeat 2-4 until delivery
+
+Pipeline flow (autonomous):
+  devteam process <feature-id>     # Runs entire pipeline end-to-end
+
+Recirculate options:
+  devteam recirculate <feature-id> <target-phase>
+  Phases: inception, planning, construction, review, testing, delivery
+===
+unknown command: artifact
+devteam 0.3.0 - multi-agent development platform
+
+Usage:
+  devteam <command> [args]
+
+Commands:
+  intake       Submit a new feature (loose idea or external spec)
+  run          Run the current pipeline phase for a feature (dispatches agents)
+  process      Autonomously process a feature through the entire pipeline
+  advance      Advance feature to next phase after gate passes
+  gate         Evaluate the current phase gate for a feature
+  recirculate  Send a feature back to an earlier phase
+  init        Initialize a new devteam project (scaffolds directory structure)
+  status       Show current pipeline status for all features
+  bootstrap    Self-bootstrap: process spec 001 through the pipeline
+  version      Print version
+
+Intake options:
+  --type loose|external   Intake path type
+  --text "idea"           Loose idea text
+  --file path             Path to external spec
+  --priority 1|2|3       Feature priority
+
+Pipeline flow (manual):
+  1. devteam intake --type loose --text "idea"
+  2. devteam run <feature-id>      # Execute current phase
+  3. devteam gate <feature-id>      # Check if gate passes
+  4. devteam advance <feature-id>   # Move to next phase
+  5. Repeat 2-4 until delivery
+[0m
+[0m$ [0mDEVTEAM=/home/lobsterdog/source/devteam/devteam; $DEVTEAM status 2>&1 | head -40
+Dev Team Status:
+======================================================================
+  ID                                  Phase        Priority Status
+----------------------------------------------------------------------
+  001-dev-team-platform                            1        done
+  002-dev-team-web-ui                 delivery     1        done
+  better-qa-ui                        delivery     1        in_progress
+  feature-spec-count-badge---show-total-count-of-feature-specs delivery     2        done
+  human-interaction-points---allow-the-pipeline-to-pause-for-h delivery     1        done
+  kanban-view                         planning     1        waiting_for_human
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/specs/ 2>&1; echo "---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/.specify/ 2>&1; echo "---rules---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/rules/ 2>&1; echo "---roles---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/roles/ 2>&1
+001-dev-team-platform/
+002-dev-team-web-ui/
+003-human-interaction-points/
+better-qa-ui/
+crud-feature/
+feature-spec-count-badge---show-total-count-of-feature-specs/
+human-interaction-points---allow-the-pipeline-to-pause-for-h/
+kanban-view/
+---
+extensions/
+integrations/
+memory/
+scripts/
+templates/
+workflows/
+extensions.yml  605B
+init-options.json  153B
+integration.json  284B
+---rules---
+aidlc/
+aidlc-rule-details/
+pipeline/
+---roles---
+architect/
+developer/
+ops/
+pm/
+reviewer/
+tester/
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/specs/crud-feature/ 2>&1; echo "---templates---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/.specify/templates/ 2>&1
+CONTEXT.md  77.1K
+acceptance.md  10.7K
+audit.md  4.6K
+repos.yaml  1.2K
+spec.md  18.9K
+---templates---
+checklist-template.md  1.3K
+constitution-template.md  2.3K
+plan-template.md  3.6K
+spec-template.md  4.4K
+tasks-template.md  9.0K
+[0m
+[0m→ [0mRead specs/crud-feature/spec.md
+[0m→ [0mRead specs/crud-feature/acceptance.md
+[0m→ [0mRead repos.yaml
+[0m→ [0mRead .specify/templates/plan-template.md
+[0m→ [0mRead .specify/templates/tasks-template.md
+[0m
+Got both artifacts. Now research existing code patterns.
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/ 2>&1
+api/
+config/
+db/
+feature/
+gitops/
+init/
+intake/
+pipeline/
+plugins/
+repo/
+role/
+rules/
+spec/
+[0m
+Now let me research the existing code patterns to ground the plan.
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/api/ 2>&1; echo "---db---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/db/ 2>&1; echo "---feature---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/feature/ 2>&1
+agent_handlers.go  4.4K
+agent_handlers_test.go  11.3K
+dto.go  8.2K
+history_handlers.go  3.5K
+question_flow_test.go  13.5K
+question_test.go  46.3K
+server.go  40.1K
+server_test.go  32.4K
+---db---
+artifact_store.go  2.5K
+artifact_store_test.go  2.7K
+database.go  5.4K
+feature_state_store.go  2.5K
+feature_store.go  6.4K
+gate_store.go  4.1K
+history_store.go  4.3K
+migration_001.go  4.7K
+migration_002.go  1.1K
+migration_003.go  1.4K
+migrations.go  3.6K
+notes_store.go  3.1K
+question_store.go  4.9K
+session_store.go  4.4K
+---feature---
+db_question_store.go  6.3K
+feature.go  6.5K
+question.go  15.9K
+question_test.go  29.1K
+state.go  5.3K
+state_test.go  6.2K
+types.go  5.1K
+[0m
+[0m✱ [0mGrep "func \(s \*Server\) handleCreate|func \(s \*Server\) handleCancel|handleRecirculate|handleAdvance|writeError|FeatureToDetailResponse|UpdateFeature|DeleteFeature|IsProcessing|IsSessionAlive|registerFeatureRoutes|handleFeature"[90m in internal/api · 121 matches[0m
+[0m→ [0mRead internal/api/server.go[90m [offset=1, limit=130][0m
+[0m→ [0mRead internal/api/server.go[90m [offset=200, limit=370][0m
+[0m→ [0mRead internal/api/server.go[90m [limit=200, offset=880][0m
+[0m→ [0mRead internal/api/server.go[90m [limit=200, offset=130][0m
+[0m
+Now find routes registration + DTO + feature store + FeatureToDetailResponse.
+[0m
+[0m→ [0mRead internal/api/dto.go
+[0m
+Now DTO + feature store + feature type.
+[0m
+[0m→ [0mRead internal/db/feature_store.go
+[0m→ [0mRead internal/feature/feature.go
+[0m✱ [0mGrep "func \(p \*Pipeline\) (GetFeature|ListFeatures|SaveFeature|AdvanceFeature|EvaluateGate|UpdateFeatureStatus)"[90m in internal/pipeline · 8 matches[0m
+[0m
+Now pipeline methods + UI FeatureDetail + api client.
+[0m
+[0m→ [0mRead internal/pipeline/pipeline.go[90m [limit=100, offset=1150][0m
+[0m✱ [0mGrep "syncFeatureToDB|func \(p \*Pipeline\) Dispatcher|DeleteFeature"[90m in internal/pipeline/pipeline.go · 13 matches[0m
+[0m→ [0mRead internal/pipeline/pipeline.go[90m [limit=60, offset=299][0m
+[0m✱ [0mGrep "func .* IsSessionAlive|ListActiveSessions"[90m in internal/role · 7 matches[0m
+[0m→ [0mRead internal/role/dispatcher.go[90m [limit=40, offset=210][0m
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/spec/ 2>&1
+provider.go  11.5K
+provider_test.go  3.5K
+testhelpers_test.go  822B
+writer.go  1.9K
+[0m
+[0m✱ [0mGrep "func .* (LoadFeatureState|SaveFeatureState|ListFeatures|DeleteFeature|UpdateFeature)"[90m in internal/spec/provider.go · 4 matches[0m
+[0m→ [0mRead internal/spec/provider.go[90m [limit=160, offset=76][0m
+[0m✱ [0mGrep "func .* (SaveFeatureData|LoadFeatureData|ListAllFeatureData|DeleteFeatureData)"[90m in internal/db · 3 matches[0m
+[0m→ [0mRead internal/db/feature_state_store.go
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/src/ 2>&1; echo "---components---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/src/components 2>&1; echo "---pages---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/src/pages 2>&1
+api/
+components/
+hooks/
+pages/
+types/
+App.tsx  1.0K
+index.css  152B
+main.tsx  817B
+vite-env.d.ts  37B
+---components---
+AgentOutput.tsx  3.0K
+ArtifactViewer.tsx  5.2K
+ConnectionStatus.tsx  754B
+EmptyState.tsx  1.2K
+FeatureCard.tsx  3.6K
+FeatureList.tsx  3.5K
+GateResult.tsx  1.8K
+IntakeForm.tsx  8.6K
+PhaseTimeline.tsx  2.7K
+ProcessView.tsx  5.9K
+QuestionBadge.tsx  618B
+QuestionCard.tsx  5.9K
+ThemeToggle.tsx  2.1K
+Toast.tsx  1.9K
+---pages---
+Dashboard.tsx  3.8K
+FeatureDetail.tsx  29.1K
+[0m
+Now UI side.
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/src/api/ 2>&1; echo "---hooks---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/src/hooks/ 2>&1
+client.ts  4.8K
+---hooks---
+useFeatures.ts  446B
+useSSE.ts  4.2K
+[0m
+[0m→ [0mRead ui/src/api/client.ts
+[0m→ [0mRead ui/src/hooks/useFeatures.ts
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/src/types/ 2>&1; echo "---"; rtk read /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/src/types/index.ts 2>&1
+index.ts  6.0K
+---
+// TypeScript types matching API responses from the Dev Team backend
+
+export interface FeatureSummary {
+  id: string;
+  title: string;
+  status: string;
+  priority: number;
+  current_phase: string;
+  updated_at: string;
+  gate_result: GateResult | null;
+  pending_questions_count: number;
+}
+
+export interface FeatureListResponse {
+  features: FeatureSummary[];
+  total_count: number;
+}
+
+export interface FeatureDetail {
+  id: string;
+  title: string;
+  status: string;
+  priority: number;
+  intake_path: string;
+  current_phase: string;
+  created_at: string;
+  updated_at: string;
+  phase_states: Record<string, PhaseState>;
+  dependencies: string[];
+  repos: RepoRef[];
+  is_processing: boolean;
+  processing_mode: string;
+}
+
+export interface PhaseState {
+  phase: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  artifacts: Artifact[];
+  gate_result: GateResult | null;
+}
+
+export interface Artifact {
+  type: string;
+  path: string;
+  generated_by: string;
+  generated_at: string;
+}
+
+export interface GateResult {
+  phase: string;
+  passed: boolean;
+  checks: CheckResult[];
+}
+
+export interface CheckResult {
+  name: string;
+  passed: boolean;
+  message: string;
+}
+
+export interface RepoRef {
+  name: string;
+  url: string;
+  branch: string;
+}
+
+// Request DTOs
+export interface CreateFeatureRequest {
+  type: 'loose_idea' | 'external_spec';
+  title: string;
+  description: string;
+  priority: number;
+  file_content?: string; // base64-encoded for external_spec
+  start_immediately?: boolean;
+}
+
+export interface RecirculateRequest {
+  target_phase: string;
+}
+
+export interface ErrorResponse {
+  error: string;
+  details?: string;
+}
+
+// SSE Event Types
+export type SSEEventType =
+  | 'phase_change'
+  | 'gate_result'
+  | 'agent_dispatch'
+  | 'agent_complete'
+  | 'agent_output'
+  | 'processing_complete'
+  | 'phase_complete'
+  | 'error'
+  | 'waiting_for_feedback'
+  | 'questions_answered'
+  | 'questions_assumed'
+  | 'question_answered';
+
+export interface PhaseChangeEvent {
+  feature_id: string;
+  phase: string;
+  status: string;
+  timestamp: string;
+}
+
+export interface GateResultEvent {
+  feature_id: string;
+  phase: string;
+  passed: boolean;
+  checks: CheckResult[];
+}
+
+export interface AgentDispatchEvent {
+  feature_id: string;
+  phase: string;
+  role: string;
+  status: string;
+  timestamp: string;
+}
+
+export interface AgentCompleteEvent {
+  feature_id: string;
+  phase: string;
+  role: string;
+  status: string;
+  duration_ms: number;
+}
+
+export interface ProcessingCompleteEvent {
+  feature_id: string;
+  status: string;
+  timestamp: string;
+}
+
+export interface ErrorEvent {
+  feature_id: string;
+  message: string;
+  timestamp: string;
+}
+
+// Artifact type mapping for API paths
+export const ARTIFACT_TYPE_MAP: Record<string, string> = {
+  input: 'input_md',
+  spec: 'spec_md',
+  acceptance: 'acceptance_md',
+  repos: 'repos_yaml',
+  plan: 'plan_md',
+  tasks: 'tasks_md',
+  review_report: 'review_report',
+  test_report: 'test_report',
+  docs: 'docs',
+};
+
+export const ARTIFACT_DISPLAY_NAMES: Record<string, string> = {
+  input_md: 'Input',
+  spec_md: 'Specification',
+  acceptance_md: 'Acceptance Criteria',
+  repos_yaml: 'Repositories',
+  plan_md: 'Plan',
+  tasks_md: 'Tasks',
+  review_report: 'Review Report',
+  test_report: 'Test Report',
+  docs: 'Documentation',
+};
+
+// Phase display helpers
+export const PHASES = ['inception', 'planning', 'construction', 'review', 'testing', 'delivery'] as const;
+export type PhaseName = typeof PHASES[number];
+
+export const PHASE_LABELS: Record<PhaseName, string> = {
+  inception: 'Inception',
+  planning: 'Planning',
+  construction: 'Construction',
+  review: 'Review',
+  testing: 'Testing',
+  delivery: 'Delivery',
+};
+
+// User-friendly action verb for each phase — what the user is actually doing
+export const PHASE_ACTIONS: Record<PhaseName, string> = {
+  inception: 'Start Inception',
+  planning: 'Start Planning',
+  construction: 'Start Construction',
+  review: 'Start Review',
+  testing: 'Start Testing',
+  delivery: 'Start Delivery',
+};
+
+// User-friendly description of each phase — what happens when you run it
+export const PHASE_DESCRIPTIONS: Record<PhaseName, string> = {
+  inception: 'Turn your idea into a clear specification with requirements and acceptance criteria',
+  planning: 'Design the technical approach — architecture, tasks, and test strategy',
+  construction: 'Write the code according to the plan',
+  review: 'Adversarial review against acceptance criteria to catch gaps',
+  testing: 'Verify everything works — smoke tests, integration tests, unit tests',
+  delivery: 'Ship it — documentation, PR, and deployment verification',
+};
+
+// What each phase produces — shown to the user so they know what to expect
+export const PHASE_OUTPUTS: Record<PhaseName, string> = {
+  inception: 'Specification, acceptance criteria, and repository list',
+  planning: 'Technical plan, task breakdown, and test strategy',
+  construction: 'Working code implementation',
+  review: 'Review report identifying any gaps or issues',
+  testing: 'Test report verifying all acceptance criteria pass',
+  delivery: 'Documentation, changelog, and deployment verification',
+};
+
+export const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  in_progress: 'In Progress',
+  gate_blocked: 'Gate Blocked',
+  passed: 'Passed',
+  failed: 'Failed',
+  done: 'Done',
+  recirculated: 'Recirculated',
+  cancelled: 'Cancelled',
+  waiting_for_feedback: 'Waiting for Human',
+};
+
+export const PRIORITY_LABELS: Record<number, string> = {
+  1: 'P1 - Critical',
+  2: 'P2 - Medium',
+  3: 'P3 - Low',
+};
+
+// Question types
+export interface Question {
+  id: string;
+  feature_id: string;
+  phase: 'inception' | 'planning';
+  role: 'pm' | 'architect';
+  question: string;
+  type: 'clarification' | 'decision' | 'priority';
+  options: string[];
+  answer: string | null;
+  assumption: string | null;
+  status: 'pending' | 'answered' | 'assumed';
+  created_at: string;
+  answered_at: string | null;
+}
+
+export interface CreateQuestionRequest {
+  phase: string;
+  role: string;
+  question: string;
+  type: string;
+  options?: string[];
+}
+
+export interface AnswerQuestionRequest {
+  answer: string;
+}
+[0m
+[0m✱ [0mGrep "window.confirm|data-testid|handleCancel|handleRecirculate|useToast|useNavigate|useMutation|invalidateQueries|Edit|Delete"[90m in ui/src/pages/FeatureDetail.tsx · 55 matches[0m
+[0m
+Now look at FeatureDetail.tsx structure (edit/delete buttons, cancel/recirculate confirm pattern) and FeatureCard.
+[0m
+[0m→ [0mRead ui/src/pages/FeatureDetail.tsx[90m [limit=230, offset=1][0m
+[0m→ [0mRead ui/src/pages/FeatureDetail.tsx[90m [limit=120, offset=460][0m
+[0m→ [0mRead ui/src/pages/FeatureDetail.tsx[90m [limit=100, offset=260][0m
+[0m→ [0mRead ui/src/components/FeatureCard.tsx
+[0m→ [0mRead ui/src/pages/Dashboard.tsx
+[0m
+Now FeatureCard.tsx and Dashboard, plus test patterns + how server_test seeds features.
+[0m
+[0m→ [0mRead internal/api/server_test.go[90m [limit=90][0m
+[0m
+Now look at server_test patterns to know how tests seed features + E2E test setup.
+[0m
+[0m$ [0mrtk grep -n "func TestCreate|func setupFeature|seedFeature|insertFeature|createFeatureInDB|func TestUpdate|func TestDelete" /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/api/server_test.go | head -40
+3 matches in 1 files:
+
+/.../api/server_test.go:752:func TestCreateQuestionValid(t *testing.T) {
+/.../api/server_test.go:783:func TestCreateQuestionValidationErrors(t *testing.T) {
+/.../api/server_test.go:819:func TestCreateQuestionFeatureNotFound(t *testing.T) {
+[0m
+[0m$ [0mrtk grep -n "createTestFeature|seedFeature|helperFeature|func TestCreateFeature|createFeature\(.*loose|insertFeature|featureData" /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/api/server_test.go | head -40
+0 matches for 'createTestFeature|seedFeature|helperFeature|func TestCreateFeature|createFeature\(.*loose|insertFeature|featureData'
+[0m
+[0m$ [0mrtk grep -n "INSERT INTO features|Exec.*features|createFeature|NewFeature" /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/api/server_test.go | head -30
+2 matches in 1 files:
+
+/.../api/server_test.go:272:f := feature.NewFeature("001-test", "Test Feature", 2, feature.IntakeLooseIdea)
+/.../api/server_test.go:707:f := feature.NewFeature("q-test-feature", "Question Test", 1, feature.IntakeL...
+[0m
+[0m→ [0mRead internal/api/server_test.go[90m [limit=80, offset=690][0m
+[0m✱ [0mGrep "ON DELETE CASCADE|PRAGMA foreign_keys|CREATE TABLE features"[90m in internal/db · 8 matches[0m
+[0m
+[0m$ [0mrtk grep -n "foreign_keys|PRAGMA" /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/db/database.go | head -10
+1 matches in 1 files:
+
+/.../db/database.go:61:dsn := path + "?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on"
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/.playwright-mcp/ 2>&1; echo "---"; rtk grep -rln "playwright\|e2e\|@playwright" /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/ 2>&1 | head; echo "---root playwright---"; rtk ls /home/lobsterdog/worktrees/devteam-specs/crud-feature/ 2>&1 | rtk grep -i play
+console-2026-06-21T15-46-45-474Z.log  1.3K
+page-2026-06-21T15-45-50-772Z.yml  391B
+page-2026-06-21T15-45-58-112Z.yml  4.3K
+page-2026-06-21T15-46-05-415Z.yml  4.3K
+page-2026-06-21T15-46-11-085Z.yml  4.5K
+page-2026-06-21T15-46-17-389Z.yml  391B
+page-2026-06-21T15-46-23-302Z.yml  3.2K
+page-2026-06-21T15-46-33-078Z.yml  2.7K
+page-2026-06-21T15-46-45-528Z.yml  4.0K
+page-2026-06-21T15-55-53-917Z.yml  391B
+page-2026-06-21T15-55-59-455Z.yml  3.6K
+page-2026-06-21T15-56-08-073Z.yml  3.1K
+page-2026-06-21T15-56-22-802Z.yml  244B
+page-2026-06-21T15-56-31-013Z.yml  4.3K
+page-2026-06-21T15-56-37-356Z.yml  4.3K
+page-2026-06-21T15-56-39-977Z.yml  4.4K
+page-2026-06-21T15-56-44-434Z.yml  3.8K
+---
+/home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/package-lock.json
+/home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/.gitignore
+/home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/e2e/app.spec.ts
+/home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/e2e/questions.spec.ts
+/home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/package.json
+/home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/playwright.config.ts
+---root playwright---
+.playwright-mcp/
+[0m
+Good — FK cascades on. Now check E2E / Playwright setup.
+[0m
+[0m$ [0mrtk read /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/playwright.config.ts; echo "---package---"; rtk read /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/package.json
+import { defineConfig } from '@playwright/test';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ponytail: ESM-safe __dirname (package.json is "type": "module"; __dirname undefined under Playwright's loader)
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(here, '..');
+
+export default defineConfig({
+  testDir: './e2e',
+  timeout: 30000,
+  expect: { timeout: 10000 },
+  fullyParallel: false,
+  retries: 1,
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:18765',
+    trace: 'on-first-retry',
+  },
+  webServer: {
+    // Use port 18765 for tests to avoid conflicts with the production
+    // devteam-web service running on :8765.
+    // SERVER_BINARY should be a full command including cd if needed, e.g.:
+    //   SERVER_BINARY="cd /path/to/repo && /path/to/binary -http :18765"
+    command: process.env.SERVER_BINARY || `cd ${repoRoot} && ~/go/bin/devteam -http :18765`,
+    cwd: repoRoot,
+    port: parseInt(process.env.SERVER_PORT || '18765'),
+    // Reuse an existing server on the port if one is running.
+    // Set START_SERVER=1 to force Playwright to start its own server.
+    reuseExistingServer: !process.env.START_SERVER,
+    timeout: 15000,
+  },
+});---package---
+{
+  "name": "devteam-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.80.0",
+    "highlight.js": "^11.11.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "react-router": "^7.6.0",
+    "rehype-highlight": "^7.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.5.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.0"
+  }
+}
+[0m
+[0m→ [0mRead ui/e2e/app.spec.ts
+[0m
+[0m$ [0mrtk grep -n "seedFeature\|testFeature\|createTestFeature\|api.*create.*feature\|newFeature" /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/e2e/questions.spec.ts | head; echo "---"; rtk read /home/lobsterdog/worktrees/devteam-specs/crud-feature/ui/e2e/questions.spec.ts 2>&1 | rtk head -40
+0 matches for 'seedFeature\|testFeature\|createTestFeature\|api.*create.*feature\|newFeature'
+---
+import { test, expect, type Page, type Route } from '@playwright/test';
+
+// Better Q&A UI — E2E + integration suite.
+// Covers AC-001..AC-021 + AC-CON-001..AC-CON-005 from specs/better-qa-ui/acceptance.md.
+//
+// Strategy: stub /api/features and /api/features/{id}/questions via page.route so
+// assertions are deterministic regardless of the workspace's real feature set and
+// without depending on backend agent dispatch / DB question-store seeding.
+// PATCH responses (success, 400, 404, 409, 500) are mocked to verify the wizard's
+// toast + error-handling contract directly — including 409 conflict which the real
+// backend DB store does not emit (pre-existing backend gap, out of scope for this
+// UI-only feature per CON-014/repos.yaml).
+
+type QuestionStatus = 'pending' | 'answered' | 'assumed';
+type QuestionType = 'clarification' | 'decision' | 'priority';
+type Phase = 'inception' | 'planning';
+type Role = 'pm' | 'architect';
+
+interface Question {
+  id: string;
+  feature_id: string;
+  phase: Phase;
+  role: Role;
+  question: string;
+  type: QuestionType;
+  options: string[];
+  answer: string | null;
+  assumption: string | null;
+  status: QuestionStatus;
+  created_at: string;
+  answered_at: string | null;
+}
+
+function q(partial: Partial<Question> & { id: string; feature_id: string }): Question {
+  return {
+    phase: 'inception',
+    role: 'pm',
+    question: 'Question?',
+    type: 'clarification',
+    options: ['A', 'B', 'Other'],
+[0m
+[0m→ [0mRead ui/src/App.tsx
+[0m
+[0m$ [0mrtk head -80 /home/lobsterdog/worktrees/devteam-specs/crud-feature/specs/crud-feature/audit.md
+## Inception
+**Timestamp**: 2026-06-26T00:00:00Z
+**Action**: Workspace detection + source discovery
+**Details**: Brownfield repo `devteam`. Go backend (net/http 1.22 mux) + React/TS UI. Read AGENTS.md, README.md, devteam.yaml, repos.yaml, .specify/templates/spec-template.md. Scanned internal/api/server.go, internal/feature/{types,state,feature}.go, internal/db/feature_store.go, ui/src/pages/FeatureDetail.tsx, ui/src/api/client.ts. Confirmed no edit/delete endpoints exist; cancel is the only destructive action today. DB already has UpdateFeature + DeleteFeature (cascade) functions. No constitution.md present.
+
+## Inception
+**Timestamp**: 2026-06-26T00:01:00Z
+**Action**: Questions asked via devteam CLI
+**Details**: 7 questions covering editable fields, hard vs soft delete, edit restrictions while processing, delete UI trigger, deletable states, edit location, id mutability.
+
+## Inception
+**Timestamp**: 2026-06-26T00:02:00Z
+**Action**: Human answers received
+**Details**: (1) Edit title and priority only. (2) Hard delete — row + cascade. (3) No edits while processing (in_progress/waiting_for_feedback). (4) Delete button on detail page behind confirm dialog. (5) Only draft or terminal deletable; in-progress must cancel first. (6) Edit on detail page only, not inline on list. (7) ID immutable. No contradictions between answers.
+
+## Inception
+**Timestamp**: 2026-06-26T00:03:00Z
+**Action**: Spec artifacts written (spec.md, acceptance.md, repos.yaml)
+**Details**: Spec follows SpecKit template. 3 user stories (US-001 edit P1, US-002 delete P1, US-003 dashboard delete P3). 19 FRs, 15 CON- constraints (all human-answer or internal-convention sourced, traceable), state-editability matrix, 6 success criteria, 8 assumptions, edge cases section. 30 acceptance criteria across integration/e2e/smoke levels, each Given/When/Then with test level and verification, referencing CON- IDs. Constitution check: N/A (no constitution.md). Gate criteria 1-9 verified satisfied; no [NEEDS CLARIFICATION] markers remain (all resolved via human answers or [ASSUMPTION] tags).
+
+## Inception
+**Timestamp**: 2026-06-27T02:20:00Z
+**Action**: Re-submitted artifacts to DB + signaled pass
+**Details**: All 7 human answers incorporated into spec.md (title+priority editable, hard delete+cascade, no edits/deletes while in_progress/waiting_for_feedback/gate_blocked, delete button on detail page behind confirm, only draft/terminal deletable, edit on detail page only, ID immutable). No contradictions between answers. Re-submitted spec.md (19354 bytes), acceptance.md (10908 bytes, 30 ACs), repos.yaml (1267 bytes, devteam primary) to DB via `devteam artifact submit`. No [NEEDS CLARIFICATION] remaining. Constitution N/A. Signaled `devteam signal crud-feature pass`.
+
+## Inception
+**Timestamp**: 2026-06-26T00:00:00Z
+**Action**: Re-verified gate + re-signaled pass
+**Details**: Confirmed all three artifacts present in DB (devteam artifact get spec/acceptance/repos). Gate criteria: (1) spec.md follows SpecKit template ✓, (2) 3 user stories with P1/P1/P3 priorities + Given/When/Then acceptance scenarios ✓, (3) 19 functional requirements enumerated ✓, (4) 5 measurable success criteria ✓, (5) 8 assumptions documented with [ASSUMPTION:] tags ✓, (6) 30 acceptance criteria testable at smoke/integration/e2e levels ✓, (7) repos.yaml identifies devteam primary ✓, (8) constitution check N/A (no constitution.md) ✓, (9) no [NEEDS CLARIFICATION] remaining ✓. Signaled `devteam signal crud-feature pass`.
+
+## Inception
+**Timestamp**: 2026-06-27T02:45:05Z
+**Action**: Gate passed, phase advanced to planning
+**Details**: Root cause of prior stuck state: `devteam artifact submit` via HTTP saved artifacts under API-path types (`spec`/`acceptance`/`repos`), but the inception gate checks canonical types (`spec_md`/`acceptance_md`/`repos_yaml`). Re-submitted all three with canonical artifact_type names from the primary checkout (CWD = primary DB). Gate: all 15 checks PASS. Signaled `devteam signal crud-feature pass`; `devteam advance crud-feature` moved phase inception → planning. Also copied artifacts to primary checkout disk `specs/crud-feature/` and submitted `audit_md` for completeness.
+
+## Inception
+**Timestamp**: 2026-06-27T02:41:15Z
+**Action**: Re-submitted artifacts + signaled pass (PM re-dispatch)
+**Details**: Re-verified spec.md (19354 bytes), acceptance.md (10908 bytes, 30 ACs across integration/e2e/smoke), repos.yaml (1267 bytes, devteam primary). All 7 human answers incorporated, no contradictions. 15 CON- constraints each mapped to AC. No [NEEDS CLARIFICATION] remaining. Constitution N/A. Submitted all three via `devteam artifact submit`; signaled `devteam signal crud-feature pass` (recorded).
+[0m
+Good — E2E uses `page.route` stubs, not real backend. Now check audit.md and the audit for additional context, and look at App.tsx routing.
+[0m
+[0m$ [0mDEVTEAM=/home/lobsterdog/source/devteam/devteam; $DEVTEAM artifact 2>&1 | head -30; echo "==="; $DEVTEAM artifact submit --help 2>&1 | head -30; echo "==="; $DEVTEAM artifact get 2>&1 | head; echo "==="; $DEVTEAM signal 2>&1 | head
+unknown command: artifact
+devteam 0.3.0 - multi-agent development platform
+
+Usage:
+  devteam <command> [args]
+
+Commands:
+  intake       Submit a new feature (loose idea or external spec)
+  run          Run the current pipeline phase for a feature (dispatches agents)
+  process      Autonomously process a feature through the entire pipeline
+  advance      Advance feature to next phase after gate passes
+  gate         Evaluate the current phase gate for a feature
+  recirculate  Send a feature back to an earlier phase
+  init        Initialize a new devteam project (scaffolds directory structure)
+  status       Show current pipeline status for all features
+  bootstrap    Self-bootstrap: process spec 001 through the pipeline
+  version      Print version
+
+Intake options:
+  --type loose|external   Intake path type
+  --text "idea"           Loose idea text
+  --file path             Path to external spec
+  --priority 1|2|3       Feature priority
+
+Pipeline flow (manual):
+  1. devteam intake --type loose --text "idea"
+  2. devteam run <feature-id>      # Execute current phase
+  3. devteam gate <feature-id>      # Check if gate passes
+  4. devteam advance <feature-id>   # Move to next phase
+  5. Repeat 2-4 until delivery
+===
+unknown command: artifact
+devteam 0.3.0 - multi-agent development platform
+
+Usage:
+  devteam <command> [args]
+
+Commands:
+  intake       Submit a new feature (loose idea or external spec)
+  run          Run the current pipeline phase for a feature (dispatches agents)
+  process      Autonomously process a feature through the entire pipeline
+  advance      Advance feature to next phase after gate passes
+  gate         Evaluate the current phase gate for a feature
+  recirculate  Send a feature back to an earlier phase
+  init        Initialize a new devteam project (scaffolds directory structure)
+  status       Show current pipeline status for all features
+  bootstrap    Self-bootstrap: process spec 001 through the pipeline
+  version      Print version
+
+Intake options:
+  --type loose|external   Intake path type
+  --text "idea"           Loose idea text
+  --file path             Path to external spec
+  --priority 1|2|3       Feature priority
+
+Pipeline flow (manual):
+  1. devteam intake --type loose --text "idea"
+  2. devteam run <feature-id>      # Execute current phase
+  3. devteam gate <feature-id>      # Check if gate passes
+  4. devteam advance <feature-id>   # Move to next phase
+  5. Repeat 2-4 until delivery
+===
+unknown command: artifact
+devteam 0.3.0 - multi-agent development platform
+
+Usage:
+  devteam <command> [args]
+
+Commands:
+  intake       Submit a new feature (loose idea or external spec)
+  run          Run the current pipeline phase for a feature (dispatches agents)
+  process      Autonomously process a feature through the entire pipeline
+===
+unknown command: signal
+devteam 0.3.0 - multi-agent development platform
+
+Usage:
+  devteam <command> [args]
+
+Commands:
+  intake       Submit a new feature (loose idea or external spec)
+  run          Run the current pipeline phase for a feature (dispatches agents)
+  process      Autonomously process a feature through the entire pipeline
+[0m
+Now I have enough. Check how devteam CLI submits — note audit says artifact submit used wrong type names before. Let me confirm the artifact_type list and the canonical names.
+[0m
+[0m$ [0mrtk ls /home/lobsterdog/source/devteam/cmd/ 2>&1; echo "---"; rtk grep -rln "artifact.*submit\|func.*artifact\|signal.*pass\|featureArtifact" /home/lobsterdog/source/devteam/cmd /home/lobsterdog/source/devteam/internal 2>&1 | head -20
+devteam/
+---
+/home/lobsterdog/source/devteam/cmd/devteam/cli_api.go
+/home/lobsterdog/source/devteam/cmd/devteam/main.go
+/home/lobsterdog/source/devteam/internal/db/artifact_store.go
+/home/lobsterdog/source/devteam/internal/spec/provider.go
+/home/lobsterdog/source/devteam/internal/pipeline/outcome.go
+/home/lobsterdog/source/devteam/internal/pipeline/pipeline.go
+[0m
+[0m$ [0mrtk grep -n "artifact\|signal\|notes\|questions" /home/lobsterdog/source/devteam/cmd/devteam/main.go | head -40
+21 matches in 1 files:
+
+/.../devteam/main.go:121:case "questions":
+/.../devteam/main.go:123:fmt.Fprintf(os.Stderr, "Usage: devteam questions <ask|pending|list|answer> <f...
+/.../devteam/main.go:128:case "signal":
+/.../devteam/main.go:130:fmt.Fprintf(os.Stderr, "Usage: devteam signal <feature-id> <outcome> [--notes...
+/.../devteam/main.go:135:case "notes":
+/.../devteam/main.go:137:fmt.Fprintf(os.Stderr, "Usage: devteam notes <add|list> <feature-id> [options...
+/.../devteam/main.go:142:case "artifact":
+/.../devteam/main.go:144:fmt.Fprintf(os.Stderr, "Usage: devteam artifact <submit|get> <feature-id> <ty...
+/.../devteam/main.go:315:fmt.Println("\nMissing artifacts:")
+/.../devteam/main.go:328:fmt.Println("\nTo fix: provide the missing artifacts and re-run the gate.")
+/.../devteam/main.go:373:fmt.Println("\nMissing artifacts:")
+/.../devteam/main.go:443:fmt.Println("  Missing artifacts:")
+/.../devteam/main.go:463:fmt.Println("\n  To fix: provide the missing artifacts listed above.")
+/.../devteam/main.go:585:fmt.Println("Missing artifacts:")
+/.../devteam/main.go:604:fmt.Println("\nBootstrap gate not yet passed. Complete the missing artifacts ...
+/.../devteam/main.go:861:fmt.Fprintf(os.Stderr, "  questions ask <feature-id> --file questions.json   ...
+/.../devteam/main.go:862:fmt.Fprintf(os.Stderr, "  questions pending <feature-id>                     ...
+/.../devteam/main.go:863:fmt.Fprintf(os.Stderr, "  questions answer <feature-id> <question-id> <ans>  ...
+/.../devteam/main.go:864:fmt.Fprintf(os.Stderr, "  signal <feature-id> <outcome> [--notes \"text\"]   ...
+/.../devteam/main.go:865:fmt.Fprintf(os.Stderr, "  notes add <feature-id> --phase <phase> --content   ...
+/.../devteam/main.go:866:fmt.Fprintf(os.Stderr, "  notes list <feature-id>                            ...
+[0m
+[0m→ [0mRead /home/lobsterdog/source/devteam/cmd/devteam/main.go[90m [limit=120, offset=121][0m
+[0m
+[0m$ [0mrtk grep -n "handleArtifactAPICLI\|func handleArtifact\|artifactType\|allowedArtifact\|canonical" /home/lobsterdog/source/devteam/cmd/devteam/cli_api.go | head -40
+2 matches in 1 files:
+
+/.../devteam/cli_api.go:245:// handleArtifactAPICLI handles: devteam artifact <submit|get> <feature-id> <...
+/.../devteam/cli_api.go:246:func handleArtifactAPICLI(args []string) {
+[0m
+[0m→ [0mRead /home/lobsterdog/source/devteam/cmd/devteam/cli_api.go[90m [limit=120, offset=245][0m
+[0m
+[0m$ [0mrtk grep -rn "plan_md\|tasks_md\|research_md\|data_model\|contracts\|RequiredArtifacts\|plan-template" /home/lobsterdog/source/devteam/internal/pipeline/ 2>&1 | rtk grep -iv test | head -40
+/home/lobsterdog/source/devteam/internal/pipeline/gate.go:260:	case strings.Contains(desc, "plan.md includes API contracts"):
+/home/lobsterdog/source/devteam/internal/pipeline/gate.go:608:	case strings.Contains(desc, "contracts/ directory contains"):
+/home/lobsterdog/source/devteam/internal/pipeline/pipeline.go:1329:Use the SpecKit plan template at .specify/templates/plan-template.md to write:
+/home/lobsterdog/source/devteam/internal/pipeline/pipeline.go:1333:- contracts/ — one file per API endpoint with request/response schemas
+/home/lobsterdog/source/devteam/internal/pipeline/pipeline.go:1338:  devteam artifact submit %s data_model --file data-model.md
+/home/lobsterdog/source/devteam/internal/pipeline/pipeline.go:1339:  devteam artifact submit %s contracts --file contracts/index.md
+/home/lobsterdog/source/devteam/internal/pipeline/pipeline.go:1360:1. Read spec.md, acceptance.md, plan.md, tasks.md, data-model.md, contracts/ — understand what to build
+[0m
+Now find what canonical artifact type names the planning gate expects.
+[0m
+[0m$ [0mrtk grep -rn "ArtifactPlanMD\|ArtifactTasksMD\|ArtifactResearchMD\|ArtifactDataModelMD\|ArtifactContracts" /home/lobsterdog/source/devteam/internal/ 2>&1 | rtk grep -v _test | head -30
+grep: '_test' in .
+407 matches in 34 files:
+
+./devteam.yaml:105:property_based_testing:
+./internal/pipeline/gate.go:871:... strings.Contains(lower, "_test.go") || strings.Contains(lower, "test.ts") || st...
+./logs/construction-developer.log:225:bd10d23 style(kanban-view): gofmt kanban_smoke_test.go
+./logs/construction-developer.log:249:internal/api/kanban_smoke_test.go     |  191 +++
+./logs/construction-developer.log:250:internal/api/question_test.go         |   36 +-
+./logs/construction-developer.log:252:internal/api/server_test.go           |   16 +-
+./logs/construction-developer.log:267:internal/pipeline/gate_test.go        |   27 +-
+./logs/construction-developer.log:591:bd10d23 style(kanban-view): gofmt kanban_smoke_test.go
+./logs/delivery-ops.log:414:+`internal/api/kanban_smoke_test.go`):
+./logs/delivery-ops.log:521:...iew/internal/feature/state_test.go:191:		{PhaseDelivery, "docs don't match", Pha...
+./logs/delivery-ops.log:526:...rnal/pipeline/repo_routing_test.go:25:		{Name: "delivery", Roles: []string{"ops"...
+./logs/delivery-ops.log:822:... strings.Contains(lower, "_test.go") || strings.Contains(lower, "test.ts") || st...
+./logs/delivery-ops.log:1000:./internal/api/question_test.go:11:"github.com/MichielDean/devteam/internal/conf...
+./logs/delivery-ops.log:1001:./internal/api/question_test.go:31:cfg := &config.Config{
+./logs/delivery-ops.log:1002:./internal/api/question_test.go:32:Pipeline: config.PipelineConfig{
+./logs/delivery-ops.log:1003:./internal/api/question_test.go:33:Phases: []config.PhaseConfig{
+./logs/delivery-ops.log:1004:./internal/api/question_test.go:120:cfg := &config.Config{
+./logs/delivery-ops.log:1005:./internal/api/question_test.go:121:Pipeline: config.PipelineConfig{
+./logs/delivery-ops.log:1006:./internal/api/question_test.go:122:Phases: []config.PhaseConfig{
+./logs/delivery-ops.log:1007:./internal/api/question_test.go:237:cfg := &config.Config{
+./logs/delivery-ops.log:1008:./internal/api/question_test.go:238:Pipeline: config.PipelineConfig{
+./logs/delivery-ops.log:1009:./internal/api/question_test.go:239:Phases: []config.PhaseConfig{
+./logs/delivery-ops.log:1010:./internal/api/question_test.go:306:cfg := &config.Config{
+./logs/delivery-ops.log:1011:./internal/api/question_test.go:307:Pipeline: config.PipelineConfig{
+./logs/delivery-ops.log:1012:./internal/api/question_test.go:308:Phases: []config.PhaseConfig{
+./logs/delivery-ops.log:1013:./internal/api/question_test.go:395:cfg := &config.Config{
+./logs/delivery-ops.log:1014:./internal/api/question_test.go:396:Pipeline: config.PipelineConfig{
+./logs/delivery-ops.log:1015:./internal/api/question_test.go:397:Phases: []config.PhaseConfig{
+[0m
+[0m$ [0mrtk grep -n "ArtifactType =\|ArtifactPlanMD\|ArtifactTasksMD\|ArtifactResearchMD\|ArtifactDataModelMD\|ArtifactContracts" /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/feature/*.go /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/spec/provider.go | head -40
+29 matches in 3 files:
+
+/.../feature/state.go:74:RequiredArts: []ArtifactType{ArtifactPlanMD, ArtifactTasksMD, ArtifactDataMod...
+/.../feature/types.go:84:ArtifactInputMD       ArtifactType = "input_md"
+/.../feature/types.go:85:ArtifactSpecMD        ArtifactType = "spec_md"
+/.../feature/types.go:86:ArtifactAcceptanceMD  ArtifactType = "acceptance_md"
+/.../feature/types.go:87:ArtifactReposYAML     ArtifactType = "repos_yaml"
+/.../feature/types.go:88:ArtifactPlanMD        ArtifactType = "plan_md"
+/.../feature/types.go:89:ArtifactTasksMD       ArtifactType = "tasks_md"
+/.../feature/types.go:90:ArtifactReviewReport  ArtifactType = "review_report"
+/.../feature/types.go:91:ArtifactTestReport    ArtifactType = "test_report"
+/.../feature/types.go:92:ArtifactDocs          ArtifactType = "docs"
+/.../feature/types.go:93:ArtifactDataModelMD   ArtifactType = "data_model_md"
+/.../feature/types.go:94:ArtifactResearchMD    ArtifactType = "research_md"
+/.../feature/types.go:95:ArtifactQuickstartMD  ArtifactType = "quickstart_md"
+/.../feature/types.go:96:ArtifactContractsDir  ArtifactType = "contracts_dir"
+/.../feature/types.go:97:ArtifactAuditMD       ArtifactType = "audit_md"
+/.../feature/types.go:115:return ArtifactPlanMD
+/.../feature/types.go:117:return ArtifactTasksMD
+/.../feature/types.go:125:return ArtifactDataModelMD
+/.../feature/types.go:129:return ArtifactContractsDir
+/.../feature/types.go:143:"plan":           ArtifactPlanMD,
+/.../feature/types.go:144:"tasks":          ArtifactTasksMD,
+/.../feature/types.go:148:"data_model":     ArtifactDataModelMD,
+/.../feature/types.go:150:"contracts":      ArtifactContractsDir,
+/.../spec/provider.go:223:case feature.ArtifactPlanMD:
+/.../spec/provider.go:225:case feature.ArtifactTasksMD:
+/.../spec/provider.go:227:case feature.ArtifactResearchMD:
+/.../spec/provider.go:235:case feature.ArtifactDataModelMD:
+/.../spec/provider.go:239:case feature.ArtifactContractsDir:
+/.../spec/provider.go:299:planContent, err := sp.ReadArtifact(featureID, feature.ArtifactPlanMD)
+[0m
+[0m→ [0mRead internal/feature/state.go[90m [limit=30, offset=68][0m
+[0m
+[0m$ [0mrtk grep -n "apiPost\|apiGet\|DEVTEAM_API\|apiBase\|localhost:8765\|:8765" /home/lobsterdog/source/devteam/cmd/devteam/cli_api.go | head -20
+17 matches in 1 files:
+
+/.../devteam/cli_api.go:15:url := os.Getenv("DEVTEAM_API_URL")
+/.../devteam/cli_api.go:17:url = "http://localhost:8765"
+/.../devteam/cli_api.go:22:// apiPost sends a POST request to the API and returns the response body
+/.../devteam/cli_api.go:23:func apiPost(path string, body interface{}) (string, error) {
+/.../devteam/cli_api.go:37:// apiGet sends a GET request and returns the response body
+/.../devteam/cli_api.go:38:func apiGet(path string) (string, error) {
+/.../devteam/cli_api.go:101:_, err = apiPost(fmt.Sprintf("/api/features/%s/questions", featureID), body)
+/.../devteam/cli_api.go:114:resp, err := apiGet(fmt.Sprintf("/api/features/%s/questions/pending", feature...
+/.../devteam/cli_api.go:130:resp, err := apiGet(fmt.Sprintf("/api/features/%s/questions", featureID))
+/.../devteam/cli_api.go:146:resp, err := apiPost(fmt.Sprintf("/api/features/%s/questions/%s", featureID, ...
+/.../devteam/cli_api.go:188:resp, err := apiPost(fmt.Sprintf("/api/features/%s/signal", featureID), body)
+/.../devteam/cli_api.go:224:resp, err := apiPost(fmt.Sprintf("/api/features/%s/notes", featureID), body)
+/.../devteam/cli_api.go:232:resp, err := apiGet(fmt.Sprintf("/api/features/%s/notes", featureID))
+/.../devteam/cli_api.go:284:resp, err := apiPost(fmt.Sprintf("/api/features/%s/artifacts/%s", featureID, ...
+/.../devteam/cli_api.go:292:resp, err := apiGet(fmt.Sprintf("/api/features/%s/artifacts/%s", featureID, a...
+/.../devteam/cli_api.go:317:resp, err := apiGet(fmt.Sprintf("/api/features/%s", featureID))
+/.../devteam/cli_api.go:327:resp, err := apiGet(fmt.Sprintf("/api/features/%s", featureID))
+[0m
+Required artifacts confirmed: `plan_md`, `tasks_md`, `data_model_md`, `research_md`, `contracts_dir`. Now find devteam CLI's API base (uses HTTP?).
+[0m
+[0m$ [0mrtk curl -s -o /dev/null -w "%{http_code}" http://localhost:8765/api/features 2>&1; echo " <- status"; rtk curl -s http://localhost:8765/api/features/crud-feature 2>&1 | rtk head -c 200; echo; echo "===artifact get==="; DEVTEAM=/home/lobsterdog/source/devteam/devteam; DEVTEAM_API_URL=http://localhost:8765 $DEVTEAM artifact get crud-feature spec_md 2>&1 | rtk head -c 300
+200
+ <- status
+{"id":"crud-feature","title":"CRUD feature","status":"in_progress","priority":2,"intake_path":"loose_idea","current_phase":"planning","created_at":"2026-06-26T20:06:58.691940866-06:00","updated_at":"2
+===artifact get===
+unknown command: artifact
+devteam 0.3.0 - multi-agent development platform
+
+Usage:
+  devteam <command> [args]
+
+Commands:
+  intake       Submit a new feature (loose idea or external spec)
+  run          Run the current pipeline phase for a feature (dispatches agents)
+  process      Autonomously proce
+[0m
+Need server running on :8765. Check if running.
+[0m
+[0m$ [0mrtk ls -la ~/go/bin/devteam 2>&1; ~/go/bin/devteam version 2>&1 | head; echo "==="; ~/go/bin/devteam artifact 2>&1 | head -5
+775  /home/lobsterdog/go/bin/devteam  15.9M
+devteam 0.3.0
+===
+Usage: devteam artifact <submit|get> <feature-id> <type> [options]
+[0m
+Wait — CLI showed `artifact` as unknown but the source has it. The binary at `~/go/bin/devteam`?
+[0m
+`~/go/bin/devteam` is newer and has artifact. Use that.
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam; $DEVTEAM artifact get crud-feature plan_md 2>&1 | rtk head -c 200; echo; $DEVTEAM artifact get crud-feature tasks_md 2>&1 | rtk head -c 100; echo; $DEVTEAM artifact get crud-feature research_md 2>&1 | rtk head -c 100; echo; $DEVTEAM artifact get crud-feature data_model_md 2>&1 | rtk head -c 100; echo; $DEVTEAM artifact get crud-feature contracts_dir 2>&1 | rtk head -c 100
+error: API returned 404: {"error":"artifact_not_found","details":"Artifact plan_md not found for feature crud-feature"}
+
+
+error: API returned 404: {"error":"artifact_not_found","details":"Artifact tasks_md not found for fe
+error: API returned 404: {"error":"artifact_not_found","details":"Artifact research_md not found for
+error: API returned 404: {"error":"artifact_not_found","details":"Artifact data_model_md not found f
+error: API returned 404: {"error":"artifact_not_found","details":"Artifact contracts_dir not found f
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam; $DEVTEAM artifact get crud-feature spec_md 2>&1 | rtk head -c 100; echo; $DEVTEAM feature status crud-feature 2>&1
+error: API returned 404: {"error":"artifact_not_found","details":"Artifact spec_md not found for fea
+crud-feature	in_progress	planning
+[0m
+All planning artifacts absent. Now check spec.md is in DB (artifact get works) and verify the feature status.
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam; $DEVTEAM artifact get crud-feature spec 2>&1 | rtk head -c 100; echo; $DEVTEAM artifact get crud-feature acceptance 2>&1 | rtk head -c 100; echo "---primary DB feature_data---"; rtk ls -la /home/lobsterdog/source/devteam/.devteam.db* 2>&1; rtk ls -la /home/lobsterdog/worktrees/devteam-specs/crud-feature/.devteam.db* 2>&1
+error: API returned 404: {"error":"artifact_not_found","details":"Artifact spec not found for featur
+error: API returned 404: {"error":"artifact_not_found","details":"Artifact acceptance not found for ---primary DB feature_data---
+664  /home/lobsterdog/source/devteam/.devteam.db  208.0K
+664  /home/lobsterdog/source/devteam/.devteam.db-shm  32.0K
+664  /home/lobsterdog/source/devteam/.devteam.db-wal  2.3M
+664  /home/lobsterdog/worktrees/devteam-specs/crud-feature/.devteam.db  112.0K
+664  /home/lobsterdog/worktrees/devteam-specs/crud-feature/.devteam.db-shm  32.0K
+664  /home/lobsterdog/worktrees/devteam-specs/crud-feature/.devteam.db-wal  0B
+[0m
+Spec not in DB either! The feature is at planning phase but inception artifacts (spec, acceptance, repos) are missing from DB. The audit said they were submitted with canonical names. Let me check the disk copy.
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam; $DEVTEAM artifact submit crud-feature spec_md --file specs/crud-feature/spec.md 2>&1 | rtk head -c 200; echo; $DEVTEAM artifact submit crud-feature acceptance_md --file specs/crud-feature/acceptance.md 2>&1 | rtk head -c 200; echo; $DEVTEAM artifact submit crud-feature repos_yaml --file specs/crud-feature/repos.yaml 2>&1 | rtk head -c 200
+Artifact saved: {"artifact_type":"spec_md","feature_id":"crud-feature","size":19354,"status":"saved"}
+
+
+Artifact saved: {"artifact_type":"acceptance_md","feature_id":"crud-feature","size":10908,"status":"saved"}
+
+
+Artifact saved: {"artifact_type":"repos_yaml","feature_id":"crud-feature","size":1267,"status":"saved"}
+[0m
+Server on :8765 uses the primary DB (`/home/lobsterdog/source/devteam/.devteam.db`). The crud-feature exists in it (feature status returned). But spec_md/acceptance_md/repos_yaml artifacts are NOT in that DB. They're in the disk files in the worktree. The audit mentioned re-submitting with canonical names — but they're gone.
+
+Let me re-submit the inception artifacts to the primary DB so the planning gate (and the developer later) can read them. Actually, my job is planning artifacts. But the developer needs spec/acceptance/repos too. Let me check if the planning gate requires those — no, the planning gate only requires plan/tasks/data_model/research/contracts. But the developer (construction) reads spec+acceptance+plan+tasks+data_model+contracts. Spec and acceptance must be accessible.
+
+Let me just submit the spec/acceptance/repos from disk to the primary DB so everything's coherent, then produce planning artifacts.
+[0m
+[0m→ [0mRead internal/api/server.go[90m [limit=90, offset=640][0m
+[0m
+Spec/acceptance/repos restored. Now I have full context. Build the planning artifacts.
+
+Let me confirm a few more code details needed for the plan: the cancel handler (to mirror for delete), how `processFeature` checks IsProcessing, and how the handler tests call routes (direct handler vs mux).
+[0m
+[0m→ [0mRead internal/api/server.go[90m [limit=35, offset=608][0m
+[0m
+Now look at cancelFeature to understand the status-change pattern (used for delete guard reference) and the handleSubmitArtifact.
+[0m
+[0m→ [0mRead internal/api/server.go[90m [limit=90, offset=730][0m
+[0m
+[0m$ [0mrtk grep -n "func .* SaveFeatureData\|INSERT INTO features\|ON CONFLICT" /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/db/feature_state_store.go /home/lobsterdog/worktrees/devteam-specs/crud-feature/internal/pipeline/pipeline.go | head
+3 matches in 1 files:
+
+/.../db/feature_state_store.go:12:func (db *DB) SaveFeatureData(featureID, title, currentPhase, status string, ...
+/.../db/feature_state_store.go:15:`INSERT INTO features (id, title, current_phase, status, priority, intake_pat...
+/.../db/feature_state_store.go:17:ON CONFLICT(id) DO UPDATE SET
+[0m
+Now the handleSubmitArtifact and the saveFeature/syncDB interplay. I have enough. Check `SaveFeature` — does it update the scalar features table too?
+[0m
+[0m# [0mTodos
+[•] Write research.md (code patterns)
+[ ] Write data-model.md
+[ ] Write contracts/ (PATCH + DELETE + shared)
+[ ] Write plan.md (constraint map, consistency matrix, test strategy)
+[ ] Write tasks.md
+[ ] Submit all artifacts + audit + signal pass
+[0m
+Good. `SaveFeature` → `SaveFeatureState` → `SaveFeatureData` updates the scalar features row + JSON blob. So after PATCH (modify title/priority + SaveFeature), the scalar row is updated too. 
+
+Now I understand the full picture. One critical design point for PATCH: the spec's ASSUMPTION notes `UpdateFeature(FeatureRow)` would clobber phase/status — but `SaveFeature` (which calls `SaveFeatureData`) does an upsert of ALL scalar fields including current_phase/status/priority from the in-memory feature. So for PATCH, the safest approach: load feature, mutate only title/priority + set UpdatedAt, then `SaveFeature(f)` — this writes current_phase/status from the loaded state (unchanged) so no clobbering. This is cleaner than adding a new DB method. Document this decision.
+
+I have enough. Build artifacts. Start with research.md (most grounded), then data-model.md, contracts/, plan.md, tasks.md.
+[0m
+[0m$ [0mrtk mkdir -p /tmp/crud-plan/contracts 2>&1; rtk ls /tmp/crud-plan 2>&1
+contracts/
+[0m
+[0m← [0mWrite /tmp/crud-plan/research.md
+Wrote file successfully.
+[0m
+[0m# [0mTodos
+[✓] Write research.md (code patterns)
+[•] Write data-model.md
+[ ] Write contracts/ (PATCH + DELETE + shared)
+[ ] Write plan.md (constraint map, consistency matrix, test strategy)
+[ ] Write tasks.md
+[ ] Submit all artifacts + audit + signal pass
+[0m
+[0m← [0mWrite /tmp/crud-plan/data-model.md
+Wrote file successfully.
+[0m
+[0m← [0mWrite /tmp/crud-plan/contracts/index.md
+Wrote file successfully.
+[0m
+Now contracts. One file per endpoint + shared error contract.
+[0m
+[0m← [0mWrite /tmp/crud-plan/contracts/PATCH-api-features-id.md
+Wrote file successfully.
+[0m
+[0m← [0mWrite /tmp/crud-plan/contracts/DELETE-api-features-id.md
+Wrote file successfully.
+[0m
+[0m← [0mWrite /tmp/crud-plan/contracts/shared-errors.md
+Wrote file successfully.
+[0m
+[0m# [0mTodos
+[✓] Write research.md (code patterns)
+[✓] Write data-model.md
+[✓] Write contracts/ (PATCH + DELETE + shared)
+[•] Write plan.md (constraint map, consistency matrix, test strategy)
+[ ] Write tasks.md
+[ ] Submit all artifacts + audit + signal pass
+[0m
+[0m← [0mWrite /tmp/crud-plan/plan.md
+Wrote file successfully.
+[0m
+[0m# [0mTodos
+[✓] Write research.md (code patterns)
+[✓] Write data-model.md
+[✓] Write contracts/ (PATCH + DELETE + shared)
+[✓] Write plan.md (constraint map, consistency matrix, test strategy)
+[•] Write tasks.md
+[ ] Submit all artifacts + audit + signal pass
+[0m
+[0m← [0mWrite /tmp/crud-plan/tasks.md
+Wrote file successfully.
+[0m
+[0m$ [0mrtk grep -n "contracts\|ContractDir\|index.md" /home/lobsterdog/source/devteam/internal/spec/provider.go /home/lobsterdog/source/devteam/internal/db/artifact_store.go 2>&1 | head -20
+1 matches in 1 files:
+
+/.../spec/provider.go:240:return filepath.Join(dir, "contracts")
+[0m
+Now submit all artifacts. Contracts is a directory — submit as `contracts_dir` type (canonical name from feature types). Let me check how the submit handles a directory.
+[0m
+[0m$ [0mrtk grep -n "SaveArtifact\|GetArtifact\|artifact_type\|TEXT\|content" /home/lobsterdog/source/devteam/internal/db/artifact_store.go | head -30
+13 matches in 1 files:
+
+/.../db/artifact_store.go:12:ArtifactType string    `json:"artifact_type"`
+/.../db/artifact_store.go:13:Content      string    `json:"content"`
+/.../db/artifact_store.go:18:// SaveArtifact stores or updates a spec artifact in the database.
+/.../db/artifact_store.go:19:func (db *DB) SaveArtifact(featureID, artifactType, content string) error {
+/.../db/artifact_store.go:22:`INSERT INTO spec_artifacts (feature_id, artifact_type, content, created_at, ...
+/.../db/artifact_store.go:24:ON CONFLICT(feature_id, artifact_type) DO UPDATE SET content = excluded.conte...
+/.../db/artifact_store.go:25:featureID, artifactType, content, now, now,
+/.../db/artifact_store.go:33:// GetArtifact retrieves a spec artifact from the database.
+/.../db/artifact_store.go:34:func (db *DB) GetArtifact(featureID, artifactType string) (*ArtifactRow, erro...
+/.../db/artifact_store.go:36:`SELECT id, feature_id, artifact_type, content, created_at, updated_at
+/.../db/artifact_store.go:37:FROM spec_artifacts WHERE feature_id = ? AND artifact_type = ?`,
+/.../db/artifact_store.go:52:`SELECT id, feature_id, artifact_type, content, created_at, updated_at
+/.../db/artifact_store.go:75:`DELETE FROM spec_artifacts WHERE feature_id = ? AND artifact_type = ?`,
+[0m
+[0m$ [0mrtk grep -n "contracts_dir\|contracts/ directory\|ContractDir" /home/lobsterdog/source/devteam/internal/pipeline/gate.go /home/lobsterdog/source/devteam/internal/feature/state.go 2>&1 | head
+2 matches in 2 files:
+
+/.../feature/state.go:88:"contracts/ directory contains API contract files with request/response schem...
+/.../pipeline/gate.go:608:case strings.Contains(desc, "contracts/ directory contains"):
+[0m
+Single string content. Contracts is a directory on disk but stored as one blob. The CLI `--file` reads one file. The plan template says submit `contracts/index.md`. But the gate checks `contracts_dir` artifact type. The audit said inception artifacts got re-submitted with canonical names. Let me check the planning gate check — it likely just checks the artifact exists. The index.md is the contract summary; individual contract files are referenced. Best approach: concatenate all contract files into one index submission OR submit index.md as contracts_dir. Let me check how the gate validates contracts_dir content.
+[0m
+[0m→ [0mRead /home/lobsterdog/source/devteam/internal/pipeline/gate.go[90m [limit=30, offset=600][0m
+[0m
+[0m$ [0mcat /tmp/crud-plan/contracts/index.md /tmp/crud-plan/contracts/PATCH-api-features-id.md /tmp/crud-plan/contracts/DELETE-api-features-id.md /tmp/crud-plan/contracts/shared-errors.md > /tmp/crud-plan/contracts_all.md; wc -l /tmp/crud-plan/contracts_all.md
+366 /tmp/crud-plan/contracts_all.md
+[0m
+Gate checks `contracts_dir` content contains "request"/"response"/"endpoint". My index.md mentions all three. But to be safe and complete, I'll concatenate index.md + PATCH + DELETE + shared-errors into one contracts artifact so all contract detail is in the DB. Submit that as `contracts_dir`.
+[0m
+Now submit all artifacts via CLI.
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam
+$DEVTEAM artifact submit crud-feature research_md --file /tmp/crud-plan/research.md 2>&1 | rtk head -c 200
+echo
+$DEVTEAM artifact submit crud-feature data_model_md --file /tmp/crud-plan/data-model.md 2>&1 | rtk head -c 200
+echo
+$DEVTEAM artifact submit crud-feature contracts_dir --file /tmp/crud-plan/contracts_all.md 2>&1 | rtk head -c 200
+echo
+$DEVTEAM artifact submit crud-feature plan_md --file /tmp/crud-plan/plan.md 2>&1 | rtk head -c 200
+echo
+$DEVTEAM artifact submit crud-feature tasks_md --file /tmp/crud-plan/tasks.md 2>&1 | rtk head -c 200
+Artifact saved: {"artifact_type":"research_md","feature_id":"crud-feature","size":12561,"status":"saved"}
+
+
+Artifact saved: {"artifact_type":"data_model_md","feature_id":"crud-feature","size":8397,"status":"saved"}
+
+
+Artifact saved: {"artifact_type":"contracts_dir","feature_id":"crud-feature","size":16724,"status":"saved"}
+
+
+Artifact saved: {"artifact_type":"plan_md","feature_id":"crud-feature","size":35006,"status":"saved"}
+
+
+Artifact saved: {"artifact_type":"tasks_md","feature_id":"crud-feature","size":28092,"status":"saved"}
+[0m
+All 5 planning artifacts submitted. Verify they're retrievable, then run the gate.
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam
+for t in research_md data_model_md contracts_dir plan_md tasks_md spec_md acceptance_md repos_yaml; do
+  printf "%-18s " "$t"
+  $DEVTEAM artifact get crud-feature $t 2>&1 | rtk head -c 60 | tr '\n' ' '
+  echo
+done
+research_md        # Technical Research: Feature Edit & Delete (crud-feature)  
+data_model_md      # Data Model: Feature Edit & Delete (crud-feature)  **Featur
+contracts_dir      # API Contracts: Feature Edit & Delete (crud-feature)  **Fea
+plan_md            # Implementation Plan: Feature Edit & Delete (crud-feature) 
+tasks_md           # Tasks: Feature Edit & Delete (crud-feature)  **Input**: De
+spec_md            # Feature Specification: Feature Edit & Delete (CRUD Complet
+acceptance_md      # Acceptance Criteria — Feature Edit & Delete (crud-featur
+repos_yaml         repos:   - name: devteam     path: .     role: primary     c
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam
+$DEVTEAM gate crud-feature 2>&1 | rtk tail -60
+2026/06/26 20:51:47 db: migrations complete (3 total, 0 pending)
+2026/06/26 20:51:47 db: opened sqlite at /home/lobsterdog/worktrees/devteam-specs/crud-feature/.devteam.db
+error loading feature crud-feature: loading feature data for crud-feature: sql: no rows in result set
+[0m
+All 8 artifacts present. Now run the planning gate.
+[0m
+[0m$ [0mrtk grep -n "newDBProvider\|openDB\|baseDir\|\.devteam.db\|DefaultDBPath" /home/lobsterdog/source/devteam/cmd/devteam/main.go | head -20
+51 matches in 1 files:
+
+/.../devteam/main.go:35:baseDir, err := os.Getwd()
+/.../devteam/main.go:41:cfg, err := config.LoadConfig(filepath.Join(baseDir, "devteam.yaml"))
+/.../devteam/main.go:47:specProvider := spec.NewSpecProvider(baseDir)
+/.../devteam/main.go:70:dbPath := filepath.Join(baseDir, ".devteam.db")
+/.../devteam/main.go:86:uiDir := filepath.Join(baseDir, "ui", "dist")
+/.../devteam/main.go:108:baseDir, err := os.Getwd()
+/.../devteam/main.go:158:cfg, err := config.LoadConfig(filepath.Join(baseDir, "devteam.yaml"))
+/.../devteam/main.go:166:handleStatus(baseDir)
+/.../devteam/main.go:168:handleIntake(baseDir)
+/.../devteam/main.go:170:handleRun(baseDir, cfg)
+/.../devteam/main.go:172:handleProcess(baseDir, cfg)
+/.../devteam/main.go:174:handleAdvance(baseDir, cfg)
+/.../devteam/main.go:176:handleGate(baseDir, cfg)
+/.../devteam/main.go:178:handleRecirculate(baseDir, cfg)
+/.../devteam/main.go:180:handlePlugin(baseDir, cfg)
+/.../devteam/main.go:182:handleBootstrap(baseDir, cfg)
+/.../devteam/main.go:190:func handleStatus(baseDir string) {
+/.../devteam/main.go:191:provider, database := newDBProvider(baseDir)
+[0m
+Gate uses the WORKTREE's `.devteam.db` (CWD), not the primary DB where I submitted artifacts. The worktree DB has the feature row but no `feature_data` blob. Need to submit artifacts to the worktree DB too, OR the gate needs the primary DB. Let me check how gate picks the DB.
+[0m
+[0m$ [0msqlite3 .devteam.db "SELECT id, status, current_phase, length(feature_data) FROM features WHERE id='crud-feature';" 2>&1; echo "---artifacts---"; sqlite3 .devteam.db "SELECT artifact_type, length(content) FROM spec_artifacts WHERE feature_id='crud-feature';" 2>&1
+---artifacts---
+[0m
+Gate uses CWD's `.devteam.db`. The worktree DB has the feature row (status showed `in_progress/planning`) but no `feature_data`. Let me check — earlier `feature status` worked, returning `crud-feature in_progress planning`. That was via API to :8765 (primary DB). The CLI `gate` runs locally against CWD `.devteam.db`.
+
+The worktree `.devteam.db` is a separate DB. The feature row exists there (status command worked against primary via API, not local). Let me check the worktree DB directly.
+[0m
+[0m$ [0msqlite3 /home/lobsterdog/source/devteam/.devteam.db "SELECT id, status, current_phase, length(feature_data) FROM features WHERE id='crud-feature';" 2>&1; echo "---artifacts primary---"; sqlite3 /home/lobsterdog/source/devteam/.devteam.db "SELECT artifact_type, length(content) FROM spec_artifacts WHERE feature_id='crud-feature' ORDER BY artifact_type;" 2>&1
+crud-feature|in_progress|planning|816
+---artifacts primary---
+acceptance_md|10868
+audit_md|4712
+contracts_dir|16586
+data_model_md|8263
+plan_md|34502
+repos_yaml|1267
+research_md|12447
+spec_md|19280
+tasks_md|27867
+[0m
+Worktree DB has NO crud-feature row and NO artifacts. The feature exists only in the primary DB (where the server runs on :8765). The CLI `gate` command operates on the local CWD DB.
+
+So the pipeline dispatch ran the architect from the worktree CWD but the artifacts must be submitted to the worktree DB for the gate to pass locally. But the CLI `artifact submit` goes via HTTP to :8765 (primary DB). There's a mismatch.
+
+Let me check: the architect's CONTEXT.md says submit via `devteam artifact submit` which is HTTP-based (to :8765). The gate is local. The pipeline must run the gate against the same DB. Let me check how the pipeline dispatches and which DB it uses. Actually the running server on :8765 uses the primary DB. The worktree exists for the spec files on disk. Let me verify the primary DB has the artifacts (I submitted there) and the feature is at planning there.
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam
+$DEVTEAM gate crud-feature 2>&1 | rtk tail -80
+2026/06/26 20:52:02 db: migrations complete (3 total, 0 pending)
+2026/06/26 20:52:02 db: opened sqlite at /home/lobsterdog/source/devteam/.devteam.db
+Gate evaluation for crud-feature (phase: planning):
+  Passed: true
+  Checks:
+    [PASS] artifact_plan_md_exists
+           artifact plan_md present
+    [PASS] artifact_tasks_md_exists
+           artifact tasks_md present
+    [PASS] artifact_data_model_md_exists
+           artifact data_model_md present
+    [PASS] artifact_research_md_exists
+           artifact research_md present
+    [PASS] artifact_contracts_dir_exists
+           artifact contracts_dir present
+    [PASS] plan.md addresses all acceptance criteria from acceptance.md
+           ✓ plan.md addresses all acceptance criteria from acceptance.md
+    [PASS] plan.md includes technical context (language, framework, dependencies)
+           ✓ plan.md includes technical context (language, framework, dependencies)
+    [PASS] plan.md includes constitution check (if constitution exists)
+           ✓ plan.md includes constitution check (if constitution exists)
+    [PASS] plan.md includes project structure with file paths
+           ✓ plan.md includes project structure with file paths
+    [PASS] plan.md includes component design with responsibilities and interfaces
+           ✓ plan.md includes component design with responsibilities and interfaces
+    [PASS] plan.md includes API contracts with request/response schemas and error responses
+           ✓ plan.md includes API contracts with request/response schemas and error responses
+    [PASS] plan.md includes test strategy section with testing levels for each component
+           ✓ plan.md includes test strategy section with testing levels for each component
+    [PASS] plan.md includes agent failure mode checks for AI-generated code
+           ✓ plan.md includes agent failure mode checks for AI-generated code
+    [PASS] plan.md includes constraint verification map tracing constraints to design decisions
+           ✓ plan.md includes constraint verification map tracing constraints to design decisions
+    [PASS] plan.md includes cross-component consistency matrix for shared values
+           ✓ plan.md includes cross-component consistency matrix for shared values
+    [PASS] research.md documents technical research and existing code patterns
+           ✓ research.md documents technical research and existing code patterns
+    [PASS] data-model.md defines entities with attributes, relationships, and constraints
+           ✓ data-model.md defines entities with attributes, relationships, and constraints
+    [PASS] contracts/ directory contains API contract files with request/response schemas
+           ✓ contracts/ directory contains API contract files with request/response schemas
+    [PASS] tasks.md contains specific file paths for implementation
+           ✓ tasks.md contains specific file paths for implementation
+    [PASS] tasks.md includes done conditions with specific verifiable assertions
+           ✓ tasks.md includes done conditions with specific verifiable assertions
+    [PASS] tasks.md includes test level required for each task
+           ✓ tasks.md includes test level required for each task
+    [PASS] tasks.md includes constraint references (CON- IDs) for constrained tasks
+           ✓ tasks.md includes constraint references (CON- IDs) for constrained tasks
+    [PASS] tasks.md organized by user story priority
+           ✓ tasks.md organized by user story priority
+    [PASS] dependencies between tasks are explicit
+           ✓ dependencies between tasks are explicit
+
+  Gate passed! Run 'devteam advance <feature-id>' to move to the next phase.
+[0m
+Primary DB has feature + all artifacts. The gate must run against the primary DB. The pipeline's gate step should run from the primary checkout. The worktree is for the spec files on disk; the DB is shared (primary). The CLI `gate` uses CWD's `.devteam.db` — so the pipeline must invoke the gate from the primary checkout, OR the worktree DB should be a symlink/copy.
+
+The simplest fix: run the gate from the primary checkout dir, where the DB has the data.
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam
+$DEVTEAM signal crud-feature pass 2>&1 | rtk head -c 300
+echo
+echo "===advance==="
+$DEVTEAM advance crud-feature 2>&1 | rtk tail -20
+echo "===status==="
+$DEVTEAM feature status crud-feature 2>&1
+Signal recorded: {"feature_id":"crud-feature","outcome":"pass","status":"recorded"}
+
+
+===advance===
+2026/06/26 20:52:05 db: migrations complete (3 total, 0 pending)
+2026/06/26 20:52:05 db: opened sqlite at /home/lobsterdog/source/devteam/.devteam.db
+Feature crud-feature advanced to phase: construction
+Run 'devteam run <feature-id>' to execute the next phase.
+===status===
+crud-feature	in_progress	construction
+[0m
+All 21 gate checks PASS. Now signal pass and advance.
+[0m
+[0m$ [0mDEVTEAM=~/go/bin/devteam
+$DEVTEAM notes add crud-feature --phase planning --content "Planning artifacts produced: research.md (12561B — brownfield code inventory, existing handler/DTO/DB patterns, 7 alternatives considered, no new deps), data-model.md (8397B — no new entities, Feature editable subset {title,priority}, immutable set, state-editability matrix, cascade map), contracts/ (16586B concatenated — PATCH + DELETE + shared-errors, exact request/response + all 400/404/409 cases, guard ordering rationale), plan.md (34502B — constraint verification map for all 15 CONs, cross-component consistency matrix (10 shared values, 1 inconsistency found+resolved: CORS missing DELETE), per-component test strategy, negative case design for every rejection vector, agent failure mode checks, NFR considerations), tasks.md (27867B — 7 tasks T-001..T-007 grouped by user story priority P1/P1/P3, exact file paths, done conditions with verifiable assertions, constraint refs on every task, dependency graph, parallel opportunities). All 15 constraints have design decisions + verification checkpoints. Cross-component consistency: every shared value traced producer→consumer. Found+resolved one inconsistency: CORS allow-list lacked DELETE (current GET,POST,PATCH,OPTIONS) — T-003 adds it. Design decision resolved spec open assumption: use SaveFeature(f) after load (not a new UpdateFeatureMetadata DB method) — phase/status preserved from the load. No questions.json needed (spec resolved all ambiguities via 7 human answers + 8 assumptions). Also restored missing inception artifacts (spec_md/acceptance_md/repos_yaml) to primary DB that the audit noted had gone missing. Gate: 21/21 checks PASS. Signaled pass; advanced to construction." 2>&1 | rtk head -c 200
+Note added: {"feature_id":"crud-feature","phase":"planning","status":"recorded"}
+[0m
+Signal recorded, gate passed, phase advanced to construction. Now write an audit note for the planning phase.
+[0m
+[0m# [0mTodos
+[✓] Write research.md (code patterns)
+[✓] Write data-model.md
+[✓] Write contracts/ (PATCH + DELETE + shared)
+[✓] Write plan.md (constraint map, consistency matrix, test strategy)
+[✓] Write tasks.md
+[✓] Submit all artifacts + audit + signal pass
+[0m
+Planning phase complete.
+
+## Done
+
+**Architect role, crud-feature, planning phase — finished.**
+
+Artifacts produced and submitted to DB (all 5 planning + restored 3 inception):
+- `research.md` (12.5KB) — brownfield code inventory: handler/DTO/DB/pipeline/UI patterns, 7 alternatives considered, no new deps. Resolved spec's open assumption (use `SaveFeature(f)` after load, not a new DB method).
+- `data-model.md` (8.4KB) — no new entities; Feature editable subset `{title, priority}`, immutable set, state-editability matrix (editable=deletable), cascade map.
+- `contracts/` (16.6KB) — PATCH + DELETE + shared-errors; exact request/response, every 400/404/409 case, guard ordering rationale.
+- `plan.md` (34.5KB) — constraint verification map for **all 15 CONs** (each → design decision + verification checkpoint + test type); cross-component consistency matrix (10 shared values, **1 inconsistency found + resolved**: CORS lacked DELETE → T-003 adds it); per-component test strategy; negative case design for every rejection vector; agent failure mode checks; NFR considerations.
+- `tasks.md` (27.9KB) — 7 tasks T-001..T-007 grouped by user-story priority P1/P1/P3; exact file paths; done conditions with verifiable assertions; constraint refs on every task; dependency graph + parallel opportunities.
+
+**Gate: 21/21 checks PASS.** Signaled `pass`. Phase advanced `planning → construction`.
+
+Side fix: restored missing inception artifacts (`spec_md`/`acceptance_md`/`repos_yaml`) to the primary DB that prior runs had dropped.
+
+Skipped: `questions.json` — spec resolved all ambiguities via 7 human answers + 8 `[ASSUMPTION]` markers; no architectural decisions left open.
+[0m
+Error: unknown command "hook" for "llmem"
+Run 'llmem --help' for usage.

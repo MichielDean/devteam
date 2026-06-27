@@ -907,13 +907,13 @@ func (p *Pipeline) RunPhaseWithAgentStreaming(ctx context.Context, f *feature.Fe
 		currentPhase, outcome.Result, outcome.Target, len(outcome.Notes))
 
 	// If agent didn't write outcome file, run gate as safety check
-	if !outcome.HasFile {
-		log.Printf("RunPhaseWithAgentStreaming: no outcome file — running gate as safety check")
-		gateResult, err := NewGateEvaluatorWithCommit(p.specProvider, p.WorktreeDir(f), preDispatchCommit).EvaluateForPhase(f, currentPhase)
-		if err != nil {
-			return nil, fmt.Errorf("evaluating gate for phase %s: %w", currentPhase, err)
-		}
-		if ps.GateResult.Passed {
+		if !outcome.HasFile {
+			log.Printf("RunPhaseWithAgentStreaming: no outcome file — running gate as safety check")
+			gateResult, err := NewGateEvaluatorWithCommit(p.specProvider, p.WorktreeDir(f), preDispatchCommit).EvaluateForPhase(f, currentPhase)
+			if err != nil {
+				return nil, fmt.Errorf("evaluating gate for phase %s: %w", currentPhase, err)
+			}
+			if gateResult.Passed {
 			outcome.Result = OutcomePass
 		} else {
 			outcome.Result = OutcomeRecirculate
