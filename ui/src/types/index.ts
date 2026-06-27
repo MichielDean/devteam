@@ -76,6 +76,13 @@ export interface CreateFeatureRequest {
   start_immediately?: boolean;
 }
 
+// Edit feature request — both fields optional; omitted fields are not zeroed.
+// CON-001, FR-011. `id` is never in the body; URL {id} is the source of truth.
+export interface EditFeatureRequest {
+  title?: string;
+  priority?: number;
+}
+
 export interface RecirculateRequest {
   target_phase: string;
 }

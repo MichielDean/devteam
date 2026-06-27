@@ -166,6 +166,8 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("POST /api/features/{id}/advance", s.advanceFeature)
 	mux.HandleFunc("POST /api/features/{id}/recirculate", s.recirculateFeature)
 	mux.HandleFunc("POST /api/features/{id}/cancel", s.cancelFeature)
+	mux.HandleFunc("PATCH /api/features/{id}", s.editFeature)
+	mux.HandleFunc("DELETE /api/features/{id}", s.deleteFeature)
 	mux.HandleFunc("POST /api/features/{id}/process", s.processFeature)
 	mux.HandleFunc("GET /api/features/{id}/gate", s.evaluateGate)
 	mux.HandleFunc("GET /api/features/{id}/artifacts/{type}", s.getArtifact)
@@ -634,6 +636,122 @@ func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
+}
+
+// editFeature handles PATCH /api/features/{id} — updates title and/or
+// priority only. Immutable fields (id, intake_path, spec_dir, current_phase,
+// created_at) are never modified. CON-001, CON-004. FR-001..FR-004, FR-010,
+// FR-011.
+func (s *Server) editFeature(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	var req EditFeatureRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation_error", "Invalid JSON body")
+		return
+	}
+
+	// Both fields optional, but at least one must be present. FR-011.
+	if req.Title == nil && req.Priority == nil {
+		writeError(w, http.StatusBadRequest, "validation_error", "Must provide at least one of title or priority")
+		return
+	}
+
+	f, err := s.pipeline.GetFeature(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
+		return
+	}
+
+	// No edits while processing or paused for feedback. CON-002, FR-003.
+	if f.Status == feature.StatusInProgress ||
+		f.Status == feature.StatusWaitingFeedback ||
+		f.Status == feature.StatusGateBlocked {
+		writeError(w, http.StatusConflict, "feature_processing", "Feature is currently processing — edits are blocked while in progress, waiting for feedback, or gate-blocked")
+		return
+	}
+
+	if req.Title != nil {
+		title := strings.TrimSpace(*req.Title)
+		if title == "" {
+			writeError(w, http.StatusBadRequest, "empty_title", "Title is required")
+			return
+		}
+		if len(title) > 200 {
+			writeError(w, http.StatusBadRequest, "title_too_long", "Title must be 200 characters or less")
+			return
+		}
+		f.Title = title
+	}
+
+	if req.Priority != nil {
+		p := *req.Priority
+		if p < 1 || p > 3 {
+			writeError(w, http.StatusBadRequest, "invalid_priority", "Priority must be 1, 2, or 3")
+			return
+		}
+		f.Priority = p
+	}
+
+	f.UpdatedAt = time.Now().UTC()
+
+	if err := s.pipeline.SaveFeature(f); err != nil {
+		log.Printf("error saving edited feature %s: %v", id, err)
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to save feature")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
+}
+
+// deleteFeature handles DELETE /api/features/{id} — hard-deletes the feature
+// row and cascades related rows via the existing ON DELETE CASCADE schema.
+// CON-005, CON-007, CON-012. FR-005..FR-009.
+func (s *Server) deleteFeature(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
+		return
+	}
+
+	f, err := s.pipeline.GetFeature(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
+		return
+	}
+
+	// Never delete a feature mid-processing — orphans tmux sessions. CON-012, FR-006.
+	if s.IsProcessing(id) || s.pipeline.Dispatcher().IsSessionAlive(id) {
+		writeError(w, http.StatusConflict, "feature_processing", "Feature is currently being processed — cancel it first before deleting")
+		return
+	}
+
+	// Only draft or terminal features are deletable. CON-007, FR-007.
+	if f.Status == feature.StatusInProgress ||
+		f.Status == feature.StatusWaitingFeedback ||
+		f.Status == feature.StatusGateBlocked {
+		writeError(w, http.StatusBadRequest, "not_deletable", "Feature must be cancelled before it can be deleted")
+		return
+	}
+
+	if s.db == nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Database not configured")
+		return
+	}
+
+	if err := s.db.DeleteFeature(id); err != nil {
+		log.Printf("error deleting feature %s: %v", id, err)
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to delete feature")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) evaluateGate(w http.ResponseWriter, r *http.Request) {

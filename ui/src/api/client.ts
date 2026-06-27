@@ -2,6 +2,7 @@ import type {
   FeatureListResponse,
   FeatureDetail,
   CreateFeatureRequest,
+  EditFeatureRequest,
   RecirculateRequest,
   GateResult,
   ErrorResponse,
@@ -62,6 +63,21 @@ export async function createFeature(req: CreateFeatureRequest): Promise<FeatureD
   return request<FeatureDetail>('/features', {
     method: 'POST',
     body: JSON.stringify(req),
+  });
+}
+
+// Edit feature (PATCH title and/or priority). CON-001, FR-001.
+export async function editFeature(id: string, req: EditFeatureRequest): Promise<FeatureDetail> {
+  return request<FeatureDetail>(`/features/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(req),
+  });
+}
+
+// Delete feature (hard delete + cascade). CON-005, FR-005.
+export async function deleteFeature(id: string): Promise<void> {
+  return request<void>(`/features/${id}`, {
+    method: 'DELETE',
   });
 }
 

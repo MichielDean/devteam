@@ -1,4 +1,7 @@
 import { Link } from 'react-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { deleteFeature, ApiError } from '../api/client';
+import { useToast } from './Toast';
 import type { FeatureSummary } from '../types';
 import { STATUS_LABELS, PHASE_LABELS, PRIORITY_LABELS } from '../types';
 import type { PhaseName } from '../types';
@@ -9,9 +12,35 @@ interface FeatureCardProps {
 }
 
 export default function FeatureCard({ feature }: FeatureCardProps) {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
   const phaseLabel = PHASE_LABELS[feature.current_phase as PhaseName] || feature.current_phase;
   const statusLabel = STATUS_LABELS[feature.status] || feature.status;
   const priorityLabel = PRIORITY_LABELS[feature.priority] || `P${feature.priority}`;
+
+  // Deletable: draft or terminal only — must cancel first if processing. CON-007.
+  const deletable =
+    feature.status !== 'in_progress' &&
+    feature.status !== 'waiting_for_feedback' &&
+    feature.status !== 'gate_blocked';
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteFeature(feature.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['features'] });
+      addToast('success', 'Feature deleted');
+    },
+    onError: (err: Error) => {
+      const code = err instanceof ApiError ? err.code : '';
+      if (code === 'feature_processing') {
+        addToast('error', 'Cannot delete — feature is currently processing');
+      } else if (code === 'not_deletable') {
+        addToast('error', 'Cancel the feature first before deleting it');
+      } else {
+        addToast('error', `Failed to delete: ${err.message}`);
+      }
+    },
+  });
 
   const statusColors: Record<string, string> = {
     in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -77,6 +106,24 @@ export default function FeatureCard({ feature }: FeatureCardProps) {
       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400" data-testid="feature-card-updated">
         Updated {new Date(feature.updated_at).toLocaleDateString()}
       </div>
+
+      {deletable && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.confirm(`Delete "${feature.title}"? This removes the feature and all its data.`)) {
+              deleteMutation.mutate();
+            }
+          }}
+          disabled={deleteMutation.isPending}
+          className="mt-3 inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title="Delete this feature permanently"
+          data-testid="feature-card-delete"
+        >
+          Delete
+        </button>
+      )}
     </Link>
   );
 }

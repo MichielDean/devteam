@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router';
+import { useParams, Link, useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, processFeature, evaluateGate, listQuestions, answerQuestion, ApiError } from '../api/client';
+import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, processFeature, evaluateGate, listQuestions, answerQuestion, editFeature, deleteFeature, ApiError } from '../api/client';
 import { useSSE } from '../hooks/useSSE';
 import { useToast } from '../components/Toast';
 import type { FeatureDetail, PhaseName } from '../types';
@@ -17,6 +17,12 @@ export default function FeatureDetail() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
+  const navigate = useNavigate();
+
+  // Edit form state. CON-003: edit form on detail page only. FR-012.
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editPriority, setEditPriority] = useState<number>(2);
 
   // Wizard draft state: { questionId -> selected/typed answer }. CON-007/008.
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -226,6 +232,46 @@ export default function FeatureDetail() {
     onError: (err: Error) => addToast('error', `Quality check failed: ${err.message}`),
   });
 
+  // Edit (PATCH title and/or priority). CON-001, FR-001.
+  const editMutation = useMutation({
+    mutationFn: (req: { title?: string; priority?: number }) => editFeature(id!, req),
+    onSuccess: () => {
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['features'] });
+      addToast('success', 'Feature updated');
+    },
+    onError: (err: Error) => {
+      const code = err instanceof ApiError ? err.code : '';
+      if (code === 'feature_processing') {
+        addToast('error', 'Cannot edit — feature is currently processing');
+      } else {
+        addToast('error', `Failed to save: ${err.message}`);
+      }
+    },
+  });
+
+  // Delete (hard delete + cascade). CON-005, FR-005. Navigates to dashboard on success. FR-016.
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteFeature(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['features'] });
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      addToast('success', 'Feature deleted');
+      navigate('/');
+    },
+    onError: (err: Error) => {
+      const code = err instanceof ApiError ? err.code : '';
+      if (code === 'feature_processing') {
+        addToast('error', 'Cannot delete — feature is currently processing');
+      } else if (code === 'not_deletable') {
+        addToast('error', 'Cancel the feature first before deleting it');
+      } else {
+        addToast('error', `Failed to delete: ${err.message}`);
+      }
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12" data-testid="feature-loading">
@@ -257,6 +303,16 @@ export default function FeatureDetail() {
   const recirculationTargets = PHASES.slice(0, currentPhaseIndex > 0 ? currentPhaseIndex : 0);
   const isDeliveryPassed = currentPhase === 'delivery' && gatePassed;
   const showProcessView = isProcessing || processMutation.isPending;
+
+  // Editable/deletable state per the spec's state-editability matrix.
+  // Non-editable: in_progress, waiting_for_feedback, gate_blocked (CON-002).
+  // Non-deletable: same set — must cancel first (CON-007, FR-007).
+  const isProcessingStatus =
+    feature.status === 'in_progress' ||
+    feature.status === 'waiting_for_feedback' ||
+    feature.status === 'gate_blocked';
+  const editable = !isProcessingStatus;
+  const deletable = !isProcessingStatus;
 
   const phaseDescriptions = PHASE_DESCRIPTIONS;
 
@@ -307,6 +363,108 @@ export default function FeatureDetail() {
             </span>
           </div>
         </div>
+
+        {/* Edit / Delete actions. CON-002/007, FR-013/015. */}
+        {!isEditing && (
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={() => {
+                setEditTitle(feature.title);
+                setEditPriority(feature.priority);
+                setIsEditing(true);
+              }}
+              disabled={!editable || editMutation.isPending}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              title={
+                editable
+                  ? 'Edit this feature\u2019s title and priority'
+                  : 'Edits are blocked while this feature is processing, waiting for feedback, or gate-blocked'
+              }
+              data-testid="edit-button"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm(`Delete "${feature.title}"? This removes the feature and all its data.`)) {
+                  deleteMutation.mutate();
+                }
+              }}
+              disabled={!deletable || deleteMutation.isPending}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              title={
+                deletable
+                  ? 'Delete this feature permanently'
+                  : 'Feature must be cancelled before it can be deleted'
+              }
+              data-testid="delete-button"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+
+        {/* Edit form — rendered on the detail page only. CON-003, FR-012. */}
+        {isEditing && (
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-gray-200 dark:border-gray-700" data-testid="edit-form">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="edit-title-input">
+                  Title
+                </label>
+                <input
+                  id="edit-title-input"
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  maxLength={200}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  data-testid="edit-title-input"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="edit-priority-select">
+                  Priority
+                </label>
+                <select
+                  id="edit-priority-select"
+                  value={editPriority}
+                  onChange={(e) => setEditPriority(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  data-testid="edit-priority-select"
+                >
+                  <option value={1}>P1 - Critical</option>
+                  <option value={2}>P2 - Medium</option>
+                  <option value={3}>P3 - Low</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const req: { title?: string; priority?: number } = {};
+                    const trimmed = editTitle.trim();
+                    if (trimmed !== feature.title) req.title = trimmed;
+                    if (editPriority !== feature.priority) req.priority = editPriority;
+                    editMutation.mutate(req);
+                  }}
+                  disabled={editMutation.isPending}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold"
+                  data-testid="edit-save"
+                >
+                  {editMutation.isPending ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  disabled={editMutation.isPending}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                  data-testid="edit-cancel"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
           <div>

@@ -26,6 +26,14 @@ type RecirculateRequest struct {
 	TargetPhase string `json:"target_phase"`
 }
 
+// EditFeatureRequest is the body for PATCH /api/features/{id}. Both fields
+// optional (pointer); omitted fields are not zeroed. FR-011. `id` in the body
+// is ignored — the URL {id} is the source of truth. CON-004.
+type EditFeatureRequest struct {
+	Title    *string `json:"title,omitempty"`
+	Priority *int    `json:"priority,omitempty"`
+}
+
 type FeatureSummaryResponse struct {
 	ID                    string              `json:"id"`
 	Title                 string              `json:"title"`
