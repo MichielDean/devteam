@@ -295,7 +295,7 @@ func TestGetArtifactFromDBOnly(t *testing.T) {
 	database.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
 		"feat-db-only", "feat-db-only", timeNowUTC(), timeNowUTC())
 
-	database.SaveArtifact("feat-db-only", "plan", "# Plan from DB")
+	database.SaveArtifact("feat-db-only", "plan_md", "# Plan from DB")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/features/feat-db-only/artifacts/plan", nil)
 	req.SetPathValue("id", "feat-db-only")

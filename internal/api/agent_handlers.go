@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MichielDean/devteam/internal/db"
+	"github.com/MichielDean/devteam/internal/feature"
 )
 
 // ensureFeatureInDB inserts a minimal feature row if it doesn't exist (for FK constraints)
@@ -124,6 +125,12 @@ func (s *Server) handleSubmitArtifact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID and artifact type are required")
 		return
 	}
+	parsedType, ok := feature.ArtifactAPIPathToType(artType)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "validation_error", fmt.Sprintf("Unknown artifact type: %s", artType))
+		return
+	}
+	dbKey := parsedType.String()
 
 	var req ArtifactRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -138,7 +145,7 @@ func (s *Server) handleSubmitArtifact(w http.ResponseWriter, r *http.Request) {
 
 	if s.db != nil {
 		ensureFeatureInDB(s.db, id)
-		if err := s.db.SaveArtifact(id, artType, req.Content); err != nil {
+		if err := s.db.SaveArtifact(id, dbKey, req.Content); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to save artifact: %v", err))
 			return
 		}

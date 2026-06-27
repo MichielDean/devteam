@@ -721,13 +721,19 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID and artifact type are required")
 		return
 	}
+	parsedType, ok := feature.ArtifactAPIPathToType(artType)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "validation_error", fmt.Sprintf("Unknown artifact type: %s", artType))
+		return
+	}
+	dbKey := parsedType.String()
 
 	if s.db == nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Database not configured")
 		return
 	}
 
-	artifact, err := s.db.GetArtifact(id, artType)
+	artifact, err := s.db.GetArtifact(id, dbKey)
 	if err != nil || artifact == nil {
 		writeError(w, http.StatusNotFound, "artifact_not_found", fmt.Sprintf("Artifact %s not found for feature %s", artType, id))
 		return
