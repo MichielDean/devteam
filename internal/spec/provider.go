@@ -115,6 +115,22 @@ func (sp *SpecProvider) SaveFeatureState(f *feature.Feature) error {
 	return sp.saveFeatureStateToDisk(f)
 }
 
+// DeleteFeatureState removes a feature's persisted state.
+// DB mode: deletes the features row; ON DELETE CASCADE removes all related
+// rows (phase_states, questions, notes, sessions, recirculations, events,
+// artifacts, gate_results). Disk mode: removes the .devteam-state.yaml file.
+// Worktree/branch cleanup is a tracked P2 follow-up (spec ASSUMPTION).
+func (sp *SpecProvider) DeleteFeatureState(featureID string) error {
+	if sp.database != nil {
+		return sp.database.DeleteFeature(featureID)
+	}
+	statePath := filepath.Join(sp.FeatureDir(featureID), ".devteam-state.yaml")
+	if err := os.Remove(statePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("deleting feature state %s: %w", featureID, err)
+	}
+	return nil
+}
+
 func (sp *SpecProvider) saveFeatureStateToDisk(f *feature.Feature) error {
 	data, err := yaml.Marshal(f)
 	if err != nil {

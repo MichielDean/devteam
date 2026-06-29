@@ -1259,6 +1259,15 @@ func (p *Pipeline) SaveFeature(f *feature.Feature) error {
 	return p.specProvider.SaveFeatureState(f)
 }
 
+// DeleteFeature removes a feature's persisted state. In DB mode the features
+// row is deleted and ON DELETE CASCADE removes phase_states, questions,
+// notes, sessions, recirculations, events, artifacts, gate_results. In disk
+// mode the spec directory's state file is removed. Worktree/branch cleanup
+// is a P2 follow-up (see spec ASSUMPTION).
+func (p *Pipeline) DeleteFeature(f *feature.Feature) error {
+	return p.specProvider.DeleteFeatureState(f.ID)
+}
+
 // UpdateFeatureStatus saves a feature's status and current phase.
 func (p *Pipeline) UpdateFeatureStatus(f *feature.Feature) error {
 	return p.specProvider.SaveFeatureState(f)

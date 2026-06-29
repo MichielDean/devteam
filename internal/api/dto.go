@@ -26,6 +26,15 @@ type RecirculateRequest struct {
 	TargetPhase string `json:"target_phase"`
 }
 
+// UpdateFeatureRequest is the PATCH /api/features/{id} body. Only title and
+// priority are editable; id/current_phase/status/intake_path/spec_dir are
+// immutable and never accepted here (mass-assignment prevention). Omitted
+// fields are not zeroed — pointers distinguish "absent" from "set to zero".
+type UpdateFeatureRequest struct {
+	Title    *string `json:"title,omitempty"`
+	Priority *int    `json:"priority,omitempty"`
+}
+
 type FeatureSummaryResponse struct {
 	ID                    string              `json:"id"`
 	Title                 string              `json:"title"`

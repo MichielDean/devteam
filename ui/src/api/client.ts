@@ -2,6 +2,7 @@ import type {
   FeatureListResponse,
   FeatureDetail,
   CreateFeatureRequest,
+  UpdateFeatureRequest,
   RecirculateRequest,
   GateResult,
   ErrorResponse,
@@ -103,6 +104,21 @@ export async function recirculateFeature(id: string, targetPhase: string): Promi
 export async function cancelFeature(id: string): Promise<FeatureDetail> {
   return request<FeatureDetail>(`/features/${id}/cancel`, {
     method: 'POST',
+  });
+}
+
+// Edit feature (PATCH title and/or priority). FR-001/FR-011.
+export async function editFeature(id: string, req: UpdateFeatureRequest): Promise<FeatureDetail> {
+  return request<FeatureDetail>(`/features/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(req),
+  });
+}
+
+// Delete feature (hard delete + cascade). Returns 204 No Content. FR-005/FR-009.
+export async function deleteFeature(id: string): Promise<void> {
+  return request<void>(`/features/${id}`, {
+    method: 'DELETE',
   });
 }
 

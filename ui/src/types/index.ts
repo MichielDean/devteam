@@ -80,6 +80,12 @@ export interface RecirculateRequest {
   target_phase: string;
 }
 
+// PATCH /api/features/{id} body. Omitted fields are not zeroed.
+export interface UpdateFeatureRequest {
+  title?: string;
+  priority?: number;
+}
+
 export interface ErrorResponse {
   error: string;
   details?: string;

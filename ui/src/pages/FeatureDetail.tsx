@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router';
+import { useParams, Link, useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, processFeature, evaluateGate, listQuestions, answerQuestion, ApiError } from '../api/client';
+import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, editFeature, deleteFeature, processFeature, evaluateGate, listQuestions, answerQuestion, ApiError } from '../api/client';
 import { useSSE } from '../hooks/useSSE';
 import { useToast } from '../components/Toast';
 import type { FeatureDetail, PhaseName } from '../types';
@@ -17,6 +17,7 @@ export default function FeatureDetail() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
+  const navigate = useNavigate();
 
   // Wizard draft state: { questionId -> selected/typed answer }. CON-007/008.
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -226,6 +227,45 @@ export default function FeatureDetail() {
     onError: (err: Error) => addToast('error', `Quality check failed: ${err.message}`),
   });
 
+  // Edit form state: FR-012/FR-013. null = form closed; otherwise draft title/priority.
+  const [editDraft, setEditDraft] = useState<{ title: string; priority: number } | null>(null);
+
+  // FR-003/CON-002: edit blocked while in_progress / waiting_for_feedback / gate_blocked.
+  // FR-015/CON-007: delete blocked for the same set (must cancel first).
+  const nonEditableStatuses = ['in_progress', 'waiting_for_feedback', 'gate_blocked'];
+  const editable = feature ? !nonEditableStatuses.includes(feature.status) : false;
+  const deletable = feature ? !nonEditableStatuses.includes(feature.status) : false;
+  const editDisabledReason = 'Edits are blocked while the feature is processing — cancel or wait for it to finish first';
+  const deleteDisabledReason = 'Feature must be cancelled before it can be deleted';
+
+  const editMutation = useMutation({
+    mutationFn: (req: { title?: string; priority?: number }) => editFeature(id!, req),
+    onSuccess: () => {
+      setEditDraft(null);
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['features'] });
+      addToast('success', 'Feature updated');
+    },
+    onError: (err: Error) => {
+      const apiErr = err instanceof ApiError ? err : null;
+      addToast('error', apiErr?.details || `Failed to save: ${err.message}`);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteFeature(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['features'] });
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      addToast('success', 'Feature deleted');
+      navigate('/');
+    },
+    onError: (err: Error) => {
+      const apiErr = err instanceof ApiError ? err : null;
+      addToast('error', apiErr?.details || `Failed to delete: ${err.message}`);
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12" data-testid="feature-loading">
@@ -305,6 +345,32 @@ export default function FeatureDetail() {
             >
               {PRIORITY_LABELS[feature.priority] || `P${feature.priority}`}
             </span>
+            {/* Edit button — FR-012/FR-013. Disabled while processing. CON-003: form on detail page only. */}
+            <button
+              type="button"
+              onClick={() => setEditDraft({ title: feature.title, priority: feature.priority })}
+              disabled={!editable || editMutation.isPending}
+              title={editable ? 'Edit title and priority' : editDisabledReason}
+              className="px-3 py-1 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              data-testid="edit-button"
+            >
+              Edit
+            </button>
+            {/* Delete button — FR-014/FR-015. Disabled while processing. CON-006: confirm dialog. */}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Delete "${feature.title}"? This removes the feature and all related data. This cannot be undone.`)) {
+                  deleteMutation.mutate();
+                }
+              }}
+              disabled={!deletable || deleteMutation.isPending}
+              title={deletable ? 'Delete this feature' : deleteDisabledReason}
+              className="px-3 py-1 text-sm font-medium rounded-lg bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900 dark:text-red-200 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              data-testid="delete-button"
+            >
+              Delete
+            </button>
           </div>
         </div>
 
@@ -335,6 +401,78 @@ export default function FeatureDetail() {
           </div>
         </div>
       </div>
+
+      {/* Edit form — rendered inline on the detail page (CON-003). FR-012. */}
+      {editDraft && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="edit-form">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Edit feature</h3>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="edit-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Title
+              </label>
+              <input
+                id="edit-title"
+                type="text"
+                value={editDraft.title}
+                onChange={(e) => setEditDraft((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
+                maxLength={200}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                data-testid="edit-title-input"
+              />
+            </div>
+            <div>
+              <label htmlFor="edit-priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Priority
+              </label>
+              <select
+                id="edit-priority"
+                value={editDraft.priority}
+                onChange={(e) => setEditDraft((prev) => (prev ? { ...prev, priority: Number(e.target.value) } : prev))}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                data-testid="edit-priority-input"
+              >
+                <option value={1}>P1 - Critical</option>
+                <option value={2}>P2 - Medium</option>
+                <option value={3}>P3 - Low</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (editDraft.title.trim() === '') {
+                    addToast('error', 'Title is required');
+                    return;
+                  }
+                  const req: { title?: string; priority?: number } = {};
+                  if (editDraft.title !== feature.title) req.title = editDraft.title.trim();
+                  if (editDraft.priority !== feature.priority) req.priority = editDraft.priority;
+                  if (req.title === undefined && req.priority === undefined) {
+                    setEditDraft(null);
+                    return;
+                  }
+                  editMutation.mutate(req);
+                }}
+                disabled={editMutation.isPending}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold"
+                data-testid="edit-save"
+              >
+                {editMutation.isPending ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditDraft(null)}
+                disabled={editMutation.isPending}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold"
+                data-testid="edit-cancel"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Phase Timeline */}
       <PhaseTimeline phases={PHASES} currentPhase={currentPhase} phaseStates={feature.phase_states} />
