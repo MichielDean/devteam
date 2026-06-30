@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -19,155 +21,18 @@ import (
 )
 
 type Server struct {
-	httpServer    *http.Server
-	pipeline      *pipeline.Pipeline
-	specProvider  *spec.SpecProvider
-	db            *db.DB
-	activeProcess sync.Map
-	sseClients    sync.Map
-	sseBuffers    sync.Map // featureID -> []*SSEMessage (recent events for late joiners)
-	baseDir       string
-	staticFS      fs.FS
+	httpServer   *http.Server
+	pipeline     *pipeline.Pipeline
+	specProvider *spec.SpecProvider
+	db           *db.DB
+	active       sync.Map // featureID -> struct{} (set of currently running features)
+	sseMu        sync.Mutex
+	sseClients   map[string][]chan SSEMessage
+	sseBuffers   map[string][]*SSEMessage
+	baseDir      string
+	staticFS     fs.FS
 	questionStore feature.QuestionStore
 }
-
-func (s *Server) IsProcessing(id string) bool {
-	_, loaded := s.activeProcess.Load(id)
-	return loaded
-}
-
-func (s *Server) ProcessingMode(id string) string {
-	v, loaded := s.activeProcess.Load(id)
-	if !loaded {
-		return ""
-	}
-	mode, _ := v.(string)
-	return mode
-}
-
-// RestoreActiveProcesses scans tmux for active devteam sessions and restores
-// the activeProcess map. Also detects orphaned features (status: in_progress
-// but no tmux session) and resumes their pipeline. Called on server startup.
-func (s *Server) RestoreActiveProcesses() {
-	// 1. Restore active tmux sessions
-	sessions := s.pipeline.Dispatcher().ListActiveSessions()
-	for featureID := range sessions {
-		s.activeProcess.Store(featureID, "autopilot")
-		log.Printf("restored active process for feature %s from tmux session", featureID)
-	}
-
-	// 2. Find and resume orphaned features (in_progress but no tmux session)
-	s.resumeOrphanedFeatures()
-}
-
-func (s *Server) resumeOrphanedFeatures() {
-	features, err := s.pipeline.ListFeatures()
-	if err != nil {
-		log.Printf("resumeOrphanedFeatures: failed to list features: %v", err)
-		return
-	}
-
-	for _, f := range features {
-		if f.IsTerminal() {
-			continue
-		}
-		if f.Status != "in_progress" {
-			continue
-		}
-
-		// Skip if tmux session is still alive
-		if s.pipeline.Dispatcher().IsSessionAlive(f.ID) {
-			continue
-		}
-
-		// Skip if already in activeProcess
-		if s.IsProcessing(f.ID) {
-			continue
-		}
-
-		// Don't re-run a phase whose gate already passed — the user just
-		// hasn't advanced to the next phase yet. Marking as not processing
-		// lets the UI show "Go to Planning" etc.
-		currentPhaseState, ok := f.PhaseStates[f.Current]
-		if ok && currentPhaseState.GateResult != nil && currentPhaseState.GateResult.Passed {
-			log.Printf("resumeOrphanedFeatures: feature %s phase %s gate already passed — not resuming, waiting for user to advance", f.ID, f.Current)
-			continue
-		}
-
-		// Circuit breaker: don't resume a phase more than 3 times automatically.
-		// Prevents crash-loops from burning LLM credits. User can manually
-		// re-run from the UI after investigating.
-		if ok && currentPhaseState.ResumeCount >= 3 {
-			log.Printf("resumeOrphanedFeatures: feature %s phase %s resumed %d times — NOT resuming (circuit breaker). User must manually re-run.", f.ID, f.Current, currentPhaseState.ResumeCount)
-			f.Status = feature.StatusFailed
-			s.pipeline.SaveFeature(f)
-			s.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Auto-resume disabled after 3 attempts. Investigate and re-run manually."}`, f.ID))
-			continue
-		}
-
-		log.Printf("resumeOrphanedFeatures: found orphaned feature %s (phase %s, status %s, resume #%d) — resuming current phase", f.ID, f.Current, f.Status, currentPhaseState.ResumeCount+1)
-
-		// Increment resume count before dispatching
-		if ok {
-			currentPhaseState.ResumeCount++
-		}
-
-		// Resume in single-phase mode — run current phase only, then stop.
-		// Don't auto-advance; user advances manually through the UI.
-		s.activeProcess.Store(f.ID, "single-phase")
-		go func(featureID string) {
-			defer s.activeProcess.Delete(featureID)
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("resumeOrphanedFeatures: PANIC resuming feature %s: %v", featureID, r)
-					s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error during resume (recovered). Check logs."}`, featureID))
-				}
-			}()
-
-			f, err := s.pipeline.GetFeature(featureID)
-			if err != nil {
-				log.Printf("resumeOrphanedFeatures: failed to reload feature %s: %v", featureID, err)
-				return
-			}
-
-			ctx := context.Background()
-			currentPhase := f.Current
-
-			s.broadcastSSE(featureID, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, featureID, currentPhase))
-			s.broadcastSSE(featureID, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched","message":"Resuming %s"}`, featureID, currentPhase, s.pipeline.PrimaryRole(currentPhase), currentPhase))
-
-			onOutput := func(line string, isStderr bool) {
-				escaped, _ := json.Marshal(line)
-				s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, featureID, string(escaped), isStderr))
-			}
-
-			result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
-			if err != nil {
-				log.Printf("resumeOrphanedFeatures: error resuming feature %s: %v", featureID, err)
-				s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Resume failed: %s"}`, featureID, err.Error()))
-				return
-			}
-
-			if result != nil && result.GateResult != nil {
-				checks := make([]map[string]interface{}, 0, len(result.GateResult.Checks))
-				for _, c := range result.GateResult.Checks {
-					checks = append(checks, map[string]interface{}{
-						"name":    c.Name,
-						"passed":  c.Passed,
-						"message": c.Message,
-					})
-				}
-				checksJSON, _ := json.Marshal(checks)
-				s.broadcastSSE(featureID, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, featureID, currentPhase, result.GateResult.Passed, string(checksJSON)))
-			}
-
-			s.broadcastSSE(featureID, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, featureID, currentPhase))
-			log.Printf("resumeOrphanedFeatures: feature %s phase %s completed", featureID, currentPhase)
-		}(f.ID)
-	}
-}
-
-// NewServer creates a new API server.
 
 func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore, database *db.DB) *Server {
 	s := &Server{
@@ -177,6 +42,8 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 		staticFS:      staticFS,
 		questionStore: questionStore,
 		db:            database,
+		sseClients:    make(map[string][]chan SSEMessage),
+		sseBuffers:    make(map[string][]*SSEMessage),
 	}
 
 	mux := http.NewServeMux()
@@ -188,7 +55,6 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("POST /api/features/{id}/advance", s.advanceFeature)
 	mux.HandleFunc("POST /api/features/{id}/recirculate", s.recirculateFeature)
 	mux.HandleFunc("POST /api/features/{id}/cancel", s.cancelFeature)
-	mux.HandleFunc("POST /api/features/{id}/process", s.processFeature)
 	mux.HandleFunc("GET /api/features/{id}/gate", s.evaluateGate)
 	mux.HandleFunc("GET /api/features/{id}/artifacts/{type}", s.getArtifact)
 	mux.HandleFunc("POST /api/features/{id}/artifacts/{type}", s.handleSubmitArtifact)
@@ -207,12 +73,10 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 
 	// Database-backed history endpoints
 	mux.HandleFunc("GET /api/features/{id}/gate-history", s.getGateHistory)
-	mux.HandleFunc("GET /api/features/{id}/sessions", s.getSessions)
 	mux.HandleFunc("GET /api/features/{id}/recirculations", s.getRecirculations)
 	mux.HandleFunc("GET /api/features/{id}/events", s.getEvents)
 	mux.HandleFunc("GET /api/features/{id}/notes", s.getNotes)
 	mux.HandleFunc("GET /api/features/{id}/churn", s.getChurnMetrics)
-	mux.HandleFunc("GET /api/metrics/sessions", s.getSessionMetrics)
 
 	if staticFS != nil {
 		mux.Handle("/", s.spaHandler(staticFS))
@@ -235,6 +99,44 @@ func (s *Server) Start() error {
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
+}
+
+func (s *Server) IsProcessing(id string) bool {
+	_, loaded := s.active.Load(id)
+	return loaded
+}
+
+// RestoreActiveProcesses restores active state from tmux sessions on startup.
+// Features with status=in_progress but no tmux session are marked failed —
+// user re-runs manually. No auto-resume, no credit burn.
+func (s *Server) RestoreActiveProcesses() {
+	sessions := s.pipeline.Dispatcher().ListActiveSessions()
+	for featureID := range sessions {
+		s.active.Store(featureID, struct{}{})
+		log.Printf("restored active state for feature %s from tmux session", featureID)
+	}
+
+	// Mark orphaned features as failed
+	features, err := s.pipeline.ListFeatures()
+	if err != nil {
+		log.Printf("RestoreActiveProcesses: failed to list features: %v", err)
+		return
+	}
+	for _, f := range features {
+		if f.IsTerminal() {
+			continue
+		}
+		if f.Status != feature.StatusInProgress {
+			continue
+		}
+		if s.IsProcessing(f.ID) {
+			continue
+		}
+		log.Printf("RestoreActiveProcesses: feature %s was in_progress but no tmux session — marking interrupted", f.ID)
+		f.Status = feature.StatusFailed
+		s.pipeline.SaveFeature(f)
+		s.broadcastSSE(f.ID, "interrupted", fmt.Sprintf(`{"feature_id":"%s","message":"Interrupted by server restart. Re-run manually."}`, f.ID))
+	}
 }
 
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
@@ -279,6 +181,60 @@ func (s *Server) spaHandler(staticFS fs.FS) http.HandlerFunc {
 		r.URL.Path = "/"
 		fileServer.ServeHTTP(w, r)
 	}
+}
+
+// runPhaseGoroutine is the single entry point for dispatching a phase.
+// Replaces the 6 duplicated inline goroutines. Dispatches one phase, broadcasts
+// SSE events, removes the feature from active set on completion.
+func (s *Server) runPhaseGoroutine(id string, currentPhase feature.Phase) {
+	defer s.active.Delete(id)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC in runPhase goroutine for %s: %v", id, r)
+			s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error (recovered). Check logs."}`, id))
+		}
+	}()
+
+	ctx := context.Background()
+
+	s.broadcastSSE(id, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, id, currentPhase))
+	s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched"}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase)))
+
+	onOutput := func(line string, isStderr bool) {
+		escaped, _ := json.Marshal(line)
+		s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","line":%s,"stderr":%v}`, id, currentPhase, string(escaped), isStderr))
+	}
+
+	f, err := s.pipeline.GetFeature(id)
+	if err != nil {
+		s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Failed to load feature: %s"}`, id, err.Error()))
+		return
+	}
+
+	result, err := s.pipeline.RunPhase(ctx, f, onOutput)
+	if err != nil {
+		log.Printf("error running phase for feature %s: %v", id, err)
+		s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","message":"Phase execution failed: %s"}`, id, currentPhase, err.Error()))
+		return
+	}
+	log.Printf("phase %s completed for feature %s in %v", currentPhase, id, result.Duration)
+
+	s.broadcastSSE(id, "agent_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"success","duration_ms":%d}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase), result.Duration.Milliseconds()))
+
+	// Broadcast gate result (smoke check)
+	passed := len(result.SmokeFailures) == 0
+	checks := make([]map[string]interface{}, 0, len(result.SmokeFailures)+1)
+	if passed {
+		checks = append(checks, map[string]interface{}{"name": "smoke_check", "passed": true})
+	} else {
+		for _, fail := range result.SmokeFailures {
+			checks = append(checks, map[string]interface{}{"name": "smoke_check", "passed": false, "message": fail})
+		}
+	}
+	checksJSON, _ := json.Marshal(checks)
+	s.broadcastSSE(id, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, id, currentPhase, passed, string(checksJSON)))
+
+	s.broadcastSSE(id, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, id, currentPhase))
 }
 
 func (s *Server) listFeatures(w http.ResponseWriter, r *http.Request) {
@@ -362,71 +318,22 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Insert feature into SQLite so foreign key constraints on questions/notes/etc. work
 	if s.db != nil {
 		s.db.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
 			f.ID, f.Title, string(f.Current), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.CreatedAt, f.UpdatedAt)
 	}
 
-	// Set activeProcess before responding so the UI knows it's processing
 	if req.StartImmediately {
-		s.activeProcess.Store(f.ID, "autopilot")
+		s.active.Store(f.ID, struct{}{})
 	}
 
-	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
+	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID), ""))
 
-	// Only auto-start inception if requested. Otherwise, just create the feature
-	// and let the user start it manually from the feature page.
 	if !req.StartImmediately {
 		return
 	}
 
-	// Auto-start with auto-advance — the pipeline will flow through all phases
-	// automatically, pausing only for questions.
-	go func() {
-		defer s.activeProcess.Delete(f.ID)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("PANIC in startFeature goroutine for %s: %v", f.ID, r)
-				s.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error (recovered). Check logs."}`, f.ID))
-			}
-		}()
-		ctx := context.Background()
-		currentPhase := f.Current
-
-		// Immediate feedback: work has started
-		s.broadcastSSE(f.ID, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, f.ID, currentPhase))
-		s.broadcastSSE(f.ID, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched","message":"Starting inception — this may take a few minutes"}`, f.ID, currentPhase, s.pipeline.PrimaryRole(currentPhase)))
-
-		onOutput := func(line string, isStderr bool) {
-			escaped, _ := json.Marshal(line)
-			s.broadcastSSE(f.ID, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, f.ID, string(escaped), isStderr))
-		}
-
-		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
-		if err != nil {
-			log.Printf("error running inception for feature %s: %v", f.ID, err)
-			s.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Inception failed: %s"}`, f.ID, err.Error()))
-			return
-		}
-
-		// Broadcast gate result
-		if result != nil && result.GateResult != nil {
-			checks := make([]map[string]interface{}, 0, len(result.GateResult.Checks))
-			for _, c := range result.GateResult.Checks {
-				checks = append(checks, map[string]interface{}{
-					"name":    c.Name,
-					"passed":  c.Passed,
-					"message": c.Message,
-				})
-			}
-			checksJSON, _ := json.Marshal(checks)
-			s.broadcastSSE(f.ID, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, f.ID, currentPhase, result.GateResult.Passed, string(checksJSON)))
-		}
-
-		s.broadcastSSE(f.ID, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, f.ID, currentPhase))
-		log.Printf("inception completed for feature %s, gate passed: %v", f.ID, result != nil && result.GateResult != nil && result.GateResult.Passed)
-	}()
+	go s.runPhaseGoroutine(f.ID, f.Current)
 }
 
 func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
@@ -442,7 +349,7 @@ func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
 }
 
 func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
@@ -463,65 +370,32 @@ func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, loaded := s.activeProcess.LoadOrStore(id, "single-phase"); loaded {
+	if f.Status == feature.StatusWaitingFeedback {
+		pending, _ := s.questionStore.PendingCount(r.Context(), id)
+		if pending > 0 {
+			writeError(w, http.StatusBadRequest, "validation_error", "Cannot run phase with pending questions")
+			return
+		}
+		f.Status = feature.StatusInProgress
+		s.pipeline.UpdateFeatureStatus(f)
+	}
+
+	if _, loaded := s.active.LoadOrStore(id, struct{}{}); loaded {
 		writeError(w, http.StatusConflict, "already_processing", fmt.Sprintf("Feature %s is already being processed", id))
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
-
-	go func() {
-		defer s.activeProcess.Delete(id)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("PANIC in runPhase goroutine for %s: %v", id, r)
-				s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error (recovered). Check logs."}`, id))
-			}
-		}()
-		ctx := context.Background()
-		currentPhase := f.Current
-		log.Printf("runPhase goroutine started for feature %s, phase %s", id, currentPhase)
-
-		s.broadcastSSE(id, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, id, currentPhase))
-		s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched"}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase)))
-
-		onOutput := func(line string, isStderr bool) {
-			escaped, _ := json.Marshal(line)
-			s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","line":%s,"stderr":%v}`, id, currentPhase, string(escaped), isStderr))
+	// Prepare impl repos when entering construction
+	if f.Current == feature.PhaseConstruction {
+		if err := s.pipeline.PrepareImplRepos(f); err != nil {
+			log.Printf("warning: could not prepare impl repos for %s: %v", f.ID, err)
 		}
+	}
 
-		result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
-		if err != nil {
-			log.Printf("error running phase for feature %s: %v", id, err)
-			s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","message":"Phase execution failed: %s"}`, id, currentPhase, err.Error()))
-			return
-		}
-		log.Printf("phase %s completed for feature %s in %v", currentPhase, id, result.Duration)
+	currentPhase := f.Current
+	writeJSON(w, http.StatusAccepted, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
 
-		s.broadcastSSE(id, "agent_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"success","duration_ms":%d}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase), result.Duration.Milliseconds()))
-
-		f, err = s.pipeline.GetFeature(id)
-		if err != nil {
-			log.Printf("error reloading feature %s after phase run: %v", id, err)
-			s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","message":"Failed to reload feature state"}`, id, currentPhase))
-			return
-		}
-
-		if result != nil && result.GateResult != nil {
-			checks := make([]map[string]interface{}, 0, len(result.GateResult.Checks))
-			for _, c := range result.GateResult.Checks {
-				checks = append(checks, map[string]interface{}{
-					"name":    c.Name,
-					"passed":  c.Passed,
-					"message": c.Message,
-				})
-			}
-			checksJSON, _ := json.Marshal(checks)
-			s.broadcastSSE(id, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, id, currentPhase, result.GateResult.Passed, string(checksJSON)))
-		}
-
-		s.broadcastSSE(id, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, id, currentPhase))
-	}()
+	go s.runPhaseGoroutine(id, currentPhase)
 }
 
 func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
@@ -543,13 +417,11 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if f.Status == feature.StatusWaitingFeedback {
-		// Allow advancing if all questions are answered
 		pending, _ := s.questionStore.PendingCount(r.Context(), id)
 		if pending > 0 {
 			writeError(w, http.StatusBadRequest, "validation_error", "Cannot advance feature with pending questions")
 			return
 		}
-		// All questions answered — transition back to in_progress
 		f.Status = feature.StatusInProgress
 	}
 
@@ -561,7 +433,7 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusInternalServerError, "internal_error", "Failed to save feature state")
 				return
 			}
-			writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
+			writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
 			return
 		}
 		writeError(w, http.StatusBadRequest, "validation_error", "Feature is at the final phase (delivery) and the gate has not passed")
@@ -587,7 +459,7 @@ func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
 }
 
 func (s *Server) recirculateFeature(w http.ResponseWriter, r *http.Request) {
@@ -629,14 +501,13 @@ func (s *Server) recirculateFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clear questions when recirculating
 	if s.questionStore != nil {
 		if err := s.questionStore.DeleteQuestionsForFeature(r.Context(), id); err != nil {
 			log.Printf("warning: failed to delete questions for feature %s on recirculate: %v", id, err)
 		}
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
 }
 
 func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {
@@ -661,13 +532,19 @@ func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Kill any active tmux session
+	if s.IsProcessing(id) {
+		s.pipeline.Dispatcher().KillSession(id)
+		s.active.Delete(id)
+	}
+
 	f.Cancel()
 	if err := s.pipeline.SaveFeature(f); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to save feature state")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
+	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
 }
 
 func (s *Server) evaluateGate(w http.ResponseWriter, r *http.Request) {
@@ -691,67 +568,6 @@ func (s *Server) evaluateGate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, GateResultToResponse(gr))
-}
-
-func (s *Server) processFeature(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
-		return
-	}
-
-	f, err := s.pipeline.GetFeature(id)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
-		return
-	}
-
-	if _, loaded := s.activeProcess.LoadOrStore(id, "autopilot"); loaded {
-		writeError(w, http.StatusConflict, "already_processing", fmt.Sprintf("Feature %s is already being processed", id))
-		return
-	}
-
-	if f.IsTerminal() {
-		s.activeProcess.Delete(id)
-		writeError(w, http.StatusBadRequest, "validation_error", fmt.Sprintf("Feature %s is in a terminal state (%s)", id, f.Status))
-		return
-	}
-
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(f.ID), s.ProcessingMode(f.ID)))
-
-	go func() {
-		defer s.activeProcess.Delete(id)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("PANIC in processFeature goroutine for %s: %v", id, r)
-				s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error (recovered). Check logs."}`, id))
-			}
-		}()
-		ctx := context.Background()
-		eventCh := make(chan pipeline.ProcessEvent, 100)
-
-		onOutput := func(line string, isStderr bool) {
-			escaped, _ := json.Marshal(line)
-			s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, id, string(escaped), isStderr))
-		}
-
-		done := make(chan error, 1)
-		go func() {
-			done <- s.pipeline.ProcessAsync(ctx, f, eventCh, onOutput)
-			close(eventCh)
-		}()
-
-		for evt := range eventCh {
-			data, _ := json.Marshal(evt)
-			s.broadcastSSE(id, string(evt.Type), string(data))
-		}
-
-		if err := <-done; err != nil {
-			log.Printf("error processing feature %s: %v", id, err)
-			errData, _ := json.Marshal(map[string]string{"message": "Processing failed"})
-			s.broadcastSSE(id, "error", string(errData))
-		}
-	}()
 }
 
 func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
@@ -783,6 +599,8 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(artifact.Content))
 }
 
+// getCapturedOutput reads the agent log file for a feature.
+// Returns the last N lines (default 200, configurable via ?lines= query param).
 func (s *Server) getCapturedOutput(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -790,26 +608,37 @@ func (s *Server) getCapturedOutput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.IsProcessing(id) {
+	f, err := s.pipeline.GetFeature(id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"is_processing": false, "output": ""})
+		return
+	}
+
+	// Find the log file for the current phase
+	logPath := filepath.Join(s.pipeline.WorktreeDir(f), "logs", string(f.Current)+"-"+s.pipeline.PrimaryRole(f.Current)+".log")
+	data, err := os.ReadFile(logPath)
+	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"is_processing": false,
+			"is_processing": s.IsProcessing(id),
 			"output":        "",
 		})
 		return
 	}
 
-	output, err := s.pipeline.Dispatcher().CaptureOutput(id)
-	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"is_processing": true,
-			"output":        "",
-		})
-		return
+	lines := strings.Split(string(data), "\n")
+	maxLines := 200
+	if l := r.URL.Query().Get("lines"); l != "" {
+		if n, err := strconvAtoi(l); err == nil && n > 0 {
+			maxLines = n
+		}
+	}
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"is_processing": true,
-		"output":        output,
+		"is_processing": s.IsProcessing(id),
+		"output":        strings.Join(lines, "\n"),
 	})
 }
 
@@ -834,22 +663,14 @@ func (s *Server) streamFeature(w http.ResponseWriter, r *http.Request) {
 	s.addSSEClient(id, ch)
 	defer s.removeSSEClient(id, ch)
 
-	// Replay buffered events for late joiners (page refresh, etc.)
-	if buf, ok := s.sseBuffers.Load(id); ok {
-		if buffer, ok := buf.(*[]*SSEMessage); ok && len(*buffer) > 0 {
-			for _, msg := range *buffer {
-				fmt.Fprintf(w, "event: %s\ndata: %s\n\n", msg.EventType, msg.Data)
-			}
-			if f, ok := w.(http.Flusher); ok {
-				f.Flush()
-			}
+	// Replay buffered lifecycle events for late joiners
+	s.sseMu.Lock()
+	if buffer, ok := s.sseBuffers[id]; ok && len(buffer) > 0 {
+		for _, msg := range buffer {
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", msg.EventType, msg.Data)
 		}
 	}
-
-	// Clear buffer when processing is done
-	if !s.IsProcessing(id) {
-		s.sseBuffers.Delete(id)
-	}
+	s.sseMu.Unlock()
 
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
@@ -885,58 +706,50 @@ type SSEMessage struct {
 }
 
 func (s *Server) addSSEClient(featureID string, ch chan SSEMessage) {
-	key := featureID
-	clients, _ := s.sseClients.LoadOrStore(key, &sync.Mutex{})
-	var mu *sync.Mutex
-	mu = clients.(*sync.Mutex)
-	mu.Lock()
-	channels, _ := s.sseClients.Load(featureID + ":channels")
-	var channelsList []chan SSEMessage
-	if channelsList, ok := channels.([]chan SSEMessage); ok {
-		channelsList = append(channelsList, ch)
-	} else {
-		channelsList = []chan SSEMessage{ch}
-	}
-	s.sseClients.Store(featureID+":channels", channelsList)
-	mu.Unlock()
+	s.sseMu.Lock()
+	defer s.sseMu.Unlock()
+	s.sseClients[featureID] = append(s.sseClients[featureID], ch)
 }
 
 func (s *Server) removeSSEClient(featureID string, ch chan SSEMessage) {
-	key := featureID
-	clients, _ := s.sseClients.LoadOrStore(key, &sync.Mutex{})
-	mu := clients.(*sync.Mutex)
-	mu.Lock()
-	channels, _ := s.sseClients.Load(featureID + ":channels")
-	if channelsList, ok := channels.([]chan SSEMessage); ok {
-		for i, c := range channelsList {
-			if c == ch {
-				channelsList = append(channelsList[:i], channelsList[i+1:]...)
-				break
-			}
+	s.sseMu.Lock()
+	defer s.sseMu.Unlock()
+	clients := s.sseClients[featureID]
+	for i, c := range clients {
+		if c == ch {
+			s.sseClients[featureID] = append(clients[:i], clients[i+1:]...)
+			break
 		}
-		s.sseClients.Store(featureID+":channels", channelsList)
 	}
-	mu.Unlock()
 }
 
+// broadcastSSE sends an event to all SSE clients for a feature.
+// Lifecycle events (phase_change, gate_result, agent_dispatch, agent_complete,
+// phase_complete, error) are buffered for late joiners. agent_output is NOT
+// buffered — it's ephemeral and would bloat memory.
 func (s *Server) broadcastSSE(featureID string, eventType string, data string) {
-	// Buffer the event for late joiners
-	buf, _ := s.sseBuffers.LoadOrStore(featureID, &[]*SSEMessage{})
-	buffer := buf.(*[]*SSEMessage)
-	*buffer = append(*buffer, &SSEMessage{EventType: eventType, Data: data})
-	// Keep last 200 events
-	if len(*buffer) > 200 {
-		*buffer = (*buffer)[len(*buffer)-200:]
+	// Buffer lifecycle events only
+	switch eventType {
+	case "phase_change", "gate_result", "agent_dispatch", "agent_complete", "phase_complete", "error", "interrupted":
+		s.sseMu.Lock()
+		buffer := s.sseBuffers[featureID]
+		buffer = append(buffer, &SSEMessage{EventType: eventType, Data: data})
+		if len(buffer) > 200 {
+			buffer = buffer[len(buffer)-200:]
+		}
+		s.sseBuffers[featureID] = buffer
+		s.sseMu.Unlock()
 	}
 
-	channels, _ := s.sseClients.Load(featureID + ":channels")
-	if channelsList, ok := channels.([]chan SSEMessage); ok {
-		msg := SSEMessage{EventType: eventType, Data: data}
-		for _, ch := range channelsList {
-			select {
-			case ch <- msg:
-			default:
-			}
+	s.sseMu.Lock()
+	clients := s.sseClients[featureID]
+	s.sseMu.Unlock()
+
+	msg := SSEMessage{EventType: eventType, Data: data}
+	for _, ch := range clients {
+		select {
+		case ch <- msg:
+		default:
 		}
 	}
 }
@@ -1017,7 +830,6 @@ func (s *Server) createQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
 	if strings.TrimSpace(req.Question) == "" {
 		writeError(w, http.StatusBadRequest, "validation_error", "question is required")
 		return
@@ -1139,20 +951,18 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, QuestionToResponse(updated))
 
-	// Broadcast SSE event for the answer
 	answerData, _ := json.Marshal(map[string]string{
-		"feature_id": id,
+		"feature_id":  id,
 		"question_id": questionId,
 		"status":      "answered",
 	})
 	s.broadcastSSE(id, "question_answered", string(answerData))
 
-	// Check if all questions are answered — if so, auto-resume the pipeline
+	// Check if all questions answered — if so, resume the feature
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("PANIC in auto-resume goroutine for %s: %v", id, r)
-				s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error during auto-resume (recovered). Check logs."}`, id))
 			}
 		}()
 		pending, err := s.questionStore.PendingCount(context.Background(), id)
@@ -1174,110 +984,23 @@ func (s *Server) answerQuestion(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Only auto-resume in autopilot mode. In single-phase mode (user
-		// manually running phases), the user advances manually after
-		// answering questions.
-		mode := s.ProcessingMode(id)
-		if mode == "single-phase" {
-			log.Printf("all questions answered for feature %s, but in single-phase mode — waiting for user to advance", id)
-			// Clear the processing state so the user can advance manually
-			s.activeProcess.Delete(id)
-			// Transition back to in_progress so user can advance
-			f.Status = feature.StatusInProgress
-			s.pipeline.GetFeature(id) // reload
-			s.pipeline.UpdateFeatureStatus(f)
-			return
-		}
-
-		// Auto-resume: transition from waiting_for_human to in_progress
+		// Transition back to in_progress so user can advance
 		f.Status = feature.StatusInProgress
 		if err := s.pipeline.UpdateFeatureStatus(f); err != nil {
 			log.Printf("warning: could not transition feature %s back to in_progress: %v", id, err)
 		}
-
-		if _, loaded := s.activeProcess.LoadOrStore(id, "autopilot"); loaded {
-			return
-		}
-
-		// Check if the current phase's gate already passed.
-		// If so, advance to the next phase instead of re-running.
-		currentPhase := f.Current
-		if ps, ok := f.PhaseStates[currentPhase]; ok && ps.GateResult != nil && ps.GateResult.Passed {
-			log.Printf("all questions answered for feature %s, gate already passed for %s — advancing", id, currentPhase)
-			
-			// Advance to next phase
-			advanced, err := s.pipeline.AdvanceFeature(f)
-			if err != nil {
-				log.Printf("error advancing feature %s after questions: %v", id, err)
-				s.activeProcess.Delete(id)
-				return
-			}
-			f = advanced
-			
-			// If feature is now done (delivery was the last phase), we're done
-			if f.IsTerminal() {
-				log.Printf("feature %s is done after advancing", id)
-				s.activeProcess.Delete(id)
-				return
-			}
-			
-			// Run the next phase
-			log.Printf("running next phase %s for feature %s", f.Current, id)
-			ctx := context.Background()
-			onOutput := func(line string, isStderr bool) {
-				escaped, _ := json.Marshal(line)
-				s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, id, string(escaped), isStderr))
-			}
-
-			s.broadcastSSE(id, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, id, f.Current))
-			s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched"}`, id, f.Current, s.pipeline.PrimaryRole(f.Current)))
-
-			result, err := s.pipeline.RunPhaseWithAgentStreaming(ctx, f, onOutput, true)
-			s.activeProcess.Delete(id)
-			if err != nil {
-				log.Printf("error running phase after questions: %v", err)
-				s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Phase failed: %s"}`, id, err.Error()))
-				return
-			}
-
-			if result != nil && result.GateResult != nil {
-				checks := make([]map[string]interface{}, 0, len(result.GateResult.Checks))
-				for _, c := range result.GateResult.Checks {
-					checks = append(checks, map[string]interface{}{"name": c.Name, "passed": c.Passed, "message": c.Message})
-				}
-				checksJSON, _ := json.Marshal(checks)
-				s.broadcastSSE(id, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, id, f.Current, result.GateResult.Passed, string(checksJSON)))
-			}
-			s.broadcastSSE(id, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, id, f.Current))
-			return
-		}
-
-		// Gate hasn't passed yet — re-run the current phase with the answers
-		log.Printf("all questions answered for feature %s, re-running %s phase with answers", id, currentPhase)
-		ctx := context.Background()
-		eventCh := make(chan pipeline.ProcessEvent, 100)
-
-		onOutput := func(line string, isStderr bool) {
-			escaped, _ := json.Marshal(line)
-			s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","line":%s,"stderr":%v}`, id, string(escaped), isStderr))
-		}
-
-		done := make(chan error, 1)
-		go func() {
-			done <- s.pipeline.ProcessAsync(ctx, f, eventCh, onOutput)
-			close(eventCh)
-		}()
-
-		for evt := range eventCh {
-			data, _ := json.Marshal(evt)
-			s.broadcastSSE(id, string(evt.Type), string(data))
-		}
-
-		if err := <-done; err != nil {
-			log.Printf("error resuming feature %s: %v", id, err)
-			errData, _ := json.Marshal(map[string]string{"message": "Pipeline resume failed"})
-			s.broadcastSSE(id, "error", string(errData))
-		}
-		s.activeProcess.Delete(id)
+		log.Printf("all questions answered for feature %s — waiting for user to advance", id)
 	}()
+}
+
+// strconvAtoi is a helper to avoid importing strconv at the top level.
+func strconvAtoi(s string) (int, error) {
+	var n int
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("invalid integer")
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n, nil
 }

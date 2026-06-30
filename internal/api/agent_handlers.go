@@ -46,23 +46,35 @@ func (s *Server) handleSignal(w http.ResponseWriter, r *http.Request) {
 	if s.db != nil {
 		ensureFeatureInDB(s.db, id)
 
+		// Load feature to get current phase for the outcome record
+		var phase string
+		if f, err := s.pipeline.GetFeature(id); err == nil {
+			phase = string(f.CurrentPhase())
+		}
+
+		// Parse outcome: "pass", "recirculate:construction", "needs_feedback", "failed"
+		outcome := req.Outcome
+		target := req.Target
+		if strings.HasPrefix(outcome, "recirculate:") {
+			parts := strings.SplitN(outcome, ":", 2)
+			outcome = parts[0]
+			if target == "" && len(parts) > 1 {
+				target = parts[1]
+			}
+		}
+
+		// Save outcome to DB — pipeline reads this after dispatch completes
+		s.db.SaveOutcome(id, phase, outcome, target, req.Notes)
+
 		eventType := "phase_complete"
-		if strings.HasPrefix(req.Outcome, "recirculate") {
+		if outcome == "recirculate" {
 			eventType = "recirculate"
-		} else if req.Outcome == "needs_feedback" {
+		} else if outcome == "needs_feedback" {
 			eventType = "needs_feedback"
-		} else if req.Outcome == "failed" {
+		} else if outcome == "failed" {
 			eventType = "failed"
 		}
-		s.db.RecordEvent(id, eventType, "", req.Notes)
-
-		if req.Notes != "" {
-			noteType := "summary"
-			if strings.HasPrefix(req.Outcome, "recirculate") {
-				noteType = "revision"
-			}
-			s.db.AddNote(id, "", "agent", noteType, req.Notes)
-		}
+		s.db.RecordEvent(id, eventType, phase, req.Notes)
 	}
 
 	s.broadcastSSE(id, "outcome_signal", fmt.Sprintf(`{"feature_id":"%s","outcome":"%s","target":"%s","notes":"%s"}`,

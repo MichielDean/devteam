@@ -115,11 +115,11 @@ func TestSignalRecirculateWithNotes(t *testing.T) {
 		t.Errorf("expected 1 recirculate event, got %d", eventCount)
 	}
 
-	// Verify revision note was added
-	var noteCount int
-	database.QueryRow(`SELECT COUNT(*) FROM notes WHERE feature_id = ? AND note_type = ?`, "feat-recirc-1", "revision").Scan(&noteCount)
-	if noteCount != 1 {
-		t.Errorf("expected 1 revision note, got %d", noteCount)
+	// Verify outcome was recorded in outcomes table
+	var outcomeCount int
+	database.QueryRow(`SELECT COUNT(*) FROM outcomes WHERE feature_id = ? AND outcome = ?`, "feat-recirc-1", "recirculate").Scan(&outcomeCount)
+	if outcomeCount != 1 {
+		t.Errorf("expected 1 recirculate outcome, got %d", outcomeCount)
 	}
 }
 

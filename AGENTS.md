@@ -171,8 +171,11 @@ Each feature gets its own git worktree at `~/worktrees/devteam-specs/<feature-id
 
 ### Agent Dispatch
 - Agents run in tmux sessions named `devteam-<feature-id>`
-- Output is captured via `tmux capture-pane` and streamed to the UI via SSE
+- Output is captured to log files (`logs/<phase>-<role>.log`) and streamed to the UI via SSE
 - The `~/go/bin/devteam` binary must be built from `origin/main` (never from a worktree)
+- One phase per `POST /run` call — no autopilot loop on the backend. UI drives multi-phase progression by calling `/run` repeatedly.
+- Agent signals outcome via `devteam signal` CLI → DB `outcomes` table. Pipeline reads outcome after dispatch completes.
+- No `outcome.txt` or `GATE_FAILURE.md` files on disk — all state is in SQLite.
 
 ## Project Structure
 
@@ -183,14 +186,14 @@ devteam/
 │   ├── api/              # HTTP API server + SSE
 │   ├── feature/          # Feature state, questions, phases
 │   ├── gitops/           # Git operations
-│   ├── pipeline/         # Pipeline orchestration, gates, process loop
+│   ├── pipeline/         # Pipeline orchestration, smoke checks, RunPhase
 │   ├── repo/             # Repository management
 │   ├── role/             # Agent dispatch (tmux-based)
 │   ├── rules/            # AIDLC rule loading
 │   └── spec/             # Spec provider, artifact I/O
 ├── roles/                # Role instructions (pm, architect, developer, reviewer, tester, ops)
 ├── rules/                # AIDLC rules (inception, planning, construction, etc.)
-├── specs/                # Feature spec directories (runtime data)
+├── specs/                # Feature spec directories (runtime data, gitignored)
 ├── ui/                   # React/TypeScript frontend
 │   ├── src/
 │   └── e2e/              # Playwright e2e tests

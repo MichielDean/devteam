@@ -1,8 +1,10 @@
 package role
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -12,7 +14,6 @@ import (
 )
 
 // TmuxSessionManager manages tmux sessions for agent dispatch.
-// Based on Cistern's proven session.go patterns.
 type TmuxSessionManager struct {
 	workingDir string
 }
@@ -21,18 +22,18 @@ func NewTmuxSessionManager(workingDir string) *TmuxSessionManager {
 	return &TmuxSessionManager{workingDir: workingDir}
 }
 
-// SessionName returns the tmux session name for a feature.
 func (m *TmuxSessionManager) SessionName(featureID string) string {
 	safe := strings.NewReplacer(" ", "-", ":", "-", ".", "-", "/", "-", "\\", "-").Replace(featureID)
 	return "devteam-" + safe
 }
 
-// shellQuote wraps s in single quotes, escaping any single quotes within s.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// DispatchStreaming runs the agent in a tmux session, capturing output via pipe-pane.
+// DispatchStreaming runs the agent in a tmux session, capturing output to a log
+// file. Output is streamed by tailing the log file. The session's exit code
+// determines Success — no more guessing from capture-pane.
 func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req DispatchRequest, lineCh chan<- OutputLine) (*DispatchResult, error) {
 	start := time.Now()
 	result := &DispatchResult{
@@ -54,15 +55,11 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	defer os.RemoveAll(contextDir)
 
 	agentMDPath := filepath.Join(contextDir, "agents", req.Role+".md")
-	// Absolute paths so the agent finds CONTEXT.md and agent.md regardless
-	// of CWD. Impl phases dispatch with CWD = impl repo worktree, where a
-	// bare "CONTEXT.md" would not exist.
 	contextMDPath := filepath.Join(contextDir, "CONTEXT.md")
 	shortPrompt := "Read " + contextMDPath + " for your task and begin work. Follow the instructions in " + agentMDPath
 
 	cmdPath, err := exec.LookPath("opencode")
 	if err != nil {
-		// Check common locations
 		for _, p := range []string{
 			os.ExpandEnv("$HOME/.opencode/bin/opencode"),
 			"/usr/local/bin/opencode",
@@ -79,20 +76,30 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	}
 
 	sessionName := m.SessionName(req.FeatureID)
-
-	// Kill any existing session for this feature
 	m.KillSession(sessionName)
 
-	// CWD for the agent: per-dispatch override if set, else the manager default.
 	workingDir := m.workingDir
 	if req.WorkingDir != "" {
 		workingDir = req.WorkingDir
 	}
 
-	// Build tmux args using Cistern's pattern: -e flags + exec prefix
+	// Log file: full output audit trail. Read by getCapturedOutput and streamed to SSE.
+	logDir := filepath.Join(workingDir, "logs")
+	os.MkdirAll(logDir, 0755)
+	logPath := filepath.Join(logDir, req.Phase+"-"+req.Role+".log")
+	os.Truncate(logPath, 0)
+
+	// Exit code marker: written by the wrapper command when opencode exits.
+	exitCodePath := filepath.Join(contextDir, "exit_code")
+
+	// Build the shell command: run opencode, tee output to log, capture exit code.
+	agentCmd := fmt.Sprintf(
+		"%s run --dangerously-skip-permissions --agent %s %s 2>&1 | tee %s; echo ${PIPESTATUS[0]} > %s",
+		cmdPath, req.Role, shellQuote(shortPrompt), shellQuote(logPath), shellQuote(exitCodePath),
+	)
+
 	args := []string{"new-session", "-d", "-s", sessionName, "-c", workingDir}
 
-	// Env vars via -e flags (Cistern pattern)
 	envPairs := []struct{ k, v string }{
 		{"OPENCODE_DISABLE_PROJECT_CONFIG", "1"},
 		{"OPENCODE_CONFIG_DIR", contextDir},
@@ -107,10 +114,8 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	for _, e := range envPairs {
 		args = append(args, "-e", e.k+"="+e.v)
 	}
-	// Always pass PATH so the agent can find binaries
 	tmuxPath := os.Getenv("PATH")
 	if home := os.Getenv("HOME"); home != "" {
-		// Ensure .opencode/bin and go/bin are in PATH for agent sessions
 		for _, binDir := range []string{home + "/.opencode/bin", home + "/go/bin"} {
 			if !strings.Contains(tmuxPath, binDir) {
 				tmuxPath = binDir + ":" + tmuxPath
@@ -123,133 +128,129 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	if home := os.Getenv("HOME"); home != "" {
 		args = append(args, "-e", "HOME="+home)
 	}
-
-	// Build the agent command — tmux runs this via sh -c, so the string is a shell command
-	// Use exec so the shell replaces itself with opencode (Cistern pattern)
-	agentCmd := fmt.Sprintf(
-		"exec %s run --dangerously-skip-permissions --agent %s %s",
-		cmdPath, req.Role, shellQuote(shortPrompt),
-	)
 	args = append(args, agentCmd)
 
-	log.Printf("tmux: creating session %s, args: %v", sessionName, args)
+	log.Printf("tmux: creating session %s for feature %s phase %s", sessionName, req.FeatureID, req.Phase)
 
-	// Create session with minimal env (Cistern pattern)
 	createCmd := exec.Command("tmux", args...)
 	createCmd.Env = minimalTmuxEnv()
 	out, err := createCmd.CombinedOutput()
 	if err != nil {
-		log.Printf("tmux: failed to create session %s: %v, output: %s", sessionName, err, string(out))
 		return nil, fmt.Errorf("creating tmux session: %w: %s", err, string(out))
 	}
-	log.Printf("tmux: created session %s for feature %s", sessionName, req.FeatureID)
+	log.Printf("tmux: created session %s", sessionName)
 
-	// Set remain-on-exit off so session dies when process exits (Cistern pattern)
 	exec.Command("tmux", "set-window-option", "-t", sessionName, "remain-on-exit", "off").Run()
 
-	// Use pipe-pane to capture ALL output to a log file in the spec worktree
-	// (not /tmp — this preserves the log for post-hoc debugging)
-	logDir := filepath.Join(m.workingDir, "logs")
-	os.MkdirAll(logDir, 0755)
-	sessionLogPath := filepath.Join(logDir, req.Phase+"-"+req.Role+".log")
-	exec.Command("tmux", "pipe-pane", "-o", "-t", sessionName, "cat >> "+shellQuote(sessionLogPath)).Run()
-	log.Printf("tmux: pipe-pane logging to %s", sessionLogPath)
-	// Do NOT delete the log file — it's the audit trail
+	// Stream output by tailing the log file. Stop when session dies and exit code appears.
+	streamDone := make(chan struct{})
+	go func() {
+		defer close(streamDone)
+		m.tailLog(ctx, logPath, lineCh)
+	}()
 
-	// Poll for output and completion
-	var outputBuf strings.Builder
-	lastCaptureLen := 0
-	lastOutputTime := time.Now()  // Track when output last changed (liveness)
-	staleTimeout := 5 * time.Minute // Kill session if no new output for 5 min
-
-	// Give the session a moment to start
-	time.Sleep(2 * time.Second)
-
-	// Capture initial output before first liveness check
-	if captureOut, err := exec.Command("tmux", "capture-pane", "-p", "-t", sessionName, "-S", "-500").Output(); err == nil {
-		captured := string(captureOut)
-		for _, line := range strings.Split(captured, "\n") {
-			if line == "" {
-				continue
-			}
-			outputBuf.WriteString(line)
-			outputBuf.WriteByte('\n')
-			if lineCh != nil {
-				lineCh <- OutputLine{Line: line, IsStderr: false}
-			}
-		}
-		lastCaptureLen = len(captured)
-		lastOutputTime = time.Now()
-	}
-
-	ticker := time.NewTicker(500 * time.Millisecond)
+	// Wait for session to end. Only kill on context cancellation — no stale timeout.
+	// LLM calls legitimately produce no stdout for minutes; killing mid-thought is wrong.
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			m.KillSession(sessionName)
+			<-streamDone
 			result.Duration = time.Since(start)
-			result.Output = outputBuf.String()
+			result.Output = readLogFile(logPath)
 			result.Success = false
-			result.Error = fmt.Sprintf("opencode run timed out after %v", result.Duration)
+			result.Error = fmt.Sprintf("dispatch cancelled after %v", result.Duration)
 			return result, nil
+
 		case <-ticker.C:
-			// Check if session still exists
 			if !m.IsSessionAlive(sessionName) {
+				<-streamDone
 				result.Duration = time.Since(start)
-				result.Output = outputBuf.String()
-				log.Printf("tmux: session %s ended, output len=%d", sessionName, outputBuf.Len())
-				if outputBuf.Len() == 0 {
-					result.Success = false
-					result.Error = "session ended immediately — opencode may have failed to start"
-				} else {
+				result.Output = readLogFile(logPath)
+
+				exitCode := readExitCode(exitCodePath)
+				if exitCode == "0" {
 					result.Success = true
+					log.Printf("tmux: session %s exited cleanly", sessionName)
+				} else {
+					result.Success = false
+					result.Error = fmt.Sprintf("agent exited with code %s", exitCode)
+					log.Printf("tmux: session %s exited with code %s", sessionName, exitCode)
 				}
 				return result, nil
 			}
-
-			// Liveness check — if no new output for staleTimeout, kill the session
-			if time.Since(lastOutputTime) > staleTimeout {
-				log.Printf("tmux: session %s stale for %v — killing (liveness check)", sessionName, time.Since(lastOutputTime))
-				m.KillSession(sessionName)
-				result.Duration = time.Since(start)
-				result.Output = outputBuf.String()
-				result.Success = false
-				result.Error = fmt.Sprintf("agent session killed — no output for %v (likely hung or stuck)", staleTimeout)
-				return result, nil
-			}
-
-			// Capture new output via capture-pane
-			captureCmd := exec.Command("tmux", "capture-pane", "-p", "-t", sessionName, "-S", "-500")
-			captureOut, err := captureCmd.Output()
-			if err != nil {
-				continue
-			}
-
-			captured := string(captureOut)
-			if len(captured) > lastCaptureLen {
-				lastOutputTime = time.Now() // Output changed — reset stale timer
-				newContent := captured[lastCaptureLen:]
-				for _, line := range strings.Split(newContent, "\n") {
-					if line == "" {
-						continue
-					}
-					outputBuf.WriteString(line)
-					outputBuf.WriteByte('\n')
-					if lineCh != nil {
-						select {
-						case lineCh <- OutputLine{Line: line, IsStderr: false}:
-						default:
-						}
-					}
-				}
-			}
-			lastCaptureLen = len(captured)
 		}
 	}
 }
 
-// minimalTmuxEnv returns a minimal environment for the tmux process (Cistern pattern).
+// tailLog reads the log file line by line, sending each line to lineCh.
+// Blocks until ctx is cancelled or the file reader hits EOF (tee closes the file).
+func (m *TmuxSessionManager) tailLog(ctx context.Context, logPath string, lineCh chan<- OutputLine) {
+	// Wait for the file to appear
+	for i := 0; i < 50; i++ {
+		if _, err := os.Stat(logPath); err == nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	f, err := os.Open(logPath)
+	if err != nil {
+		log.Printf("tailLog: could not open %s: %v", logPath, err)
+		return
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
+
+	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		line := scanner.Text()
+		if lineCh != nil {
+			select {
+			case lineCh <- OutputLine{Line: line, IsStderr: false}:
+			default:
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("tailLog: scanner error: %v", err)
+	}
+}
+
+func readLogFile(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	s := string(data)
+	if len(s) > 256*1024 {
+		return s[:256*1024] + "\n... (truncated)"
+	}
+	return s
+}
+
+func readExitCode(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "unknown"
+	}
+	return strings.TrimSpace(string(data))
+}
+
 func minimalTmuxEnv() []string {
 	home, _ := os.UserHomeDir()
 	env := []string{
@@ -268,18 +269,15 @@ func minimalTmuxEnv() []string {
 	return env
 }
 
-// KillSession kills a tmux session by name.
 func (m *TmuxSessionManager) KillSession(sessionName string) error {
 	exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 	return nil
 }
 
-// IsSessionAlive checks if a tmux session exists.
 func (m *TmuxSessionManager) IsSessionAlive(sessionName string) bool {
 	return exec.Command("tmux", "has-session", "-t", sessionName).Run() == nil
 }
 
-// CaptureOutput returns the current pane content for a session.
 func (m *TmuxSessionManager) CaptureOutput(sessionName string) (string, error) {
 	cmd := exec.Command("tmux", "capture-pane", "-p", "-t", sessionName, "-S", "-500")
 	out, err := cmd.Output()
@@ -289,7 +287,6 @@ func (m *TmuxSessionManager) CaptureOutput(sessionName string) (string, error) {
 	return string(out), nil
 }
 
-// ListActiveSessions returns feature IDs that have active tmux sessions.
 func (m *TmuxSessionManager) ListActiveSessions() map[string]string {
 	cmd := exec.Command("tmux", "list-sessions", "-F", "#{session_name}")
 	out, err := cmd.Output()
@@ -336,3 +333,5 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest) (string, err
 
 	return contextDir, nil
 }
+
+var _ = io.EOF

@@ -40,3 +40,10 @@ Thumbs.db
 
 # Playwright MCP logs
 .playwright-mcp/
+
+# Runtime data — all state lives in the database, never on disk
+.devteam.db
+.devteam.db-shm
+.devteam.db-wal
+specs/
+logs/

@@ -302,35 +302,32 @@ func handleRun(baseDir string, cfg *config.Config) {
 
 	p := pipeline.NewPipeline(cfg, provider)
 	p.SetDatabase(database)
-	result, err := p.RunPhaseWithAgent(context.Background(), f)
+	result, err := p.RunPhase(context.Background(), f, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error running phase: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Phase %s completed for %s\n", result.Phase, featureID)
-	fmt.Printf("Gate passed: %v\n", result.GateResult.Passed)
 
-	if !result.GateResult.Passed {
-		fmt.Println("\nMissing artifacts:")
-		for _, art := range result.GateResult.MissingArts {
-			fmt.Printf("  - %s\n", art)
-		}
-		fmt.Println("\nFailed checks:")
-		for _, check := range result.GateResult.Checks {
-			if !check.Passed {
-				fmt.Printf("  [FAIL] %s\n", check.Name)
-				if check.Message != "" {
-					fmt.Printf("         %s\n", check.Message)
-				}
-			}
-		}
-		fmt.Println("\nTo fix: provide the missing artifacts and re-run the gate.")
-		fmt.Println("Run 'devteam gate <feature-id>' to re-evaluate.")
-		fmt.Println("Run 'devteam recirculate <feature-id> <target-phase>' to go back to a previous phase.")
-	} else {
-		fmt.Println("\nGate passed! Run 'devteam advance <feature-id>' to move to the next phase.")
+	outcome := "pass"
+	if result.Outcome != nil {
+		outcome = result.Outcome.Outcome
 	}
+	if result.OutcomeSource == "smoke_failed" {
+		outcome = "smoke_failed"
+	}
+	fmt.Printf("Outcome: %s (source: %s)\n", outcome, result.OutcomeSource)
+
+	if len(result.SmokeFailures) > 0 {
+		fmt.Println("\nSmoke check failures:")
+		for _, fail := range result.SmokeFailures {
+			fmt.Printf("  [FAIL] %s\n", fail)
+		}
+	} else {
+		fmt.Println("\nSmoke check passed.")
+	}
+	fmt.Println("Run 'devteam advance <feature-id>' to move to the next phase.")
 
 	for _, rr := range result.RoleResults {
 		status := "SUCCESS"
@@ -660,7 +657,7 @@ func handleProcess(baseDir string, cfg *config.Config) {
 
 		// Check if delivery gate passes — mark done
 		if currentPhase == feature.PhaseDelivery {
-			gateResult, err := pipeline.NewGateEvaluator(provider).EvaluateForPhase(f, feature.PhaseDelivery)
+			gateResult, err := p.EvaluateGateForPhase(f, feature.PhaseDelivery)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error evaluating delivery gate: %v\n", err)
 				os.Exit(1)
@@ -682,7 +679,7 @@ func handleProcess(baseDir string, cfg *config.Config) {
 		fmt.Printf("\n--- Phase: %s ---\n", currentPhase)
 		fmt.Printf("Dispatching agents for %s...\n", currentPhase)
 
-		result, err := p.RunPhaseWithAgent(context.Background(), f)
+		result, err := p.RunPhase(context.Background(), f, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error running phase %s: %v\n", currentPhase, err)
 			os.Exit(1)
@@ -699,27 +696,15 @@ func handleProcess(baseDir string, cfg *config.Config) {
 			}
 		}
 
-		// Evaluate the gate for the phase that was just run, not CurrentPhase()
-		// (which may have advanced after the agent saved state to disk)
-		fmt.Printf("\nEvaluating gate for %s...\n", result.Phase)
-		gateResult, err := pipeline.NewGateEvaluator(provider).EvaluateForPhase(f, result.Phase)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error evaluating gate: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Printf("Gate %s: %v\n", gateResult.Phase, gateResult.Passed)
-		if len(gateResult.Checks) > 0 {
-			for _, check := range gateResult.Checks {
-				symbol := "✓"
-				if !check.Passed {
-					symbol = "✗"
-				}
-				fmt.Printf("  %s %s\n", symbol, check.Name)
+		fmt.Printf("\nOutcome: %s (source: %s)\n", result.Outcome.Outcome, result.OutcomeSource)
+		if len(result.SmokeFailures) > 0 {
+			fmt.Println("Smoke check failures:")
+			for _, fail := range result.SmokeFailures {
+				fmt.Printf("  [FAIL] %s\n", fail)
 			}
 		}
 
-		if !gateResult.Passed {
+		if result.OutcomeSource == "smoke_failed" || result.Outcome.Outcome == "recirculate" {
 			recirculations++
 			if recirculations > maxRecirculations {
 				fmt.Printf("\nMaximum recirculations (%d) reached. Stopping.\n", maxRecirculations)
@@ -727,12 +712,10 @@ func handleProcess(baseDir string, cfg *config.Config) {
 				os.Exit(1)
 			}
 
-			targetPhase := feature.RecirculationTarget(result.Phase, "gate failed")
+			targetPhase := pipeline.ResolveRecirculateTarget(result.Phase, result.Outcome.Target)
 
 			if targetPhase == result.Phase {
-				// Same-phase retry: reset phase state to in_progress without recirculating
-				fmt.Printf("\nGate failed. Retrying %s (attempt %d/%d)\n", result.Phase, recirculations, maxRecirculations)
-				fmt.Println("Fixing issues and retrying...")
+				fmt.Printf("\nRetrying %s (attempt %d/%d)\n", result.Phase, recirculations, maxRecirculations)
 				if ps, ok := f.PhaseStates[result.Phase]; ok {
 					ps.Status = feature.StatusInProgress
 					ps.GateResult = nil
@@ -744,16 +727,23 @@ func handleProcess(baseDir string, cfg *config.Config) {
 					os.Exit(1)
 				}
 			} else {
-				// Recirculate to a different (earlier) phase
-				fmt.Printf("\nGate failed. Recirculating from %s to %s (attempt %d/%d)\n", result.Phase, targetPhase, recirculations, maxRecirculations)
-				fmt.Println("Fixing issues and retrying...")
-				f, err = p.RecirculateFeature(f, targetPhase, fmt.Sprintf("gate failed at %s (attempt %d)", result.Phase, recirculations))
+				fmt.Printf("\nRecirculating from %s to %s (attempt %d/%d)\n", result.Phase, targetPhase, recirculations, maxRecirculations)
+				f, err = p.RecirculateFeature(f, targetPhase, fmt.Sprintf("failed at %s (attempt %d)", result.Phase, recirculations))
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "error recirculating: %v\n", err)
 					os.Exit(1)
 				}
 			}
 			continue
+		}
+
+		if result.Outcome.Outcome == "needs_feedback" {
+			fmt.Println("\nFeature is waiting for human feedback. Answer questions and re-run.")
+			return
+		}
+		if result.Outcome.Outcome == "failed" {
+			fmt.Println("\nPhase failed. Check the logs and re-run when fixed.")
+			os.Exit(1)
 		}
 
 		// Determine next phase based on the phase that was just run

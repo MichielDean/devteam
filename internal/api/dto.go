@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/MichielDean/devteam/internal/feature"
-	"github.com/MichielDean/devteam/internal/pipeline"
 )
 
 type ErrorResponse struct {
@@ -273,17 +272,4 @@ func QuestionsToResponse(questions []*feature.Question) []QuestionResponse {
 	return result
 }
 
-func pipelineChecksToAPI(checks []pipeline.CheckResult) []CheckResultResponse {
-	if checks == nil {
-		return []CheckResultResponse{}
-	}
-	result := make([]CheckResultResponse, 0, len(checks))
-	for _, c := range checks {
-		result = append(result, CheckResultResponse{
-			Name:    c.Name,
-			Passed:  c.Passed,
-			Message: c.Message,
-		})
-	}
-	return result
-}
+

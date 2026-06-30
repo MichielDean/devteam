@@ -1,13 +1,8 @@
 package role
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -18,15 +13,6 @@ type DispatchRequest struct {
 	Role      string
 	Context   string
 	Timeout   time.Duration
-	// WorkingDir overrides the Dispatcher's default working directory for
-	// this dispatch. When set, the agent process is started with this as
-	// its CWD. When empty, the Dispatcher's workingDir is used.
-	//
-	// This is how Dev Team routes agents to the correct repo: spec-only
-	// phases (inception, planning) dispatch with WorkingDir = spec repo;
-	// impl phases (construction, review, testing, delivery) dispatch with
-	// WorkingDir = the prepared implementation repo worktree so the agent
-	// writes code into the right tree and commits land on feature/<id>.
 	WorkingDir string
 }
 
@@ -49,7 +35,6 @@ type Dispatcher struct {
 func NewDispatcher(workingDir string) *Dispatcher {
 	return &Dispatcher{
 		workingDir: workingDir,
-		timeout:    0,
 		tmux:       NewTmuxSessionManager(workingDir),
 	}
 }
@@ -59,224 +44,33 @@ func (d *Dispatcher) WithTimeout(timeout time.Duration) *Dispatcher {
 	return d
 }
 
-// dispatchWorkingDir returns the CWD for an agent process: req.WorkingDir
-// if set, otherwise the Dispatcher's default workingDir. This is how the
-// pipeline routes agents to the correct repo (spec repo vs impl repo
-// worktree) without instantiating a new Dispatcher per dispatch.
-func (d *Dispatcher) dispatchWorkingDir(req DispatchRequest) string {
-	if req.WorkingDir != "" {
-		return req.WorkingDir
-	}
-	return d.workingDir
-}
-
 type OutputLine struct {
 	Line     string
 	IsStderr bool
 }
 
 func (d *Dispatcher) DispatchStreaming(ctx context.Context, req DispatchRequest, lineCh chan<- OutputLine) (*DispatchResult, error) {
-	// Use tmux for session management and output capture
-	if d.tmux != nil {
-		return d.tmux.DispatchStreaming(ctx, req, lineCh)
-	}
-	return d.dispatchDirect(ctx, req, lineCh)
-}
-
-// dispatchDirect is the fallback without tmux (original pipe-based approach)
-func (d *Dispatcher) dispatchDirect(ctx context.Context, req DispatchRequest, lineCh chan<- OutputLine) (*DispatchResult, error) {
-	start := time.Now()
-	result := &DispatchResult{
-		FeatureID: req.FeatureID,
-		Phase:     req.Phase,
-		Role:      req.Role,
-	}
-
-	if req.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, req.Timeout)
-		defer cancel()
-	} else if d.timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, d.timeout)
-		defer cancel()
-	}
-
-	contextDir, err := d.prepareContextDir(req)
-	if err != nil {
-		return nil, fmt.Errorf("preparing context directory: %w", err)
-	}
-	defer os.RemoveAll(contextDir)
-
-	agentMDPath := filepath.Join(contextDir, "agents", req.Role+".md")
-	// Use absolute paths so the agent can find CONTEXT.md and its agent.md
-	// regardless of its CWD. When the dispatcher's workingDir was always
-	// the spec repo, a bare "CONTEXT.md" worked because the file lived in
-	// the CWD. Now that impl phases dispatch with CWD = an impl repo
-	// worktree, the bare name would point at the impl repo (which has no
-	// CONTEXT.md). Absolute path is robust either way.
-	contextMDPath := filepath.Join(contextDir, "CONTEXT.md")
-	shortPrompt := "Read " + contextMDPath + " for your task and begin work. Follow the instructions in " + agentMDPath
-
-	args := []string{
-		"run",
-		"--dangerously-skip-permissions",
-		"--agent", req.Role,
-		shortPrompt,
-	}
-
-	cmdPath, err := exec.LookPath("opencode")
-	if err != nil {
-		cmdPath = "opencode"
-	}
-
-	cmd := exec.CommandContext(ctx, cmdPath, args...)
-	cmd.Dir = d.dispatchWorkingDir(req)
-	cmd.Env = append(os.Environ(),
-		"OPENCODE_SERVER_USERNAME=",
-		"OPENCODE_SERVER_PASSWORD=",
-		"OPENCODE_PID=",
-		"OPENCODE=",
-		"OPENCODE_DISABLE_PROJECT_CONFIG=1",
-		"OPENCODE_CONFIG_DIR="+contextDir,
-		"GIT_EDITOR=true",
-		"GIT_SEQUENCE_EDITOR=true",
-		"CT_CATARACTA_NAME="+req.Role,
-	)
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("creating stdout pipe: %w", err)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("creating stderr pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("starting opencode: %w", err)
-	}
-
-	var outputBuf strings.Builder
-
-	stdoutDone := make(chan struct{})
-	stderrDone := make(chan struct{})
-
-	go func() {
-		defer close(stdoutDone)
-		scanner := bufio.NewScanner(stdoutPipe)
-		for scanner.Scan() {
-			line := scanner.Text()
-			outputBuf.WriteString(line)
-			outputBuf.WriteByte('\n')
-			if lineCh != nil {
-				lineCh <- OutputLine{Line: line, IsStderr: false}
-			}
-		}
-	}()
-
-	go func() {
-		defer close(stderrDone)
-		scanner := bufio.NewScanner(stderrPipe)
-		for scanner.Scan() {
-			line := scanner.Text()
-			outputBuf.WriteString(line)
-			outputBuf.WriteByte('\n')
-			if lineCh != nil {
-				lineCh <- OutputLine{Line: line, IsStderr: true}
-			}
-		}
-	}()
-
-	<-stdoutDone
-	<-stderrDone
-
-	err = cmd.Wait()
-	result.Duration = time.Since(start)
-	result.Output = outputBuf.String()
-
-	if err != nil {
-		result.Success = false
-		if ctx.Err() == context.DeadlineExceeded {
-			result.Error = fmt.Sprintf("opencode run timed out after %v", result.Duration)
-		} else {
-			result.Error = fmt.Sprintf("opencode run failed: %v\noutput: %s", err, truncateOutput(result.Output, 500))
-		}
-		return result, nil
-	}
-
-	result.Success = true
-	return result, nil
+	return d.tmux.DispatchStreaming(ctx, req, lineCh)
 }
 
 func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*DispatchResult, error) {
 	return d.DispatchStreaming(ctx, req, nil)
 }
 
-// IsSessionAlive checks if a tmux session exists for the given feature ID.
 func (d *Dispatcher) IsSessionAlive(featureID string) bool {
-	if d.tmux == nil {
-		return false
-	}
 	return d.tmux.IsSessionAlive(d.tmux.SessionName(featureID))
 }
 
-// CaptureOutput returns the current terminal output for a feature's tmux session.
 func (d *Dispatcher) CaptureOutput(featureID string) (string, error) {
-	if d.tmux == nil {
-		return "", fmt.Errorf("tmux not available")
-	}
 	return d.tmux.CaptureOutput(d.tmux.SessionName(featureID))
 }
 
-// ListActiveSessions returns feature IDs that have active tmux sessions.
 func (d *Dispatcher) ListActiveSessions() map[string]string {
-	if d.tmux == nil {
-		return map[string]string{}
-	}
 	return d.tmux.ListActiveSessions()
 }
 
-// KillSession kills the tmux session for a feature.
 func (d *Dispatcher) KillSession(featureID string) error {
-	if d.tmux == nil {
-		return nil
-	}
 	return d.tmux.KillSession(d.tmux.SessionName(featureID))
-}
-
-func (d *Dispatcher) DispatchCrossRepo(ctx context.Context, req DispatchRequest, repoNames []string) (*DispatchResult, error) {
-	req.Context = fmt.Sprintf("%s\n\n=== Cross-Repo Context ===\nThis feature spans the following repositories: %s\nReview ALL repositories against the SAME spec acceptance criteria.", req.Context, strings.Join(repoNames, ", "))
-	return d.Dispatch(ctx, req)
-}
-
-func (d *Dispatcher) prepareContextDir(req DispatchRequest) (string, error) {
-	contextDir, err := os.MkdirTemp("", "devteam-"+req.Role+"-*")
-	if err != nil {
-		return "", fmt.Errorf("creating temp context dir: %w", err)
-	}
-
-	contextContent := buildContextMD(req)
-	contextPath := filepath.Join(contextDir, "CONTEXT.md")
-	if err := os.WriteFile(contextPath, []byte(contextContent), 0644); err != nil {
-		os.RemoveAll(contextDir)
-		return "", fmt.Errorf("writing CONTEXT.md: %w", err)
-	}
-
-	agentsDir := filepath.Join(contextDir, "agents")
-	if err := os.MkdirAll(agentsDir, 0755); err != nil {
-		os.RemoveAll(contextDir)
-		return "", fmt.Errorf("creating agents dir: %w", err)
-	}
-
-	agentContent := buildAgentMD(req)
-	agentPath := filepath.Join(agentsDir, req.Role+".md")
-	if err := os.WriteFile(agentPath, []byte(agentContent), 0644); err != nil {
-		os.RemoveAll(contextDir)
-		return "", fmt.Errorf("writing agent markdown: %w", err)
-	}
-
-	return contextDir, nil
 }
 
 func buildContextMD(req DispatchRequest) string {
@@ -303,13 +97,3 @@ func buildAgentMD(req DispatchRequest) string {
 	b.WriteString("Read CONTEXT.md (provided via OPENCODE_CONFIG_DIR) for the full context including spec artifacts, AIDLC rules, feature state, and implementation repository worktree paths.\n")
 	return b.String()
 }
-
-func truncateOutput(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "... (truncated)"
-}
-
-// Ensure all output is read to prevent pipe hangs
-var _ = io.EOF

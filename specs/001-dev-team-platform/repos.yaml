@@ -1,8 +1,0 @@
-# Repos: Dev Team Platform
-
-feature: 001-dev-team-platform
-repos:
-  - name: devteam
-    url: git@github.com:MichielDean/devteam.git
-    branch: feature/001-dev-team-platform
-    scope: Full platform — orchestrator, role definitions, pipeline engine, spec provider
