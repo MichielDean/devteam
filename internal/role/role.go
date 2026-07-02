@@ -12,6 +12,34 @@ type RoleDefinition struct {
 	Description  string `yaml:"description" json:"description"`
 	Instructions string `yaml:"instructions" json:"instructions"`
 	PhaseRules   string `yaml:"phase_rules" json:"phase_rules"`
+	ModelTier    string `yaml:"model_tier" json:"model_tier"` // "opus", "sonnet", ""
+	IsReviewer   bool   `yaml:"is_reviewer" json:"is_reviewer"`
+}
+
+// agentRoster maps agent slug → model tier. Reviewers marked separately.
+var agentRoster = map[string]struct {
+	tier      string
+	reviewer  bool
+}{
+	"product":              {"opus", false},
+	"design":               {"opus", false},
+	"delivery":             {"sonnet", false},
+	"architect":            {"opus", false},
+	"platform":             {"opus", false},
+	"devsecops":            {"opus", false},
+	"developer":            {"opus", false},
+	"quality":              {"opus", false},
+	"pipeline-deploy":      {"sonnet", false},
+	"operations":           {"sonnet", false},
+	"product-lead":         {"sonnet", true},
+	"architecture-reviewer": {"sonnet", true},
+}
+
+func AgentRoster() map[string]struct {
+	tier     string
+	reviewer bool
+} {
+	return agentRoster
 }
 
 type RoleLoader struct {
@@ -49,17 +77,27 @@ func (rl *RoleLoader) Load(roleName string) (*RoleDefinition, error) {
 		}
 	}
 
+	info, ok := agentRoster[roleName]
+	tier := ""
+	reviewer := false
+	if ok {
+		tier = info.tier
+		reviewer = info.reviewer
+	}
+
 	return &RoleDefinition{
 		Name:         roleName,
 		Description:  description,
 		Instructions: string(data),
-		PhaseRules:   "", // Filled from config
+		PhaseRules:   "",
+		ModelTier:    tier,
+		IsReviewer:   reviewer,
 	}, nil
 }
 
 func (rl *RoleLoader) LoadAll() (map[string]*RoleDefinition, error) {
 	roles := map[string]*RoleDefinition{}
-	for _, roleName := range []string{"pm", "architect", "developer", "reviewer", "tester", "ops"} {
+	for roleName := range agentRoster {
 		rd, err := rl.Load(roleName)
 		if err != nil {
 			return nil, fmt.Errorf("loading role %s: %w", roleName, err)
@@ -74,11 +112,25 @@ func (rl *RoleLoader) Validate() error {
 	if err != nil {
 		return err
 	}
-	expected := []string{"pm", "architect", "developer", "reviewer", "tester", "ops"}
-	for _, name := range expected {
+	for name := range agentRoster {
 		if _, ok := roles[name]; !ok {
 			return fmt.Errorf("missing required role: %s", name)
 		}
 	}
 	return nil
+}
+
+// Agents returns the ordered list of non-reviewer agent names.
+func Agents() []string {
+	return []string{"product", "design", "delivery", "architect", "platform", "devsecops", "developer", "quality", "pipeline-deploy", "operations"}
+}
+
+// Reviewers returns the list of reviewer agent names.
+func Reviewers() []string {
+	return []string{"product-lead", "architecture-reviewer"}
+}
+
+// AllRoles returns all 12 agent names (10 agents + 2 reviewers).
+func AllRoles() []string {
+	return append(Agents(), Reviewers()...)
 }

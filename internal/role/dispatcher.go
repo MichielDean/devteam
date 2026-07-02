@@ -8,11 +8,12 @@ import (
 )
 
 type DispatchRequest struct {
-	FeatureID string
-	Phase     string
-	Role      string
-	Context   string
-	Timeout   time.Duration
+	FeatureID  string
+	Phase      string
+	StageID    string
+	Role       string
+	Context    string
+	Timeout    time.Duration
 	WorkingDir string
 }
 
@@ -77,6 +78,9 @@ func buildContextMD(req DispatchRequest) string {
 	var b strings.Builder
 	b.WriteString("# Dev Team Context\n\n")
 	b.WriteString(fmt.Sprintf("Feature: %s\n", req.FeatureID))
+	if req.StageID != "" {
+		b.WriteString(fmt.Sprintf("Stage: %s\n", req.StageID))
+	}
 	b.WriteString(fmt.Sprintf("Phase: %s\n", req.Phase))
 	b.WriteString(fmt.Sprintf("Role: %s\n\n", req.Role))
 	b.WriteString("---\n\n")
@@ -95,5 +99,54 @@ func buildAgentMD(req DispatchRequest) string {
 	b.WriteString(fmt.Sprintf("Phase: %s\n\n", req.Phase))
 	b.WriteString("Your task: Execute your role for this phase. Produce the required artifacts.\n\n")
 	b.WriteString("Read CONTEXT.md (provided via OPENCODE_CONFIG_DIR) for the full context including spec artifacts, AIDLC rules, feature state, and implementation repository worktree paths.\n")
+	return b.String()
+}
+
+// KnowledgeInjector formats team knowledge and learned rules for agent context injection.
+// Called by pipeline before dispatch to append team knowledge + rules to req.Context.
+type KnowledgeInjector interface {
+	GetTeamKnowledge(agentName string) ([]TeamKnowledgeEntry, error)
+	GetRulesForAgent(agentName, featureID string) ([]RuleEntry, error)
+}
+
+type TeamKnowledgeEntry struct {
+	Topic   string
+	Content string
+}
+
+type RuleEntry struct {
+	StageID  string
+	RuleText string
+}
+
+// FormatKnowledgeAndRules produces a markdown section for agent context.
+func FormatKnowledgeAndRules(knowledge []TeamKnowledgeEntry, rules []RuleEntry) string {
+	var b strings.Builder
+	hasContent := false
+
+	if len(knowledge) > 0 {
+		b.WriteString("\n## Team Knowledge\n\n")
+		for _, k := range knowledge {
+			b.WriteString(fmt.Sprintf("### %s\n\n%s\n\n", k.Topic, k.Content))
+		}
+		hasContent = true
+	}
+
+	if len(rules) > 0 {
+		b.WriteString("\n## Learned Rules (from prior gate rejections)\n\n")
+		b.WriteString("These rules were generated from corrections in previous stages. Follow them:\n\n")
+		for _, r := range rules {
+			if r.StageID != "" {
+				b.WriteString(fmt.Sprintf("- [%s] %s\n", r.StageID, r.RuleText))
+			} else {
+				b.WriteString(fmt.Sprintf("- %s\n", r.RuleText))
+			}
+		}
+		hasContent = true
+	}
+
+	if !hasContent {
+		return ""
+	}
 	return b.String()
 }
