@@ -4,76 +4,32 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 )
 
-// DB wraps the database connection and provides access to all stores.
-// Supports SQLite (local) and PostgreSQL (shared/multi-user) backends.
+// DB wraps the PostgreSQL database connection and provides access to all stores.
 type DB struct {
-	conn     *sql.DB
-	driver   string // "sqlite3" or "postgres"
-	path     string // for sqlite: file path; for postgres: connection string
+	conn *sql.DB
+	dsn  string
 }
 
 // Config holds database connection configuration.
 type Config struct {
-	Driver string `yaml:"driver" json:"driver"` // "sqlite3" (default) or "postgres"
-	DSN    string `yaml:"dsn" json:"dsn"`       // connection string
+	DSN string `yaml:"dsn" json:"dsn"` // PostgreSQL connection string
 }
 
-// Open opens a database connection using the provided config.
-// If config is empty, defaults to SQLite at the given defaultPath.
-func Open(cfg Config, defaultPath string) (*DB, error) {
-	driver := cfg.Driver
+// Open opens a PostgreSQL database connection using the provided config.
+// If config DSN is empty, uses the given default DSN.
+func Open(cfg Config, defaultDSN string) (*DB, error) {
 	dsn := cfg.DSN
-
-	if driver == "" {
-		driver = "sqlite3"
-	}
 	if dsn == "" {
-		dsn = defaultPath
+		dsn = defaultDSN
 	}
 
-	switch driver {
-	case "sqlite3":
-		return openSQLite(dsn)
-	case "postgres", "postgresql":
-		return openPostgres(dsn)
-	default:
-		return nil, fmt.Errorf("unsupported database driver: %s (use 'sqlite3' or 'postgres')", driver)
-	}
-}
-
-func openSQLite(path string) (*DB, error) {
-	dir := filepath.Dir(path)
-	if dir != "." && dir != "/" {
-		if err := mkdirAll(dir); err != nil {
-			return nil, fmt.Errorf("creating db directory: %w", err)
-		}
-	}
-
-	dsn := path + "?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on"
-	conn, err := sql.Open("sqlite3", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("opening sqlite database: %w", err)
-	}
-
-	conn.SetMaxOpenConns(1) // SQLite doesn't handle concurrent writes well
-
-	db := &DB{conn: conn, driver: "sqlite3", path: path}
-	if err := db.migrate(); err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("running migrations: %w", err)
-	}
-
-	log.Printf("db: opened sqlite at %s", path)
-	return db, nil
+	return openPostgres(dsn)
 }
 
 func openPostgres(dsn string) (*DB, error) {
@@ -82,7 +38,7 @@ func openPostgres(dsn string) (*DB, error) {
 		return nil, fmt.Errorf("opening postgres database: %w", err)
 	}
 
-	conn.SetMaxOpenConns(25) // PostgreSQL handles concurrent connections
+	conn.SetMaxOpenConns(25)
 	conn.SetMaxIdleConns(5)
 	conn.SetConnMaxLifetime(5 * time.Minute)
 
@@ -91,7 +47,7 @@ func openPostgres(dsn string) (*DB, error) {
 		return nil, fmt.Errorf("pinging postgres database: %w", err)
 	}
 
-	db := &DB{conn: conn, driver: "postgres", path: dsn}
+	db := &DB{conn: conn, dsn: dsn}
 	if err := db.migrate(); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("running migrations: %w", err)
@@ -111,22 +67,12 @@ func (db *DB) Conn() *sql.DB {
 	return db.conn
 }
 
-// Driver returns the database driver name ("sqlite3" or "postgres").
-func (db *DB) Driver() string {
-	return db.driver
-}
-
-// Placeholder returns the correct placeholder for the current driver.
-// SQLite uses ? and PostgreSQL uses $1, $2, etc.
-// Use this for queries that need to work across both drivers.
+// Placeholder converts ? placeholders to $1, $2, etc. for PostgreSQL.
 func (db *DB) Placeholder(query string, args ...interface{}) (string, []interface{}) {
-	if db.driver == "postgres" {
-		return convertToPostgresPlaceholders(query), args
-	}
-	return query, args
+	return convertToPostgresPlaceholders(query), args
 }
 
-// convertToPostgresPlaceholders replaces ? with $1, $2, etc. for PostgreSQL.
+// convertToPostgresPlaceholders replaces ? with $1, $2, etc.
 func convertToPostgresPlaceholders(query string) string {
 	var b strings.Builder
 	argNum := 1
@@ -141,31 +87,22 @@ func convertToPostgresPlaceholders(query string) string {
 	return b.String()
 }
 
-// Exec executes a query with driver-appropriate placeholders.
+// Exec executes a query with PostgreSQL placeholders.
 func (db *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
 	q, a := db.Placeholder(query, args...)
 	return db.conn.Exec(q, a...)
 }
 
-// Query executes a query with driver-appropriate placeholders.
+// Query executes a query with PostgreSQL placeholders.
 func (db *DB) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	q, a := db.Placeholder(query, args...)
 	return db.conn.Query(q, a...)
 }
 
-// QueryRow executes a query with driver-appropriate placeholders.
+// QueryRow executes a query with PostgreSQL placeholders.
 func (db *DB) QueryRow(query string, args ...interface{}) *sql.Row {
 	q, a := db.Placeholder(query, args...)
 	return db.conn.QueryRow(q, a...)
-}
-
-func mkdirAll(dir string) error {
-	return osMkdirAll(dir, 0755)
-}
-
-// osMkdirAll is a variable for testing (can be overridden).
-var osMkdirAll = func(dir string, perm os.FileMode) error {
-	return os.MkdirAll(dir, perm)
 }
 
 // Event types for the events table
@@ -197,4 +134,17 @@ func (db *DB) RecordEvent(featureID, eventType, phase, details string) error {
 		return fmt.Errorf("recording event: %w", err)
 	}
 	return nil
+}
+
+// columnExists checks if a column exists in a table using information_schema.
+func (db *DB) columnExists(table, column string) bool {
+	var count int
+	err := db.QueryRow(
+		`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ? AND column_name = ?`,
+		table, column,
+	).Scan(&count)
+	if err != nil {
+		return false
+	}
+	return count > 0
 }

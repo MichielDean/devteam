@@ -47,28 +47,21 @@ func main() {
 		specProvider := spec.NewSpecProvider(baseDir)
 		p := pipeline.NewPipeline(cfg, specProvider)
 
-		// Open database for operational data
-		// Supports SQLite (default, local) and PostgreSQL (shared/multi-user)
+		// Open database for operational data (PostgreSQL)
 		// Configure via devteam.yaml:
 		//   database:
-		//     driver: postgres  # or sqlite3 (default)
-		//     dsn: "host=localhost port=5432 user=devteam dbname=devteam sslmode=disable"
+		//     dsn: "host=localhost port=5432 user=devteam password=devteam dbname=devteam sslmode=disable"
 		// Or via environment variable:
-		//   DEVTEAM_DB_DRIVER=postgres
 		//   DEVTEAM_DB_DSN="host=localhost ..."
 		dbCfg := db.Config{
-			Driver: cfg.Database.Driver,
-			DSN:    cfg.Database.DSN,
+			DSN: cfg.Database.DSN,
 		}
-		// Environment variables override config
-		if envDriver := os.Getenv("DEVTEAM_DB_DRIVER"); envDriver != "" {
-			dbCfg.Driver = envDriver
-		}
+		// Environment variable overrides config
 		if envDSN := os.Getenv("DEVTEAM_DB_DSN"); envDSN != "" {
 			dbCfg.DSN = envDSN
 		}
-		dbPath := filepath.Join(baseDir, ".devteam.db")
-		database, err := db.Open(dbCfg, dbPath)
+		defaultDSN := "host=localhost port=5432 user=devteam password=devteam dbname=devteam sslmode=disable"
+		database, err := db.Open(dbCfg, defaultDSN)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error opening database: %v\n", err)
 			os.Exit(1)
@@ -257,10 +250,10 @@ func handleIntake(baseDir string) {
 	}
 }
 
-// openDB opens the devteam database for CLI commands that need DB access.
+// openDB opens the devteam PostgreSQL database for CLI commands that need DB access.
 func openDB(baseDir string) *db.DB {
-	dbPath := filepath.Join(baseDir, ".devteam.db")
-	database, err := db.Open(db.Config{}, dbPath)
+	defaultDSN := "host=localhost port=5432 user=devteam password=devteam dbname=devteam sslmode=disable"
+	database, err := db.Open(db.Config{}, defaultDSN)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening database: %v\n", err)
 		os.Exit(1)

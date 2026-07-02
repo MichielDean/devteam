@@ -18,12 +18,9 @@ type Config struct {
 	Database   DatabaseConfig             `yaml:"database"`
 }
 
-// DatabaseConfig configures the database connection.
-// Defaults to SQLite at .devteam.db if not specified.
-// Set driver to "postgres" and provide a DSN for shared/multi-user deployments.
+// DatabaseConfig configures the PostgreSQL database connection.
 type DatabaseConfig struct {
-	Driver string `yaml:"driver" json:"driver"` // "sqlite3" (default) or "postgres"
-	DSN    string `yaml:"dsn" json:"dsn"`       // connection string
+	DSN string `yaml:"dsn" json:"dsn"` // PostgreSQL connection string
 }
 
 type PipelineConfig struct {

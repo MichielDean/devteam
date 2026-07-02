@@ -1,27 +1,41 @@
 package db
 
 import (
-	"path/filepath"
 	"testing"
 	"time"
 )
 
+const postgresTestDSN = "host=localhost port=5432 user=devteam password=devteam dbname=devteam_test_db sslmode=disable"
+
 func setupTestDB(t *testing.T) *DB {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "test.db")
-	d, err := Open(Config{Driver: "sqlite3", DSN: path}, path)
+	d, err := Open(Config{DSN: postgresTestDSN}, postgresTestDSN)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	truncateAllTables(d)
 	t.Cleanup(func() { d.Close() })
 	return d
+}
+
+// truncateAllTables clears all data tables for clean test state.
+func truncateAllTables(d *DB) {
+	tables := []string{
+		"audit_events", "tmux_sessions", "bolts", "feature_stages",
+		"spec_artifacts", "outcomes", "notes", "events", "questions",
+		"rules", "team_knowledge", "feature_repos", "sessions",
+		"phase_states", "gate_results", "recirculations", "features",
+	}
+	for _, table := range tables {
+		d.Conn().Exec("TRUNCATE TABLE " + table + " CASCADE")
+	}
 }
 
 func seedFeature(t *testing.T, d *DB, id string) {
 	t.Helper()
 	now := time.Now().UTC()
 	_, err := d.Exec(
-		`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
+		`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 		id, id, now, now)
 	if err != nil {
 		t.Fatalf("seedFeature %s: %v", id, err)

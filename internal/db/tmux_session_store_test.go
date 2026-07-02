@@ -121,23 +121,34 @@ func TestTmuxSessionBoltNumber(t *testing.T) {
 
 func TestListActiveTmuxSessions(t *testing.T) {
 	d := setupTestDB(t)
-	seedFeature(t, d, "feat-a")
-	seedFeature(t, d, "feat-b")
-	seedFeature(t, d, "feat-c")
+	seedFeature(t, d, "feat-active-a")
+	seedFeature(t, d, "feat-active-b")
+	seedFeature(t, d, "feat-active-c")
 
-	d.CreateTmuxSession("feat-a", "ideation", 0, "devteam-feat-a-ideation", "/tmp/a")
-	d.CreateTmuxSession("feat-b", "inception", 0, "devteam-feat-b-inception", "/tmp/b")
-	d.CreateTmuxSession("feat-c", "construction", 1, "devteam-feat-c-construction-bolt1", "/tmp/c")
+	d.CreateTmuxSession("feat-active-a", "ideation", 0, "devteam-feat-active-a-ideation", "/tmp/a")
+	d.CreateTmuxSession("feat-active-b", "inception", 0, "devteam-feat-active-b-inception", "/tmp/b")
+	d.CreateTmuxSession("feat-active-c", "construction", 1, "devteam-feat-active-c-construction-bolt1", "/tmp/c")
 
 	// Mark one as done — should not appear in active
-	d.UpdateTmuxSessionState("feat-c", "construction", 1, TmuxSessionDone, "3.5", "developer")
+	d.UpdateTmuxSessionState("feat-active-c", "construction", 1, TmuxSessionDone, "3.5", "developer")
 
 	active, err := d.ListActiveTmuxSessions()
 	if err != nil {
 		t.Fatalf("ListActiveTmuxSessions: %v", err)
 	}
-	if len(active) != 2 {
-		t.Errorf("active count: got %d, want 2", len(active))
+	// Check that our active sessions are present (other tests may add sessions too)
+	activeNames := make(map[string]bool)
+	for _, s := range active {
+		activeNames[s.SessionName] = true
+	}
+	if !activeNames["devteam-feat-active-a-ideation"] {
+		t.Error("feat-active-a ideation session not in active list")
+	}
+	if !activeNames["devteam-feat-active-b-inception"] {
+		t.Error("feat-active-b inception session not in active list")
+	}
+	if activeNames["devteam-feat-active-c-construction-bolt1"] {
+		t.Error("feat-active-c should not be active (marked done)")
 	}
 	for _, s := range active {
 		if s.State == TmuxSessionDone || s.State == TmuxSessionFailed || s.State == TmuxSessionExpired {

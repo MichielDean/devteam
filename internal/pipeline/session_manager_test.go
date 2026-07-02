@@ -11,7 +11,7 @@ import (
 func seedFeatureRow(t *testing.T, d *db.DB, id string) {
 	t.Helper()
 	_, err := d.Exec(
-		`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
+		`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 		id, id, time.Now().UTC(), time.Now().UTC(),
 	)
 	if err != nil {

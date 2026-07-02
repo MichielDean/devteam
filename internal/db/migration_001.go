@@ -33,7 +33,7 @@ func migration001InitialSchema(tx *sql.Tx) error {
 
 		// phase_states — per-phase tracking
 		`CREATE TABLE IF NOT EXISTS phase_states (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			phase TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'draft',
@@ -45,7 +45,7 @@ func migration001InitialSchema(tx *sql.Tx) error {
 
 		// gate_results — every gate evaluation with per-check pass/fail
 		`CREATE TABLE IF NOT EXISTS gate_results (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			phase TEXT NOT NULL,
 			passed INTEGER NOT NULL,
@@ -75,7 +75,7 @@ func migration001InitialSchema(tx *sql.Tx) error {
 
 		// notes — inter-phase communication (Cistern cataractae_notes pattern)
 		`CREATE TABLE IF NOT EXISTS notes (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			phase TEXT NOT NULL,
 			role TEXT NOT NULL,
@@ -87,7 +87,7 @@ func migration001InitialSchema(tx *sql.Tx) error {
 
 		// sessions — agent dispatch metadata
 		`CREATE TABLE IF NOT EXISTS sessions (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			phase TEXT NOT NULL,
 			role TEXT NOT NULL,
@@ -104,7 +104,7 @@ func migration001InitialSchema(tx *sql.Tx) error {
 
 		// recirculations — track churn
 		`CREATE TABLE IF NOT EXISTS recirculations (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			from_phase TEXT NOT NULL,
 			to_phase TEXT NOT NULL,
@@ -116,7 +116,7 @@ func migration001InitialSchema(tx *sql.Tx) error {
 
 		// events — audit trail
 		`CREATE TABLE IF NOT EXISTS events (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			event_type TEXT NOT NULL,
 			phase TEXT DEFAULT '',

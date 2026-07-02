@@ -13,7 +13,7 @@ import (
 
 // ensureFeatureInDB inserts a minimal feature row if it doesn't exist (for FK constraints)
 func ensureFeatureInDB(database *db.DB, featureID string) {
-	database.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
+	database.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 		featureID, featureID, time.Now().UTC(), time.Now().UTC())
 }
 

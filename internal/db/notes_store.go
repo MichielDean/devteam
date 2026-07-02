@@ -19,14 +19,14 @@ type NoteRow struct {
 
 // AddNote inserts a note for a feature.
 func (db *DB) AddNote(featureID, phase, role, noteType, content string) (int64, error) {
-	result, err := db.Exec(
-		`INSERT INTO notes (feature_id, phase, role, note_type, content, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+	var id int64
+	err := db.QueryRow(
+		`INSERT INTO notes (feature_id, phase, role, note_type, content, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
 		featureID, phase, role, noteType, content, time.Now().UTC(),
-	)
+	).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("adding note: %w", err)
 	}
-	id, _ := result.LastInsertId()
 	return id, nil
 }
 

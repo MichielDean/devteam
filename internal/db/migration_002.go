@@ -19,7 +19,7 @@ func init() {
 func migration002SpecArtifacts(tx *sql.Tx) error {
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS spec_artifacts (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			artifact_type TEXT NOT NULL,
 			content TEXT NOT NULL,

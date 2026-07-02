@@ -27,7 +27,7 @@ func migration006ScopeDepth(tx *sql.Tx) error {
 
 	for _, col := range columns {
 		var colExists int
-		row := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('features') WHERE name = ?`, col.name)
+		row := tx.QueryRow(`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`, "features", col.name)
 		if err := row.Scan(&colExists); err != nil {
 			return fmt.Errorf("checking column %s: %w", col.name, err)
 		}

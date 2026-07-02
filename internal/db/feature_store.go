@@ -43,7 +43,7 @@ func (db *DB) CreateFeature(f FeatureRow) error {
 	// Create phase states for all phases
 	for _, phase := range []string{"inception", "planning", "construction", "review", "testing", "delivery"} {
 		if _, err := db.Exec(
-			`INSERT OR IGNORE INTO phase_states (feature_id, phase, status) VALUES (?, ?, 'draft')`,
+			`INSERT INTO phase_states (feature_id, phase, status) VALUES (?, ?, 'draft') ON CONFLICT (feature_id, phase) DO NOTHING`,
 			f.ID, phase,
 		); err != nil {
 			return fmt.Errorf("creating phase state for %s: %w", phase, err)

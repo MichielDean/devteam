@@ -45,10 +45,12 @@ func setupTestServerWithDB(t *testing.T) (*Server, *db.DB, string) {
 	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
 	questionStore := feature.NewFileQuestionStore(tmpDir)
 
-	database, err := db.Open(db.Config{Driver: "sqlite3", DSN: filepath.Join(tmpDir, "test.db")}, filepath.Join(tmpDir, "test.db"))
+	dsn := "host=localhost port=5432 user=devteam password=devteam dbname=devteam_test_api sslmode=disable"
+	database, err := db.Open(db.Config{DSN: dsn}, dsn)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
+	truncateTables(database)
 	t.Cleanup(func() { database.Close() })
 
 	s := NewServer(":0", sp, pipe, nil, questionStore, database)
@@ -62,7 +64,7 @@ func TestSignalPass(t *testing.T) {
 	_ = tmpDir
 
 	// Ensure feature exists in DB (FK constraint)
-	database.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
+	database.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 		"feat-sig-1", "feat-sig-1", timeNowUTC(), timeNowUTC())
 
 	body := `{"outcome":"pass"}`
@@ -95,7 +97,7 @@ func TestSignalPass(t *testing.T) {
 func TestSignalRecirculateWithNotes(t *testing.T) {
 	s, database, _ := setupTestServerWithDB(t)
 
-	database.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
+	database.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 		"feat-recirc-1", "feat-recirc-1", timeNowUTC(), timeNowUTC())
 
 	body := `{"outcome":"recirculate:construction","target":"construction","notes":"fix the bug in line 42"}`
@@ -126,7 +128,7 @@ func TestSignalRecirculateWithNotes(t *testing.T) {
 func TestSignalNeedsFeedback(t *testing.T) {
 	s, database, _ := setupTestServerWithDB(t)
 
-	database.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
+	database.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 		"feat-feedback-1", "feat-feedback-1", timeNowUTC(), timeNowUTC())
 
 	body := `{"outcome":"needs_feedback"}`
@@ -174,7 +176,7 @@ func TestSignalValidationErrors(t *testing.T) {
 func TestAddNote(t *testing.T) {
 	s, database, _ := setupTestServerWithDB(t)
 
-	database.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
+	database.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 		"feat-note-1", "feat-note-1", timeNowUTC(), timeNowUTC())
 
 	body := `{"phase":"construction","content":"agent found issue in auth module"}`
@@ -224,7 +226,7 @@ func TestSubmitAndGetArtifact(t *testing.T) {
 	s, database, _ := setupTestServerWithDB(t)
 
 	// ensureFeatureInDB will create the feature row
-	database.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
+	database.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 		"feat-art-1", "feat-art-1", timeNowUTC(), timeNowUTC())
 
 	// Submit artifact
@@ -292,7 +294,7 @@ func TestGetArtifactFromDBOnly(t *testing.T) {
 	// Artifact submitted via DB should be retrievable even if not on disk
 	s, database, _ := setupTestServerWithDB(t)
 
-	database.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0)`,
+	database.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 		"feat-db-only", "feat-db-only", timeNowUTC(), timeNowUTC())
 
 	database.SaveArtifact("feat-db-only", "plan_md", "# Plan from DB")

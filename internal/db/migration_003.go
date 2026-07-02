@@ -19,17 +19,11 @@ func init() {
 // lives here while scalar columns (status, current_phase, priority) stay for
 // queryability.
 func migration003FeatureData(tx *sql.Tx) error {
-	// SQLite: add column with default empty (ALTER TABLE ... ADD COLUMN is
-	// idempotent-safe here because we check if the column exists first).
-	// PostgreSQL: same approach.
+	// PostgreSQL: check if column exists via information_schema.
 	var colExists int
-	row := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('features') WHERE name = 'feature_data'`)
+	row := tx.QueryRow(`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`, "features", "feature_data")
 	if err := row.Scan(&colExists); err != nil {
-		// PostgreSQL doesn't have pragma_table_info — try a different check
-		row = tx.QueryRow(`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'features' AND column_name = 'feature_data'`)
-		if err := row.Scan(&colExists); err != nil {
-			return fmt.Errorf("checking feature_data column: %w", err)
-		}
+		return fmt.Errorf("checking feature_data column: %w", err)
 	}
 
 	if colExists == 0 {

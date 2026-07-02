@@ -26,7 +26,7 @@ func migration007StageID(tx *sql.Tx) error {
 
 	for _, t := range tables {
 		var colExists int
-		row := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`, t.table, t.col)
+		row := tx.QueryRow(`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`, t.table, t.col)
 		if err := row.Scan(&colExists); err != nil {
 			return fmt.Errorf("checking %s.%s: %w", t.table, t.col, err)
 		}

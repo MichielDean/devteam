@@ -24,15 +24,15 @@ type SessionRow struct {
 
 // CreateSession records the start of an agent session.
 func (db *DB) CreateSession(s SessionRow) (int64, error) {
-	result, err := db.Exec(
+	var id int64
+	err := db.QueryRow(
 		`INSERT INTO sessions (feature_id, phase, role, tmux_session, duration_ms, output_length, success, error, log_path, started_at, ended_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		s.FeatureID, s.Phase, s.Role, s.TmuxSession, s.DurationMs, s.OutputLength, boolToInt(s.Success), s.Error, s.LogPath, s.StartedAt, s.EndedAt,
-	)
+	).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("creating session: %w", err)
 	}
-	id, _ := result.LastInsertId()
 	return id, nil
 }
 

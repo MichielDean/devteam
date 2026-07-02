@@ -21,7 +21,7 @@ func init() {
 func migration008KnowledgeRules(tx *sql.Tx) error {
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS team_knowledge (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			agent_name TEXT NOT NULL,
 			topic TEXT NOT NULL,
 			content TEXT NOT NULL,
@@ -32,7 +32,7 @@ func migration008KnowledgeRules(tx *sql.Tx) error {
 		`CREATE INDEX IF NOT EXISTS idx_team_knowledge_agent ON team_knowledge(agent_name)`,
 
 		`CREATE TABLE IF NOT EXISTS rules (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT DEFAULT '',
 			agent_name TEXT NOT NULL,
 			stage_id TEXT DEFAULT '',

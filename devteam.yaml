@@ -4,8 +4,7 @@ version: "2.0"
 
 # Database configuration for operational data (features, stages, audit events, etc.)
 database:
-  driver: sqlite3
-  dsn: ""
+  dsn: "host=localhost port=5432 user=devteam password=devteam dbname=devteam sslmode=disable"
 
 # AIDLC v2 pipeline configuration
 # Stages are defined in the DB (stage_definitions table), seeded on startup.

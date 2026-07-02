@@ -267,7 +267,7 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.db != nil {
-		s.db.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+		s.db.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
 			f.ID, f.Title, f.CurrentPhaseLegacy(), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.CreatedAt, f.UpdatedAt)
 	}
 

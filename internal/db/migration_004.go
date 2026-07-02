@@ -22,7 +22,7 @@ func init() {
 func migration004OutcomesAndFeatureRepos(tx *sql.Tx) error {
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS outcomes (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			phase TEXT NOT NULL,
 			outcome TEXT NOT NULL,
@@ -34,7 +34,7 @@ func migration004OutcomesAndFeatureRepos(tx *sql.Tx) error {
 		`CREATE INDEX IF NOT EXISTS idx_outcomes_feature ON outcomes(feature_id, phase)`,
 
 		`CREATE TABLE IF NOT EXISTS feature_repos (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			name TEXT NOT NULL,
 			url TEXT NOT NULL,

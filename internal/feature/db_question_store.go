@@ -10,7 +10,7 @@ import (
 	"github.com/MichielDean/devteam/internal/db"
 )
 
-// DBQuestionStore implements QuestionStore using SQLite.
+// DBQuestionStore implements QuestionStore using PostgreSQL.
 // Questions are stored in the questions table with full history.
 type DBQuestionStore struct {
 	db *db.DB
@@ -46,8 +46,13 @@ func (s *DBQuestionStore) CreateQuestion(ctx context.Context, featureID string, 
 	}
 
 	_, err := s.db.Exec(
-		`INSERT OR REPLACE INTO questions (id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO questions (id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (id) DO UPDATE SET
+		   feature_id = excluded.feature_id, phase = excluded.phase, role = excluded.role,
+		   question = excluded.question, question_type = excluded.question_type, options = excluded.options,
+		   answer = excluded.answer, status = excluded.status, assumed = excluded.assumed,
+		   created_at = excluded.created_at, answered_at = excluded.answered_at`,
 		q.ID, featureID, string(q.Phase), q.Role, q.Question, q.Type, string(optionsJSON), answerStr, q.Status, assumedInt, q.CreatedAt, q.AnsweredAt,
 	)
 	if err != nil {

@@ -123,7 +123,7 @@ func (db *DB) InitFeatureStages(featureID, scope string) error {
 	}
 	for _, s := range stages {
 		_, err := db.Exec(
-			`INSERT OR IGNORE INTO feature_stages (feature_id, stage_id, status) VALUES (?, ?, 'not_started')`,
+			`INSERT INTO feature_stages (feature_id, stage_id, status) VALUES (?, ?, 'not_started') ON CONFLICT (feature_id, stage_id) DO NOTHING`,
 			featureID, s.ID,
 		)
 		if err != nil {

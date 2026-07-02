@@ -58,11 +58,13 @@ func setupStageTestServer(t *testing.T) (*Server, string, *db.DB) {
 
 func setupStageTestDB(t *testing.T, tmpDir string) *db.DB {
 	t.Helper()
-	dbPath := filepath.Join(tmpDir, "test.db")
-	database, err := db.Open(db.Config{Driver: "sqlite3", DSN: dbPath}, dbPath)
+	dsn := "host=localhost port=5432 user=devteam password=devteam dbname=devteam_test_api sslmode=disable"
+	database, err := db.Open(db.Config{DSN: dsn}, dsn)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
+	// Truncate all data tables for clean test state
+	truncateTables(database)
 	t.Cleanup(func() { database.Close() })
 	return database
 }
@@ -73,7 +75,7 @@ func insertTestFeature(t *testing.T, database *db.DB, scope string, s *Server) s
 	fid := "test-feat-" + scope
 	now := time.Now().UTC()
 	_, err := database.Exec(
-		`INSERT OR REPLACE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+		`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0) ON CONFLICT (id) DO UPDATE SET title = excluded.title, current_phase = excluded.current_phase, status = excluded.status, priority = excluded.priority, intake_path = excluded.intake_path, spec_dir = excluded.spec_dir, created_at = excluded.created_at, updated_at = excluded.updated_at, recirculation_count = excluded.recirculation_count`,
 		fid, "Test Feature "+scope, "ideation", "draft", 2, "loose_idea", "specs/"+fid, now, now,
 	)
 	if err != nil {

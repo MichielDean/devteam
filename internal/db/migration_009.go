@@ -19,7 +19,7 @@ func init() {
 func migration009TmuxSessions(tx *sql.Tx) error {
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS tmux_sessions (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			phase TEXT NOT NULL,
 			bolt_number INTEGER NOT NULL DEFAULT 0,

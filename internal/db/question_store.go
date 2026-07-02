@@ -25,8 +25,13 @@ type QuestionRow struct {
 // CreateQuestion inserts a new question.
 func (db *DB) CreateQuestion(q QuestionRow) error {
 	_, err := db.Exec(
-		`INSERT OR REPLACE INTO questions (id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO questions (id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (id) DO UPDATE SET
+		   feature_id = excluded.feature_id, phase = excluded.phase, role = excluded.role,
+		   question = excluded.question, question_type = excluded.question_type, options = excluded.options,
+		   answer = excluded.answer, status = excluded.status, assumed = excluded.assumed,
+		   created_at = excluded.created_at, answered_at = excluded.answered_at`,
 		q.ID, q.FeatureID, q.Phase, q.Role, q.Question, q.Type, q.Options, q.Answer, q.Status, boolToInt(q.Assumed), q.CreatedAt, q.AnsweredAt,
 	)
 	if err != nil {

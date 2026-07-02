@@ -34,7 +34,7 @@ func migration005AIDLCv2(tx *sql.Tx) error {
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS feature_stages (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			stage_id TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'not_started',
@@ -47,7 +47,7 @@ func migration005AIDLCv2(tx *sql.Tx) error {
 		`CREATE INDEX IF NOT EXISTS idx_feature_stages_feature ON feature_stages(feature_id)`,
 
 		`CREATE TABLE IF NOT EXISTS audit_events (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			event_type TEXT NOT NULL,
 			stage_id TEXT DEFAULT '',
@@ -59,7 +59,7 @@ func migration005AIDLCv2(tx *sql.Tx) error {
 		`CREATE INDEX IF NOT EXISTS idx_audit_events_feature ON audit_events(feature_id, created_at)`,
 
 		`CREATE TABLE IF NOT EXISTS bolts (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			feature_id TEXT NOT NULL,
 			bolt_number INTEGER NOT NULL,
 			unit_ids TEXT DEFAULT '[]',

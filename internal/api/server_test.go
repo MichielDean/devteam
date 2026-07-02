@@ -52,16 +52,32 @@ func setupTestServer(t *testing.T) (*Server, string) {
 	return s, tmpDir
 }
 
-// setupTestDB creates a test SQLite database in tmpDir.
+// setupTestDB creates a test PostgreSQL database connection.
+// Truncates all data tables before each test to prevent cross-test pollution.
 func setupTestDB(t *testing.T, tmpDir string) *db.DB {
 	t.Helper()
-	dbPath := filepath.Join(tmpDir, "test.db")
-	database, err := db.Open(db.Config{Driver: "sqlite3", DSN: dbPath}, dbPath)
+	dsn := "host=localhost port=5432 user=devteam password=devteam dbname=devteam_test_api sslmode=disable"
+	database, err := db.Open(db.Config{DSN: dsn}, dsn)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
+	// Truncate all data tables (preserve schema_migrations)
+	truncateTables(database)
 	t.Cleanup(func() { database.Close() })
 	return database
+}
+
+// truncateTables clears all data tables for clean test state.
+func truncateTables(database *db.DB) {
+	tables := []string{
+		"audit_events", "tmux_sessions", "bolts", "feature_stages",
+		"spec_artifacts", "outcomes", "notes", "events", "questions",
+		"rules", "team_knowledge", "feature_repos", "sessions",
+		"phase_states", "gate_results", "recirculations", "features",
+	}
+	for _, table := range tables {
+		database.Conn().Exec("TRUNCATE TABLE " + table + " CASCADE")
+	}
 }
 
 // setupInlineServer creates a server with DB backing for tests that need custom config.
