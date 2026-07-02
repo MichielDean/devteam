@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/MichielDean/devteam/internal/db"
@@ -38,6 +40,8 @@ func (s *Server) registerStageRoutes(mux *http.ServeMux) {
 }
 
 // runStage dispatches the lead agent for one stage.
+// Returns immediately with 202 Accepted — agent output streams via SSE.
+// The final result is broadcast as a "processing_complete" SSE event.
 func (s *Server) runStage(w http.ResponseWriter, r *http.Request) {
 	featureID := r.PathValue("id")
 	f, err := s.pipeline.GetFeature(featureID)
@@ -81,18 +85,35 @@ func (s *Server) runStage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.markFeatureActive(featureID)
-	defer s.unmarkFeatureActive(featureID)
 
-	result, err := s.pipeline.RunStage(r.Context(), f, req.StageID, func(line string, isStderr bool) {
-		s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
-	})
-	if err != nil {
-		http.Error(w, `{"error":"dispatch_failed","details":"`+err.Error()+`"}`, http.StatusInternalServerError)
-		return
-	}
+	// Run the stage asynchronously — output streams via SSE
+	go func() {
+		defer s.unmarkFeatureActive(featureID)
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("runStage goroutine panic for feature %s stage %s: %v", featureID, req.StageID, rec)
+				s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":"internal panic"}`, jsonString(featureID), jsonString(req.StageID)))
+			}
+		}()
 
+		result, err := s.pipeline.RunStage(context.Background(), f, req.StageID, func(line string, isStderr bool) {
+			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+		})
+		if err != nil {
+			log.Printf("runStage: dispatch failed for feature %s stage %s: %v", featureID, req.StageID, err)
+			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":%s}`, jsonString(featureID), jsonString(req.StageID), jsonString(err.Error())))
+			return
+		}
+
+		// Broadcast the final result via SSE
+		resultJSON, _ := json.Marshal(result)
+		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"result":%s}`, jsonString(featureID), jsonString(req.StageID), string(resultJSON)))
+	}()
+
+	// Return immediately — client watches SSE for updates
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte(`{"status":"dispatched","stage_id":"` + req.StageID + `"}`))
 }
 
 // approveStage approves a stage gate and advances.
@@ -428,6 +449,7 @@ func (s *Server) prepareBolts(w http.ResponseWriter, r *http.Request) {
 }
 
 // runBolt runs one Bolt through construction stages.
+// Returns immediately with 202 Accepted — output streams via SSE.
 func (s *Server) runBolt(w http.ResponseWriter, r *http.Request) {
 	featureID := r.PathValue("id")
 	boltStr := r.PathValue("boltNumber")
@@ -449,18 +471,31 @@ func (s *Server) runBolt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.markFeatureActive(featureID)
-	defer s.unmarkFeatureActive(featureID)
 
-	result, err := s.pipeline.RunBolt(r.Context(), f, boltNumber, func(line string, isStderr bool) {
-		s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
-	})
-	if err != nil {
-		http.Error(w, `{"error":"bolt_failed","details":"`+err.Error()+`"}`, http.StatusInternalServerError)
-		return
-	}
+	go func() {
+		defer s.unmarkFeatureActive(featureID)
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("runBolt goroutine panic for feature %s bolt %d: %v", featureID, boltNumber, rec)
+				s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":"bolt panic"}`, jsonString(featureID)))
+			}
+		}()
+
+		result, err := s.pipeline.RunBolt(context.Background(), f, boltNumber, func(line string, isStderr bool) {
+			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+		})
+		if err != nil {
+			log.Printf("runBolt: failed for feature %s bolt %d: %v", featureID, boltNumber, err)
+			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":%s}`, jsonString(featureID), jsonString(err.Error())))
+			return
+		}
+		resultJSON, _ := json.Marshal(result)
+		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"bolt":%d,"result":%s}`, jsonString(featureID), boltNumber, string(resultJSON)))
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte(`{"status":"dispatched","bolt":` + boltStr + `}`))
 }
 
 // getRules returns learned rules for a feature.

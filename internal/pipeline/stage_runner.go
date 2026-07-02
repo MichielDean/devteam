@@ -361,6 +361,11 @@ func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) error {
 		return fmt.Errorf("feature stage %s not found", stageID)
 	}
 
+	// Only allow approving stages that are awaiting approval
+	if fs.Status != stage.StatusAwaitingApproval {
+		return fmt.Errorf("stage %s is in %s state — can only approve stages that are awaiting_approval", stageID, fs.Status)
+	}
+
 	now := time.Now().UTC()
 	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
 	p.database.RecordAuditEvent(f.ID, db.AuditGateApproved, stageID, "", "")
@@ -381,6 +386,11 @@ func (p *Pipeline) RejectStage(f *feature.Feature, stageID, rejectionNotes strin
 	fs, err := p.database.GetFeatureStage(f.ID, stageID)
 	if err != nil || fs == nil {
 		return fmt.Errorf("feature stage %s not found", stageID)
+	}
+
+	// Only allow rejecting stages that are awaiting approval or already revising
+	if fs.Status != stage.StatusAwaitingApproval && fs.Status != stage.StatusRevising {
+		return fmt.Errorf("stage %s is in %s state — can only reject stages that are awaiting_approval or revising", stageID, fs.Status)
 	}
 
 	stageDef, err := p.database.GetStageDefinition(stageID)
