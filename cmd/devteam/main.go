@@ -88,6 +88,14 @@ func main() {
 		// If ui/dist doesn't exist, staticFS is nil — API-only mode (no frontend)
 
 		server := api.NewServer(*httpAddr, specProvider, p, staticFS, questionStore, database)
+		// Rate limiting (rate-limiting-middleware feature, U-W/D10). Setter-based
+		// wiring (ADR-007) — NewServer signature is unchanged (regression guard:
+		// TestNewServerSignatureUnchanged). When the rate_limit block is absent or
+		// enabled=false, ConfigureRateLimiting is a no-op and the middleware is
+		// pure pass-through (D7/R12/BR-33). On invalid config it logs + runs without
+		// the limiter (ADR-008 fail-open startup — main.go does NOT exit).
+		cfg.RateLimit.ConfigSource = filepath.Join(baseDir, "devteam.yaml")
+		server.ConfigureRateLimiting(&cfg.RateLimit)
 		server.RestoreActiveProcesses()
 
 		fmt.Printf("Dev Team Web UI starting on %s\n", *httpAddr)

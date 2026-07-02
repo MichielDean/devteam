@@ -13,10 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MichielDean/devteam/internal/config"
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/intake"
 	"github.com/MichielDean/devteam/internal/pipeline"
+	"github.com/MichielDean/devteam/internal/ratelimit"
 	"github.com/MichielDean/devteam/internal/spec"
 	"github.com/MichielDean/devteam/internal/stage"
 )
@@ -33,6 +35,15 @@ type Server struct {
 	baseDir      string
 	staticFS     fs.FS
 	questionStore feature.QuestionStore
+	// Rate limiting (rate-limiting-middleware feature). All three are nil when
+	// the limiter is disabled (absent rate_limit block or enabled=false), in
+	// which case rateLimitMiddleware is pure pass-through (D7/R12, BR-33).
+	rateLimiter *ratelimit.Limiter
+	rlExtractor ratelimit.KeyExtractor
+	rlCfg       *config.RateLimitConfig
+	// mux is the root ServeMux; retained so ConfigureRateLimiting can register
+	// the status route only when the limiter is armed (BR-47).
+	mux *http.ServeMux
 }
 
 func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore, database *db.DB) *Server {
@@ -84,12 +95,23 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 		mux.Handle("/", s.spaHandler(staticFS))
 	}
 
-	handler := s.recoveryMiddleware(s.corsMiddleware(mux))
+	// Chain order (D6/ADR-004): recovery(cors(rateLimit(mux))). Recovery is
+	// outermost so it catches panics in all inner handlers (including the
+	// limiter's own malfunction path — two-layer recovery, NDP-02). CORS is
+	// middle so OPTIONS preflight short-circuits to 204 BEFORE the limiter runs
+	// (browsers break if preflight is throttled, BR-34). Rate limit is innermost
+	// (before the mux) so only real requests are counted.
+	handler := s.recoveryMiddleware(s.corsMiddleware(s.rateLimitMiddleware(mux)))
 
 	s.httpServer = &http.Server{
 		Addr:    addr,
 		Handler: handler,
 	}
+
+	// Retain the mux so ConfigureRateLimiting (U-W) can register the status
+	// route ONLY when the limiter is armed (BR-47 — when disabled, the route
+	// 404s, byte-identical to today, R12).
+	s.mux = mux
 
 	return s
 }
@@ -164,6 +186,192 @@ func (s *Server) recoveryMiddleware(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(w, r)
 	})
+}
+
+// rateLimitMiddleware is the rate-limit hot-path closure (U-D/US3). When
+// s.rateLimiter is nil (limiter disabled — absent rate_limit block or
+// enabled=false), it is pure pass-through, byte-identical to the pre-feature
+// chain (D7/R12/BR-33). When armed, it enacts the LOCKED request lifecycle
+// (business-logic-model §2.1):
+//
+//  1. Exempt-route short-circuit BEFORE Allow (BR-09) — exempt overrides and
+//     GET /health/rate-limit pass through with NO header mutation, NO count,
+//     NO log. Exemption is structural (route-match-before-Allow), so the
+//     status endpoint cannot be locked out by the limiter it observes (D3).
+//  2. Compute composite key (BR-10) via rlExtractor.
+//  3. Sliding-window verdict via Limiter.Allow.
+//  4. Branch on verdict + dry_run:
+//     - allow → set advisory headers (BR-22/O-9), call next, return.
+//     - deny + dry_run → set advisory headers + Retry-After (M5), log
+//       "dry_run would_reject" (M4.3), call next, return (NO 429).
+//     - deny + enforce → set 429 headers (BR-20), writeError 429 body (BR-21),
+//       log "rejected" (BR-31), rejections_total++, return (next NOT called).
+//  5. Malfunction catch (BR-50/NDP-01): if Allow returns err != nil, log
+//     "internal_error" (BR-32), failures_total++, NO RateLimit-* headers
+//     (invariant 4), call next (traffic flows — fail-open), return.
+//
+// The closure has its own defer/recover (NDP-02) so a panic in key extraction or
+// header-setting is caught by the limiter's malfunction path first; if THAT
+// path panics, the outer recoveryMiddleware catches it → 500 (two layers, D6).
+func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// NDP-08: nil limiter = pure pass-through, byte-identical to today.
+		if s.rateLimiter == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Two-layer recovery (NDP-02). The inner defer/recover converts a panic
+		// in the limiter closure to a fail-open outcome (allow + log + next). If
+		// this recovery itself panics, the outer recoveryMiddleware catches it.
+		defer func() {
+			if rec := recover(); rec != nil {
+				s.rateLimiter.RecordFailure()
+				log.Printf("rate_limit: internal_error err=%q key=<unknown> route=%s decision=allow fail_mode=%s", rec, r.Method+" "+r.URL.Path, s.failMode())
+				// Fail-open: no RateLimit-* headers, traffic flows (invariant 4).
+				next.ServeHTTP(w, r)
+			}
+		}()
+
+		route := r.Method + " " + r.URL.Path
+
+		// BR-09: exempt-route short-circuit BEFORE Allow. The status endpoint
+		// (GET /health/rate-limit) is exempt by construction here, AND registered
+		// only when armed (BR-47) — belt and suspenders.
+		if route == "GET /health/rate-limit" || s.isExemptRoute(route) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		key, _ := s.rlExtractor.Key(r)
+
+		v, err := s.rateLimiter.Allow(key)
+		if err != nil {
+			// Malfunction (BR-50/NDP-01): fail-open. Allow returned allow=true + err.
+			s.rateLimiter.RecordFailure()
+			log.Printf("rate_limit: internal_error err=%q key=%s route=%s decision=allow fail_mode=%s", err, key, route, s.failMode())
+			// NO RateLimit-* headers (invariant 4) — response looks like normal handler.
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if v.Allow {
+			// Allow path: advisory headers ALWAYS (O-9/BR-22 — reversed C-2). Set on
+			// w.Header() BEFORE next.ServeHTTP calls WriteHeader (invariant 1/BR-18).
+			s.setAdvisoryHeaders(w, v)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Deny path. Counter already incremented in Allow (BR-11 — count==limit+1).
+		dryRun := s.rlCfg != nil && s.rlCfg.GetDryRun()
+		if dryRun {
+			// M5/M4.3: dry-run never rejects. Advisory headers + Retry-After, log
+			// "dry_run would_reject", call next, return. rejections_total NOT incremented.
+			s.setAdvisoryHeaders(w, v)
+			w.Header().Set("Retry-After", secondsStr(v.ResetIn))
+			log.Printf("rate_limit: dry_run would_reject key=%s route=%s count=%d limit=%d window=%ds retry_after=%ds",
+				key, route, v.Count, v.Limit, int(v.Window.Seconds()), int(v.ResetIn.Seconds()))
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Clean deny (BR-19): 429. Set 429 headers + body BEFORE WriteHeader.
+		s.writeRateLimitRejection(w, v, route)
+		s.rateLimiter.RecordRejection()
+		log.Printf("rate_limit: rejected key=%s route=%s count=%d limit=%d window=%ds retry_after=%ds",
+			key, route, v.Count, v.Limit, int(v.Window.Seconds()), int(v.ResetIn.Seconds()))
+		// next is NOT called (invariant 2 — the handler never sees the rejected request).
+	})
+}
+
+// isExemptRoute reports whether the route matches an exempt override. MVP
+// supports overrides via config (U-C parses them; U-I does the lookup — U-I is
+// post-MVP, but the lookup helper is here so the MVP middleware is
+// override-aware and the post-MVP unit is additive). With no overrides this
+// returns false for every route.
+func (s *Server) isExemptRoute(route string) bool {
+	if s.rlCfg == nil || len(s.rlCfg.EndpointOverrides) == 0 {
+		return false
+	}
+	ov, ok := s.rlCfg.EndpointOverrides[route]
+	return ok && ov.Exempt
+}
+
+// failMode returns the configured fail mode string ("fail_open" in v1) or the
+// default if unset. Used in log lines so the operator can audit the decision
+// without a YAML cross-ref.
+func (s *Server) failMode() string {
+	if s.rlCfg != nil && s.rlCfg.FailMode != "" {
+		return s.rlCfg.FailMode
+	}
+	return "fail_open"
+}
+
+// setAdvisoryHeaders sets the 4 advisory headers on the allow path (O-9/BR-22).
+// Must be called BEFORE next.ServeHTTP (which calls WriteHeader) — stdlib locks
+// the header map at WriteHeader time; setting after is a silent no-op (invariant 1).
+func (s *Server) setAdvisoryHeaders(w http.ResponseWriter, v ratelimit.Verdict) {
+	w.Header().Set("RateLimit-Limit", fmt.Sprintf("%d", v.Limit))
+	remaining := v.Limit - int(v.Count)
+	if remaining < 0 {
+		remaining = 0
+	}
+	w.Header().Set("RateLimit-Remaining", fmt.Sprintf("%d", remaining))
+	w.Header().Set("RateLimit-Reset", secondsStr(v.ResetIn))
+	w.Header().Set("X-RateLimit-Policy", fmt.Sprintf("%d;w=%d", v.Limit, int(v.Window.Seconds())))
+}
+
+// secondsStr formats a duration as an integer delta-seconds string (O-3 —
+// delta-seconds, NOT epoch/HTTP-date). Rounded down.
+func secondsStr(d time.Duration) string {
+	s := int(d.Seconds())
+	if s < 0 {
+		s = 0
+	}
+	return fmt.Sprintf("%d", s)
+}
+
+// ConfigureRateLimiting arms (or skips) the rate limiter from config (U-W/D10).
+// Setter-based wiring, NOT cfg-threaded NewServer (ADR-007 — 86 existing call
+// sites stay valid; the regression guard is TestNewServerSignatureUnchanged).
+//
+// Behavior (business-logic-model §4, §3.6):
+//   - cfg == nil || !cfg.Enabled → return (passthrough, D7 — s.rateLimiter stays nil).
+//   - Validate (BR-01..BR-07) → on error: log + return (ADR-008 fail-open startup;
+//     server starts WITHOUT the limiter; main.go does NOT exit). This is the
+//     NDP-07 critical path — validation MUST live here, NOT in the fatal
+//     config.validateConfig path (see config.go note on validateConfig).
+//   - Build limiter; on error → log + return (fail-open).
+//   - On success: set s.rateLimiter, s.rlExtractor, s.rlCfg; register the status
+//     route ONLY when armed (BR-47 — when disabled, the route 404s).
+func (s *Server) ConfigureRateLimiting(cfg *config.RateLimitConfig) {
+	if cfg == nil || !cfg.Enabled {
+		return // passthrough (D7/R12)
+	}
+	if err := cfg.Validate(); err != nil {
+		// NDP-07/O-5/ADR-008: log + run WITHOUT the limiter (no crash).
+		log.Printf("rate_limit: config invalid: %v", err)
+		return
+	}
+	limit := cfg.GetDefaultLimit()
+	window := time.Duration(cfg.GetDefaultWindowSeconds()) * time.Second
+	limiter, err := ratelimit.New(
+		ratelimit.Policy{Limit: limit, Window: window},
+		ratelimit.WithMaxTrackedKeys(cfg.GetMaxTrackedKeys()),
+	)
+	if err != nil {
+		log.Printf("rate_limit: limiter build failed, running without limiter: %v", err)
+		return
+	}
+	s.rateLimiter = limiter
+	s.rlCfg = cfg
+	s.rlExtractor = ratelimit.KeyExtractor{TrustProxyHeaders: cfg.GetTrustProxyHeaders()}
+	// BR-47: register the status route ONLY when armed. When disabled, the route
+	// 404s (byte-identical to today, R12).
+	if s.mux != nil {
+		s.mux.HandleFunc("GET /health/rate-limit", s.handleRateLimitStatus)
+	}
 }
 
 func (s *Server) spaHandler(staticFS fs.FS) http.HandlerFunc {
