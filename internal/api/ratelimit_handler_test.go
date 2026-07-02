@@ -558,6 +558,48 @@ func TestRateLimitMiddlewarePanicRecovered(t *testing.T) {
 	}
 }
 
+// TestRateLimitHandlerPanicNoDoubleDispatch is the regression guard for the
+// double-dispatch bug found in adversarial review. The inner defer/recover in
+// rateLimitMiddleware must NOT call next a second time when a panic originates
+// in the HANDLER (after next was already dispatched). Per invariant 5, handler
+// panics belong to the OUTER recoveryMiddleware (→ 500), not the limiter's
+// fail-open path. Without the nextDispatched sentinel, this test would see
+// handlerCalls==2 (the handler runs twice) — a real hazard for non-idempotent
+// handlers like POST /api/features.
+func TestRateLimitHandlerPanicNoDoubleDispatch(t *testing.T) {
+	s := newTestServer(t)
+	arm(t, s, 10, 60)
+	handlerCalls := 0
+	panickingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handlerCalls++
+		panic("handler panicked after limiter dispatched next")
+	})
+	// Full chain: recovery(cors(rateLimit(mux))). The outer recoveryMiddleware
+	// must catch the handler panic → 500. The limiter's inner recover must NOT
+	// re-dispatch next (nextDispatched guard re-panics instead).
+	mux := s.mux
+	mux.HandleFunc("GET /boom", panickingHandler)
+	handler := s.recoveryMiddleware(s.corsMiddleware(s.rateLimitMiddleware(mux)))
+	req := httptest.NewRequest(http.MethodGet, "/boom", nil)
+	req.RemoteAddr = "1.2.3.4:1"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	// Outer recovery converts the handler panic to 500.
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("handler panic: code = %d, want 500 (outer recovery)", rec.Code)
+	}
+	// The handler must run exactly once — NOT twice (the bug was the inner
+	// recover calling next again after the handler panicked).
+	if handlerCalls != 1 {
+		t.Errorf("handler called %d times, want 1 (no double-dispatch)", handlerCalls)
+	}
+	// The limiter's failures_total must NOT increment — the malfunction was in the
+	// handler, not the limiter. The limiter's verdict was a clean allow.
+	if got := s.rateLimiter.FailuresTotal(); got != 0 {
+		t.Errorf("failures_total = %d, want 0 (handler panic is not a limiter malfunction)", got)
+	}
+}
+
 func TestRateLimitMiddlewareMalfunctionPassesThrough(t *testing.T) {
 	// BR-50: middleware gets err → next called, traffic flows.
 	s := newTestServer(t)
@@ -710,6 +752,71 @@ func TestRateLimitStatusGeneratedAtRFC3339(t *testing.T) {
 	json.Unmarshal(rec.Body.Bytes(), &resp)
 	if _, err := time.Parse(time.RFC3339, resp.GeneratedAt); err != nil {
 		t.Errorf("generated_at %q not RFC3339: %v", resp.GeneratedAt, err)
+	}
+}
+
+// TestRateLimitFullChainRealServer is the construction-gate smoke test
+// (devteam skill gate: "service starts and responds without panicking"). It
+// starts the full middleware chain (recovery(cors(rateLimit(mux)))) on a real
+// httptest.NewServer listener, arms the limiter, registers the status route,
+// and verifies the /health/rate-limit endpoint responds 200 over a real HTTP
+// round-trip with no panic. This is the strongest no-DB verification (E14) that
+// the chain composition at server.go:104 starts and serves. It complements the
+// httptest.NewRecorder tests above, which assert field/header semantics; this
+// one asserts the listener-level lifecycle (bind → request → response →
+// shutdown) that the recorder path never exercises.
+func TestRateLimitFullChainRealServer(t *testing.T) {
+	s := newTestServer(t)
+	arm(t, s, 100, 60)
+	s.rateLimiter.RecordRejection() // give the status something to report
+	mux := s.mux
+	mux.HandleFunc("GET /health/rate-limit", s.handleRateLimitStatus)
+	mux.HandleFunc("GET /v1/ping", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("pong"))
+	})
+	handler := s.recoveryMiddleware(s.corsMiddleware(s.rateLimitMiddleware(mux)))
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	// 1. Status endpoint over a real round-trip (exempt path, always 200).
+	res, err := http.Get(srv.URL + "/health/rate-limit")
+	if err != nil {
+		t.Fatalf("status GET: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("status code = %d, want 200", res.StatusCode)
+	}
+	var status rateLimitStatusResponse
+	if err := json.NewDecoder(res.Body).Decode(&status); err != nil {
+		t.Fatalf("status decode: %v", err)
+	}
+	if status.Status != "healthy" {
+		t.Errorf("status.status = %q, want healthy", status.Status)
+	}
+	if status.RejectionsTotal != 1 {
+		t.Errorf("status.rejections_total = %d, want 1", status.RejectionsTotal)
+	}
+	// Exempt path: no RateLimit-* headers on the response (invariant 3/BR-23).
+	if h := res.Header.Get("RateLimit-Limit"); h != "" {
+		t.Errorf("exempt status path set RateLimit-Limit=%q (should be absent)", h)
+	}
+
+	// 2. A real under-limit request gets advisory headers (allow path, BR-22).
+	pingRes, err := http.Get(srv.URL + "/v1/ping")
+	if err != nil {
+		t.Fatalf("ping GET: %v", err)
+	}
+	defer pingRes.Body.Close()
+	if pingRes.StatusCode != http.StatusOK {
+		t.Errorf("ping code = %d, want 200", pingRes.StatusCode)
+	}
+	if h := pingRes.Header.Get("X-RateLimit-Policy"); h != "100;w=60" {
+		t.Errorf("ping X-RateLimit-Policy = %q, want 100;w=60", h)
+	}
+	if h := pingRes.Header.Get("RateLimit-Remaining"); h == "" {
+		t.Error("ping: RateLimit-Remaining absent on allow path (BR-22)")
 	}
 }
 

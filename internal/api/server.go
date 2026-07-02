@@ -221,14 +221,37 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Two-layer recovery (NDP-02). The inner defer/recover converts a panic
-		// in the limiter closure to a fail-open outcome (allow + log + next). If
-		// this recovery itself panics, the outer recoveryMiddleware catches it.
+		// Two-layer recovery (NDP-02, invariant 5). The inner defer/recover owns
+		// ONLY panics from limiter-owned steps (key extraction, Allow, header
+		// setting, writeRateLimitRejection) — steps 1-4 of the lifecycle. A panic
+		// from next (the handler/mux) belongs to the OUTER recoveryMiddleware
+		// (→ 500), not this fail-open path: re-panicking it preserves the two-layer
+		// contract and prevents double-dispatch (a handler panic after next was
+		// already called would otherwise run next a second time — a real hazard
+		// for non-idempotent handlers like POST /api/features).
+		//
+		// nextDispatched tracks whether next.ServeHTTP has already been invoked.
+		// A panic with nextDispatched=true means the panic originated in the
+		// handler (limiter-owned steps already completed successfully before the
+		// dispatch) → re-panic so the outer recovery catches it. A panic with
+		// nextDispatched=false means the panic is in a limiter-owned step →
+		// fail-open (log + failures_total++ + dispatch next once).
+		nextDispatched := false
 		defer func() {
 			if rec := recover(); rec != nil {
+				if nextDispatched {
+					// Panic originated in the handler after next was dispatched. The
+					// limiter's job was already done; the outer recoveryMiddleware owns
+					// handler panics (→ 500). Re-panic so it catches this — do NOT call
+					// next again (would double-dispatch).
+					panic(rec)
+				}
+				// Limiter-owned malfunction (BR-50/NDP-01): fail-open. The panic was in
+				// key extraction, Allow, or header-setting, before next ran.
 				s.rateLimiter.RecordFailure()
 				log.Printf("rate_limit: internal_error err=%q key=<unknown> route=%s decision=allow fail_mode=%s", rec, r.Method+" "+r.URL.Path, s.failMode())
 				// Fail-open: no RateLimit-* headers, traffic flows (invariant 4).
+				nextDispatched = true
 				next.ServeHTTP(w, r)
 			}
 		}()
@@ -239,6 +262,7 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 		// (GET /health/rate-limit) is exempt by construction here, AND registered
 		// only when armed (BR-47) — belt and suspenders.
 		if route == "GET /health/rate-limit" || s.isExemptRoute(route) {
+			nextDispatched = true
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -251,6 +275,7 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 			s.rateLimiter.RecordFailure()
 			log.Printf("rate_limit: internal_error err=%q key=%s route=%s decision=allow fail_mode=%s", err, key, route, s.failMode())
 			// NO RateLimit-* headers (invariant 4) — response looks like normal handler.
+			nextDispatched = true
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -259,6 +284,7 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 			// Allow path: advisory headers ALWAYS (O-9/BR-22 — reversed C-2). Set on
 			// w.Header() BEFORE next.ServeHTTP calls WriteHeader (invariant 1/BR-18).
 			s.setAdvisoryHeaders(w, v)
+			nextDispatched = true
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -272,6 +298,7 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Retry-After", secondsStr(v.ResetIn))
 			log.Printf("rate_limit: dry_run would_reject key=%s route=%s count=%d limit=%d window=%ds retry_after=%ds",
 				key, route, v.Count, v.Limit, int(v.Window.Seconds()), int(v.ResetIn.Seconds()))
+			nextDispatched = true
 			next.ServeHTTP(w, r)
 			return
 		}
