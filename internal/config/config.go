@@ -119,20 +119,11 @@ func LoadRepos(path string) (*ReposConfig, error) {
 }
 
 func validateConfig(cfg *Config) error {
-	if len(cfg.Pipeline.Phases) != 6 {
-		return fmt.Errorf("expected 6 pipeline phases, got %d", len(cfg.Pipeline.Phases))
-	}
-	expectedPhases := []string{"inception", "planning", "construction", "review", "testing", "delivery"}
-	for i, ep := range expectedPhases {
-		if cfg.Pipeline.Phases[i].Name != ep {
-			return fmt.Errorf("expected phase %d to be %s, got %s", i, ep, cfg.Pipeline.Phases[i].Name)
-		}
-	}
-	expectedRoles := []string{"pm", "architect", "developer", "reviewer", "tester", "ops"}
-	for _, er := range expectedRoles {
-		if _, ok := cfg.Roles[er]; !ok {
-			return fmt.Errorf("missing required role: %s", er)
-		}
+	// AIDLC v2: phases are defined in the DB (stage_definitions table).
+	// Config phases are optional — used only for human interaction timeout and role rules.
+	// -1 is a valid timeout meaning "no timeout" (wait indefinitely).
+	if cfg.Pipeline.HumanInteractionTimeoutMinutes != nil && *cfg.Pipeline.HumanInteractionTimeoutMinutes < -1 {
+		return fmt.Errorf("human_interaction_timeout_minutes must be >= -1 (use -1 for no timeout), got %d", *cfg.Pipeline.HumanInteractionTimeoutMinutes)
 	}
 	return nil
 }

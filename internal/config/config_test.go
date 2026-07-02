@@ -9,70 +9,32 @@ import (
 func TestLoadConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgContent := `
-version: "1.0"
+version: "2.0"
 pipeline:
+  human_interaction_timeout_minutes: 30
   phases:
-    - name: inception
-      roles: [pm, architect]
-      gate: spec_approved
-      artifacts: [spec.md, acceptance.md, repos.yaml]
+    - name: ideation
+      roles: [product]
       rules: rules/aidlc/core-workflow.md
-    - name: planning
-      roles: [architect]
-      gate: plan_approved
-      artifacts: [plan.md, tasks.md]
-      rules: rules/aidlc-rule-details/construction/
+    - name: inception
+      roles: [product]
+      rules: rules/aidlc-rule-details/inception/
     - name: construction
       roles: [developer]
-      gate: tasks_complete
-      artifacts: [implementation]
       rules: rules/aidlc-rule-details/construction/code-generation.md
-    - name: review
-      roles: [reviewer]
-      gate: criteria_met
-      artifacts: [review_report]
-      rules: rules/aidlc-rule-details/construction/functional-design.md
-    - name: testing
-      roles: [tester]
-      gate: tests_pass
-      artifacts: [test_report]
-      rules: rules/aidlc-rule-details/construction/build-and-test.md
-    - name: delivery
-      roles: [ops]
-      gate: docs_match_spec
-      artifacts: [docs, release]
-      rules: rules/aidlc-rule-details/operations/operations.md
 roles:
-  pm:
-    name: Product Manager
-    description: Owns the what and why
-    instructions: roles/pm/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/inception/
+  product:
+    name: Product Agent
+    description: Requirements, user stories, market research
+    instructions: roles/product/INSTRUCTIONS.md
   architect:
-    name: Architect
-    description: Owns the how
+    name: Architect Agent
+    description: App design, domain modeling, NFRs
     instructions: roles/architect/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/construction/functional-design.md
   developer:
-    name: Developer
-    description: Writes code
+    name: Developer Agent
+    description: Code implementation
     instructions: roles/developer/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/construction/code-generation.md
-  reviewer:
-    name: Code Reviewer
-    description: Adversarial review
-    instructions: roles/reviewer/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/construction/build-and-test.md
-  tester:
-    name: Tester
-    description: Writes and runs tests
-    instructions: roles/tester/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/construction/build-and-test.md
-  ops:
-    name: Release Engineer
-    description: Owns deployment and docs
-    instructions: roles/ops/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/operations/operations.md
 extensions:
   security:
     opt_in: true
@@ -99,11 +61,11 @@ spec_repo:
 	if err != nil {
 		t.Fatalf("LoadConfig() error: %v", err)
 	}
-	if len(cfg.Pipeline.Phases) != 6 {
-		t.Errorf("expected 6 phases, got %d", len(cfg.Pipeline.Phases))
+	if len(cfg.Pipeline.Phases) != 3 {
+		t.Errorf("expected 3 phases, got %d", len(cfg.Pipeline.Phases))
 	}
-	if _, ok := cfg.Roles["pm"]; !ok {
-		t.Error("missing pm role")
+	if _, ok := cfg.Roles["product"]; !ok {
+		t.Error("missing product role")
 	}
 	if _, ok := cfg.Roles["architect"]; !ok {
 		t.Error("missing architect role")
@@ -113,20 +75,14 @@ spec_repo:
 func TestLoadConfigValidation(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgContent := `
-version: "1.0"
+version: "2.0"
 pipeline:
-  phases:
-    - name: inception
-      roles: [pm]
-      gate: spec_approved
-      artifacts: [spec.md]
-      rules: rules/aidlc/core-workflow.md
+  human_interaction_timeout_minutes: -5
 roles:
-  pm:
-    name: PM
-    description: Product Manager
-    instructions: roles/pm/INSTRUCTIONS.md
-    phase_rules: rules/aidlc-rule-details/inception/
+  product:
+    name: Product
+    description: Product Agent
+    instructions: roles/product/INSTRUCTIONS.md
 `
 	cfgPath := filepath.Join(tmpDir, "devteam.yaml")
 	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
@@ -135,7 +91,7 @@ roles:
 
 	_, err := LoadConfig(cfgPath)
 	if err == nil {
-		t.Fatal("expected validation error for missing phases and roles, got nil")
+		t.Fatal("expected validation error for negative timeout, got nil")
 	}
 }
 
