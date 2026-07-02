@@ -27,24 +27,24 @@ export function Modal({ open, onClose, title, children, maxWidth = '500px', ...r
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
             data-testid="modal-backdrop"
           />
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
+            initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
+            exit={{ scale: 0.95, opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
           >
             <div
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full pointer-events-auto"
-              style={{ maxWidth }}
+              className="bg-[var(--color-surface-raised)] rounded-[var(--radius-xl)] w-full pointer-events-auto"
+              style={{ maxWidth, boxShadow: 'var(--shadow-xl)' }}
               {...rest}
             >
               {title && (
-                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
-                  <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" data-testid="modal-close">
+                <div className="flex items-center justify-between p-4 border-b border-[var(--color-border-subtle)]">
+                  <h3 className="text-base font-medium text-[var(--color-text-primary)]">{title}</h3>
+                  <button onClick={onClose} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" data-testid="modal-close">
                     ✕
                   </button>
                 </div>

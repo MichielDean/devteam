@@ -16,6 +16,10 @@ interface ControlBarProps {
   isTerminal: boolean;
 }
 
+const selectClass =
+  'w-full px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-raised)] text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] focus:border-[var(--color-accent)] focus:outline-none text-sm';
+const labelClass = 'block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5';
+
 export default function ControlBar({
   onJumpStage, onJumpPhase, onSetScope, onSetDepth, onSetTestStrategy, onCancel,
   currentScope, currentDepth, currentTestStrategy, availableStages, isTerminal,
@@ -26,7 +30,11 @@ export default function ControlBar({
   if (isTerminal) return null;
 
   return (
-    <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded-lg shadow" data-testid="control-bar">
+    <div
+      className="flex items-center gap-2 p-2 rounded-[var(--radius-lg)] sticky bottom-4"
+      style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-md)' }}
+      data-testid="control-bar"
+    >
       <Button variant="ghost" size="sm" onClick={() => setJumpOpen(true)} data-testid="control-jump">
         Jump
       </Button>
@@ -41,9 +49,9 @@ export default function ControlBar({
       <Modal open={jumpOpen} onClose={() => setJumpOpen(false)} title="Jump to Stage or Phase">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Jump to stage</label>
+            <label className={labelClass}>Jump to stage</label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              className={selectClass}
               defaultValue=""
               onChange={(e) => { if (e.target.value) { onJumpStage(e.target.value); setJumpOpen(false); } }}
               data-testid="jump-stage-select"
@@ -55,10 +63,10 @@ export default function ControlBar({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Jump to phase</label>
+            <label className={labelClass}>Jump to phase</label>
             <div className="flex flex-wrap gap-2">
               {['ideation', 'inception', 'construction', 'operation'].map((phase) => (
-                <Button key={phase} variant="ghost" size="sm" onClick={() => { onJumpPhase(phase); setJumpOpen(false); }} data-testid={`jump-phase-${phase}`}>
+                <Button key={phase} variant="secondary" size="sm" onClick={() => { onJumpPhase(phase); setJumpOpen(false); }} data-testid={`jump-phase-${phase}`}>
                   {phase.charAt(0).toUpperCase() + phase.slice(1)}
                 </Button>
               ))}
@@ -70,34 +78,34 @@ export default function ControlBar({
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Feature Settings">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scope</label>
+            <label className={labelClass}>Scope</label>
             <select
               value={currentScope}
               onChange={(e) => onSetScope(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              className={selectClass}
               data-testid="settings-scope"
             >
               {SCOPES.map((s) => <option key={s} value={s}>{SCOPE_LABELS[s]}</option>)}
             </select>
-            <p className="text-xs text-gray-400 mt-1">{SCOPE_DESCRIPTIONS[currentScope]}</p>
+            <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{SCOPE_DESCRIPTIONS[currentScope]}</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Depth</label>
+            <label className={labelClass}>Depth</label>
             <select
               value={currentDepth}
               onChange={(e) => onSetDepth(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              className={selectClass}
               data-testid="settings-depth"
             >
               {DEPTHS.map((d) => <option key={d} value={d}>{DEPTH_LABELS[d]}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Test Strategy</label>
+            <label className={labelClass}>Test Strategy</label>
             <select
               value={currentTestStrategy}
               onChange={(e) => onSetTestStrategy(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              className={selectClass}
               data-testid="settings-test-strategy"
             >
               {TEST_STRATEGIES.map((t) => <option key={t} value={t}>{TEST_STRATEGY_LABELS[t]}</option>)}

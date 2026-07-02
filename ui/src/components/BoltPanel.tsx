@@ -1,4 +1,5 @@
-import { Button, Badge, Card } from '../ui/primitives';
+import { Button, Badge } from '../ui/primitives';
+import type { Color } from '../ui/primitives/Badge';
 import type { Bolt } from '../types';
 
 interface BoltPanelProps {
@@ -10,37 +11,48 @@ interface BoltPanelProps {
   showLadderPrompt: boolean;
 }
 
+const statusColor: Record<string, Color> = {
+  completed: 'green',
+  in_progress: 'blue',
+  failed: 'red',
+  pending: 'gray',
+};
+
 export default function BoltPanel({ bolts, onPrepareBolts, onRunBolt, onSetLadder, autonomyMode, showLadderPrompt }: BoltPanelProps) {
   if (bolts.length === 0 && !showLadderPrompt) {
     return (
-      <Card className="p-4 mb-4" data-testid="bolts-panel">
+      <div className="p-4 mb-4 rounded-[var(--radius-lg)]" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-sm)' }} data-testid="bolts-panel">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Construction Bolts</h3>
+          <h3 className="text-base font-medium text-[var(--color-text-primary)]">Construction Bolts</h3>
           <Button variant="primary" size="sm" onClick={onPrepareBolts} data-testid="prepare-bolts-button">Prepare Bolts</Button>
         </div>
-        <p className="text-sm text-gray-500" data-testid="bolts-empty">No Bolts yet. Prepare Bolts from inception output to start construction.</p>
-      </Card>
+        <p className="text-sm text-[var(--color-text-tertiary)]" data-testid="bolts-empty">No Bolts yet. Prepare Bolts from inception output to start construction.</p>
+      </div>
     );
   }
 
   return (
-    <Card className="p-4 mb-4" data-testid="bolts-panel">
+    <div className="p-4 mb-4 rounded-[var(--radius-lg)]" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-sm)' }} data-testid="bolts-panel">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Construction Bolts</h3>
-        <span className="text-sm text-gray-500">{bolts.length} bolt{bolts.length !== 1 ? 's' : ''}</span>
+        <h3 className="text-base font-medium text-[var(--color-text-primary)]">Construction Bolts</h3>
+        <span className="text-sm text-[var(--color-text-tertiary)]">{bolts.length} bolt{bolts.length !== 1 ? 's' : ''}</span>
       </div>
 
       <div className="space-y-2" data-testid="bolt-list">
         {bolts.map((b) => (
           <div
             key={b.bolt_number}
-            className={`flex items-center gap-3 p-3 rounded-lg ${b.is_walking_skeleton ? 'bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800' : 'bg-gray-50 dark:bg-gray-900/30'}`}
+            className="flex items-center gap-3 p-3 rounded-[var(--radius-md)]"
+            style={{
+              backgroundColor: b.is_walking_skeleton ? 'var(--color-surface-active)' : 'var(--color-surface-hover)',
+              borderLeft: b.is_walking_skeleton ? '2px solid var(--color-accent)' : undefined,
+            }}
             data-testid={`bolt-${b.bolt_number}`}
           >
-            <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">Bolt {b.bolt_number}</span>
-            {b.is_walking_skeleton && <Badge color="indigo" data-testid={`bolt-walking-skeleton-${b.bolt_number}`}>Walking Skeleton</Badge>}
-            <span className={`text-sm ${b.status === 'completed' ? 'text-green-600' : b.status === 'in_progress' ? 'text-blue-600' : b.status === 'failed' ? 'text-red-600' : 'text-gray-500'}`} data-testid={`bolt-status-${b.bolt_number}`}>{b.status}</span>
-            <span className="text-xs text-gray-400">{b.unit_ids.length} unit(s)</span>
+            <span className="font-mono text-sm font-medium text-[var(--color-text-primary)]">Bolt {b.bolt_number}</span>
+            {b.is_walking_skeleton && <Badge color="blue" data-testid={`bolt-walking-skeleton-${b.bolt_number}`}>Walking Skeleton</Badge>}
+            <Badge color={statusColor[b.status] || 'gray'} data-testid={`bolt-status-${b.bolt_number}`}>{b.status}</Badge>
+            <span className="text-xs text-[var(--color-text-tertiary)]">{b.unit_ids.length} unit(s)</span>
             <div className="flex-1" />
             {(b.status === 'pending' || b.status === 'failed') && (
               <Button variant="primary" size="sm" onClick={() => onRunBolt(b.bolt_number)} data-testid={`run-bolt-${b.bolt_number}`}>Run</Button>
@@ -50,8 +62,8 @@ export default function BoltPanel({ bolts, onPrepareBolts, onRunBolt, onSetLadde
       </div>
 
       {showLadderPrompt && !autonomyMode && (
-        <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="ladder-prompt">
-          <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">🪜 Ladder Prompt: Walking skeleton complete. Choose autonomy mode:</p>
+        <div className="mt-4 p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)' }} data-testid="ladder-prompt">
+          <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-warning)' }}>🪜 Ladder Prompt: Walking skeleton complete. Choose autonomy mode:</p>
           <div className="flex gap-2">
             <Button variant="warning" size="sm" onClick={() => onSetLadder('gated')} data-testid="ladder-gated">Gated (approve each Bolt)</Button>
             <Button variant="primary" size="sm" onClick={() => onSetLadder('autonomous')} data-testid="ladder-autonomous">Autonomous</Button>
@@ -60,10 +72,10 @@ export default function BoltPanel({ bolts, onPrepareBolts, onRunBolt, onSetLadde
       )}
 
       {autonomyMode && (
-        <div className="mt-3 text-sm text-gray-500" data-testid="autonomy-mode-display">
-          Autonomy: <Badge color={autonomyMode === 'autonomous' ? 'indigo' : 'yellow'}>{autonomyMode}</Badge>
+        <div className="mt-3 text-sm text-[var(--color-text-tertiary)]" data-testid="autonomy-mode-display">
+          Autonomy: <Badge color={autonomyMode === 'autonomous' ? 'blue' : 'yellow'}>{autonomyMode}</Badge>
         </div>
       )}
-    </Card>
+    </div>
   );
 }

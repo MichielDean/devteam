@@ -9,7 +9,7 @@ export default function SessionIndicator({ count, featureId }: SessionIndicatorP
   void featureId;
   return (
     <Badge color="green" data-testid="session-indicator">
-      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-1.5" />
+      <span className="w-2 h-2 rounded-full mr-1.5 animate-pulse" style={{ backgroundColor: 'var(--color-success)' }} />
       {count} session{count > 1 ? 's' : ''}
     </Badge>
   );

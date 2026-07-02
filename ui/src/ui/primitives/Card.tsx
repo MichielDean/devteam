@@ -9,7 +9,8 @@ interface CardProps {
 export function Card({ children, className, ...rest }: CardProps) {
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-lg shadow ${className ?? ''}`}
+      className={`bg-[var(--color-surface-raised)] rounded-[var(--radius-lg)] ${className ?? ''}`}
+      style={{ boxShadow: 'var(--shadow-sm)' }}
       {...rest}
     >
       {children}
@@ -26,8 +27,8 @@ interface CardHeaderProps {
 
 export function CardHeader({ title, action, className, ...rest }: CardHeaderProps) {
   return (
-    <div className={`flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 ${className ?? ''}`} {...rest}>
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+    <div className={`flex items-center justify-between p-4 border-b border-[var(--color-border-subtle)] ${className ?? ''}`} {...rest}>
+      <h3 className="text-base font-medium text-[var(--color-text-primary)]">{title}</h3>
       {action}
     </div>
   );

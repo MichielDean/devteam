@@ -1,16 +1,16 @@
 import { type ReactNode } from 'react';
 
-type Color = 'gray' | 'blue' | 'green' | 'yellow' | 'red' | 'orange' | 'purple' | 'indigo';
+export type Color = 'gray' | 'blue' | 'green' | 'yellow' | 'red' | 'orange' | 'purple' | 'indigo';
 
 const colorClasses: Record<Color, string> = {
-  gray: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-  blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  green: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  red: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-  purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-  indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+  gray: 'bg-[var(--color-surface-active)] text-[var(--color-text-secondary)]',
+  blue: 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]',
+  green: 'bg-[var(--color-success-surface)] text-[var(--color-success)]',
+  yellow: 'bg-[var(--color-warning-surface)] text-[var(--color-warning)]',
+  red: 'bg-[var(--color-danger-surface)] text-[var(--color-danger)]',
+  orange: 'bg-[var(--color-warning-surface)] text-[var(--color-warning)]',
+  purple: 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]',
+  indigo: 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]',
 };
 
 interface BadgeProps {
@@ -23,7 +23,7 @@ interface BadgeProps {
 export function Badge({ color = 'gray', children, className, ...rest }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClasses[color]} ${className ?? ''}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded-[var(--radius-md)] text-xs font-medium ${colorClasses[color]} ${className ?? ''}`}
       {...rest}
     >
       {children}

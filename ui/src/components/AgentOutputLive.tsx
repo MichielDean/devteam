@@ -21,7 +21,6 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing }: Ag
   const scrollRef = useRef<HTMLDivElement>(null);
   const { connected, subscribe } = useSSE(featureId);
 
-  // Subscribe to agent_output SSE events
   useEffect(() => {
     const unsubscribe = subscribe('agent_output', (event) => {
       if (isPaused) return;
@@ -37,7 +36,6 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing }: Ag
     return unsubscribe;
   }, [subscribe, isPaused]);
 
-  // Auto-scroll on new lines
   useEffect(() => {
     if (scrollRef.current && !isPaused) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -53,15 +51,15 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing }: Ag
   if (lines.length === 0 && !isProcessing) return null;
 
   return (
-    <div className="bg-gray-900 rounded-lg shadow overflow-hidden" data-testid="agent-output-live">
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-950">
+    <div className="rounded-[var(--radius-lg)] overflow-hidden" style={{ backgroundColor: '#000' }} data-testid="agent-output-live">
+      <div className="flex items-center justify-between px-4 py-2" style={{ backgroundColor: 'var(--color-surface-hover)' }}>
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-gray-300">
+          <h3 className="text-sm font-medium text-[var(--color-text-primary)]">
             Agent Output
-            {stageId && <span className="ml-2 text-xs text-gray-500">· {stageId}</span>}
+            {stageId && <span className="ml-2 text-xs text-[var(--color-text-tertiary)]">· {stageId}</span>}
           </h3>
-          <span className="text-xs text-gray-500">{lines.length} lines</span>
-          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-yellow-500'}`} title={connected ? 'Live' : 'Reconnecting'} />
+          <span className="text-xs text-[var(--color-text-tertiary)]">{lines.length} lines</span>
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: connected ? 'var(--color-success)' : 'var(--color-warning)' }} title={connected ? 'Live' : 'Reconnecting'} />
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -69,16 +67,17 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing }: Ag
             placeholder="Search..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="px-2 py-0.5 text-xs bg-gray-800 text-gray-300 rounded border border-gray-700 focus:ring-1 focus:ring-blue-500"
+            className="px-2 py-0.5 text-xs rounded-[var(--radius-sm)] text-[var(--color-text-primary)] border border-[var(--color-border-default)] focus:border-[var(--color-accent)] focus:outline-none"
+            style={{ backgroundColor: 'var(--color-surface-raised)' }}
             data-testid="output-search"
           />
-          <button onClick={() => setIsPaused(!isPaused)} className="text-xs text-gray-400 hover:text-gray-200" data-testid="output-pause">
+          <button onClick={() => setIsPaused(!isPaused)} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]" data-testid="output-pause">
             {isPaused ? '▶ Resume' : '⏸ Pause'}
           </button>
-          <button onClick={clearOutput} className="text-xs text-gray-400 hover:text-gray-200" data-testid="output-clear">
+          <button onClick={clearOutput} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]" data-testid="output-clear">
             Clear
           </button>
-          <button onClick={() => setIsExpanded(!isExpanded)} className="text-xs text-gray-400 hover:text-gray-200">
+          <button onClick={() => setIsExpanded(!isExpanded)} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
             {isExpanded ? 'Collapse' : 'Expand'}
           </button>
         </div>
@@ -86,16 +85,18 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing }: Ag
       {isExpanded && (
         <div
           ref={scrollRef}
-          className="font-mono text-xs leading-5 max-h-96 overflow-y-auto bg-gray-950 p-3"
+          className="font-mono text-xs leading-5 max-h-96 overflow-y-auto p-3"
+          style={{ fontFamily: 'var(--font-mono)', backgroundColor: '#000' }}
           data-testid="agent-output-lines"
         >
           {filteredLines.length === 0 ? (
-            <div className="text-gray-600 italic">{isProcessing ? 'Waiting for output...' : 'No output'}</div>
+            <div className="text-[var(--color-text-tertiary)] italic">{isProcessing ? 'Waiting for output...' : 'No output'}</div>
           ) : (
             filteredLines.map((line, i) => (
               <div
                 key={i}
-                className={`${line.isStderr ? 'text-red-400' : 'text-gray-300'} whitespace-pre-wrap break-all`}
+                className="whitespace-pre-wrap break-all"
+                style={{ color: line.isStderr ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}
               >
                 {line.line}
               </div>

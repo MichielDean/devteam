@@ -5,6 +5,12 @@ import { Button, Badge, Card } from '../ui/primitives';
 import { useToast } from '../components/Toast';
 import { AGENTS, REVIEWERS, AGENT_LABELS } from '../types';
 
+const selectClass =
+  'w-full px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface)] text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] focus:border-[var(--color-accent)] focus:outline-none text-sm';
+const inputClass =
+  'w-full px-3 py-1.5 text-sm rounded-[var(--radius-md)] bg-[var(--color-surface)] text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] focus:border-[var(--color-accent)] focus:outline-none transition-colors';
+const labelClass = 'block text-xs font-medium text-[var(--color-text-secondary)] mb-1';
+
 export default function KnowledgePage() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -41,14 +47,14 @@ export default function KnowledgePage() {
 
   return (
     <div data-testid="knowledge-page">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Team Knowledge</h2>
+      <h2 className="text-xl font-medium text-[var(--color-text-primary)] mb-4">Team Knowledge</h2>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-4 lg:col-span-1">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Agent</h3>
+          <h3 className="text-sm font-medium text-[var(--color-text-secondary)] mb-2">Agent</h3>
           <select
             value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            className={selectClass}
             data-testid="knowledge-agent-select"
           >
             {[...AGENTS, ...REVIEWERS].map((a) => <option key={a} value={a}>{AGENT_LABELS[a] || a}</option>)}
@@ -56,24 +62,24 @@ export default function KnowledgePage() {
 
           <div className="mt-4 space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Topic</label>
+              <label className={labelClass}>Topic</label>
               <input
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="e.g. coding-standards"
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className={inputClass}
                 data-testid="knowledge-topic-input"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Content</label>
+              <label className={labelClass}>Content</label>
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 rows={6}
                 placeholder="Knowledge content..."
-                className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className={`${inputClass} resize-y`}
                 data-testid="knowledge-content-input"
               />
             </div>
@@ -84,21 +90,21 @@ export default function KnowledgePage() {
         </Card>
 
         <Card className="p-4 lg:col-span-2">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+          <h3 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
             {AGENT_LABELS[selectedAgent] || selectedAgent} — {agentKnowledge.length} entries
           </h3>
           {agentKnowledge.length === 0 ? (
-            <p className="text-sm text-gray-500" data-testid="knowledge-empty">No knowledge entries yet.</p>
+            <p className="text-sm text-[var(--color-text-tertiary)]" data-testid="knowledge-empty">No knowledge entries yet.</p>
           ) : (
             <div className="space-y-3" data-testid="knowledge-list">
               {agentKnowledge.map((k) => (
-                <div key={k.id} className="p-3 bg-gray-50 dark:bg-gray-900/30 rounded-lg" data-testid={`knowledge-entry-${k.id}`}>
+                <div key={k.id} className="p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-surface-hover)' }} data-testid={`knowledge-entry-${k.id}`}>
                   <div className="flex items-center justify-between mb-1">
                     <Badge color="blue">{k.topic}</Badge>
                     <Button variant="danger" size="sm" onClick={() => deleteMutation.mutate({ agent: selectedAgent, topic: k.topic })} data-testid={`knowledge-delete-${k.id}`}>Delete</Button>
                   </div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{k.content}</p>
-                  <p className="text-xs text-gray-400 mt-1">Updated: {new Date(k.updated_at).toLocaleString()}</p>
+                  <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap">{k.content}</p>
+                  <p className="text-xs text-[var(--color-text-tertiary)] mt-1">Updated: {new Date(k.updated_at).toLocaleString()}</p>
                 </div>
               ))}
             </div>

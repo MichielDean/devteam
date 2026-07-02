@@ -16,6 +16,11 @@ const ToastContext = createContext<ToastContextType>({
 
 let nextId = 0;
 
+const typeStyle: Record<Toast['type'], React.CSSProperties> = {
+  success: { backgroundColor: 'var(--color-success)' },
+  error: { backgroundColor: 'var(--color-danger)' },
+};
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -38,9 +43,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`px-4 py-3 rounded-lg shadow-lg text-white max-w-sm ${
-              toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-            }`}
+            className="px-4 py-3 rounded-[var(--radius-md)] text-white max-w-sm"
+            style={{ ...typeStyle[toast.type], boxShadow: 'var(--shadow-lg)' }}
             role="alert"
             data-testid={`toast-${toast.type}`}
           >

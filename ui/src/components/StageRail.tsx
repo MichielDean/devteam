@@ -10,21 +10,21 @@ interface StageRailProps {
 }
 
 const STATUS_ICONS: Record<string, string> = {
-  not_started: '[ ]',
+  not_started: '○',
   in_progress: '▶',
   awaiting_approval: '?',
-  revising: 'R',
+  revising: '↻',
   completed: '✓',
-  skipped: 'S',
+  skipped: '·',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  not_started: 'text-gray-400',
-  in_progress: 'text-blue-600 dark:text-blue-400',
-  awaiting_approval: 'text-yellow-600 dark:text-yellow-400',
-  revising: 'text-orange-600 dark:text-orange-400',
-  completed: 'text-green-600 dark:text-green-400',
-  skipped: 'text-gray-400',
+const statusColor: Record<string, string> = {
+  not_started: 'var(--color-text-tertiary)',
+  in_progress: 'var(--color-accent)',
+  awaiting_approval: 'var(--color-warning)',
+  revising: 'var(--color-warning)',
+  completed: 'var(--color-success)',
+  skipped: 'var(--color-text-tertiary)',
 };
 
 function groupByPhase(stages: FeatureStage[]): Record<string, FeatureStage[]> {
@@ -48,24 +48,24 @@ export default function StageRail({ stages, stageDefinitions, currentStageId }: 
     stageDefinitions?.find((d) => d.id === stageId);
 
   return (
-    <div className="w-64 shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow h-full overflow-y-auto" data-testid="stage-rail">
-      <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+    <div className="w-64 shrink-0 rounded-[var(--radius-lg)] overflow-y-auto h-full" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-sm)' }} data-testid="stage-rail">
+      <div className="p-3 border-b border-[var(--color-border-subtle)]">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Stages</h3>
-          <span className="text-xs text-gray-500" data-testid="rail-progress">{completed}/{total}</span>
+          <h3 className="text-sm font-medium text-[var(--color-text-primary)]">Stages</h3>
+          <span className="text-xs text-[var(--color-text-tertiary)]" data-testid="rail-progress">{completed}/{total}</span>
         </div>
-        <div className="mt-2 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-600 transition-all" style={{ width: `${total > 0 ? (completed / total) * 100 : 0}%` }} />
+        <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-border-subtle)' }}>
+          <div className="h-full transition-all" style={{ width: `${total > 0 ? (completed / total) * 100 : 0}%`, backgroundColor: 'var(--color-accent)' }} />
         </div>
       </div>
 
       {stages.length === 0 ? (
-        <p className="text-xs text-gray-500 p-3" data-testid="rail-empty">No stages initialized.</p>
+        <p className="text-xs text-[var(--color-text-tertiary)] p-3" data-testid="rail-empty">No stages initialized.</p>
       ) : (
         <div className="p-2 space-y-3" data-testid="rail-stages">
           {Object.entries(grouped).map(([phase, phaseStages]) => (
             <div key={phase} data-testid={`rail-phase-${phase}`}>
-              <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 px-1">
+              <h4 className="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1 px-1">
                 {PHASE_LABELS[phase] || phase}
               </h4>
               <div className="space-y-0.5">
@@ -73,32 +73,31 @@ export default function StageRail({ stages, stageDefinitions, currentStageId }: 
                   const def = getStageDef(s.stage_id);
                   const isCurrent = s.stage_id === currentStageId;
                   const isSelected = s.stage_id === selectedStageId;
-                  const icon = STATUS_ICONS[s.status] || '[ ]';
-                  const color = STATUS_COLORS[s.status] || 'text-gray-400';
+                  const icon = STATUS_ICONS[s.status] || '○';
+                  const color = statusColor[s.status] || 'var(--color-text-tertiary)';
                   return (
                     <button
                       key={s.stage_id}
                       onClick={() => setSelectedStage(s.stage_id)}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs transition-colors ${
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-left text-xs transition-colors ${
                         isSelected
-                          ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800'
-                          : isCurrent
-                          ? 'bg-blue-50/50 dark:bg-blue-900/20'
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                          ? 'bg-[var(--color-surface-active)]'
+                          : 'hover:bg-[var(--color-surface-hover)]'
                       }`}
+                      style={isSelected ? { borderLeft: `2px solid var(--color-accent)`, paddingLeft: '6px' } : { borderLeft: '2px solid transparent' }}
                       data-testid={`rail-stage-${s.stage_id}`}
                     >
-                      <span className={`font-mono ${color} w-4 text-center shrink-0`} data-testid={`rail-icon-${s.stage_id}`}>{icon}</span>
+                      <span className="w-4 text-center shrink-0 font-mono text-xs" style={{ color }} data-testid={`rail-icon-${s.stage_id}`}>{icon}</span>
                       <div className="flex-1 min-w-0">
-                        <div className={`truncate ${isCurrent ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+                        <div className={`truncate ${isCurrent ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}`}>
                           {s.stage_id} {def?.name ? `· ${def.name}` : ''}
                         </div>
                         {def && (
-                          <div className="text-xs text-gray-400 truncate">{AGENT_LABELS[def.lead_agent] || def.lead_agent}</div>
+                          <div className="text-[10px] text-[var(--color-text-tertiary)] truncate">{AGENT_LABELS[def.lead_agent] || def.lead_agent}</div>
                         )}
                       </div>
-                      {s.revision_count > 0 && <Badge color="orange" className="text-xs px-1 py-0">×{s.revision_count}</Badge>}
-                      {def?.reviewer && <span className="text-xs text-gray-400" title={`Reviewer: ${AGENT_LABELS[def.reviewer]}`}>🔍</span>}
+                      {s.revision_count > 0 && <Badge color="yellow" className="text-[10px] px-1 py-0">×{s.revision_count}</Badge>}
+                      {def?.reviewer && <span className="text-[10px]" style={{ color: 'var(--color-text-tertiary)' }} title={`Reviewer: ${AGENT_LABELS[def.reviewer]}`}>🔍</span>}
                     </button>
                   );
                 })}

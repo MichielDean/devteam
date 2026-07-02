@@ -22,20 +22,20 @@ export default function AuditDrawer({ open, onClose, events }: AuditDrawerProps)
   return (
     <Drawer open={open} onClose={onClose} title={`Audit Trail (${events.length} events)`} width="450px" data-testid="audit-drawer">
       {events.length === 0 ? (
-        <p className="text-sm text-gray-500" data-testid="audit-empty">No events yet.</p>
+        <p className="text-sm text-[var(--color-text-tertiary)]" data-testid="audit-empty">No events yet.</p>
       ) : (
-        <div className="space-y-2" data-testid="audit-event-list">
+        <div className="space-y-3" data-testid="audit-event-list">
           {displayed.map((e) => (
-            <div key={e.id} className="flex items-start gap-3 py-2 border-b border-gray-100 dark:border-gray-700 last:border-0" data-testid={`audit-event-${e.id}`}>
-              <span className="text-lg shrink-0">{EVENT_ICONS[e.event_type] || '•'}</span>
+            <div key={e.id} className="flex items-start gap-3 pb-3 border-b border-[var(--color-border-subtle)] last:border-0 last:pb-0" data-testid={`audit-event-${e.id}`}>
+              <span className="text-base shrink-0">{EVENT_ICONS[e.event_type] || '•'}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">{e.event_type}</span>
-                  {e.stage_id && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{e.stage_id}</span>}
-                  {e.phase && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200">{e.phase}</span>}
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">{e.event_type}</span>
+                  {e.stage_id && <span className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[var(--color-text-secondary)]" style={{ backgroundColor: 'var(--color-surface-active)' }}>{e.stage_id}</span>}
+                  {e.phase && <span className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-sm)]" style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}>{e.phase}</span>}
                 </div>
-                {e.details && <p className="text-xs text-gray-500 mt-0.5 truncate">{e.details}</p>}
-                <p className="text-xs text-gray-400 mt-0.5">{new Date(e.created_at).toLocaleString()}</p>
+                {e.details && <p className="text-xs text-[var(--color-text-secondary)] mt-1 truncate">{e.details}</p>}
+                <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{new Date(e.created_at).toLocaleString()}</p>
               </div>
             </div>
           ))}

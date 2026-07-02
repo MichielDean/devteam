@@ -87,17 +87,14 @@ export default function FeatureDetail() {
   const isWaitingForHuman = feature?.status === 'waiting_for_feedback';
   const pendingQuestions = questions.filter((q) => q.status === 'pending');
 
-  // Sync selected stage with route
   useEffect(() => {
     if (routeStageId) setSelectedStage(routeStageId);
   }, [routeStageId, setSelectedStage]);
 
-  // Sync processing state
   useEffect(() => {
     if (feature) setIsProcessing(feature.is_processing);
   }, [feature?.is_processing]);
 
-  // SSE event handling
   useSSE(id ?? null, (event) => {
     if (event.type === 'processing_complete' || event.type === 'error') {
       setIsProcessing(false);
@@ -153,11 +150,9 @@ export default function FeatureDetail() {
     }
   };
 
-  // ─── Mutations ───
   const runStageMutation = useMutation({
     mutationFn: (stageId: string) => runStage(id!, stageId),
     onMutate: async (stageId) => {
-      // Optimistic: mark stage in_progress
       await queryClient.cancelQueries({ queryKey: ['stages', id!] });
       const prev = queryClient.getQueryData(['stages', id!]) as any[] ?? [];
       queryClient.setQueryData(['stages', id!], prev.map((s) => s.stage_id === stageId ? { ...s, status: 'in_progress' } : s));
@@ -276,7 +271,6 @@ export default function FeatureDetail() {
     onError: (err: Error) => addToast('error', err.message),
   });
 
-  // ─── Keyboard Shortcuts ───
   useKeyboardShortcuts({
     shortcuts: [
       { key: 'a', handler: () => { const s = stages.find((s) => s.status === 'awaiting_approval'); if (s) approveMutation.mutate(s.stage_id); }, description: 'Approve gate' },
@@ -288,12 +282,11 @@ export default function FeatureDetail() {
     enabled: !(feature?.status === 'done' || feature?.status === 'cancelled'),
   });
 
-  // ─── Loading/Error ───
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12" data-testid="feature-loading">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-        <span className="ml-3 text-gray-500">Loading feature...</span>
+        <div className="animate-spin rounded-full h-6 w-6 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+        <span className="ml-3 text-[var(--color-text-tertiary)] text-sm">Loading feature...</span>
       </div>
     );
   }
@@ -301,8 +294,8 @@ export default function FeatureDetail() {
   if (error || !feature) {
     return (
       <div className="text-center py-12" data-testid="feature-not-found">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Feature not found</h2>
-        <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">&larr; Back</Link>
+        <h2 className="text-lg font-medium text-[var(--color-text-primary)] mb-2">Feature not found</h2>
+        <Link to="/" className="text-sm text-[var(--color-accent)] hover:underline">&larr; Back</Link>
       </div>
     );
   }
@@ -322,66 +315,63 @@ export default function FeatureDetail() {
   return (
     <div className="flex flex-col h-full" data-testid="feature-detail-page">
       <div className="mb-3">
-        <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">&larr; Dashboard</Link>
+        <Link to="/" className="text-sm text-[var(--color-accent)] hover:underline">&larr; Dashboard</Link>
       </div>
 
       <FeatureHeader feature={feature} sessionsCount={sessions.length} isTerminal={terminal} />
 
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="grid grid-cols-[auto_1fr] gap-4 flex-1 min-h-0">
         <StageRail stages={stages} currentStageId={feature.current_stage} />
 
         <div className="flex-1 min-w-0 overflow-y-auto space-y-4">
-          {/* Current Stage Actions */}
           {!terminal && (
             <Card className="p-4" data-testid="current-stage-panel">
               {isWaitingForHuman ? (
-                <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="waiting-banner">
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200">Answer the questions below. The pipeline resumes automatically once all are answered.</p>
+                <div className="p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)' }} data-testid="waiting-banner">
+                  <p className="text-sm" style={{ color: 'var(--color-warning)' }}>Answer the questions below. The pipeline resumes automatically once all are answered.</p>
                 </div>
               ) : isProcessing ? (
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" data-testid="processing-banner">
-                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" />
+                <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]" data-testid="processing-banner">
+                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
                   Agent working on stage {feature.current_stage || '...'}
                 </div>
               ) : awaitingStage ? (
                 <div data-testid="awaiting-approval-banner">
-                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">Stage {awaitingStage.stage_id} awaiting approval</p>
+                  <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-warning)' }}>Stage {awaitingStage.stage_id} awaiting approval</p>
                   <Button variant="warning" onClick={() => setSelectedStage(awaitingStage.stage_id)} data-testid="review-gate-button">Review Gate</Button>
                 </div>
               ) : revisingStage ? (
-                <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg" data-testid="revising-banner">
-                  <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">Stage {revisingStage.stage_id} needs revision ({revisingStage.revision_count} revisions)</p>
+                <div className="p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)' }} data-testid="revising-banner">
+                  <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-warning)' }}>Stage {revisingStage.stage_id} needs revision ({revisingStage.revision_count} revisions)</p>
                   <Button variant="warning" size="sm" onClick={() => runStageMutation.mutate(revisingStage.stage_id)} disabled={runStageMutation.isPending} data-testid="rerun-stage-button">Re-run Stage</Button>
                 </div>
               ) : nextStage ? (
                 <div data-testid="next-stage-panel">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Next: <strong>{nextStage.stage_id}</strong></p>
+                  <p className="text-sm text-[var(--color-text-secondary)] mb-2">Next: <strong className="text-[var(--color-text-primary)]">{nextStage.stage_id}</strong></p>
                   <Button variant="primary" onClick={() => runStageMutation.mutate(nextStage.stage_id)} disabled={runStageMutation.isPending} isLoading={runStageMutation.isPending} data-testid="run-stage-button">
                     ▶ Run Stage {nextStage.stage_id}
                   </Button>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500" data-testid="no-next-stage">All stages complete or in progress.</p>
+                <p className="text-sm text-[var(--color-text-tertiary)]" data-testid="no-next-stage">All stages complete or in progress.</p>
               )}
             </Card>
           )}
 
           {terminal && (
-            <div className={`rounded-lg shadow p-4 ${feature.status === 'done' ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'}`} data-testid="terminal-banner">
-              <h3 className={`text-lg font-semibold ${feature.status === 'done' ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}`}>{feature.status === 'done' ? '✓ Feature Complete' : '✗ Feature Cancelled'}</h3>
+            <div className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: feature.status === 'done' ? 'var(--color-success-surface)' : 'var(--color-danger-surface)' }} data-testid="terminal-banner">
+              <h3 className="text-base font-medium" style={{ color: feature.status === 'done' ? 'var(--color-success)' : 'var(--color-danger)' }}>{feature.status === 'done' ? '✓ Feature Complete' : '✗ Feature Cancelled'}</h3>
             </div>
           )}
 
-          {/* Stage Detail */}
           {activeStage && (
             <Card className="p-4" data-testid="stage-detail">
               <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{activeStage.stage_id}</h3>
+                <h3 className="text-base font-medium text-[var(--color-text-primary)]">{activeStage.stage_id}</h3>
                 <Badge color="blue">{STAGE_STATUS_LABELS[activeStage.status] || activeStage.status}</Badge>
-                {activeStage.revision_count > 0 && <Badge color="orange">×{activeStage.revision_count}</Badge>}
+                {activeStage.revision_count > 0 && <Badge color="yellow">×{activeStage.revision_count}</Badge>}
               </div>
 
-              {/* Gate Panel inline */}
               {activeStage.status === 'awaiting_approval' && (
                 <GatePanel
                   stageId={activeStage.stage_id}
@@ -394,14 +384,12 @@ export default function FeatureDetail() {
                 />
               )}
 
-              {/* Agent Output */}
               {(isProcessing || feature.is_processing) && (
                 <AgentOutputLive featureId={feature.id} stageId={activeStage.stage_id} isProcessing={isProcessing || feature.is_processing} />
               )}
             </Card>
           )}
 
-          {/* Construction Bolts */}
           {feature.current_phase === 'construction' && (
             <BoltPanel
               bolts={bolts}
@@ -413,22 +401,20 @@ export default function FeatureDetail() {
             />
           )}
 
-          {/* Learned Rules */}
           {rules.length > 0 && (
             <Card className="p-4" data-testid="rules-panel">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Learned Rules ({rules.length})</h3>
+              <h3 className="text-base font-medium text-[var(--color-text-primary)] mb-3">Learned Rules ({rules.length})</h3>
               <div className="space-y-2" data-testid="rules-list">
                 {rules.map((r) => (
-                  <div key={r.id} className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg" data-testid={`rule-${r.id}`}>
-                    <span className="text-xs text-orange-700 dark:text-orange-300">{AGENT_LABELS[r.agent_name] || r.agent_name} · {r.stage_id || 'global'}</span>
-                    <p className="text-sm text-gray-900 dark:text-white mt-1">{r.rule_text}</p>
+                  <div key={r.id} className="p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)' }} data-testid={`rule-${r.id}`}>
+                    <span className="text-xs" style={{ color: 'var(--color-warning)' }}>{AGENT_LABELS[r.agent_name] || r.agent_name} · {r.stage_id || 'global'}</span>
+                    <p className="text-sm text-[var(--color-text-primary)] mt-1">{r.rule_text}</p>
                   </div>
                 ))}
               </div>
             </Card>
           )}
 
-          {/* Questions */}
           <QuestionPanel
             questions={questions}
             drafts={draft}
@@ -440,15 +426,13 @@ export default function FeatureDetail() {
             isWaitingForHuman={isWaitingForHuman ?? false}
           />
 
-          {/* Artifacts */}
           <Card className="p-4" data-testid="artifacts-panel">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Artifacts</h3>
+            <h3 className="text-base font-medium text-[var(--color-text-primary)] mb-3">Artifacts</h3>
             <ArtifactViewer featureId={feature.id} phaseStates={{}} />
           </Card>
         </div>
       </div>
 
-      {/* Control Bar */}
       <div className="mt-3">
         <ControlBar
           onJumpStage={(stageId) => jumpMutation.mutate({ stageId })}
@@ -465,7 +449,6 @@ export default function FeatureDetail() {
         />
       </div>
 
-      {/* Audit Drawer */}
       <AuditDrawer open={auditDrawerOpen} onClose={() => toggleAuditDrawer()} events={auditEvents} />
     </div>
   );

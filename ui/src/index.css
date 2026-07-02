@@ -2,6 +2,83 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ── Design System: Dev Team ──
+ * Inspired by Vercel/Geist — high contrast, layered depth, minimal borders.
+ * Dark-first design with light mode overrides.
+ */
+
+@theme {
+  /* Color tokens */
+  --color-surface: #0a0a0a;
+  --color-surface-raised: #111111;
+  --color-surface-hover: #1a1a1a;
+  --color-surface-active: #222222;
+  --color-border-subtle: #1e1e1e;
+  --color-border-default: #2e2e2e;
+  --color-border-hover: #3a3a3a;
+  --color-text-primary: #ededed;
+  --color-text-secondary: #a1a1a1;
+  --color-text-tertiary: #6b6b6b;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #2563eb;
+  --color-success: #22c55e;
+  --color-success-surface: #052e16;
+  --color-warning: #f59e0b;
+  --color-warning-surface: #422006;
+  --color-danger: #ef4444;
+  --color-danger-surface: #450a0a;
+  --color-info: #06b6d4;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -2px rgba(0,0,0,0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -4px rgba(0,0,0,0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.6), 0 8px 10px -6px rgba(0,0,0,0.3);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+}
+
+/* Light mode overrides */
+:root:not(.dark) {
+  --color-surface: #fafafa;
+  --color-surface-raised: #ffffff;
+  --color-surface-hover: #f4f4f5;
+  --color-surface-active: #e4e4e7;
+  --color-border-subtle: #e4e4e7;
+  --color-border-default: #d4d4d8;
+  --color-border-hover: #a1a1aa;
+  --color-text-primary: #18181b;
+  --color-text-secondary: #52525b;
+  --color-text-tertiary: #a1a1aa;
+  --color-success-surface: #f0fdf4;
+  --color-warning-surface: #fffbeb;
+  --color-danger-surface: #fef2f2;
+}
+
 body {
-  @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-default); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-border-hover); }
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: white;
 }

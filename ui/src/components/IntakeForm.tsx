@@ -8,7 +8,10 @@ interface IntakeFormProps {
   isLoading: boolean;
 }
 
-// Client-side scope auto-detection (mirrors backend stage.DetectScope)
+const inputClass =
+  'w-full px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-raised)] text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] focus:border-[var(--color-accent)] focus:outline-none transition-colors text-sm';
+const labelClass = 'block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5';
+
 function detectScope(text: string): ScopeName {
   const lower = text.toLowerCase();
   const wordCount = text.trim().split(/\s+/).length;
@@ -45,13 +48,11 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [startImmediately, setStartImmediately] = useState(false);
 
-  // Auto-detect scope from title + description
   const detectedScope = useMemo(() => {
-    if (scope) return null; // user overrode
+    if (scope) return null;
     const text = title + ' ' + description;
     if (!text.trim()) return null;
-    const detected = detectScope(text);
-    return detected;
+    return detectScope(text);
   }, [title, description, scope]);
 
   const validate = (): boolean => {
@@ -92,51 +93,53 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
     reader.readAsDataURL(file);
   };
 
+  const typeBtn = (active: boolean) =>
+    `px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors ${
+      active
+        ? 'bg-[var(--color-accent)] text-white'
+        : 'bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-active)]'
+    }`;
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="intake-form">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">What do you want built?</h3>
+    <div className="rounded-[var(--radius-lg)] p-6 mb-6" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-md)' }} data-testid="intake-form">
+      <h3 className="text-lg font-medium text-[var(--color-text-primary)] mb-4">What do you want built?</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
+          <label className={labelClass}>Type</label>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setType('loose_idea')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${type === 'loose_idea' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`} data-testid="type-loose-idea">Loose Idea</button>
-            <button type="button" onClick={() => setType('external_spec')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${type === 'external_spec' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`} data-testid="type-external-spec">External Spec</button>
+            <button type="button" onClick={() => setType('loose_idea')} className={typeBtn(type === 'loose_idea')} data-testid="type-loose-idea">Loose Idea</button>
+            <button type="button" onClick={() => setType('external_spec')} className={typeBtn(type === 'external_spec')} data-testid="type-external-spec">External Spec</button>
           </div>
         </div>
 
-        {/* Title */}
         <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
-          <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Feature title..." data-testid="title-input" />
-          {errors.title && <p className="mt-1 text-sm text-red-600" data-testid="title-error">{errors.title}</p>}
-          <p className="mt-1 text-xs text-gray-500">{title.length}/200</p>
+          <label htmlFor="title" className={labelClass}>Title</label>
+          <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className={inputClass} placeholder="Feature title..." data-testid="title-input" />
+          {errors.title && <p className="mt-1 text-sm" style={{ color: 'var(--color-danger)' }} data-testid="title-error">{errors.title}</p>}
+          <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">{title.length}/200</p>
         </div>
 
-        {/* Description */}
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-          <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={10000} rows={5} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y" placeholder="Describe your feature idea..." data-testid="description-input" />
-          {errors.description && <p className="mt-1 text-sm text-red-600" data-testid="description-error">{errors.description}</p>}
-          <p className="mt-1 text-xs text-gray-500">{description.length}/10000</p>
+          <label htmlFor="description" className={labelClass}>Description</label>
+          <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={10000} rows={5} className={`${inputClass} resize-y`} placeholder="Describe your feature idea..." data-testid="description-input" />
+          {errors.description && <p className="mt-1 text-sm" style={{ color: 'var(--color-danger)' }} data-testid="description-error">{errors.description}</p>}
+          <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">{description.length}/10000</p>
         </div>
 
-        {/* Scope Selector with Auto-Detect */}
         <div>
-          <label htmlFor="scope" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scope</label>
-          <select id="scope" value={scope} onChange={(e) => setScope(e.target.value as ScopeName | '')} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500" data-testid="scope-select">
+          <label htmlFor="scope" className={labelClass}>Scope</label>
+          <select id="scope" value={scope} onChange={(e) => setScope(e.target.value as ScopeName | '')} className={inputClass} data-testid="scope-select">
             <option value="">Auto-detect{detectedScope ? ` (${SCOPE_LABELS[detectedScope]})` : ''}</option>
             {SCOPES.map((s) => <option key={s} value={s}>{SCOPE_LABELS[s]}</option>)}
           </select>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400" data-testid="scope-hint">
+          <p className="mt-1 text-xs text-[var(--color-text-tertiary)]" data-testid="scope-hint">
             {scope ? SCOPE_DESCRIPTIONS[scope] : detectedScope ? `Auto-detected: ${SCOPE_DESCRIPTIONS[detectedScope]}` : 'Scope determines how many stages run. Type a description to see auto-detection.'}
           </p>
         </div>
 
-        {/* Depth */}
         <div>
-          <label htmlFor="depth" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Depth (optional)</label>
-          <select id="depth" value={depth} onChange={(e) => setDepth(e.target.value)} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500" data-testid="depth-select">
+          <label htmlFor="depth" className={labelClass}>Depth (optional)</label>
+          <select id="depth" value={depth} onChange={(e) => setDepth(e.target.value)} className={inputClass} data-testid="depth-select">
             <option value="">Default for scope</option>
             <option value="minimal">Minimal — core essentials</option>
             <option value="standard">Standard — complete artifacts</option>
@@ -144,32 +147,29 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
           </select>
         </div>
 
-        {/* Priority */}
         <div>
-          <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
-          <select id="priority" value={priority} onChange={(e) => setPriority(Number(e.target.value))} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500" data-testid="priority-select">
+          <label htmlFor="priority" className={labelClass}>Priority</label>
+          <select id="priority" value={priority} onChange={(e) => setPriority(Number(e.target.value))} className={inputClass} data-testid="priority-select">
             <option value={1}>P1 - Critical</option>
             <option value={2}>P2 - Medium</option>
             <option value={3}>P3 - Low</option>
           </select>
         </div>
 
-        {/* File upload */}
         {type === 'external_spec' && (
           <div>
-            <label htmlFor="file" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Spec File</label>
-            <input id="file" type="file" onChange={handleFileChange} accept=".md,.txt,.markdown" className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-200" data-testid="file-input" />
-            {errors.file && <p className="mt-1 text-sm text-red-600" data-testid="file-error">{errors.file}</p>}
+            <label htmlFor="file" className={labelClass}>Spec File</label>
+            <input id="file" type="file" onChange={handleFileChange} accept=".md,.txt,.markdown" className="w-full text-sm text-[var(--color-text-tertiary)] file:mr-3 file:py-1.5 file:px-3 file:rounded-[var(--radius-md)] file:border-0 file:text-sm file:font-medium file:bg-[var(--color-accent)] file:text-white hover:file:opacity-90" data-testid="file-input" />
+            {errors.file && <p className="mt-1 text-sm" style={{ color: 'var(--color-danger)' }} data-testid="file-error">{errors.file}</p>}
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex items-center gap-3">
-          <button type="submit" onClick={() => setStartImmediately(false)} disabled={isLoading} className="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium" data-testid="add-button">{isLoading && !startImmediately ? 'Adding...' : 'Add'}</button>
-          <button type="submit" onClick={() => setStartImmediately(true)} disabled={isLoading} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold shadow-sm" data-testid="submit-button">{isLoading && startImmediately ? 'Creating...' : 'Add & Start'}</button>
-          <button type="button" onClick={onCancel} className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors text-sm" data-testid="cancel-button">Cancel</button>
+        <div className="flex items-center gap-3 pt-2">
+          <button type="submit" onClick={() => setStartImmediately(false)} disabled={isLoading} className="px-4 py-2.5 rounded-[var(--radius-md)] text-sm font-medium bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors" data-testid="add-button">{isLoading && !startImmediately ? 'Adding...' : 'Add'}</button>
+          <button type="submit" onClick={() => setStartImmediately(true)} disabled={isLoading} className="px-5 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold text-white bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors" style={{ boxShadow: 'var(--shadow-sm)' }} data-testid="submit-button">{isLoading && startImmediately ? 'Creating...' : 'Add & Start'}</button>
+          <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors" data-testid="cancel-button">Cancel</button>
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2"><strong>Add</strong> creates the feature. <strong>Add & Start</strong> runs the first stage immediately.</p>
+        <p className="text-xs text-[var(--color-text-tertiary)] mt-2"><strong className="text-[var(--color-text-secondary)]">Add</strong> creates the feature. <strong className="text-[var(--color-text-secondary)]">Add & Start</strong> runs the first stage immediately.</p>
       </form>
     </div>
   );

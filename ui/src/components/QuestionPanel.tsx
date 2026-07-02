@@ -22,6 +22,9 @@ function groupByRole(questions: Question[]): Record<string, Question[]> {
   return groups;
 }
 
+const inputClass =
+  'w-full px-3 py-1.5 text-sm rounded-[var(--radius-md)] bg-[var(--color-surface-raised)] text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] focus:border-[var(--color-accent)] focus:outline-none transition-colors';
+
 export default function QuestionPanel({ questions, drafts, onSelect, onType, onSubmitAll, isSubmitting, allDrafted, isWaitingForHuman }: QuestionPanelProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const pending = questions.filter((q) => q.status === 'pending');
@@ -32,9 +35,9 @@ export default function QuestionPanel({ questions, drafts, onSelect, onType, onS
   const grouped = groupByRole(questions);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4" data-testid="question-panel">
+    <div className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-sm)' }} data-testid="question-panel">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Questions</h3>
+        <h3 className="text-base font-medium text-[var(--color-text-primary)]">Questions</h3>
         <Badge color="blue" data-testid="question-progress">{answered.length}/{questions.length} answered</Badge>
       </div>
 
@@ -49,26 +52,26 @@ export default function QuestionPanel({ questions, drafts, onSelect, onType, onS
                 className="w-full flex items-center justify-between text-left"
                 data-testid={`question-group-toggle-${role}`}
               >
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                <span className="text-sm font-medium text-[var(--color-text-secondary)]">
                   {isCollapsed ? '▶' : '▼'} {role}
                 </span>
                 {rolePending > 0 && <Badge color="yellow">{rolePending} pending</Badge>}
               </button>
               {!isCollapsed && (
-                <div className="mt-2 space-y-3 ml-4">
+                <div className="mt-2 space-y-2 ml-4">
                   {roleQuestions.map((q) => (
-                    <div key={q.id} className="p-3 bg-gray-50 dark:bg-gray-900/30 rounded-lg" data-testid={`question-card-${q.id}`}>
-                      <div className="text-xs text-gray-500 mb-1">Stage {q.phase}</div>
-                      <p className="text-sm text-gray-900 dark:text-white mb-2">{q.question}</p>
+                    <div key={q.id} className="p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-surface-hover)' }} data-testid={`question-card-${q.id}`}>
+                      <div className="text-xs text-[var(--color-text-tertiary)] mb-1">Stage {q.phase}</div>
+                      <p className="text-sm text-[var(--color-text-primary)] mb-2">{q.question}</p>
                       {q.status === 'pending' ? (
                         <>
                           {q.options.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-2">
+                            <div className="flex flex-wrap gap-1.5 mb-2">
                               {q.options.map((opt) => (
                                 <button
                                   key={opt}
                                   onClick={() => onSelect(q.id, opt)}
-                                  className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${drafts[q.id] === opt ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'}`}
+                                  className={`px-3 py-1.5 text-xs rounded-[var(--radius-md)] border transition-colors ${drafts[q.id] === opt ? 'bg-[var(--color-accent)] text-white border-transparent' : 'bg-[var(--color-surface-raised)] text-[var(--color-text-secondary)] border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-active)]'}`}
                                   data-testid={`question-option-${q.id}-${opt}`}
                                 >
                                   {opt}
@@ -76,7 +79,7 @@ export default function QuestionPanel({ questions, drafts, onSelect, onType, onS
                               ))}
                               <button
                                 onClick={() => onSelect(q.id, 'Other')}
-                                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${drafts[q.id] === '' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'}`}
+                                className={`px-3 py-1.5 text-xs rounded-[var(--radius-md)] border transition-colors ${drafts[q.id] === '' ? 'bg-[var(--color-accent)] text-white border-transparent' : 'bg-[var(--color-surface-raised)] text-[var(--color-text-secondary)] border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-active)]'}`}
                                 data-testid={`question-other-${q.id}`}
                               >
                                 Other
@@ -88,7 +91,7 @@ export default function QuestionPanel({ questions, drafts, onSelect, onType, onS
                             value={drafts[q.id] ?? ''}
                             onChange={(e) => onType(q.id, e.target.value)}
                             placeholder="Type answer..."
-                            className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                            className={inputClass}
                             data-testid={`question-input-${q.id}`}
                           />
                         </>
@@ -107,7 +110,7 @@ export default function QuestionPanel({ questions, drafts, onSelect, onType, onS
       </div>
 
       {isWaitingForHuman && pending.length > 0 && (
-        <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-3">
+        <div className="mt-4 border-t border-[var(--color-border-subtle)] pt-3">
           <Button
             variant="primary"
             size="lg"

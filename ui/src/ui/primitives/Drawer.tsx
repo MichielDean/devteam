@@ -30,7 +30,7 @@ export function Drawer({ open, onClose, title, children, side = 'right', width =
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 bg-black/60 z-40"
             data-testid="drawer-backdrop"
           />
           <motion.div
@@ -38,14 +38,14 @@ export function Drawer({ open, onClose, title, children, side = 'right', width =
             animate={{ x: 0 }}
             exit={{ x }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className={`fixed top-0 ${side === 'right' ? 'right-0' : 'left-0'} bottom-0 bg-white dark:bg-gray-800 shadow-xl z-50 flex flex-col`}
-            style={{ width }}
+            className={`fixed top-0 ${side === 'right' ? 'right-0' : 'left-0'} bottom-0 bg-[var(--color-surface-raised)] z-50 flex flex-col`}
+            style={{ width, boxShadow: 'var(--shadow-xl)' }}
             {...rest}
           >
             {title && (
-              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
-                <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" data-testid="drawer-close">
+              <div className="flex items-center justify-between p-4 border-b border-[var(--color-border-subtle)]">
+                <h3 className="text-base font-medium text-[var(--color-text-primary)]">{title}</h3>
+                <button onClick={onClose} className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" data-testid="drawer-close">
                   ✕
                 </button>
               </div>

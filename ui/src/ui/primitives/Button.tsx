@@ -10,25 +10,26 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<Variant, string> = {
-  primary: 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50',
-  secondary: 'bg-gray-600 text-white hover:bg-gray-700 disabled:opacity-50',
-  danger: 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-50',
-  success: 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50',
-  warning: 'bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50',
-  ghost: 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700',
+  primary: 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] border border-transparent',
+  secondary: 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-active)] border border-[var(--color-border-default)]',
+  danger: 'bg-[var(--color-danger)] text-white hover:opacity-90 border border-transparent',
+  success: 'bg-[var(--color-success)] text-white hover:opacity-90 border border-transparent',
+  warning: 'bg-[var(--color-warning)] text-white hover:opacity-90 border border-transparent',
+  ghost: 'bg-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] border border-transparent',
 };
 
 const sizeClasses: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-sm',
+  sm: 'px-3 py-1.5 text-xs',
   md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
+  lg: 'px-6 py-2.5 text-sm',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = 'primary', size = 'md', isLoading, children, className, disabled, ...props }, ref) => (
     <button
       ref={ref}
-      className={`rounded-lg font-medium transition-colors disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className ?? ''}`}
+      className={`inline-flex items-center justify-center font-medium rounded-[var(--radius-md)] transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${variantClasses[variant]} ${sizeClasses[size]} ${className ?? ''}`}
+      style={variant === 'primary' ? { boxShadow: 'var(--shadow-sm)' } : undefined}
       disabled={disabled || isLoading}
       {...props}
     >
