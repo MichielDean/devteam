@@ -8,13 +8,15 @@ import (
 )
 
 type DispatchRequest struct {
-	FeatureID  string
-	Phase      string
-	StageID    string
-	Role       string
-	Context    string
-	Timeout    time.Duration
-	WorkingDir string
+	FeatureID   string
+	Phase       string
+	StageID     string
+	Role        string
+	Context     string
+	Timeout     time.Duration
+	WorkingDir  string
+	SessionName string // tmux session name — if set, reuse existing session; if empty, derive from feature+phase
+	ContextDir  string // persistent context dir — if set, use it; if empty, derive from feature+phase
 }
 
 type DispatchResult struct {
@@ -59,11 +61,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Dispat
 }
 
 func (d *Dispatcher) IsSessionAlive(featureID string) bool {
-	return d.tmux.IsSessionAlive(d.tmux.SessionName(featureID))
+	return d.tmux.IsSessionAlive(d.tmux.SessionNameForPhase(featureID, ""))
 }
 
 func (d *Dispatcher) CaptureOutput(featureID string) (string, error) {
-	return d.tmux.CaptureOutput(d.tmux.SessionName(featureID))
+	return d.tmux.CaptureOutput(d.tmux.SessionNameForPhase(featureID, ""))
 }
 
 func (d *Dispatcher) ListActiveSessions() map[string]string {
@@ -71,7 +73,27 @@ func (d *Dispatcher) ListActiveSessions() map[string]string {
 }
 
 func (d *Dispatcher) KillSession(featureID string) error {
-	return d.tmux.KillSession(d.tmux.SessionName(featureID))
+	return d.tmux.KillSession(d.tmux.SessionNameForPhase(featureID, ""))
+}
+
+// CapturePaneRaw returns raw ANSI output from the tmux pane for xterm.js rendering.
+func (d *Dispatcher) CapturePaneRaw(sessionName string) (string, error) {
+	return d.tmux.CapturePaneRaw(sessionName)
+}
+
+// IsSessionAliveByName checks if a specific session name is alive.
+func (d *Dispatcher) IsSessionAliveByName(sessionName string) bool {
+	return d.tmux.IsSessionAlive(sessionName)
+}
+
+// KillSessionByName kills a session by its full name.
+func (d *Dispatcher) KillSessionByName(sessionName string) error {
+	return d.tmux.KillSession(sessionName)
+}
+
+// TmuxManager returns the underlying tmux session manager for direct access.
+func (d *Dispatcher) TmuxManager() *TmuxSessionManager {
+	return d.tmux
 }
 
 func buildContextMD(req DispatchRequest) string {

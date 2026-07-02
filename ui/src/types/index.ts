@@ -274,20 +274,59 @@ export interface ErrorResponse {
 
 // ─── SSE Event Types ───
 export type SSEEventType =
-  | 'stage_change'
+  | 'stage_started'
+  | 'stage_awaiting_approval'
+  | 'stage_revising'
+  | 'stage_completed'
+  | 'gate_approved'
+  | 'gate_rejected'
+  | 'gate_result'
   | 'agent_dispatch'
   | 'agent_complete'
   | 'agent_output'
-  | 'gate_result'
   | 'processing_complete'
   | 'error'
+  | 'interrupted'
   | 'waiting_for_feedback'
-  | 'question_answered';
+  | 'question_answered'
+  | 'session_state_change'
+  | 'state_change';
 
 export interface SSEMessage {
   type: SSEEventType;
   data: string;
   timestamp: string;
+}
+
+// ─── Tmux Sessions ───
+export interface TmuxSession {
+  id: number;
+  feature_id: string;
+  phase: string;
+  bolt_number: number;
+  stage_id: string;
+  session_name: string;
+  state: string;
+  context_dir: string;
+  last_agent: string;
+  last_output_at: string | null;
+  created_at: string;
+  updated_at: string;
+  is_alive: boolean;
+}
+
+// ─── Stage Detail ───
+export interface StageDefinitionDetail {
+  id: string;
+  phase: string;
+  name: string;
+  lead_agent: string;
+  supporting_agents: string[];
+  key_artifacts: string[];
+  condition: string;
+  scopes: string[];
+  reviewer: string;
+  sort_order: number;
 }
 
 // ─── Artifact ───

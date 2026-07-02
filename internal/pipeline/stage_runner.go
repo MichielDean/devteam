@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -14,21 +15,49 @@ import (
 	"github.com/MichielDean/devteam/internal/stage"
 )
 
+// sseBroadcaster is set by the API server to enable SSE broadcasts from the pipeline.
+var sseBroadcaster SSEBroadcaster
+
+// SetSSEBroadcaster sets the global SSE broadcaster for pipeline events.
+// Called by the API server on initialization.
+func SetSSEBroadcaster(b SSEBroadcaster) {
+	sseBroadcaster = b
+}
+
+// broadcastSSE sends an event to the UI via SSE if a broadcaster is registered.
+func (p *Pipeline) broadcastSSE(featureID string, eventType string, data string) {
+	if sseBroadcaster != nil {
+		sseBroadcaster.BroadcastSSE(featureID, eventType, data)
+	}
+}
+
+// jsonString safely quotes a string for JSON embedding.
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
 // ReviewerMaxIterations is the maximum number of reviewer revision cycles.
 const ReviewerMaxIterations = 2
 
 // StageRunResult is the outcome of a single RunStage call.
 type StageRunResult struct {
-	StageID       string
-	Phase         string
-	StageName     string
-	RoleResult    *role.DispatchResult
-	SmokeFailures []string
-	Outcome       *db.OutcomeRow
-	OutcomeSource string // "agent_signal", "default_pass", "smoke_failed"
-	Gate          *gate.Gate
+	StageID        string
+	Phase          string
+	StageName      string
+	RoleResult     *role.DispatchResult
+	SmokeFailures  []string
+	Outcome        *db.OutcomeRow
+	OutcomeSource  string // "agent_signal", "default_pass", "smoke_failed", "reviewer_rejected"
+	Gate           *gate.Gate
 	ReviewerResult *ReviewerResult
-	Duration      time.Duration
+	Duration       time.Duration
+}
+
+// SSEBroadcaster is an interface for broadcasting SSE events to the UI.
+// Implemented by the API server.
+type SSEBroadcaster interface {
+	BroadcastSSE(featureID string, eventType string, data string)
 }
 
 // ReviewerResult holds the outcome of a reviewer dispatch.
@@ -72,6 +101,16 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 
 	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusInProgress, fs.RevisionCount, &now, nil)
 	p.database.RecordAuditEvent(f.ID, db.AuditStageStart, stageID, stageDef.Phase, "")
+	p.broadcastSSE(f.ID, "stage_started", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase)))
+
+	// Update session state to running
+	if p.sessionMgr != nil {
+		boltNumber := 0
+		if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
+			boltNumber = f.CurrentBolt
+		}
+		p.sessionMgr.SetSessionRunning(f.ID, stageDef.Phase, boltNumber, stageID, stageDef.LeadAgent)
+	}
 
 	if err := p.EnsureSpecWorktree(f); err != nil {
 		log.Printf("warning: could not create spec worktree: %v — using base dir", err)
@@ -110,20 +149,23 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	}
 
 	req := role.DispatchRequest{
-		FeatureID:  f.ID,
-		Phase:      stageDef.Phase,
-		StageID:    stageID,
-		Role:       stageDef.LeadAgent,
-		Context:    promptContext,
-		WorkingDir: p.dispatchWorkingDirForStage(f, stageDef),
+		FeatureID:   f.ID,
+		Phase:       stageDef.Phase,
+		StageID:     stageID,
+		Role:        stageDef.LeadAgent,
+		Context:     promptContext,
+		WorkingDir:  p.dispatchWorkingDirForStage(f, stageDef),
+		SessionName: p.resolveSessionName(f, stageDef),
+		ContextDir:  p.resolveContextDir(f, stageDef),
 	}
 
-	log.Printf("RunStage: dispatching agent %s for stage %s", stageDef.LeadAgent, stageID)
+	log.Printf("RunStage: dispatching agent %s for stage %s (session=%s)", stageDef.LeadAgent, stageID, req.SessionName)
 	result, err := p.dispatcher.DispatchStreaming(ctx, req, lineCh)
 	close(lineCh)
 	<-streamDone
 	if err != nil {
 		p.database.UpdateFeatureStage(f.ID, stageID, "failed", fs.RevisionCount, &now, nil)
+		p.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(err.Error())))
 		return nil, fmt.Errorf("dispatching agent %s for stage %s: %w", stageDef.LeadAgent, stageID, err)
 	}
 
@@ -154,6 +196,8 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 			log.Printf("RunStage: reviewer dispatch failed for %s: %v", stageID, err)
 		} else {
 			p.recordReviewerAudit(f, stageDef, reviewerResult)
+			p.broadcastSSE(f.ID, "gate_result", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"reviewer":%s,"verdict":%s,"notes":%s}`,
+				jsonString(f.ID), jsonString(stageID), jsonString(reviewerResult.Reviewer), jsonString(reviewerResult.Verdict), jsonString(reviewerResult.Notes)))
 			if reviewerResult.Verdict == "NOT-READY" {
 				outcomeSource = "reviewer_rejected"
 			}
@@ -165,6 +209,7 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	if outcomeSource == "smoke_failed" || outcomeSource == "reviewer_rejected" {
 		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusRevising, fs.RevisionCount, &now, nil)
 		p.database.RecordAuditEvent(f.ID, db.AuditStageRevising, stageID, stageDef.Phase, strings.Join(smokeFailures, "; "))
+		p.broadcastSSE(f.ID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"reason":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(outcomeSource)))
 		g.RevisionNotes = strings.Join(smokeFailures, "\n")
 		if reviewerResult != nil && reviewerResult.Verdict == "NOT-READY" {
 			g.RevisionNotes = reviewerResult.Notes
@@ -173,15 +218,25 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	} else {
 		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, &now, nil)
 		p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, stageDef.Phase, "")
+		p.broadcastSSE(f.ID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase)))
+
+		// Update session state to awaiting gate
+		if p.sessionMgr != nil {
+			boltNumber := 0
+			if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
+				boltNumber = f.CurrentBolt
+			}
+			p.sessionMgr.SetSessionAwaitingGate(f.ID, stageDef.Phase, boltNumber, stageID)
+		}
 	}
 
 	if outcomeSource == "smoke_failed" || outcomeSource == "reviewer_rejected" {
-		// Auto-reject: stage needs revision
 		g.Reject(g.RevisionNotes)
 	} else if outcome.Outcome == "pass" {
 		// Gate open for user approval
 	} else if outcome.Outcome == "failed" {
 		p.database.UpdateFeatureStage(f.ID, stageID, "failed", fs.RevisionCount, &now, nil)
+		p.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":"stage failed"}`, jsonString(f.ID), jsonString(stageID)))
 	}
 
 	p.database.AddNote(f.ID, stageID, stageDef.LeadAgent, "summary", outcome.Notes)
@@ -310,6 +365,8 @@ func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) error {
 	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
 	p.database.RecordAuditEvent(f.ID, db.AuditGateApproved, stageID, "", "")
 	p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
+	p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
+	p.broadcastSSE(f.ID, "gate_approved", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
 
 	return p.AdvanceStage(f, stageID)
 }
@@ -338,6 +395,7 @@ func (p *Pipeline) RejectStage(f *feature.Feature, stageID, rejectionNotes strin
 		p.database.AddNote(f.ID, stageID, stageDef.LeadAgent, "revision", rejectionNotes)
 		p.database.RecordAuditEvent(f.ID, db.AuditGateRejected, stageID, "", rejectionNotes)
 		p.database.RecordAuditEvent(f.ID, db.AuditRuleLearned, stageID, "", rejectionNotes)
+		p.broadcastSSE(f.ID, "gate_rejected", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"notes":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(rejectionNotes)))
 
 		// Learning loop: save rejection as a rule for this agent
 		ruleText := fmt.Sprintf("Stage %s rejection: %s", stageID, rejectionNotes)
@@ -366,6 +424,7 @@ func (p *Pipeline) AcceptStageAsIs(f *feature.Feature, stageID string) error {
 	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
 	p.database.RecordAuditEvent(f.ID, db.AuditGateAcceptAsIs, stageID, "", "")
 	p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
+	p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
 
 	return p.AdvanceStage(f, stageID)
 }
@@ -697,4 +756,44 @@ func (p *Pipeline) dispatchWorkingDirForStage(f *feature.Feature, stageDef *db.S
 		}
 	}
 	return p.WorktreeDir(f)
+}
+
+// resolveSessionName returns the tmux session name for a stage dispatch.
+// For construction stages, uses per-Bolt session if BoltNumber is set on the feature.
+// For other phases, uses per-phase session.
+func (p *Pipeline) resolveSessionName(f *feature.Feature, stageDef *db.StageDefinition) string {
+	if p.sessionMgr == nil {
+		// Fallback: derive directly from tmux manager
+		tmuxMgr := p.dispatcher.TmuxManager()
+		return tmuxMgr.SessionNameForPhase(f.ID, stageDef.Phase)
+	}
+
+	boltNumber := 0
+	if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
+		boltNumber = f.CurrentBolt
+	}
+
+	sessionName, _, err := p.sessionMgr.ResolveOrCreateSession(f.ID, stageDef.Phase, boltNumber)
+	if err != nil {
+		log.Printf("resolveSessionName: failed to resolve session: %v — deriving directly", err)
+		tmuxMgr := p.dispatcher.TmuxManager()
+		if boltNumber > 0 {
+			return tmuxMgr.SessionNameForBolt(f.ID, boltNumber)
+		}
+		return tmuxMgr.SessionNameForPhase(f.ID, stageDef.Phase)
+	}
+	return sessionName
+}
+
+// resolveContextDir returns the persistent context directory for a stage dispatch.
+func (p *Pipeline) resolveContextDir(f *feature.Feature, stageDef *db.StageDefinition) string {
+	tmuxMgr := p.dispatcher.TmuxManager()
+	boltNumber := 0
+	if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
+		boltNumber = f.CurrentBolt
+	}
+	if boltNumber > 0 {
+		return tmuxMgr.ContextDirForBolt(f.ID, boltNumber)
+	}
+	return tmuxMgr.ContextDirForPhase(f.ID, stageDef.Phase)
 }

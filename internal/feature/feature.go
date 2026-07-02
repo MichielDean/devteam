@@ -25,6 +25,7 @@ type Feature struct {
 	TestStrategy  string     `yaml:"test_strategy,omitempty" json:"test_strategy,omitempty"`
 	AutonomyMode  string     `yaml:"autonomy_mode,omitempty" json:"autonomy_mode,omitempty"`
 	CurrentStage  string     `yaml:"current_stage,omitempty" json:"current_stage,omitempty"`
+	CurrentBolt   int        `yaml:"current_bolt,omitempty" json:"current_bolt,omitempty"`
 }
 
 type PreparedRepo struct {

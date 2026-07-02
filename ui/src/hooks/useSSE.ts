@@ -5,12 +5,15 @@ import type { SSEEventType } from '../types';
 interface UseSSEReturn {
   connected: boolean;
   lastEvent: SSEEvent | null;
+  subscribe: (type: SSEEventType | 'state_change', handler: (event: SSEEvent) => void) => () => void;
 }
 
 export interface SSEEvent {
   type: SSEEventType | 'state_change';
   data: unknown;
 }
+
+type EventHandler = (event: SSEEvent) => void;
 
 export function useSSE(featureId: string | null, onEvent?: (event: SSEEvent) => void): UseSSEReturn {
   const [connected, setConnected] = useState(false);
@@ -21,6 +24,7 @@ export function useSSE(featureId: string | null, onEvent?: (event: SSEEvent) => 
   const queryClient = useQueryClient();
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
+  const subscribersRef = useRef<Map<string, Set<EventHandler>>>(new Map());
 
   const handleEvent = useCallback((type: SSEEventType | 'state_change', event: MessageEvent) => {
     try {
@@ -29,17 +33,34 @@ export function useSSE(featureId: string | null, onEvent?: (event: SSEEvent) => 
       setLastEvent(sseEvent);
       if (onEventRef.current) onEventRef.current(sseEvent);
 
-      if (data?.feature_id) {
-        queryClient.invalidateQueries({ queryKey: ['feature', data.feature_id] });
-        queryClient.invalidateQueries({ queryKey: ['questions', data.feature_id] });
-        queryClient.invalidateQueries({ queryKey: ['stages', data.feature_id] });
-        queryClient.invalidateQueries({ queryKey: ['audit', data.feature_id] });
+      // Notify subscribers for this event type
+      const subs = subscribersRef.current.get(type);
+      if (subs) {
+        subs.forEach((handler) => handler(sseEvent));
+      }
+
+      // Invalidate relevant queries
+      if (data && typeof data === 'object' && 'feature_id' in data) {
+        queryClient.invalidateQueries({ queryKey: ['feature', data.feature_id as string] });
+        queryClient.invalidateQueries({ queryKey: ['questions', data.feature_id as string] });
+        queryClient.invalidateQueries({ queryKey: ['stages', data.feature_id as string] });
+        queryClient.invalidateQueries({ queryKey: ['audit', data.feature_id as string] });
       }
       queryClient.invalidateQueries({ queryKey: ['features'] });
     } catch {
       // Ignore parse errors
     }
   }, [queryClient]);
+
+  const subscribe = useCallback((type: SSEEventType | 'state_change', handler: EventHandler) => {
+    if (!subscribersRef.current.has(type)) {
+      subscribersRef.current.set(type, new Set());
+    }
+    subscribersRef.current.get(type)!.add(handler);
+    return () => {
+      subscribersRef.current.get(type)?.delete(handler);
+    };
+  }, []);
 
   const connect = useCallback(() => {
     if (!featureId) return;
@@ -63,9 +84,12 @@ export function useSSE(featureId: string | null, onEvent?: (event: SSEEvent) => 
     };
 
     const eventTypes: (SSEEventType | 'state_change')[] = [
-      'stage_change', 'gate_result', 'agent_dispatch', 'agent_complete',
-      'agent_output', 'processing_complete', 'error', 'state_change',
+      'stage_started', 'stage_awaiting_approval', 'stage_revising', 'stage_completed',
+      'gate_approved', 'gate_rejected', 'gate_result',
+      'agent_dispatch', 'agent_complete', 'agent_output',
+      'processing_complete', 'error', 'interrupted',
       'waiting_for_feedback', 'question_answered',
+      'session_state_change', 'state_change',
     ];
     for (const type of eventTypes) {
       es.addEventListener(type, (e: MessageEvent) => handleEvent(type, e));
@@ -85,5 +109,5 @@ export function useSSE(featureId: string | null, onEvent?: (event: SSEEvent) => 
     };
   }, [connect]);
 
-  return { connected, lastEvent };
+  return { connected, lastEvent, subscribe };
 }

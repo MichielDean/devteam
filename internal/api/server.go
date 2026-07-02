@@ -35,10 +35,10 @@ type Server struct {
 	questionStore feature.QuestionStore
 }
 
-func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore, database *db.DB) *Server {
+func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore, database *db.DB) *Server {
 	s := &Server{
 		specProvider:  specProvider,
-		pipeline:      pipeline,
+		pipeline:     pipe,
 		baseDir:       specProvider.BaseDir(),
 		staticFS:      staticFS,
 		questionStore: questionStore,
@@ -46,6 +46,9 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 		sseClients:    make(map[string][]chan SSEMessage),
 		sseBuffers:    make(map[string][]*SSEMessage),
 	}
+
+	// Register the server as the SSE broadcaster for pipeline events
+	pipeline.SetSSEBroadcaster(s)
 
 	mux := http.NewServeMux()
 
@@ -73,6 +76,9 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 
 	// AIDLC v2 stage-based endpoints
 	s.registerStageRoutes(mux)
+
+	// Tmux session management endpoints
+	s.registerSessionRoutes(mux)
 
 	if staticFS != nil {
 		mux.Handle("/", s.spaHandler(staticFS))
@@ -513,14 +519,21 @@ func (s *Server) removeSSEClient(featureID string, ch chan SSEMessage) {
 	}
 }
 
+// BroadcastSSE sends an event to all SSE clients for a feature.
+// Implements the pipeline.SSEBroadcaster interface.
+func (s *Server) BroadcastSSE(featureID string, eventType string, data string) {
+	s.broadcastSSE(featureID, eventType, data)
+}
+
 // broadcastSSE sends an event to all SSE clients for a feature.
-// Lifecycle events (phase_change, gate_result, agent_dispatch, agent_complete,
-// phase_complete, error) are buffered for late joiners. agent_output is NOT
+// Lifecycle events are buffered for late joiners. agent_output is NOT
 // buffered — it's ephemeral and would bloat memory.
 func (s *Server) broadcastSSE(featureID string, eventType string, data string) {
 	// Buffer lifecycle events only
 	switch eventType {
-	case "phase_change", "gate_result", "agent_dispatch", "agent_complete", "phase_complete", "error", "interrupted":
+	case "phase_change", "gate_result", "agent_dispatch", "agent_complete", "phase_complete", "error", "interrupted",
+		"stage_started", "stage_awaiting_approval", "stage_revising", "stage_completed", "gate_approved", "gate_rejected",
+		"processing_complete", "session_state_change":
 		s.sseMu.Lock()
 		buffer := s.sseBuffers[featureID]
 		buffer = append(buffer, &SSEMessage{EventType: eventType, Data: data})

@@ -20,6 +20,7 @@ import type {
   SetLadderRequest,
   SaveKnowledgeRequest,
   ErrorResponse,
+  TmuxSession,
 } from '../types';
 
 const API_BASE = '/api';
@@ -227,4 +228,34 @@ export async function listPendingQuestions(featureId: string): Promise<Question[
 // ─── Output ───
 export async function getCapturedOutput(featureId: string): Promise<{ is_processing: boolean; output: string }> {
   return request<{ is_processing: boolean; output: string }>(`/features/${featureId}/output`);
+}
+
+// ─── Tmux Sessions ───
+export async function listSessions(featureId: string): Promise<TmuxSession[]> {
+  return request<TmuxSession[]>(`/features/${featureId}/sessions`);
+}
+
+export async function resumeSession(featureId: string, phase: string): Promise<StageRunResult> {
+  return request<StageRunResult>(`/features/${featureId}/sessions/${phase}/resume`, { method: 'POST' });
+}
+
+export async function killSession(featureId: string, phase: string): Promise<void> {
+  await request<void>(`/features/${featureId}/sessions/${phase}/kill`, { method: 'POST' });
+}
+
+export async function getSessionOutput(featureId: string, phase: string, stageId?: string): Promise<string> {
+  const params = stageId ? `?stage_id=${stageId}` : '';
+  const response = await fetch(`${API_BASE}/features/${featureId}/sessions/${phase}/output${params}`);
+  if (!response.ok) return '';
+  return response.text();
+}
+
+export async function getCapturePane(featureId: string, phase: string): Promise<string> {
+  const response = await fetch(`${API_BASE}/features/${featureId}/sessions/${phase}/pane`);
+  if (!response.ok) return '';
+  return response.text();
+}
+
+export async function listActiveSessions(): Promise<TmuxSession[]> {
+  return request<TmuxSession[]>('/sessions/active');
 }

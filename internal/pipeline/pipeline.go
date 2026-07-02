@@ -32,6 +32,7 @@ type Pipeline struct {
 	gitClient      *gitops.GitClient
 	repoManager    *repo.Manager
 	database       *db.DB
+	sessionMgr     *SessionManager
 }
 
 func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline {
@@ -51,6 +52,7 @@ func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline 
 
 func (p *Pipeline) SetDatabase(database *db.DB) {
 	p.database = database
+	p.sessionMgr = NewSessionManager(database, p.dispatcher)
 }
 
 func (p *Pipeline) SetQuestionStore(qs feature.QuestionStore) {
@@ -63,6 +65,11 @@ func (p *Pipeline) Dispatcher() *role.Dispatcher {
 
 func (p *Pipeline) Database() *db.DB {
 	return p.database
+}
+
+// SessionMgr returns the session manager for tmux session lifecycle management.
+func (p *Pipeline) SessionMgr() *SessionManager {
+	return p.sessionMgr
 }
 
 func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecProvider, dispatcher *role.Dispatcher) *Pipeline {
