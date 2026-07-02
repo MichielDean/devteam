@@ -68,6 +68,7 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	}
 
 	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusInProgress, fs.RevisionCount, &now, nil)
+	p.database.RecordAuditEvent(f.ID, db.AuditStageStart, stageID, stageDef.Phase, "")
 
 	if err := p.EnsureSpecWorktree(f); err != nil {
 		log.Printf("warning: could not create spec worktree: %v — using base dir", err)
@@ -148,8 +149,11 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		reviewerResult, err = p.dispatchReviewer(ctx, f, stageDef, onOutput)
 		if err != nil {
 			log.Printf("RunStage: reviewer dispatch failed for %s: %v", stageID, err)
-		} else if reviewerResult.Verdict == "NOT-READY" {
-			outcomeSource = "reviewer_rejected"
+		} else {
+			p.recordReviewerAudit(f, stageDef, reviewerResult)
+			if reviewerResult.Verdict == "NOT-READY" {
+				outcomeSource = "reviewer_rejected"
+			}
 		}
 	}
 
@@ -157,6 +161,7 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 
 	if outcomeSource == "smoke_failed" || outcomeSource == "reviewer_rejected" {
 		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusRevising, fs.RevisionCount, &now, nil)
+		p.database.RecordAuditEvent(f.ID, db.AuditStageRevising, stageID, stageDef.Phase, strings.Join(smokeFailures, "; "))
 		g.RevisionNotes = strings.Join(smokeFailures, "\n")
 		if reviewerResult != nil && reviewerResult.Verdict == "NOT-READY" {
 			g.RevisionNotes = reviewerResult.Notes
@@ -164,6 +169,7 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		g.RevisionCount = fs.RevisionCount
 	} else {
 		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, &now, nil)
+		p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, stageDef.Phase, "")
 	}
 
 	if outcomeSource == "smoke_failed" || outcomeSource == "reviewer_rejected" {
@@ -264,6 +270,15 @@ func (p *Pipeline) dispatchReviewer(ctx context.Context, f *feature.Feature, sta
 	}, nil
 }
 
+// recordReviewerAudit records the reviewer dispatch result.
+func (p *Pipeline) recordReviewerAudit(f *feature.Feature, stageDef *db.StageDefinition, result *ReviewerResult) {
+	if p.database == nil || result == nil {
+		return
+	}
+	p.database.RecordAuditEvent(f.ID, db.AuditSubagentCompleted, stageDef.ID, stageDef.Phase,
+		fmt.Sprintf("reviewer=%s verdict=%s", result.Reviewer, result.Verdict))
+}
+
 // ApproveStage approves the gate for a stage and advances to the next stage.
 func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) error {
 	if p.database == nil {
@@ -277,10 +292,8 @@ func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) error {
 
 	now := time.Now().UTC()
 	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
-
-	if p.database != nil {
-		p.database.RecordEvent(f.ID, "stage_approved", stageID, "")
-	}
+	p.database.RecordAuditEvent(f.ID, db.AuditGateApproved, stageID, "", "")
+	p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
 
 	return p.AdvanceStage(f, stageID)
 }
@@ -307,7 +320,8 @@ func (p *Pipeline) RejectStage(f *feature.Feature, stageID, rejectionNotes strin
 
 	if p.database != nil {
 		p.database.AddNote(f.ID, stageID, stageDef.LeadAgent, "revision", rejectionNotes)
-		p.database.RecordEvent(f.ID, "stage_rejected", stageID, rejectionNotes)
+		p.database.RecordAuditEvent(f.ID, db.AuditGateRejected, stageID, "", rejectionNotes)
+		p.database.RecordAuditEvent(f.ID, db.AuditRuleLearned, stageID, "", rejectionNotes)
 
 		// Learning loop: save rejection as a rule for this agent
 		ruleText := fmt.Sprintf("Stage %s rejection: %s", stageID, rejectionNotes)
@@ -334,10 +348,8 @@ func (p *Pipeline) AcceptStageAsIs(f *feature.Feature, stageID string) error {
 
 	now := time.Now().UTC()
 	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
-
-	if p.database != nil {
-		p.database.RecordEvent(f.ID, "stage_accepted_as_is", stageID, "")
-	}
+	p.database.RecordAuditEvent(f.ID, db.AuditGateAcceptAsIs, stageID, "", "")
+	p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
 
 	return p.AdvanceStage(f, stageID)
 }
@@ -369,7 +381,7 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 		// Last stage — mark feature done
 		log.Printf("AdvanceStage: stage %s is the last stage for feature %s", currentStageID, f.ID)
 		if p.database != nil {
-			p.database.RecordEvent(f.ID, "workflow_complete", "", "")
+			p.database.RecordAuditEvent(f.ID, db.AuditWorkflowComplete, "", "", "")
 		}
 		return nil
 	}
@@ -379,12 +391,13 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 	// Check condition — skip stages that don't apply
 	for p.shouldSkipStage(f, nextStage) {
 		p.database.UpdateFeatureStage(f.ID, nextStage.ID, stage.StatusSkipped, 0, nil, nil)
-		if p.database != nil {
-			p.database.RecordEvent(f.ID, "stage_skipped", nextStage.ID, nextStage.Condition)
-		}
+		p.database.RecordAuditEvent(f.ID, db.AuditStageSkipped, nextStage.ID, nextStage.Phase, nextStage.Condition)
 		currentIdx++
 		if currentIdx >= len(stages)-1 {
 			log.Printf("AdvanceStage: reached end after skipping stages for feature %s", f.ID)
+			if p.database != nil {
+				p.database.RecordAuditEvent(f.ID, db.AuditWorkflowComplete, "", "", "")
+			}
 			return nil
 		}
 		nextStage = stages[currentIdx+1]
@@ -393,7 +406,7 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 	// Update feature's current stage pointer
 	if p.database != nil {
 		p.database.UpdateFeatureStage(f.ID, nextStage.ID, stage.StatusNotStarted, 0, nil, nil)
-		p.database.RecordEvent(f.ID, "stage_advanced", nextStage.ID, "")
+		p.database.RecordAuditEvent(f.ID, db.AuditStageAdvanced, nextStage.ID, nextStage.Phase, "")
 	}
 
 	log.Printf("AdvanceStage: advanced from %s to %s for feature %s", currentStageID, nextStage.ID, f.ID)
@@ -461,7 +474,7 @@ func (p *Pipeline) JumpToStage(f *feature.Feature, targetStageID string) error {
 
 	p.database.UpdateFeatureStage(f.ID, targetStageID, stage.StatusNotStarted, 0, nil, nil)
 	if p.database != nil {
-		p.database.RecordEvent(f.ID, "stage_jumped", targetStageID, "")
+		p.database.RecordAuditEvent(f.ID, db.AuditJumpToStage, targetStageID, "", fmt.Sprintf("skipped %d stages", targetIdx-startIdx))
 	}
 
 	log.Printf("JumpToStage: jumped to %s for feature %s (skipped %d stages)", targetStageID, f.ID, targetIdx-startIdx)
