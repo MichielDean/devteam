@@ -1,7 +1,6 @@
 import { Link } from 'react-router';
 import type { FeatureSummary } from '../types';
-import { STATUS_LABELS, PHASE_LABELS, PRIORITY_LABELS } from '../types';
-import type { PhaseName } from '../types';
+import { STATUS_LABELS, SCOPE_LABELS, PRIORITY_LABELS } from '../types';
 import QuestionBadge from './QuestionBadge';
 
 interface FeatureCardProps {
@@ -9,8 +8,8 @@ interface FeatureCardProps {
 }
 
 export default function FeatureCard({ feature }: FeatureCardProps) {
-  const phaseLabel = PHASE_LABELS[feature.current_phase as PhaseName] || feature.current_phase;
   const statusLabel = STATUS_LABELS[feature.status] || feature.status;
+  const scopeLabel = SCOPE_LABELS[feature.scope || 'feature'] || 'Feature';
   const priorityLabel = PRIORITY_LABELS[feature.priority] || `P${feature.priority}`;
 
   const statusColors: Record<string, string> = {
@@ -21,8 +20,7 @@ export default function FeatureCard({ feature }: FeatureCardProps) {
     gate_blocked: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
     passed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
     failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-    recirculated: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-    waiting_for_human: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+    waiting_for_feedback: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   };
 
   return (
@@ -42,38 +40,22 @@ export default function FeatureCard({ feature }: FeatureCardProps) {
           {feature.id.slice(0, 20)}{feature.id.length > 20 ? '...' : ''}
         </span>
       </div>
-
       <div className="flex items-center gap-2 flex-wrap">
-        <span
-          className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[feature.status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}
-          data-testid="feature-card-status"
-        >
+        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[feature.status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`} data-testid="feature-card-status">
           {statusLabel}
         </span>
-        <span
-          className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-          data-testid="feature-card-phase"
-        >
-          {phaseLabel}
+        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200" data-testid="feature-card-scope">
+          {scopeLabel}
         </span>
-        <span
-          className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
-          data-testid="feature-card-priority"
-        >
+        {feature.current_stage && (
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" data-testid="feature-card-stage">
+            Stage {feature.current_stage}
+          </span>
+        )}
+        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" data-testid="feature-card-priority">
           {priorityLabel}
         </span>
       </div>
-
-      {feature.gate_result && (
-        <div className="mt-2 flex items-center gap-1" data-testid="feature-card-gate">
-          {feature.gate_result.passed ? (
-            <span className="text-xs text-green-600 dark:text-green-400">✓ Gate passed</span>
-          ) : (
-            <span className="text-xs text-red-600 dark:text-red-400">✗ Gate failed</span>
-          )}
-        </div>
-      )}
-
       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400" data-testid="feature-card-updated">
         Updated {new Date(feature.updated_at).toLocaleDateString()}
       </div>

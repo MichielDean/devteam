@@ -34,25 +34,32 @@ type FeatureSummaryResponse struct {
 	Status                string              `json:"status"`
 	Priority              int                 `json:"priority"`
 	CurrentPhase          string              `json:"current_phase"`
+	Scope                 string              `json:"scope,omitempty"`
+	CurrentStage          string              `json:"current_stage,omitempty"`
 	UpdatedAt             time.Time           `json:"updated_at"`
 	GateResult            *GateResultResponse `json:"gate_result,omitempty"`
 	PendingQuestionsCount int                 `json:"pending_questions_count"`
 }
 
 type FeatureDetailResponse struct {
-	ID           string                        `json:"id"`
-	Title        string                        `json:"title"`
-	Status       string                        `json:"status"`
-	Priority     int                           `json:"priority"`
-	IntakePath   string                        `json:"intake_path"`
-	CurrentPhase string                        `json:"current_phase"`
-	CreatedAt    time.Time                     `json:"created_at"`
-	UpdatedAt    time.Time                     `json:"updated_at"`
-	PhaseStates  map[string]PhaseStateResponse `json:"phase_states"`
-	Dependencies []string                      `json:"dependencies"`
-	Repos        []RepoRefResponse             `json:"repos"`
-	IsProcessing bool                          `json:"is_processing"`
-	ProcessingMode string                      `json:"processing_mode,omitempty"`
+	ID             string                        `json:"id"`
+	Title          string                        `json:"title"`
+	Status         string                        `json:"status"`
+	Priority       int                           `json:"priority"`
+	IntakePath     string                        `json:"intake_path"`
+	CurrentPhase   string                        `json:"current_phase"`
+	Scope          string                        `json:"scope,omitempty"`
+	Depth          string                        `json:"depth,omitempty"`
+	TestStrategy   string                        `json:"test_strategy,omitempty"`
+	AutonomyMode   string                        `json:"autonomy_mode,omitempty"`
+	CurrentStage   string                        `json:"current_stage,omitempty"`
+	CreatedAt      time.Time                     `json:"created_at"`
+	UpdatedAt      time.Time                     `json:"updated_at"`
+	PhaseStates    map[string]PhaseStateResponse `json:"phase_states"`
+	Dependencies   []string                      `json:"dependencies"`
+	Repos          []RepoRefResponse             `json:"repos"`
+	IsProcessing   bool                          `json:"is_processing"`
+	ProcessingMode string                        `json:"processing_mode,omitempty"`
 }
 
 type PhaseStateResponse struct {
@@ -117,6 +124,8 @@ func FeatureToSummaryResponse(f *feature.Feature) FeatureSummaryResponse {
 		Status:       string(f.Status),
 		Priority:     f.Priority,
 		CurrentPhase: string(f.Current),
+		Scope:        f.Scope,
+		CurrentStage: f.CurrentStage,
 		UpdatedAt:    f.UpdatedAt,
 	}
 	if ps, ok := f.PhaseStates[f.Current]; ok && ps != nil && ps.GateResult != nil {
@@ -166,18 +175,23 @@ func FeatureToDetailResponse(f *feature.Feature, isProcessing bool, processingMo
 	}
 
 	return FeatureDetailResponse{
-		ID:           f.ID,
-		Title:        f.Title,
-		Status:       string(f.Status),
-		Priority:     f.Priority,
-		IntakePath:   string(f.IntakePath),
-		CurrentPhase: string(f.Current),
-		CreatedAt:    f.CreatedAt,
-		UpdatedAt:    f.UpdatedAt,
-		PhaseStates:  phaseStates,
-		Dependencies: deps,
-		Repos:        repos,
-		IsProcessing: isProcessing,
+		ID:             f.ID,
+		Title:          f.Title,
+		Status:         string(f.Status),
+		Priority:       f.Priority,
+		IntakePath:     string(f.IntakePath),
+		CurrentPhase:   string(f.Current),
+		Scope:          f.Scope,
+		Depth:          f.Depth,
+		TestStrategy:   f.TestStrategy,
+		AutonomyMode:   f.AutonomyMode,
+		CurrentStage:   f.CurrentStage,
+		CreatedAt:      f.CreatedAt,
+		UpdatedAt:      f.UpdatedAt,
+		PhaseStates:    phaseStates,
+		Dependencies:   deps,
+		Repos:          repos,
+		IsProcessing:   isProcessing,
 		ProcessingMode: processingMode,
 	}
 }

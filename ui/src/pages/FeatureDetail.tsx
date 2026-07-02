@@ -1,33 +1,46 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeature, runPhase, advanceFeature, recirculateFeature, cancelFeature, processFeature, evaluateGate, listQuestions, answerQuestion, ApiError } from '../api/client';
+import {
+  getFeature, getFeatureStages, getAuditTrail, getBolts, getRules,
+  runStage, approveStage, rejectStage, acceptStageAsIs, jumpToStage,
+  setScope, setDepth, setTestStrategy, setLadderMode, prepareBolts,
+  cancelFeature, listQuestions, answerQuestion, ApiError,
+} from '../api/client';
 import { useSSE } from '../hooks/useSSE';
 import { useToast } from '../components/Toast';
-import type { FeatureDetail, PhaseName } from '../types';
-import { PHASES, PHASE_LABELS, PHASE_ACTIONS, PHASE_DESCRIPTIONS, PHASE_OUTPUTS, STATUS_LABELS, PRIORITY_LABELS } from '../types';
-import PhaseTimeline from '../components/PhaseTimeline';
+import StageProgress from '../components/StageProgress';
+import GateModal from '../components/GateModal';
+import AuditTimeline from '../components/AuditTimeline';
 import ArtifactViewer from '../components/ArtifactViewer';
-import GateResult from '../components/GateResult';
-import ProcessView from '../components/ProcessView';
 import AgentOutput from '../components/AgentOutput';
 import QuestionCard from '../components/QuestionCard';
+import type { FeatureDetail } from '../types';
+import {
+  SCOPES, SCOPE_LABELS, SCOPE_DESCRIPTIONS, DEPTHS, DEPTH_LABELS,
+  TEST_STRATEGIES, TEST_STRATEGY_LABELS, STATUS_LABELS, PRIORITY_LABELS,
+  STAGE_STATUS_LABELS,
+} from '../types';
+
+const MAX_REVISIONS = 3;
 
 export default function FeatureDetail() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
-  // Wizard draft state: { questionId -> selected/typed answer }. CON-007/008.
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const questionCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const summaryRef = useRef<HTMLDivElement | null>(null);
+  const [gateModalStage, setGateModalStage] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const { data: feature, isLoading, error } = useQuery({
     queryKey: ['feature', id!],
     queryFn: () => getFeature(id!),
     enabled: !!id,
+    refetchInterval: isProcessing ? 2000 : false,
   });
 
   const { connected: sseConnected, lastEvent } = useSSE(id ?? null);
@@ -39,10 +52,35 @@ export default function FeatureDetail() {
     enabled: !!id,
   });
 
+  const { data: stages = [] } = useQuery({
+    queryKey: ['stages', id!],
+    queryFn: () => getFeatureStages(id!),
+    enabled: !!id,
+    refetchInterval: isProcessing ? 2000 : false,
+  });
+
+  const { data: auditEvents = [] } = useQuery({
+    queryKey: ['audit', id!],
+    queryFn: () => getAuditTrail(id!),
+    enabled: !!id,
+    refetchInterval: isProcessing ? 3000 : false,
+  });
+
+  const { data: bolts = [] } = useQuery({
+    queryKey: ['bolts', id!],
+    queryFn: () => getBolts(id!),
+    enabled: !!id,
+  });
+
+  const { data: rules = [] } = useQuery({
+    queryKey: ['rules', id!],
+    queryFn: () => getRules(id!),
+    enabled: !!id,
+  });
+
   const isWaitingForHuman = feature?.status === 'waiting_for_feedback';
   const pendingQuestions = questions.filter((q) => q.status === 'pending');
 
-  // Auto-scroll to next pending question without a draft, else summary. CON-006.
   useEffect(() => {
     if (!isWaitingForHuman || pendingQuestions.length === 0) return;
     const nextEmpty = pendingQuestions.find((q) => !(draft[q.id]?.trim()));
@@ -52,18 +90,14 @@ export default function FeatureDetail() {
     } else if (summaryRef.current) {
       summaryRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, isWaitingForHuman]);
 
-  // Clear draft when leaving waiting_for_feedback (submit success / status flip).
   useEffect(() => {
     if (!isWaitingForHuman) setDraft({});
   }, [isWaitingForHuman]);
 
   const onSelect = useCallback((qid: string, option: string) => {
     if (option === 'Other') {
-      // Clear draft so the free-form text field shows (otherSelected = true
-      // when draft is set but not in options). User types the real answer.
       setDraft((prev) => ({ ...prev, [qid]: '' }));
     } else {
       setDraft((prev) => ({ ...prev, [qid]: option }));
@@ -77,19 +111,18 @@ export default function FeatureDetail() {
     (qid: string) => (el: HTMLDivElement | null) => {
       questionCardRefs.current[qid] = el;
     },
-    []
+    [],
   );
 
   const allPendingDrafted = pendingQuestions.every((q) => (draft[q.id]?.trim() ?? '').length > 0);
 
-  // Submit: sequential PATCHes, one per drafted pending question. CON-008.
   const handleSubmitAll = async () => {
     if (!id || !allPendingDrafted) return;
     setIsSubmitting(true);
     let aborted = false;
     for (const q of pendingQuestions) {
       const answer = (draft[q.id] ?? '').trim();
-      if (!answer) continue; // ponytail: client defense, backend enforces anyway
+      if (!answer) continue;
       try {
         await answerQuestion(id, q.id, answer);
       } catch (err) {
@@ -97,10 +130,8 @@ export default function FeatureDetail() {
         const code = apiErr?.code ?? 'unknown_error';
         const details = apiErr?.details ?? (err instanceof Error ? err.message : 'Failed to answer question');
         if (code === 'conflict') {
-          // Already answered (maybe via SSE between draft and submit). Toast, continue. CON-011.
           addToast('error', details || 'Question already answered');
         } else {
-          // 400/404/500: genuine error, abort remaining. CON-010/012.
           addToast('error', details || `Failed to answer question (${code})`);
           aborted = true;
           break;
@@ -113,81 +144,143 @@ export default function FeatureDetail() {
       queryClient.invalidateQueries({ queryKey: ['questions', id!] });
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
       queryClient.invalidateQueries({ queryKey: ['features'] });
-      addToast('success', 'Answers submitted — resuming pipeline');
+      addToast('success', 'Answers submitted — resuming');
     }
   };
 
-  const [isProcessing, setIsProcessing] = useState(feature?.is_processing ?? false);
-  const [processingMode, setProcessingMode] = useState<'autopilot' | 'single-phase' | null>(
-    (feature?.processing_mode as 'autopilot' | 'single-phase' | null) ?? null
-  );
-
-  // Sync isProcessing and processingMode from server response (handles page refresh)
   useEffect(() => {
-    if (feature) {
-      setIsProcessing(feature.is_processing);
-      if (feature.processing_mode === 'autopilot' || feature.processing_mode === 'single-phase') {
-        setProcessingMode(feature.processing_mode);
-      } else if (!feature.is_processing) {
-        setProcessingMode(null);
-      }
-    }
-  }, [feature?.is_processing, feature?.processing_mode]);
+    if (feature) setIsProcessing(feature.is_processing);
+  }, [feature?.is_processing]);
 
   useEffect(() => {
     if (!lastEvent) return;
-    if (lastEvent.type === 'processing_complete' || lastEvent.type === 'error' || lastEvent.type === 'phase_complete') {
+    if (lastEvent.type === 'processing_complete' || lastEvent.type === 'error') {
       setIsProcessing(false);
-      setProcessingMode(null);
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
+      queryClient.invalidateQueries({ queryKey: ['audit', id!] });
       queryClient.invalidateQueries({ queryKey: ['features'] });
-    } else if (lastEvent.type === 'agent_dispatch' || lastEvent.type === 'phase_change' || lastEvent.type === 'gate_result') {
+    } else if (lastEvent.type === 'agent_dispatch' || lastEvent.type === 'stage_change') {
       setIsProcessing(true);
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
     } else if (lastEvent.type === 'question_answered') {
-      // Preserve React Query invalidation so answered cards flip in history without reload. FR-014.
       queryClient.invalidateQueries({ queryKey: ['questions', id!] });
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
     }
   }, [lastEvent, id, queryClient]);
 
-  const runPhaseMutation = useMutation({
-    mutationFn: () => runPhase(id!),
-    onSuccess: () => {
+  // ─── Mutations ───
+  const runStageMutation = useMutation({
+    mutationFn: (stageId: string) => runStage(id!, stageId),
+    onSuccess: (data) => {
       setIsProcessing(true);
-      setProcessingMode('single-phase');
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
+      queryClient.invalidateQueries({ queryKey: ['audit', id!] });
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', `${PHASE_LABELS[currentPhase as PhaseName] || 'Step'} started — watch the progress below`);
+      if (data.gate?.state === 'open' || data.outcome_source === 'agent_signal') {
+        addToast('success', `Stage ${data.stage_id} complete — review the gate`);
+      } else {
+        addToast('success', `Stage ${data.stage_id} dispatched`);
+      }
     },
     onError: (err: Error) => {
       setIsProcessing(false);
-      setProcessingMode(null);
-      if (err.message.includes('already')) {
-        addToast('error', 'This feature is already being worked on');
-      } else {
-        addToast('error', `Failed to start: ${err.message}`);
-      }
+      addToast('error', `Failed to run stage: ${err.message}`);
     },
   });
 
-  const advanceMutation = useMutation({
-    mutationFn: () => advanceFeature(id!),
+  const approveMutation = useMutation({
+    mutationFn: (stageId: string) => approveStage(id!, stageId),
     onSuccess: () => {
+      setGateModalStage(null);
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', `Moved to ${nextPhaseLabel || 'next step'}`);
+      queryClient.invalidateQueries({ queryKey: ['audit', id!] });
+      addToast('success', 'Stage approved — advancing');
     },
-    onError: (err: Error) => {
-      if (err instanceof Error) addToast('error', `Couldn't move forward: ${err.message}`);
-    },
+    onError: (err: Error) => addToast('error', `Approve failed: ${err.message}`),
   });
 
-  const recirculateMutation = useMutation({
-    mutationFn: (targetPhase: string) => recirculateFeature(id!, targetPhase),
+  const rejectMutation = useMutation({
+    mutationFn: ({ stageId, notes }: { stageId: string; notes: string }) => rejectStage(id!, stageId, notes),
+    onSuccess: () => {
+      setGateModalStage(null);
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
+      queryClient.invalidateQueries({ queryKey: ['rules', id!] });
+      queryClient.invalidateQueries({ queryKey: ['audit', id!] });
+      addToast('success', 'Sent back for revision — rule saved');
+    },
+    onError: (err: Error) => addToast('error', `Reject failed: ${err.message}`),
+  });
+
+  const acceptAsIsMutation = useMutation({
+    mutationFn: (stageId: string) => acceptStageAsIs(id!, stageId),
+    onSuccess: () => {
+      setGateModalStage(null);
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['audit', id!] });
+      addToast('success', 'Accepted as-is — advancing');
+    },
+    onError: (err: Error) => addToast('error', `Accept failed: ${err.message}`),
+  });
+
+  const jumpMutation = useMutation({
+    mutationFn: ({ stageId, phase }: { stageId?: string; phase?: string }) => jumpToStage(id!, stageId, phase),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['audit', id!] });
+      addToast('success', 'Jumped to stage');
+    },
+    onError: (err: Error) => addToast('error', `Jump failed: ${err.message}`),
+  });
+
+  const scopeMutation = useMutation({
+    mutationFn: (newScope: string) => setScope(id!, newScope),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Went back to redo that step');
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
+      addToast('success', 'Scope updated');
     },
-    onError: (err: Error) => addToast('error', `Failed to redo: ${err.message}`),
+    onError: (err: Error) => addToast('error', `Scope change failed: ${err.message}`),
+  });
+
+  const depthMutation = useMutation({
+    mutationFn: (newDepth: string) => setDepth(id!, newDepth),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      addToast('success', 'Depth updated');
+    },
+    onError: (err: Error) => addToast('error', `Depth change failed: ${err.message}`),
+  });
+
+  const testStrategyMutation = useMutation({
+    mutationFn: (newStrategy: string) => setTestStrategy(id!, newStrategy),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      addToast('success', 'Test strategy updated');
+    },
+    onError: (err: Error) => addToast('error', `Test strategy failed: ${err.message}`),
+  });
+
+  const ladderMutation = useMutation({
+    mutationFn: (mode: string) => setLadderMode(id!, mode),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      addToast('success', 'Autonomy mode set');
+    },
+    onError: (err: Error) => addToast('error', `Ladder failed: ${err.message}`),
+  });
+
+  const prepareBoltsMutation = useMutation({
+    mutationFn: () => prepareBolts(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bolts', id!] });
+      addToast('success', 'Bolts prepared from inception output');
+    },
+    onError: (err: Error) => addToast('error', `Prepare bolts failed: ${err.message}`),
   });
 
   const cancelMutation = useMutation({
@@ -196,36 +289,10 @@ export default function FeatureDetail() {
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
       addToast('success', 'Feature cancelled');
     },
-    onError: (err: Error) => addToast('error', `Failed to cancel: ${err.message}`),
+    onError: (err: Error) => addToast('error', `Cancel failed: ${err.message}`),
   });
 
-  const processMutation = useMutation({
-    mutationFn: () => processFeature(id!),
-    onSuccess: () => {
-      setIsProcessing(true);
-      setProcessingMode('autopilot');
-      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Running everything automatically — sit back and watch');
-    },
-    onError: (err: Error) => {
-      setProcessingMode(null);
-      if (err.message.includes('already')) {
-        addToast('error', 'This feature is already being worked on');
-      } else {
-        addToast('error', `Couldn't start: ${err.message}`);
-      }
-    },
-  });
-
-  const gateMutation = useMutation({
-    mutationFn: () => evaluateGate(id!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
-      addToast('success', 'Quality check complete');
-    },
-    onError: (err: Error) => addToast('error', `Quality check failed: ${err.message}`),
-  });
-
+  // ─── Loading/Error ───
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12" data-testid="feature-loading">
@@ -239,398 +306,275 @@ export default function FeatureDetail() {
     return (
       <div className="text-center py-12" data-testid="feature-not-found">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Feature not found</h2>
-        <p className="text-gray-500 dark:text-gray-400 mb-4">
-          The feature you're looking for doesn't exist.
-        </p>
-        <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-          &larr; Back to Dashboard
-        </Link>
+        <p className="text-gray-500 dark:text-gray-400 mb-4">The feature you're looking for doesn't exist.</p>
+        <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to Dashboard</Link>
       </div>
     );
   }
 
   const isTerminal = feature.status === 'done' || feature.status === 'cancelled';
-  const currentPhase = feature.current_phase as PhaseName;
-  const currentPhaseState = feature.phase_states[currentPhase];
-  const gatePassed = currentPhaseState?.gate_result?.passed ?? false;
-  const currentPhaseIndex = PHASES.indexOf(currentPhase);
-  const recirculationTargets = PHASES.slice(0, currentPhaseIndex > 0 ? currentPhaseIndex : 0);
-  const isDeliveryPassed = currentPhase === 'delivery' && gatePassed;
-  const showProcessView = isProcessing || processMutation.isPending;
+  const currentScope = feature.scope || 'feature';
+  const currentDepth = feature.depth || 'standard';
+  const currentTestStrategy = feature.test_strategy || 'standard';
+  const currentStage = stages.find((s) => s.stage_id === feature.current_stage);
+  void currentStage;
+  const awaitingStage = stages.find((s) => s.status === 'awaiting_approval');
+  const revisingStage = stages.find((s) => s.status === 'revising');
+  const gateStageId = gateModalStage || awaitingStage?.stage_id || revisingStage?.stage_id;
+  const gateStage = stages.find((s) => s.stage_id === gateStageId);
 
-  const phaseDescriptions = PHASE_DESCRIPTIONS;
-
-  const nextPhase = currentPhaseIndex < PHASES.length - 1 ? PHASES[currentPhaseIndex + 1] : null;
-  const nextPhaseLabel = nextPhase ? PHASE_LABELS[nextPhase] : null;
+  // Find the next not_started stage to run
+  const nextStage = stages.find((s) => s.status === 'not_started');
 
   return (
     <div data-testid="feature-detail-page">
       <div className="mb-6">
-        <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
-          &larr; Back to Dashboard
-        </Link>
+        <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">&larr; Back to Dashboard</Link>
       </div>
 
-      {/* Feature Header */}
+      {/* Header */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white" data-testid="feature-title">
-              {feature.title}
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1" data-testid="feature-id">
-              {feature.id}
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white" data-testid="feature-title">{feature.title}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1" data-testid="feature-id">{feature.id}</p>
           </div>
           <div className="flex items-center gap-2">
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                feature.status === 'done'
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                  : feature.status === 'cancelled'
-                  ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                  : feature.status === 'in_progress'
-                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                  : feature.status === 'waiting_for_feedback'
-                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                  : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-              }`}
-              data-testid="feature-status"
-            >
-              {STATUS_LABELS[feature.status] || feature.status}
-            </span>
-            <span
-              className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-              data-testid="feature-priority"
-            >
-              {PRIORITY_LABELS[feature.priority] || `P${feature.priority}`}
-            </span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${isTerminal ? (feature.status === 'done' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200') : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}`} data-testid="feature-status">{STATUS_LABELS[feature.status] || feature.status}</span>
+            <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" data-testid="feature-priority">{PRIORITY_LABELS[feature.priority] || `P${feature.priority}`}</span>
           </div>
         </div>
-
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
           <div>
-            <span className="text-gray-500 dark:text-gray-400">Current Phase</span>
-            <p className="font-medium text-gray-900 dark:text-white" data-testid="feature-phase">
-              {PHASE_LABELS[currentPhase as PhaseName] || currentPhase}
-            </p>
+            <span className="text-gray-500 dark:text-gray-400">Scope</span>
+            <p className="font-medium text-gray-900 dark:text-white" data-testid="feature-scope">{SCOPE_LABELS[currentScope] || currentScope}</p>
+          </div>
+          <div>
+            <span className="text-gray-500 dark:text-gray-400">Depth</span>
+            <p className="font-medium text-gray-900 dark:text-white" data-testid="feature-depth">{DEPTH_LABELS[currentDepth] || currentDepth}</p>
+          </div>
+          <div>
+            <span className="text-gray-500 dark:text-gray-400">Current Stage</span>
+            <p className="font-medium text-gray-900 dark:text-white" data-testid="feature-current-stage">{feature.current_stage || '—'}</p>
           </div>
           <div>
             <span className="text-gray-500 dark:text-gray-400">Intake</span>
-            <p className="font-medium text-gray-900 dark:text-white">
-              {feature.intake_path === 'loose_idea' ? 'Loose Idea' : 'External Spec'}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400">Created</span>
-            <p className="font-medium text-gray-900 dark:text-white">
-              {new Date(feature.created_at).toLocaleDateString()}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400">Updated</span>
-            <p className="font-medium text-gray-900 dark:text-white">
-              {new Date(feature.updated_at).toLocaleDateString()}
-            </p>
+            <p className="font-medium text-gray-900 dark:text-white">{feature.intake_path === 'loose_idea' ? 'Loose Idea' : 'External Spec'}</p>
           </div>
         </div>
       </div>
 
-      {/* Phase Timeline */}
-      <PhaseTimeline phases={PHASES} currentPhase={currentPhase} phaseStates={feature.phase_states} />
+      {/* Stage Progress */}
+      <StageProgress stages={stages} currentStageId={feature.current_stage} />
 
-      {/* Current Phase Context */}
+      {/* Current Stage Actions */}
       {!isTerminal && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="current-phase-context">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl">
-              {feature.status === 'waiting_for_feedback' ? '🙋' : '⚙️'}
-            </span>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {feature.status === 'waiting_for_feedback'
-                ? 'We need your input to continue'
-                : isDeliveryPassed
-                ? 'All done!'
-                : `Working on ${PHASE_LABELS[currentPhase as PhaseName] || currentPhase}`}
-            </h3>
-          </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2" data-testid="phase-description">
-            {feature.status === 'waiting_for_feedback'
-              ? 'Answer the questions below so we can keep going.'
-              : isDeliveryPassed
-              ? 'All steps are complete. This feature is ready.'
-              : phaseDescriptions[currentPhase as PhaseName] || 'Working on this step.'}
-          </p>
-          {!feature.status.match('waiting_for_feedback|done|cancelled') && !isDeliveryPassed && (
-            <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
-              This step produces: {PHASE_OUTPUTS[currentPhase as PhaseName] || 'deliverables'}
-            </p>
-          )}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="current-stage-panel">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Current Stage</h3>
 
-          {/* Gate status line */}
-          {currentPhaseState?.gate_result && (
-            <div className="flex items-center gap-2 text-sm mb-4" data-testid="gate-status-line">
-              {currentPhaseState.gate_result.passed ? (
-                <>
-                  <span className="text-green-600 dark:text-green-400 font-medium">✓ Quality check passed</span>
-                  {nextPhaseLabel && (
-                    <span className="text-gray-500 dark:text-gray-400">
-                      — ready to move to {nextPhaseLabel}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span className="text-red-600 dark:text-red-400 font-medium">✗ Quality check failed — this step needs to be redone or fixed</span>
-              )}
-            </div>
-          )}
-
-          {/* Primary Action: Autopilot */}
-          {!isDeliveryPassed && feature.status !== 'waiting_for_feedback' && (
-            <div className="mb-4" data-testid="primary-action">
-              <button
-                onClick={() => processMutation.mutate()}
-                disabled={processMutation.isPending || isProcessing}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold shadow-sm border-2 border-indigo-400 dark:border-indigo-400"
-                title={isProcessing ? 'Work is in progress...' : 'Run all steps automatically: inception through delivery. Hands-off until done.'}
-                data-testid="process-button"
-              >
-                {isProcessing ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
-                    Working...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    ▶ Run Everything Automatically
-                  </span>
-                )}
-              </button>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                Runs every step from start to finish: inception, planning, construction, review, testing, and delivery — all hands-off.
-              </p>
-            </div>
-          )}
-
-          {/* Waiting for human actions */}
-          {feature.status === 'waiting_for_feedback' && (
+          {isWaitingForHuman ? (
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="waiting-banner">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                Answer the questions below. The pipeline will resume automatically once all questions are answered.
-              </p>
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">Answer the questions below. The pipeline resumes automatically once all are answered.</p>
             </div>
+          ) : isProcessing ? (
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" data-testid="processing-banner">
+              <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></span>
+              Agent working on stage {feature.current_stage || '...'} — watch output below
+            </div>
+          ) : awaitingStage ? (
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="awaiting-approval-banner">
+              <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">Stage {awaitingStage.stage_id} is awaiting your approval</p>
+              <button onClick={() => setGateModalStage(awaitingStage.stage_id)} className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm font-medium" data-testid="review-gate-button">Review Gate</button>
+            </div>
+          ) : revisingStage ? (
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg" data-testid="revising-banner">
+              <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">Stage {revisingStage.stage_id} needs revision ({revisingStage.revision_count} revisions)</p>
+              <p className="text-xs text-orange-700 dark:text-orange-300 mb-2">The agent was sent back. Re-run the stage to address the feedback.</p>
+              <button onClick={() => runStageMutation.mutate(revisingStage.stage_id)} disabled={runStageMutation.isPending} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium" data-testid="rerun-stage-button">Re-run Stage {revisingStage.stage_id}</button>
+            </div>
+          ) : nextStage ? (
+            <div data-testid="next-stage-panel">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Next stage: <strong>{nextStage.stage_id}</strong> ({STAGE_STATUS_LABELS[nextStage.status]})</p>
+              <button onClick={() => runStageMutation.mutate(nextStage.stage_id)} disabled={runStageMutation.isPending} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold shadow-sm" data-testid="run-stage-button">
+                {runStageMutation.isPending ? 'Starting...' : `▶ Run Stage ${nextStage.stage_id}`}
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="no-next-stage">All stages complete or in progress.</p>
           )}
 
-          {/* Delivery complete action */}
-          {isDeliveryPassed && (
-            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg" data-testid="delivery-complete-banner">
-              <p className="text-sm text-green-800 dark:text-green-200 font-medium">
-                ✓ All phases complete. Feature is ready.
-              </p>
-            </div>
-          )}
-
-          {/* Advanced manual controls (collapsible) */}
-          <details className="mt-4" data-testid="advanced-controls">
-            <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none">
-              Step-by-step controls
-            </summary>
+          {/* Jump controls */}
+          <details className="mt-4" data-testid="jump-controls">
+            <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none">Jump to stage or phase</summary>
             <div className="mt-3 flex flex-wrap gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => runPhaseMutation.mutate()}
-                disabled={runPhaseMutation.isPending}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                title={currentPhaseState?.gate_result
-                  ? `Re-run ${PHASE_LABELS[currentPhase as PhaseName]} — this will overwrite existing artifacts`
-                  : `Run only the current step (${PHASE_LABELS[currentPhase as PhaseName]}) and check if it passes. You'll need to advance manually.`}
-                data-testid="run-phase-button"
-              >
-                {currentPhaseState?.gate_result
-                  ? `Re-run ${PHASE_LABELS[currentPhase as PhaseName]}`
-                  : PHASE_ACTIONS[currentPhase as PhaseName] || 'Run Current Step'}
-              </button>
+              <select className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" defaultValue="" onChange={(e) => { if (e.target.value) jumpMutation.mutate({ stageId: e.target.value }); }} data-testid="jump-stage-select">
+                <option value="">Jump to stage...</option>
+                {stages.filter((s) => s.status === 'not_started' || s.status === 'skipped').map((s) => <option key={s.stage_id} value={s.stage_id}>Stage {s.stage_id}</option>)}
+              </select>
+              <select className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" defaultValue="" onChange={(e) => { if (e.target.value) jumpMutation.mutate({ phase: e.target.value }); }} data-testid="jump-phase-select">
+                <option value="">Jump to phase...</option>
+                <option value="ideation">Ideation</option>
+                <option value="inception">Inception</option>
+                <option value="construction">Construction</option>
+                <option value="operation">Operation</option>
+              </select>
+            </div>
+          </details>
 
-              <button
-                onClick={() => gateMutation.mutate()}
-                disabled={gateMutation.isPending}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                title="Check whether this step meets its quality bar."
-                data-testid="evaluate-gate-button"
-              >
-                Check Quality
-              </button>
-
-              {!isDeliveryPassed && (
-                <button
-                  onClick={() => advanceMutation.mutate()}
-                  disabled={!gatePassed || advanceMutation.isPending}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                  title={!gatePassed ? 'Quality check hasn\'t passed yet — run "Check Quality" first' : `Move to the next step: ${nextPhaseLabel}`}
-                  data-testid="advance-button"
-                >
-                  {nextPhaseLabel ? `Go to ${nextPhaseLabel}` : 'Advance'}
-                </button>
-              )}
-
-              {recirculationTargets.length > 0 && (
-                <select
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                  defaultValue=""
-                  onChange={(e) => {
-                    if (e.target.value && window.confirm(`Go back to ${PHASE_LABELS[e.target.value as PhaseName]} and redo that step?`)) {
-                      recirculateMutation.mutate(e.target.value);
-                    }
-                  }}
-                  data-testid="recirculate-select"
-                >
-                  <option value="">Redo a step...</option>
-                  {recirculationTargets.map((phase) => (
-                    <option key={phase} value={phase}>
-                      Redo {PHASE_LABELS[phase]}
-                    </option>
-                  ))}
+          {/* Scope/Depth/Test Strategy controls */}
+          <details className="mt-2" data-testid="scope-controls">
+            <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none">Scope, depth & test strategy</summary>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Scope</label>
+                <select value={currentScope} onChange={(e) => scopeMutation.mutate(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" data-testid="scope-change-select">
+                  {SCOPES.map((s) => <option key={s} value={s}>{SCOPE_LABELS[s]}</option>)}
                 </select>
-              )}
+                <p className="text-xs text-gray-400 mt-1">{SCOPE_DESCRIPTIONS[currentScope]}</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Depth</label>
+                <select value={currentDepth} onChange={(e) => depthMutation.mutate(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" data-testid="depth-change-select">
+                  {DEPTHS.map((d) => <option key={d} value={d}>{DEPTH_LABELS[d]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Test Strategy</label>
+                <select value={currentTestStrategy} onChange={(e) => testStrategyMutation.mutate(e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" data-testid="test-strategy-change-select">
+                  {TEST_STRATEGIES.map((t) => <option key={t} value={t}>{TEST_STRATEGY_LABELS[t]}</option>)}
+                </select>
+              </div>
+            </div>
+          </details>
 
-              <button
-                onClick={() => {
-                  if (window.confirm('Are you sure you want to cancel this feature?')) {
-                    cancelMutation.mutate();
-                  }
-                }}
-                disabled={cancelMutation.isPending}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                data-testid="cancel-button"
-              >
-                Cancel
-              </button>
+          {/* Cancel */}
+          <details className="mt-2" data-testid="cancel-controls">
+            <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none">Cancel feature</summary>
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <button onClick={() => { if (window.confirm('Cancel this feature?')) cancelMutation.mutate(); }} disabled={cancelMutation.isPending} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm" data-testid="cancel-button">Cancel Feature</button>
             </div>
           </details>
         </div>
       )}
 
-      {/* Terminal state banner */}
+      {/* Terminal state */}
       {isTerminal && (
-        <div className={`rounded-lg shadow p-6 mb-6 ${
-          feature.status === 'done'
-            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-            : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-        }`} data-testid="terminal-banner">
-          <h3 className={`text-lg font-semibold ${
-            feature.status === 'done' ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'
-          }`}>
-            {feature.status === 'done' ? '✓ Feature Complete' : '✗ Feature Cancelled'}
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            {feature.status === 'done'
-              ? 'This feature has passed all pipeline phases and is delivered.'
-              : 'This feature was cancelled and will not proceed further.'}
-          </p>
+        <div className={`rounded-lg shadow p-6 mb-6 ${feature.status === 'done' ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'}`} data-testid="terminal-banner">
+          <h3 className={`text-lg font-semibold ${feature.status === 'done' ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}`}>{feature.status === 'done' ? '✓ Feature Complete' : '✗ Feature Cancelled'}</h3>
         </div>
       )}
 
-      {/* Process View (shown during processing) */}
-      {showProcessView && feature.status === 'in_progress' && (
-        <ProcessView featureId={feature.id} mode={processingMode} startedAt={currentPhaseState?.started_at} />
-      )}
-
-      {/* Agent Output (shown during processing) */}
-      {(showProcessView || feature.status === 'in_progress') && (
+      {/* Agent Output */}
+      {(isProcessing || feature.is_processing) && (
         <AgentOutput featureId={feature.id} isProcessing={isProcessing || feature.is_processing} />
       )}
 
-      {/* Gate Results */}
-      {currentPhaseState?.gate_result && (
-        <GateResult gateResult={currentPhaseState.gate_result} />
+      {/* Gate Modal */}
+      {gateModalStage && gateStage && (
+        <GateModal
+          stageId={gateStage.stage_id}
+          stageName={`Stage ${gateStage.stage_id}`}
+          revisionCount={gateStage.revision_count}
+          canAcceptAsIs={gateStage.revision_count >= MAX_REVISIONS}
+          onApprove={() => approveMutation.mutate(gateStage.stage_id)}
+          onReject={(notes) => rejectMutation.mutate({ stageId: gateStage.stage_id, notes })}
+          onAcceptAsIs={() => acceptAsIsMutation.mutate(gateStage.stage_id)}
+          onClose={() => setGateModalStage(null)}
+        />
       )}
 
-      {/* Questions Section — hidden when zero questions. FR-013 / AC-019. */}
+      {/* Construction Bolts */}
+      {feature.current_phase === 'construction' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="bolts-panel">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Construction Bolts</h3>
+            {bolts.length === 0 && (
+              <button onClick={() => prepareBoltsMutation.mutate()} disabled={prepareBoltsMutation.isPending} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm" data-testid="prepare-bolts-button">Prepare Bolts</button>
+            )}
+          </div>
+          {bolts.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No Bolts yet. Prepare Bolts from the inception output to start construction.</p>
+          ) : (
+            <div className="space-y-2" data-testid="bolt-list">
+              {bolts.map((b) => (
+                <div key={b.bolt_number} className={`flex items-center gap-3 p-3 rounded-lg ${b.is_walking_skeleton ? 'bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800' : 'bg-gray-50 dark:bg-gray-900/30'}`} data-testid={`bolt-${b.bolt_number}`}>
+                  <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">Bolt {b.bolt_number}</span>
+                  {b.is_walking_skeleton && <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200" data-testid="walking-skeleton-badge">Walking Skeleton</span>}
+                  <span className={`text-sm ${b.status === 'completed' ? 'text-green-600' : b.status === 'in_progress' ? 'text-blue-600' : b.status === 'failed' ? 'text-red-600' : 'text-gray-500'}`} data-testid={`bolt-status-${b.bolt_number}`}>{b.status}</span>
+                  <span className="text-xs text-gray-400">{b.unit_ids.length} unit(s)</span>
+                </div>
+              ))}
+              {/* Ladder prompt */}
+              {bolts[0]?.status === 'completed' && !feature.autonomy_mode && (
+                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg" data-testid="ladder-prompt">
+                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">🪜 Ladder Prompt: Walking skeleton complete. Choose autonomy mode for remaining Bolts:</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => ladderMutation.mutate('gated')} className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm" data-testid="ladder-gated">Gated (approve each Bolt)</button>
+                    <button onClick={() => ladderMutation.mutate('autonomous')} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm" data-testid="ladder-autonomous">Autonomous (skip Bolt gates)</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Audit Timeline */}
+      <AuditTimeline events={auditEvents} />
+
+      {/* Learned Rules */}
+      {rules.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="rules-panel">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Learned Rules ({rules.length})</h3>
+          <div className="space-y-2" data-testid="rules-list">
+            {rules.map((r) => (
+              <div key={r.id} className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg" data-testid={`rule-${r.id}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <span className="text-xs text-orange-700 dark:text-orange-300">Agent: {r.agent_name} · Stage: {r.stage_id || 'global'}</span>
+                    <p className="text-sm text-gray-900 dark:text-white mt-1">{r.rule_text}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Questions */}
       {questions.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6" data-testid="questions-section">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white" data-testid="questions-header">Questions</h3>
-            <div data-testid="question-progress" className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-              {questions.filter((q) => q.status !== 'pending' || (draft[q.id]?.trim() ?? '').length > 0).length} of {questions.length} questions answered
-            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Questions</h3>
+            <span className="px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" data-testid="question-progress">
+              {questions.filter((q) => q.status !== 'pending').length}/{questions.length} answered
+            </span>
           </div>
           <div className="space-y-4">
-            {questions.map((q) =>
-              q.status === 'pending' ? (
-                <QuestionCard
-                  key={q.id}
-                  question={q}
-                  featureId={feature.id}
-                  draft={draft[q.id]}
-                  onSelect={(opt) => onSelect(q.id, opt)}
-                  onType={(text) => onType(q.id, text)}
-                  ref={setCardRef(q.id)}
-                />
-              ) : (
-                <QuestionCard key={q.id} question={q} featureId={feature.id} />
-              )
-            )}
+            {questions.map((q) => q.status === 'pending' ? <QuestionCard key={q.id} question={q} featureId={feature.id} draft={draft[q.id]} onSelect={(opt) => onSelect(q.id, opt)} onType={(text) => onType(q.id, text)} ref={setCardRef(q.id)} /> : <QuestionCard key={q.id} question={q} featureId={feature.id} />)}
           </div>
-
-          {/* Inline answer summary + single submit. Show when waiting_for_feedback OR when there are pending questions. */}
           {(isWaitingForHuman || pendingQuestions.length > 0) && (
             <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
-              <div
-                ref={summaryRef}
-                className="mb-4 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-gray-200 dark:border-gray-700"
-                data-testid="answer-summary"
-              >
+              <div ref={summaryRef} className="mb-4 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-lg" data-testid="answer-summary">
                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Answer summary</h4>
                 <ul className="space-y-2">
                   {questions.map((q) => {
-                    const answer =
-                      q.status === 'answered'
-                        ? q.answer
-                        : q.status === 'assumed'
-                        ? q.assumption
-                        : draft[q.id] ?? '';
+                    const answer = q.status === 'answered' ? q.answer : q.status === 'assumed' ? q.assumption : draft[q.id] ?? '';
                     return (
                       <li key={q.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const el = questionCardRefs.current[q.id];
-                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          }}
-                          className="w-full text-left flex flex-col gap-0.5 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          data-testid={`summary-row-${q.id}`}
-                        >
-                          <span className="text-xs text-gray-500 dark:text-gray-400">{q.phase} · {q.role}</span>
-                          <span className="text-sm text-gray-900 dark:text-white" data-testid="summary-question">{q.question}</span>
-                          <span className="text-sm text-gray-700 dark:text-gray-300" data-testid="summary-answer">
-                            {answer || <span className="italic text-gray-400 dark:text-gray-500">Not answered yet</span>}
-                          </span>
+                        <button type="button" onClick={() => { const el = questionCardRefs.current[q.id]; if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} className="w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700" data-testid={`summary-row-${q.id}`}>
+                          <span className="text-xs text-gray-500">{q.phase} · {q.role}</span>
+                          <span className="block text-sm text-gray-900 dark:text-white">{q.question}</span>
+                          <span className="block text-sm text-gray-700 dark:text-gray-300">{answer || <span className="italic text-gray-400">Not answered yet</span>}</span>
                         </button>
                       </li>
                     );
                   })}
                 </ul>
               </div>
-              <button
-                type="button"
-                onClick={handleSubmitAll}
-                disabled={!allPendingDrafted || isSubmitting || pendingQuestions.length === 0}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-semibold shadow-sm"
-                data-testid="submit-answers"
-              >
-                {isSubmitting ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
-                    Submitting...
-                  </span>
-                ) : (
-                  'Submit Answers & Resume'
-                )}
+              <button type="button" onClick={handleSubmitAll} disabled={!allPendingDrafted || isSubmitting || pendingQuestions.length === 0} className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold" data-testid="submit-answers">
+                {isSubmitting ? 'Submitting...' : 'Submit Answers & Resume'}
               </button>
-              {!allPendingDrafted && pendingQuestions.length > 0 && (
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Answer all pending questions to enable submit.
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -639,7 +583,7 @@ export default function FeatureDetail() {
       {/* Artifacts */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Artifacts</h3>
-        <ArtifactViewer featureId={feature.id} phaseStates={feature.phase_states} />
+        <ArtifactViewer featureId={feature.id} phaseStates={{}} />
       </div>
     </div>
   );

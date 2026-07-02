@@ -2,21 +2,31 @@ import type {
   FeatureListResponse,
   FeatureDetail,
   CreateFeatureRequest,
-  RecirculateRequest,
-  GateResult,
-  ErrorResponse,
+  StageRunResult,
+  FeatureStage,
+  AuditEvent,
+  Bolt,
+  TeamKnowledge,
+  Rule,
   Question,
   CreateQuestionRequest,
   AnswerQuestionRequest,
+  RunStageRequest,
+  RejectStageRequest,
+  JumpRequest,
+  SetScopeRequest,
+  SetDepthRequest,
+  SetTestStrategyRequest,
+  SetLadderRequest,
+  SaveKnowledgeRequest,
+  ErrorResponse,
 } from '../types';
 
 const API_BASE = '/api';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     ...options,
   });
 
@@ -28,11 +38,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new ApiError(response.status, errorData.error, errorData.details);
   }
 
-  // 204 No Content
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
+  if (response.status === 204) return undefined as T;
   return response.json();
 }
 
@@ -40,24 +46,22 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     public code: string,
-    public details?: string
+    public details?: string,
   ) {
     super(details || code);
     this.name = 'ApiError';
   }
 }
 
-// Feature list
+// ─── Features ───
 export async function listFeatures(): Promise<FeatureListResponse> {
   return request<FeatureListResponse>('/features');
 }
 
-// Feature detail
 export async function getFeature(id: string): Promise<FeatureDetail> {
   return request<FeatureDetail>(`/features/${id}`);
 }
 
-// Create feature
 export async function createFeature(req: CreateFeatureRequest): Promise<FeatureDetail> {
   return request<FeatureDetail>('/features', {
     method: 'POST',
@@ -65,83 +69,142 @@ export async function createFeature(req: CreateFeatureRequest): Promise<FeatureD
   });
 }
 
-// Run phase (async - returns 202 Accepted immediately)
-export async function runPhase(id: string): Promise<FeatureDetail> {
-  const response = await fetch(`${API_BASE}/features/${id}/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-
-  if (!response.ok) {
-    const errorData: ErrorResponse = await response.json().catch(() => ({
-      error: 'unknown_error',
-      details: response.statusText,
-    }));
-    throw new ApiError(response.status, errorData.error, errorData.details);
-  }
-
-  return response.json();
+export async function cancelFeature(id: string): Promise<FeatureDetail> {
+  return request<FeatureDetail>(`/features/${id}/cancel`, { method: 'POST' });
 }
 
-// Advance feature
-export async function advanceFeature(id: string): Promise<FeatureDetail> {
-  return request<FeatureDetail>(`/features/${id}/advance`, {
-    method: 'POST',
-  });
-}
-
-// Recirculate feature
-export async function recirculateFeature(id: string, targetPhase: string): Promise<FeatureDetail> {
-  const body: RecirculateRequest = { target_phase: targetPhase };
-  return request<FeatureDetail>(`/features/${id}/recirculate`, {
+// ─── Stage Workflow ───
+export async function runStage(featureId: string, stageId: string): Promise<StageRunResult> {
+  const body: RunStageRequest = { stage_id: stageId };
+  return request<StageRunResult>(`/features/${featureId}/run-stage`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
 }
 
-// Cancel feature
-export async function cancelFeature(id: string): Promise<FeatureDetail> {
-  return request<FeatureDetail>(`/features/${id}/cancel`, {
+export async function approveStage(featureId: string, stageId: string): Promise<void> {
+  await request<void>(`/features/${featureId}/stages/${stageId}/approve`, { method: 'POST' });
+}
+
+export async function rejectStage(featureId: string, stageId: string, notes: string): Promise<void> {
+  const body: RejectStageRequest = { notes };
+  await request<void>(`/features/${featureId}/stages/${stageId}/reject`, {
     method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 
-// Process feature (autonomous pipeline)
-export async function processFeature(id: string): Promise<FeatureDetail> {
-  return request<FeatureDetail>(`/features/${id}/process`, {
+export async function acceptStageAsIs(featureId: string, stageId: string): Promise<void> {
+  await request<void>(`/features/${featureId}/stages/${stageId}/accept-as-is`, { method: 'POST' });
+}
+
+export async function jumpToStage(featureId: string, stageId?: string, phase?: string): Promise<void> {
+  const body: JumpRequest = { stage_id: stageId, phase };
+  await request<void>(`/features/${featureId}/jump`, {
     method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 
-// Evaluate gate
-export async function evaluateGate(id: string): Promise<GateResult> {
-  return request<GateResult>(`/features/${id}/gate`);
+export async function getFeatureStages(featureId: string): Promise<FeatureStage[]> {
+  return request<FeatureStage[]>(`/features/${featureId}/stages`);
 }
 
-// Get artifact content
+export async function getAuditTrail(featureId: string): Promise<AuditEvent[]> {
+  return request<AuditEvent[]>(`/features/${featureId}/audit`);
+}
+
+// ─── Scope/Depth/Test Strategy ───
+export async function setScope(featureId: string, scope: string): Promise<void> {
+  const body: SetScopeRequest = { scope };
+  await request<void>(`/features/${featureId}/scope`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function setDepth(featureId: string, depth: string): Promise<void> {
+  const body: SetDepthRequest = { depth };
+  await request<void>(`/features/${featureId}/depth`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function setTestStrategy(featureId: string, testStrategy: string): Promise<void> {
+  const body: SetTestStrategyRequest = { test_strategy: testStrategy };
+  await request<void>(`/features/${featureId}/test-strategy`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function setLadderMode(featureId: string, mode: string): Promise<void> {
+  const body: SetLadderRequest = { mode };
+  await request<void>(`/features/${featureId}/ladder`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+// ─── Bolts ───
+export async function getBolts(featureId: string): Promise<Bolt[]> {
+  return request<Bolt[]>(`/features/${featureId}/bolts`);
+}
+
+export async function prepareBolts(featureId: string): Promise<void> {
+  await request<void>(`/features/${featureId}/prepare-bolts`, { method: 'POST' });
+}
+
+export async function runBolt(featureId: string, boltNumber: number): Promise<unknown> {
+  return request<unknown>(`/features/${featureId}/run-bolt/${boltNumber}`, { method: 'POST' });
+}
+
+// ─── Rules ───
+export async function getRules(featureId: string): Promise<Rule[]> {
+  return request<Rule[]>(`/features/${featureId}/rules`);
+}
+
+export async function deleteRule(featureId: string, ruleId: number): Promise<void> {
+  await request<void>(`/features/${featureId}/rules/${ruleId}`, { method: 'DELETE' });
+}
+
+// ─── Team Knowledge ───
+export async function listAllKnowledge(): Promise<Record<string, TeamKnowledge[]>> {
+  return request<Record<string, TeamKnowledge[]>>('/knowledge');
+}
+
+export async function getKnowledge(agent: string): Promise<TeamKnowledge[]> {
+  return request<TeamKnowledge[]>(`/knowledge/${agent}`);
+}
+
+export async function saveKnowledge(agent: string, topic: string, content: string): Promise<void> {
+  const body: SaveKnowledgeRequest = { topic, content };
+  await request<void>(`/knowledge/${agent}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteKnowledge(agent: string, topic: string): Promise<void> {
+  await request<void>(`/knowledge/${agent}/${topic}`, { method: 'DELETE' });
+}
+
+// ─── Artifacts ───
 export async function getArtifact(id: string, type: string): Promise<string> {
   const response = await fetch(`${API_BASE}/features/${id}/artifacts/${type}`);
   if (!response.ok) {
-    if (response.status === 404) {
-      return '';
-    }
-    const errorData: ErrorResponse = await response.json().catch(() => ({
-      error: 'unknown_error',
-      details: response.statusText,
-    }));
-    throw new ApiError(response.status, errorData.error, errorData.details);
+    if (response.status === 404) return '';
+    throw new ApiError(response.status, 'unknown_error', response.statusText);
   }
   return response.text();
 }
 
-// Question API functions
-
-// List questions for a feature
+// ─── Questions ───
 export async function listQuestions(featureId: string): Promise<Question[]> {
   return request<Question[]>(`/features/${featureId}/questions`);
 }
 
-// Create a question for a feature
 export async function createQuestion(featureId: string, req: CreateQuestionRequest): Promise<Question> {
   return request<Question>(`/features/${featureId}/questions`, {
     method: 'POST',
@@ -149,7 +212,6 @@ export async function createQuestion(featureId: string, req: CreateQuestionReque
   });
 }
 
-// Answer a question
 export async function answerQuestion(featureId: string, questionId: string, answer: string): Promise<Question> {
   const body: AnswerQuestionRequest = { answer };
   return request<Question>(`/features/${featureId}/questions/${questionId}`, {
@@ -158,12 +220,11 @@ export async function answerQuestion(featureId: string, questionId: string, answ
   });
 }
 
-// List pending questions for a feature
 export async function listPendingQuestions(featureId: string): Promise<Question[]> {
   return request<Question[]>(`/features/${featureId}/questions/pending`);
 }
 
-// Get captured tmux output for a feature (for page refresh recovery)
+// ─── Output ───
 export async function getCapturedOutput(featureId: string): Promise<{ is_processing: boolean; output: string }> {
   return request<{ is_processing: boolean; output: string }>(`/features/${featureId}/output`);
 }

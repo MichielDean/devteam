@@ -1,13 +1,101 @@
-// TypeScript types matching API responses from the Dev Team backend
+// AIDLC v2 TypeScript types matching API responses from the Dev Team backend
 
+// ─── Scopes ───
+export const SCOPES = ['enterprise', 'feature', 'mvp', 'poc', 'bugfix', 'refactor', 'infra', 'security-patch', 'workshop'] as const;
+export type ScopeName = typeof SCOPES[number];
+
+export const SCOPE_LABELS: Record<string, string> = {
+  enterprise: 'Enterprise',
+  feature: 'Feature',
+  mvp: 'MVP',
+  poc: 'Proof of Concept',
+  bugfix: 'Bug Fix',
+  refactor: 'Refactor',
+  infra: 'Infrastructure',
+  'security-patch': 'Security Patch',
+  workshop: 'Workshop',
+};
+
+export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  enterprise: 'Regulated enterprise feature, full audit trail (32 stages)',
+  feature: 'Default for new features (32 stages)',
+  mvp: 'Greenfield, skip late operations (22 stages)',
+  poc: 'Prove feasibility fast (8 stages)',
+  bugfix: 'Fix a specific bug (7 stages)',
+  refactor: 'Clean up existing code (8 stages)',
+  infra: 'Infrastructure change (13 stages)',
+  'security-patch': 'CVE response (9 stages)',
+  workshop: 'AI-DLC workshop or training (25 stages)',
+};
+
+// ─── Phases ───
+export const PHASES = ['initialization', 'ideation', 'inception', 'construction', 'operation'] as const;
+export type PhaseName = typeof PHASES[number];
+
+export const PHASE_LABELS: Record<string, string> = {
+  initialization: 'Initialization',
+  ideation: 'Ideation',
+  inception: 'Inception',
+  construction: 'Construction',
+  operation: 'Operation',
+};
+
+// ─── Depth ───
+export const DEPTHS = ['minimal', 'standard', 'comprehensive'] as const;
+export type DepthName = typeof DEPTHS[number];
+
+export const DEPTH_LABELS: Record<string, string> = {
+  minimal: 'Minimal',
+  standard: 'Standard',
+  comprehensive: 'Comprehensive',
+};
+
+// ─── Test Strategy ───
+export const TEST_STRATEGIES = ['minimal', 'standard', 'comprehensive'] as const;
+export type TestStrategyName = typeof TEST_STRATEGIES[number];
+
+export const TEST_STRATEGY_LABELS: Record<string, string> = {
+  minimal: 'Minimal',
+  standard: 'Standard',
+  comprehensive: 'Comprehensive',
+};
+
+// ─── Stage Status (6-state checkbox) ───
+export const STAGE_STATUSES = ['not_started', 'in_progress', 'awaiting_approval', 'revising', 'completed', 'skipped'] as const;
+export type StageStatus = typeof STAGE_STATUSES[number];
+
+export const STAGE_STATUS_LABELS: Record<string, string> = {
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  awaiting_approval: 'Awaiting Approval',
+  revising: 'Revising',
+  completed: 'Completed',
+  skipped: 'Skipped',
+};
+
+export const STAGE_CHECKBOX: Record<string, string> = {
+  not_started: '[ ]',
+  in_progress: '[-]',
+  awaiting_approval: '[?]',
+  revising: '[R]',
+  completed: '[x]',
+  skipped: '[S]',
+};
+
+// ─── Autonomy Mode ───
+export const AUTONOMY_MODES = ['gated', 'autonomous'] as const;
+export type AutonomyMode = typeof AUTONOMY_MODES[number];
+
+// ─── Feature ───
 export interface FeatureSummary {
   id: string;
   title: string;
   status: string;
   priority: number;
   current_phase: string;
+  scope?: string;
+  current_stage?: string;
   updated_at: string;
-  gate_result: GateResult | null;
   pending_questions_count: number;
 }
 
@@ -23,41 +111,17 @@ export interface FeatureDetail {
   priority: number;
   intake_path: string;
   current_phase: string;
+  scope?: string;
+  depth?: string;
+  test_strategy?: string;
+  autonomy_mode?: string;
+  current_stage?: string;
   created_at: string;
   updated_at: string;
-  phase_states: Record<string, PhaseState>;
   dependencies: string[];
   repos: RepoRef[];
   is_processing: boolean;
-  processing_mode: string;
-}
-
-export interface PhaseState {
-  phase: string;
-  status: string;
-  started_at: string | null;
-  completed_at: string | null;
-  artifacts: Artifact[];
-  gate_result: GateResult | null;
-}
-
-export interface Artifact {
-  type: string;
-  path: string;
-  generated_by: string;
-  generated_at: string;
-}
-
-export interface GateResult {
-  phase: string;
-  passed: boolean;
-  checks: CheckResult[];
-}
-
-export interface CheckResult {
-  name: string;
-  passed: boolean;
-  message: string;
+  processing_mode?: string;
 }
 
 export interface RepoRef {
@@ -66,18 +130,141 @@ export interface RepoRef {
   branch: string;
 }
 
-// Request DTOs
+// ─── Stages ───
+export interface StageDefinition {
+  id: string;
+  phase: string;
+  name: string;
+  lead_agent: string;
+  supporting_agents: string[];
+  key_artifacts: string[];
+  condition: string;
+  scopes: string[];
+  reviewer: string;
+  sort_order: number;
+}
+
+export interface FeatureStage {
+  id: number;
+  feature_id: string;
+  stage_id: string;
+  status: string;
+  revision_count: number;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+// ─── Audit Events ───
+export interface AuditEvent {
+  id: number;
+  feature_id: string;
+  event_type: string;
+  stage_id?: string;
+  phase?: string;
+  details?: string;
+  created_at: string;
+}
+
+// ─── Bolts ───
+export interface Bolt {
+  id: number;
+  feature_id: string;
+  bolt_number: number;
+  unit_ids: string[];
+  status: string;
+  is_walking_skeleton: boolean;
+  created_at: string;
+}
+
+// ─── Team Knowledge ───
+export interface TeamKnowledge {
+  id: number;
+  agent_name: string;
+  topic: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Rules (Learning Loop) ───
+export interface Rule {
+  id: number;
+  feature_id: string;
+  agent_name: string;
+  stage_id: string;
+  rule_text: string;
+  source_rejection: string;
+  created_at: string;
+}
+
+// ─── Stage Run Result ───
+export interface StageRunResult {
+  stage_id: string;
+  phase: string;
+  stage_name: string;
+  smoke_failures: string[];
+  outcome_source: string;
+  gate?: {
+    feature_id: string;
+    stage_id: string;
+    state: string;
+    revision_count: number;
+    revision_notes: string;
+  };
+  reviewer_result?: {
+    reviewer: string;
+    verdict: string;
+    notes: string;
+    iterations: number;
+  };
+  duration: number;
+}
+
+// ─── Request DTOs ───
 export interface CreateFeatureRequest {
   type: 'loose_idea' | 'external_spec';
   title: string;
   description: string;
   priority: number;
-  file_content?: string; // base64-encoded for external_spec
+  file_content?: string;
   start_immediately?: boolean;
+  scope?: string;
+  depth?: string;
+  test_strategy?: string;
 }
 
-export interface RecirculateRequest {
-  target_phase: string;
+export interface RunStageRequest {
+  stage_id: string;
+}
+
+export interface RejectStageRequest {
+  notes: string;
+}
+
+export interface JumpRequest {
+  stage_id?: string;
+  phase?: string;
+}
+
+export interface SetScopeRequest {
+  scope: string;
+}
+
+export interface SetDepthRequest {
+  depth: string;
+}
+
+export interface SetTestStrategyRequest {
+  test_strategy: string;
+}
+
+export interface SetLadderRequest {
+  mode: string;
+}
+
+export interface SaveKnowledgeRequest {
+  topic: string;
+  content: string;
 }
 
 export interface ErrorResponse {
@@ -85,157 +272,40 @@ export interface ErrorResponse {
   details?: string;
 }
 
-// SSE Event Types
+// ─── SSE Event Types ───
 export type SSEEventType =
-  | 'phase_change'
-  | 'gate_result'
+  | 'stage_change'
   | 'agent_dispatch'
   | 'agent_complete'
   | 'agent_output'
+  | 'gate_result'
   | 'processing_complete'
-  | 'phase_complete'
   | 'error'
   | 'waiting_for_feedback'
-  | 'questions_answered'
-  | 'questions_assumed'
   | 'question_answered';
 
-export interface PhaseChangeEvent {
-  feature_id: string;
-  phase: string;
-  status: string;
+export interface SSEMessage {
+  type: SSEEventType;
+  data: string;
   timestamp: string;
 }
 
-export interface GateResultEvent {
-  feature_id: string;
-  phase: string;
-  passed: boolean;
-  checks: CheckResult[];
+// ─── Artifact ───
+export interface Artifact {
+  type: string;
+  path: string;
+  generated_by: string;
+  generated_at: string;
 }
 
-export interface AgentDispatchEvent {
-  feature_id: string;
-  phase: string;
-  role: string;
-  status: string;
-  timestamp: string;
-}
-
-export interface AgentCompleteEvent {
-  feature_id: string;
-  phase: string;
-  role: string;
-  status: string;
-  duration_ms: number;
-}
-
-export interface ProcessingCompleteEvent {
-  feature_id: string;
-  status: string;
-  timestamp: string;
-}
-
-export interface ErrorEvent {
-  feature_id: string;
-  message: string;
-  timestamp: string;
-}
-
-// Artifact type mapping for API paths
-export const ARTIFACT_TYPE_MAP: Record<string, string> = {
-  input: 'input_md',
-  spec: 'spec_md',
-  acceptance: 'acceptance_md',
-  repos: 'repos_yaml',
-  plan: 'plan_md',
-  tasks: 'tasks_md',
-  review_report: 'review_report',
-  test_report: 'test_report',
-  docs: 'docs',
-};
-
-export const ARTIFACT_DISPLAY_NAMES: Record<string, string> = {
-  input_md: 'Input',
-  spec_md: 'Specification',
-  acceptance_md: 'Acceptance Criteria',
-  repos_yaml: 'Repositories',
-  plan_md: 'Plan',
-  tasks_md: 'Tasks',
-  review_report: 'Review Report',
-  test_report: 'Test Report',
-  docs: 'Documentation',
-};
-
-// Phase display helpers
-export const PHASES = ['inception', 'planning', 'construction', 'review', 'testing', 'delivery'] as const;
-export type PhaseName = typeof PHASES[number];
-
-export const PHASE_LABELS: Record<PhaseName, string> = {
-  inception: 'Inception',
-  planning: 'Planning',
-  construction: 'Construction',
-  review: 'Review',
-  testing: 'Testing',
-  delivery: 'Delivery',
-};
-
-// User-friendly action verb for each phase — what the user is actually doing
-export const PHASE_ACTIONS: Record<PhaseName, string> = {
-  inception: 'Start Inception',
-  planning: 'Start Planning',
-  construction: 'Start Construction',
-  review: 'Start Review',
-  testing: 'Start Testing',
-  delivery: 'Start Delivery',
-};
-
-// User-friendly description of each phase — what happens when you run it
-export const PHASE_DESCRIPTIONS: Record<PhaseName, string> = {
-  inception: 'Turn your idea into a clear specification with requirements and acceptance criteria',
-  planning: 'Design the technical approach — architecture, tasks, and test strategy',
-  construction: 'Write the code according to the plan',
-  review: 'Adversarial review against acceptance criteria to catch gaps',
-  testing: 'Verify everything works — smoke tests, integration tests, unit tests',
-  delivery: 'Ship it — documentation, PR, and deployment verification',
-};
-
-// What each phase produces — shown to the user so they know what to expect
-export const PHASE_OUTPUTS: Record<PhaseName, string> = {
-  inception: 'Specification, acceptance criteria, and repository list',
-  planning: 'Technical plan, task breakdown, and test strategy',
-  construction: 'Working code implementation',
-  review: 'Review report identifying any gaps or issues',
-  testing: 'Test report verifying all acceptance criteria pass',
-  delivery: 'Documentation, changelog, and deployment verification',
-};
-
-export const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  in_progress: 'In Progress',
-  gate_blocked: 'Gate Blocked',
-  passed: 'Passed',
-  failed: 'Failed',
-  done: 'Done',
-  recirculated: 'Recirculated',
-  cancelled: 'Cancelled',
-  waiting_for_feedback: 'Waiting for Human',
-};
-
-export const PRIORITY_LABELS: Record<number, string> = {
-  1: 'P1 - Critical',
-  2: 'P2 - Medium',
-  3: 'P3 - Low',
-};
-
-// Question types
+// ─── Questions ───
 export interface Question {
   id: string;
   feature_id: string;
-  phase: 'inception' | 'planning';
-  role: 'pm' | 'architect';
+  phase: string;
+  role: string;
   question: string;
-  type: 'clarification' | 'decision' | 'priority';
+  type: string;
   options: string[];
   answer: string | null;
   assumption: string | null;
@@ -255,3 +325,44 @@ export interface CreateQuestionRequest {
 export interface AnswerQuestionRequest {
   answer: string;
 }
+
+// ─── Status/Priority Labels ───
+export const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  in_progress: 'In Progress',
+  gate_blocked: 'Gate Blocked',
+  passed: 'Passed',
+  failed: 'Failed',
+  done: 'Done',
+  cancelled: 'Cancelled',
+  waiting_for_feedback: 'Waiting for Human',
+};
+
+export const PRIORITY_LABELS: Record<number, string> = {
+  1: 'P1 - Critical',
+  2: 'P2 - Medium',
+  3: 'P3 - Low',
+};
+
+// ─── Agents ───
+export const AGENTS = [
+  'product', 'design', 'delivery', 'architect', 'platform',
+  'devsecops', 'developer', 'quality', 'pipeline-deploy', 'operations',
+] as const;
+
+export const REVIEWERS = ['product-lead', 'architecture-reviewer'] as const;
+
+export const AGENT_LABELS: Record<string, string> = {
+  product: 'Product',
+  design: 'Design',
+  delivery: 'Delivery',
+  architect: 'Architect',
+  platform: 'Platform',
+  devsecops: 'DevSecOps',
+  developer: 'Developer',
+  quality: 'Quality',
+  'pipeline-deploy': 'Pipeline & Deploy',
+  operations: 'Operations',
+  'product-lead': 'Product Lead (Reviewer)',
+  'architecture-reviewer': 'Architecture Reviewer',
+};
