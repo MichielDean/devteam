@@ -15,6 +15,7 @@ import (
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/pipeline"
+	"github.com/MichielDean/devteam/internal/role"
 	"github.com/MichielDean/devteam/internal/spec"
 	"github.com/MichielDean/devteam/internal/stage"
 )
@@ -39,7 +40,8 @@ func setupStageTestServer(t *testing.T) (*Server, string, *db.DB) {
 	}
 
 	sp := spec.NewSpecProvider(tmpDir)
-	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, nil)
+	dispatcher := role.NewDispatcher(tmpDir)
+	pipe := pipeline.NewPipelineWithDispatcher(cfg, sp, dispatcher)
 	database := setupStageTestDB(t, tmpDir)
 	sp.SetDatabase(database)
 	pipe.SetDatabase(database)
