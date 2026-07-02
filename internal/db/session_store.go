@@ -61,7 +61,7 @@ func (db *DB) GetSessions(featureID string) ([]SessionRow, error) {
 	}
 	defer rows.Close()
 
-	var sessions []SessionRow
+	sessions := []SessionRow{}
 	for rows.Next() {
 		var s SessionRow
 		var successInt int
@@ -90,7 +90,7 @@ func (db *DB) GetSessionsForPhase(featureID, phase string) ([]SessionRow, error)
 	}
 	defer rows.Close()
 
-	var sessions []SessionRow
+	sessions := []SessionRow{}
 	for rows.Next() {
 		var s SessionRow
 		var successInt int

@@ -42,7 +42,7 @@ func (db *DB) GetTeamKnowledge(agentName string) ([]TeamKnowledgeRow, error) {
 	}
 	defer rows.Close()
 
-	var entries []TeamKnowledgeRow
+	entries := []TeamKnowledgeRow{}
 	for rows.Next() {
 		var e TeamKnowledgeRow
 		if err := rows.Scan(&e.ID, &e.AgentName, &e.Topic, &e.Content, &e.CreatedAt, &e.UpdatedAt); err != nil {
@@ -98,7 +98,7 @@ func (db *DB) GetRulesForAgent(agentName, featureID string) ([]RuleRow, error) {
 	}
 	defer rows.Close()
 
-	var rules []RuleRow
+	rules := []RuleRow{}
 	for rows.Next() {
 		var r RuleRow
 		if err := rows.Scan(&r.ID, &r.FeatureID, &r.AgentName, &r.StageID, &r.RuleText, &r.SourceRejection, &r.CreatedAt); err != nil {
@@ -121,7 +121,7 @@ func (db *DB) GetRulesForFeature(featureID string) ([]RuleRow, error) {
 	}
 	defer rows.Close()
 
-	var rules []RuleRow
+	rules := []RuleRow{}
 	for rows.Next() {
 		var r RuleRow
 		if err := rows.Scan(&r.ID, &r.FeatureID, &r.AgentName, &r.StageID, &r.RuleText, &r.SourceRejection, &r.CreatedAt); err != nil {

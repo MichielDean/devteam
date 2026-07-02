@@ -51,7 +51,7 @@ func (db *DB) GetRecirculations(featureID string) ([]RecirculationRow, error) {
 	}
 	defer rows.Close()
 
-	var recirculations []RecirculationRow
+	recirculations := []RecirculationRow{}
 	for rows.Next() {
 		var r RecirculationRow
 		if err := rows.Scan(&r.ID, &r.FeatureID, &r.FromPhase, &r.ToPhase, &r.Reason, &r.FailureDetails, &r.CreatedAt); err != nil {
@@ -84,7 +84,7 @@ func (db *DB) GetEvents(featureID string) ([]EventRow, error) {
 	}
 	defer rows.Close()
 
-	var events []EventRow
+	events := []EventRow{}
 	for rows.Next() {
 		var e EventRow
 		if err := rows.Scan(&e.ID, &e.FeatureID, &e.EventType, &e.Phase, &e.Details, &e.CreatedAt); err != nil {

@@ -85,7 +85,7 @@ func (db *DB) ListTmuxSessionsForFeature(featureID string) ([]TmuxSessionRow, er
 	}
 	defer rows.Close()
 
-	var sessions []TmuxSessionRow
+	sessions := []TmuxSessionRow{}
 	for rows.Next() {
 		s, err := scanTmuxSessionRows(rows)
 		if err != nil {
@@ -109,7 +109,7 @@ func (db *DB) ListActiveTmuxSessions() ([]TmuxSessionRow, error) {
 	}
 	defer rows.Close()
 
-	var sessions []TmuxSessionRow
+	sessions := []TmuxSessionRow{}
 	for rows.Next() {
 		s, err := scanTmuxSessionRows(rows)
 		if err != nil {

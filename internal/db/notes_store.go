@@ -42,7 +42,7 @@ func (db *DB) GetNotes(featureID string) ([]NoteRow, error) {
 	}
 	defer rows.Close()
 
-	var notes []NoteRow
+	notes := []NoteRow{}
 	for rows.Next() {
 		var n NoteRow
 		if err := rows.Scan(&n.ID, &n.FeatureID, &n.Phase, &n.Role, &n.NoteType, &n.Content, &n.CreatedAt); err != nil {
@@ -65,7 +65,7 @@ func (db *DB) GetNotesForPhase(featureID, phase string) ([]NoteRow, error) {
 	}
 	defer rows.Close()
 
-	var notes []NoteRow
+	notes := []NoteRow{}
 	for rows.Next() {
 		var n NoteRow
 		if err := rows.Scan(&n.ID, &n.FeatureID, &n.Phase, &n.Role, &n.NoteType, &n.Content, &n.CreatedAt); err != nil {

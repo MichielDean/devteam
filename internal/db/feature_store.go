@@ -84,7 +84,7 @@ func (db *DB) ListFeatures() ([]FeatureRow, error) {
 	}
 	defer rows.Close()
 
-	var features []FeatureRow
+	features := []FeatureRow{}
 	for rows.Next() {
 		var f FeatureRow
 		var worktreeDir sql.NullString

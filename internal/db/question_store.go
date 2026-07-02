@@ -76,7 +76,7 @@ func (db *DB) ListQuestions(featureID string) ([]QuestionRow, error) {
 	}
 	defer rows.Close()
 
-	var questions []QuestionRow
+	questions := []QuestionRow{}
 	for rows.Next() {
 		var q QuestionRow
 		var assumedInt int
@@ -105,7 +105,7 @@ func (db *DB) ListPendingQuestions(featureID string) ([]QuestionRow, error) {
 	}
 	defer rows.Close()
 
-	var questions []QuestionRow
+	questions := []QuestionRow{}
 	for rows.Next() {
 		var q QuestionRow
 		var assumedInt int

@@ -68,7 +68,7 @@ func (db *DB) GetGateHistory(featureID string) ([]GateCheckRow, error) {
 	}
 	defer rows.Close()
 
-	var results []GateCheckRow
+	results := []GateCheckRow{}
 	for rows.Next() {
 		var r GateCheckRow
 		var passedInt int
@@ -93,7 +93,7 @@ func (db *DB) GetGateHistoryForPhase(featureID, phase string) ([]GateCheckRow, e
 	}
 	defer rows.Close()
 
-	var results []GateCheckRow
+	results := []GateCheckRow{}
 	for rows.Next() {
 		var r GateCheckRow
 		var passedInt int
@@ -117,7 +117,7 @@ func (db *DB) GetFailedChecks() ([]GateCheckRow, error) {
 	}
 	defer rows.Close()
 
-	var results []GateCheckRow
+	results := []GateCheckRow{}
 	for rows.Next() {
 		var r GateCheckRow
 		var passedInt int

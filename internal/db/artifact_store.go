@@ -58,7 +58,7 @@ func (db *DB) ListArtifacts(featureID string) ([]ArtifactRow, error) {
 	}
 	defer rows.Close()
 
-	var artifacts []ArtifactRow
+	artifacts := []ArtifactRow{}
 	for rows.Next() {
 		var a ArtifactRow
 		if err := rows.Scan(&a.ID, &a.FeatureID, &a.ArtifactType, &a.Content, &a.CreatedAt, &a.UpdatedAt); err != nil {

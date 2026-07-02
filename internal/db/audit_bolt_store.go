@@ -115,7 +115,7 @@ func (db *DB) GetBolts(featureID string) ([]BoltRow, error) {
 	}
 	defer rows.Close()
 
-	var bolts []BoltRow
+	bolts := []BoltRow{}
 	for rows.Next() {
 		var b BoltRow
 		var unitIDs string

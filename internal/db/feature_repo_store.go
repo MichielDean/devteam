@@ -36,7 +36,7 @@ func (db *DB) GetFeatureRepos(featureID string) ([]FeatureRepoRow, error) {
 	}
 	defer rows.Close()
 
-	var repos []FeatureRepoRow
+	repos := []FeatureRepoRow{}
 	for rows.Next() {
 		var r FeatureRepoRow
 		if err := rows.Scan(&r.FeatureID, &r.Name, &r.URL, &r.Dir, &r.Branch); err != nil {
