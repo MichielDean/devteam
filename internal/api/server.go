@@ -18,6 +18,7 @@ import (
 	"github.com/MichielDean/devteam/internal/intake"
 	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/spec"
+	"github.com/MichielDean/devteam/internal/stage"
 )
 
 type Server struct {
@@ -77,6 +78,9 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("GET /api/features/{id}/events", s.getEvents)
 	mux.HandleFunc("GET /api/features/{id}/notes", s.getNotes)
 	mux.HandleFunc("GET /api/features/{id}/churn", s.getChurnMetrics)
+
+	// AIDLC v2 stage-based endpoints
+	s.registerStageRoutes(mux)
 
 	if staticFS != nil {
 		mux.Handle("/", s.spaHandler(staticFS))
@@ -321,6 +325,30 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	if s.db != nil {
 		s.db.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
 			f.ID, f.Title, string(f.Current), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.CreatedAt, f.UpdatedAt)
+	}
+
+	// Set AIDLC v2 scope/depth/test_strategy
+	if req.Scope != "" || req.Depth != "" || req.TestStrategy != "" {
+		if req.Scope != "" {
+			f.Scope = req.Scope
+		} else {
+			f.Scope = stage.ScopeFeature
+		}
+		if req.Depth != "" {
+			f.Depth = req.Depth
+		} else {
+			f.Depth = stage.DepthStandard
+		}
+		if req.TestStrategy != "" {
+			f.TestStrategy = req.TestStrategy
+		} else {
+			f.TestStrategy = stage.TestStrategyStandard
+		}
+		s.pipeline.SaveFeature(f)
+		if s.db != nil {
+			s.db.InitFeatureStages(f.ID, f.Scope)
+			s.db.RecordAuditEvent(f.ID, db.AuditWorkflowStart, "", "", fmt.Sprintf("scope=%s depth=%s test_strategy=%s", f.Scope, f.Depth, f.TestStrategy))
+		}
 	}
 
 	if req.StartImmediately {
