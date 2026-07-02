@@ -34,11 +34,14 @@ const (
 )
 
 // CreateTmuxSession inserts a new tmux session record.
+// Uses ON CONFLICT DO NOTHING to handle the case where a record already exists
+// (e.g. the tmux session died and we're recreating it).
 func (db *DB) CreateTmuxSession(featureID, phase string, boltNumber int, sessionName, contextDir string) error {
 	now := time.Now().UTC()
 	_, err := db.Exec(
 		`INSERT INTO tmux_sessions (feature_id, phase, bolt_number, session_name, state, context_dir, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (session_name) DO NOTHING`,
 		featureID, phase, boltNumber, sessionName, TmuxSessionCreated, contextDir, now, now,
 	)
 	if err != nil {

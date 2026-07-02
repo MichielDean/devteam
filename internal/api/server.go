@@ -109,35 +109,72 @@ func (s *Server) IsProcessing(id string) bool {
 }
 
 // RestoreActiveProcesses restores active state from tmux sessions on startup.
-// Features with status=in_progress but no tmux session are marked failed —
-// user re-runs manually. No auto-resume, no credit burn.
+// Stuck stages (in_progress with no tmux session) are recovered:
+//   - If the agent signaled an outcome → mark stage awaiting_approval
+//   - If no outcome → mark stage as revising (user can re-run)
+// Feature status is NOT changed to failed — user can continue the workflow.
 func (s *Server) RestoreActiveProcesses() {
+	if s.db == nil {
+		return
+	}
+
 	sessions := s.pipeline.Dispatcher().ListActiveSessions()
 	for featureID := range sessions {
 		s.active.Store(featureID, struct{}{})
 		log.Printf("restored active state for feature %s from tmux session", featureID)
 	}
 
-	// Mark orphaned features as failed
+	// Find stuck stages (in_progress with no tmux session)
 	features, err := s.pipeline.ListFeatures()
 	if err != nil {
 		log.Printf("RestoreActiveProcesses: failed to list features: %v", err)
 		return
 	}
+
 	for _, f := range features {
 		if f.IsTerminal() {
-			continue
-		}
-		if f.Status != feature.StatusInProgress {
 			continue
 		}
 		if s.IsProcessing(f.ID) {
 			continue
 		}
-		log.Printf("RestoreActiveProcesses: feature %s was in_progress but no tmux session — marking interrupted", f.ID)
-		f.Status = feature.StatusFailed
-		s.pipeline.SaveFeature(f)
-		s.broadcastSSE(f.ID, "interrupted", fmt.Sprintf(`{"feature_id":"%s","message":"Interrupted by server restart. Re-run manually."}`, f.ID))
+
+		// Find stages stuck in_progress
+		stages, _ := s.db.GetFeatureStages(f.ID)
+		for _, fs := range stages {
+			if fs.Status != stage.StatusInProgress {
+				continue
+			}
+
+			// Check if this stage's tmux session is alive
+			tmuxAlive := false
+			for sessName := range sessions {
+				if strings.Contains(sessName, f.ID) {
+					tmuxAlive = true
+					break
+				}
+			}
+
+			if tmuxAlive {
+				// Stage is in_progress and tmux is alive — leave it running
+				continue
+			}
+
+			// Stage is in_progress but no tmux session — agent exited (server died mid-dispatch)
+			// Check if the agent signaled an outcome
+			outcome, _ := s.db.GetLatestOutcome(f.ID, fs.StageID)
+			if outcome != nil && outcome.Outcome == "pass" {
+				// Agent signaled pass — mark as awaiting_approval
+				log.Printf("RestoreActiveProcesses: stage %s for feature %s has outcome pass — marking awaiting_approval", fs.StageID, f.ID)
+				s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
+				s.db.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, fs.StageID, "", "recovered after server restart")
+			} else {
+				// No outcome or failed — mark as revising so user can re-run
+				log.Printf("RestoreActiveProcesses: stage %s for feature %s stuck in_progress, no outcome — marking revising", fs.StageID, f.ID)
+				s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
+				s.db.RecordAuditEvent(f.ID, "STAGE_INTERRUPTED", fs.StageID, "", "server restarted mid-dispatch")
+			}
+		}
 	}
 }
 

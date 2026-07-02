@@ -52,13 +52,14 @@ func (sm *SessionManager) ResolveOrCreateSession(featureID, phase string, boltNu
 			log.Printf("SessionManager: session %s is alive — reusing", sessionName)
 			return sessionName, existing.ContextDir, nil
 		}
-		// Session record exists but tmux session is dead — update state and recreate
-		log.Printf("SessionManager: session %s record exists but tmux dead — recreating", sessionName)
+		// Session record exists but tmux session is dead — update state to created and recreate tmux
+		log.Printf("SessionManager: session %s record exists but tmux dead — recreating tmux", sessionName)
+		sm.database.UpdateTmuxSessionState(featureID, phase, boltNumber, db.TmuxSessionCreated, "", "")
+		return sessionName, contextDir, nil
 	}
 
-	// Create new session record
+	// No DB record — create one
 	if err := sm.database.CreateTmuxSession(featureID, phase, boltNumber, sessionName, contextDir); err != nil {
-		// Might already exist from a prior run — that's OK
 		log.Printf("SessionManager: CreateTmuxSession: %v (may already exist)", err)
 	}
 

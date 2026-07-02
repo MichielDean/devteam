@@ -137,6 +137,13 @@ func (p *Pipeline) RunBolt(ctx context.Context, f *feature.Feature, boltNumber i
 	}
 
 	for _, stageID := range constructionStages {
+		// Check if this stage is already completed — skip it
+		fs, _ := p.database.GetFeatureStage(f.ID, stageID)
+		if fs != nil && fs.Status == stage.StatusCompleted {
+			log.Printf("RunBolt: skipping stage %s — already completed", stageID)
+			continue
+		}
+
 		// Check if this stage applies to the feature's scope
 		stageDef, err := p.database.GetStageDefinition(stageID)
 		if err != nil {
@@ -176,6 +183,7 @@ func (p *Pipeline) RunBolt(ctx context.Context, f *feature.Feature, boltNumber i
 		// If gate is open (awaiting approval), stop and return
 		if stageResult.Gate != nil && stageResult.Gate.IsOpen() {
 			log.Printf("RunBolt: stage %s opened gate — pausing bolt %d", stageID, boltNumber)
+			p.database.UpdateBoltStatus(f.ID, boltNumber, "pending")
 			result.StageResults = stageResults
 			result.Duration = time.Since(now)
 			return result, nil
