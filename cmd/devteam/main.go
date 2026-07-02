@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/MichielDean/devteam/internal/api"
 	"github.com/MichielDean/devteam/internal/config"
@@ -24,7 +23,7 @@ import (
 	"github.com/MichielDean/devteam/internal/stage"
 )
 
-const version = "0.3.0"
+const version = "0.4.0"
 
 func main() {
 	// Parse -http flag for web server mode
@@ -172,16 +171,18 @@ func main() {
 		handleStatus(baseDir)
 	case "intake":
 		handleIntake(baseDir)
-	case "run":
-		handleRun(baseDir, cfg)
-	case "process":
-		handleProcess(baseDir, cfg)
-	case "advance":
-		handleAdvance(baseDir, cfg)
-	case "gate":
-		handleGate(baseDir, cfg)
-	case "recirculate":
-		handleRecirculate(baseDir, cfg)
+	case "run-stage":
+		handleRunStage(baseDir, cfg)
+	case "approve":
+		handleApprove(baseDir, cfg)
+	case "reject":
+		handleReject(baseDir, cfg)
+	case "jump":
+		handleJump(baseDir, cfg)
+	case "stages":
+		handleStages(baseDir, cfg)
+	case "audit":
+		handleAudit(baseDir, cfg)
 	case "plugin":
 		handlePlugin(baseDir, cfg)
 	case "bootstrap":
@@ -292,12 +293,14 @@ func newDBPipeline(baseDir string) (*pipeline.Pipeline, *spec.SpecProvider, *db.
 	return p, provider, database
 }
 
-func handleRun(baseDir string, cfg *config.Config) {
-	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "Usage: devteam run <feature-id>\n")
+func handleRunStage(baseDir string, cfg *config.Config) {
+	if len(os.Args) < 4 {
+		fmt.Fprintf(os.Stderr, "Usage: devteam run-stage <feature-id> <stage-id>\n")
+		fmt.Fprintf(os.Stderr, "Example: devteam run-stage feat-001 1.1\n")
 		os.Exit(1)
 	}
 	featureID := os.Args[2]
+	stageID := os.Args[3]
 
 	provider, database := newDBProvider(baseDir)
 	defer database.Close()
@@ -307,56 +310,56 @@ func handleRun(baseDir string, cfg *config.Config) {
 		os.Exit(1)
 	}
 
-	currentPhase := f.CurrentPhase()
-	fmt.Printf("Running phase %s for feature %s...\n", currentPhase, featureID)
-
 	p := pipeline.NewPipeline(cfg, provider)
 	p.SetDatabase(database)
-	result, err := p.RunPhase(context.Background(), f, nil)
+
+	// Initialize stages if needed
+	scope := f.Scope
+	if scope == "" {
+		scope = stage.ScopeFeature
+	}
+	fstages, _ := database.GetFeatureStages(featureID)
+	if len(fstages) == 0 {
+		database.InitFeatureStages(featureID, scope)
+	}
+
+	fmt.Printf("Running stage %s for feature %s...\n", stageID, featureID)
+	result, err := p.RunStage(context.Background(), f, stageID, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error running phase: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error running stage: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Phase %s completed for %s\n", result.Phase, featureID)
-
-	outcome := "pass"
-	if result.Outcome != nil {
-		outcome = result.Outcome.Outcome
-	}
-	if result.OutcomeSource == "smoke_failed" {
-		outcome = "smoke_failed"
-	}
-	fmt.Printf("Outcome: %s (source: %s)\n", outcome, result.OutcomeSource)
+	fmt.Printf("Stage %s (%s) completed in %v\n", result.StageID, result.StageName, result.Duration)
+	fmt.Printf("Outcome: %s (source: %s)\n", result.Outcome.Outcome, result.OutcomeSource)
 
 	if len(result.SmokeFailures) > 0 {
 		fmt.Println("\nSmoke check failures:")
 		for _, fail := range result.SmokeFailures {
 			fmt.Printf("  [FAIL] %s\n", fail)
 		}
-	} else {
-		fmt.Println("\nSmoke check passed.")
 	}
-	fmt.Println("Run 'devteam advance <feature-id>' to move to the next phase.")
-
-	for _, rr := range result.RoleResults {
-		status := "SUCCESS"
-		if !rr.Success {
-			status = "FAILED"
+	if result.ReviewerResult != nil {
+		fmt.Printf("\nReviewer (%s): %s\n", result.ReviewerResult.Reviewer, result.ReviewerResult.Verdict)
+		if result.ReviewerResult.Notes != "" {
+			fmt.Printf("  Notes: %s\n", result.ReviewerResult.Notes)
 		}
-		fmt.Printf("\nRole %s (%s): %s (%v)\n", rr.Role, rr.Phase, status, rr.Duration)
-		if rr.Error != "" {
-			fmt.Printf("  Error: %s\n", rr.Error)
+	}
+	if result.Gate != nil {
+		fmt.Printf("\nGate state: %s (revisions: %d)\n", result.Gate.State, result.Gate.RevisionCount)
+		if result.Gate.State == "open" {
+			fmt.Println("Run 'devteam approve <feature-id> <stage-id>' to approve and advance.")
 		}
 	}
 }
 
-func handleAdvance(baseDir string, cfg *config.Config) {
-	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "Usage: devteam advance <feature-id>\n")
+func handleApprove(baseDir string, cfg *config.Config) {
+	if len(os.Args) < 4 {
+		fmt.Fprintf(os.Stderr, "Usage: devteam approve <feature-id> <stage-id>\n")
 		os.Exit(1)
 	}
 	featureID := os.Args[2]
+	stageID := os.Args[3]
 
 	provider, database := newDBProvider(baseDir)
 	defer database.Close()
@@ -369,146 +372,143 @@ func handleAdvance(baseDir string, cfg *config.Config) {
 	p := pipeline.NewPipeline(cfg, provider)
 	p.SetDatabase(database)
 
-	gateResult, err := p.EvaluateGate(f)
+	if err := p.ApproveStage(f, stageID); err != nil {
+		fmt.Fprintf(os.Stderr, "error approving stage: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Stage %s approved for feature %s. Advanced to next stage.\n", stageID, featureID)
+}
+
+func handleReject(baseDir string, cfg *config.Config) {
+	if len(os.Args) < 5 {
+		fmt.Fprintf(os.Stderr, "Usage: devteam reject <feature-id> <stage-id> <notes>\n")
+		os.Exit(1)
+	}
+	featureID := os.Args[2]
+	stageID := os.Args[3]
+	notes := os.Args[4]
+
+	provider, database := newDBProvider(baseDir)
+	defer database.Close()
+	f, err := provider.LoadFeatureState(featureID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error evaluating gate: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
 		os.Exit(1)
 	}
 
-	if !gateResult.Passed {
-		fmt.Printf("Cannot advance: gate for phase %s has not passed.\n", gateResult.Phase)
-		fmt.Println("\nMissing artifacts:")
-		for _, art := range gateResult.MissingArts {
-			fmt.Printf("  - %s\n", art)
-		}
-		fmt.Println("\nFailed checks:")
-		for _, check := range gateResult.Checks {
-			if !check.Passed {
-				fmt.Printf("  [FAIL] %s\n", check.Name)
-			}
-		}
-		fmt.Println("\nFix the issues above, then re-run 'devteam advance <feature-id>'.")
+	p := pipeline.NewPipeline(cfg, provider)
+	p.SetDatabase(database)
+
+	if err := p.RejectStage(f, stageID, notes); err != nil {
+		fmt.Fprintf(os.Stderr, "error rejecting stage: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Stage %s rejected for feature %s. Rule saved. Re-run the stage to address feedback.\n", stageID, featureID)
+}
+
+func handleJump(baseDir string, cfg *config.Config) {
+	if len(os.Args) < 4 {
+		fmt.Fprintf(os.Stderr, "Usage: devteam jump <feature-id> <stage-id|phase:phase-name>\n")
+		fmt.Fprintf(os.Stderr, "Examples:\n")
+		fmt.Fprintf(os.Stderr, "  devteam jump feat-001 2.3\n")
+		fmt.Fprintf(os.Stderr, "  devteam jump feat-001 phase:construction\n")
+		os.Exit(1)
+	}
+	featureID := os.Args[2]
+	target := os.Args[3]
+
+	provider, database := newDBProvider(baseDir)
+	defer database.Close()
+	f, err := provider.LoadFeatureState(featureID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
 		os.Exit(1)
 	}
 
-	currentPhase := f.CurrentPhase()
-	phases := feature.AllPhases()
-	currentIdx := -1
-	for i, phase := range phases {
-		if phase == currentPhase {
-			currentIdx = i
-			break
-		}
-	}
+	p := pipeline.NewPipeline(cfg, provider)
+	p.SetDatabase(database)
 
-	if currentIdx == len(phases)-1 {
-		f.MarkDone()
-		if err := p.SaveFeature(f); err != nil {
-			fmt.Fprintf(os.Stderr, "error saving feature state: %v\n", err)
+	if strings.HasPrefix(target, "phase:") {
+		phaseName := strings.TrimPrefix(target, "phase:")
+		if err := p.JumpToPhase(f, phaseName); err != nil {
+			fmt.Fprintf(os.Stderr, "error jumping to phase: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Feature %s completed! All phases passed.\n", featureID)
+		fmt.Printf("Jumped to phase %s for feature %s\n", phaseName, featureID)
+	} else {
+		if err := p.JumpToStage(f, target); err != nil {
+			fmt.Fprintf(os.Stderr, "error jumping to stage: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Jumped to stage %s for feature %s\n", target, featureID)
+	}
+}
+
+func handleStages(baseDir string, cfg *config.Config) {
+	if len(os.Args) < 3 {
+		fmt.Fprintf(os.Stderr, "Usage: devteam stages <feature-id>\n")
+		os.Exit(1)
+	}
+	featureID := os.Args[2]
+
+	_, database := newDBProvider(baseDir)
+	defer database.Close()
+
+	stages, err := database.GetFeatureStages(featureID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading stages: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(stages) == 0 {
+		fmt.Printf("No stages initialized for feature %s. Create the feature with scope first.\n", featureID)
 		return
 	}
 
-	f, err = p.AdvanceFeature(f)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error advancing feature: %v\n", err)
-		os.Exit(1)
+	fmt.Printf("Stages for feature %s (%d total):\n\n", featureID, len(stages))
+	for _, s := range stages {
+		checkbox := stage.StageCheckbox(s.Status)
+		rev := ""
+		if s.RevisionCount > 0 {
+			rev = fmt.Sprintf(" (×%d revisions)", s.RevisionCount)
+		}
+		fmt.Printf("  %s %s  %s%s\n", checkbox, s.StageID, s.Status, rev)
 	}
-
-	fmt.Printf("Feature %s advanced to phase: %s\n", featureID, f.CurrentPhase())
-	fmt.Println("Run 'devteam run <feature-id>' to execute the next phase.")
 }
 
-func handleGate(baseDir string, cfg *config.Config) {
+func handleAudit(baseDir string, cfg *config.Config) {
 	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "Usage: devteam gate <feature-id>\n")
+		fmt.Fprintf(os.Stderr, "Usage: devteam audit <feature-id>\n")
 		os.Exit(1)
 	}
 	featureID := os.Args[2]
 
-	provider, database := newDBProvider(baseDir)
+	_, database := newDBProvider(baseDir)
 	defer database.Close()
-	f, err := provider.LoadFeatureState(featureID)
+
+	events, err := database.GetAuditEvents(featureID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
+		fmt.Fprintf(os.Stderr, "error loading audit trail: %v\n", err)
 		os.Exit(1)
 	}
 
-	p := pipeline.NewPipeline(cfg, provider)
-	p.SetDatabase(database)
-	result, err := p.EvaluateGate(f)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error evaluating gate: %v\n", err)
-		os.Exit(1)
+	if len(events) == 0 {
+		fmt.Printf("No audit events for feature %s\n", featureID)
+		return
 	}
 
-	fmt.Printf("Gate evaluation for %s (phase: %s):\n", featureID, result.Phase)
-	fmt.Printf("  Passed: %v\n", result.Passed)
-	if len(result.MissingArts) > 0 {
-		fmt.Println("  Missing artifacts:")
-		for _, art := range result.MissingArts {
-			fmt.Printf("    - %s\n", art)
+	fmt.Printf("Audit trail for feature %s (%d events):\n\n", featureID, len(events))
+	for _, e := range events {
+		stageStr := ""
+		if e.StageID != "" {
+			stageStr = fmt.Sprintf(" [%s]", e.StageID)
 		}
-	}
-	if len(result.Checks) > 0 {
-		fmt.Println("  Checks:")
-		for _, check := range result.Checks {
-			status := "PASS"
-			if !check.Passed {
-				status = "FAIL"
-			}
-			fmt.Printf("    [%s] %s\n", status, check.Name)
-			if check.Message != "" {
-				fmt.Printf("           %s\n", check.Message)
-			}
+		details := ""
+		if e.Details != "" {
+			details = " — " + e.Details
 		}
+		fmt.Printf("  %s  %s%s%s\n", e.CreatedAt.Format("2006-01-02 15:04:05"), e.EventType, stageStr, details)
 	}
-
-	if !result.Passed {
-		fmt.Println("\n  To fix: provide the missing artifacts listed above.")
-		fmt.Println("  Run 'devteam run <feature-id>' to re-execute the phase.")
-		fmt.Println("  Run 'devteam recirculate <feature-id> <target-phase>' to go back to a previous phase.")
-		os.Exit(1)
-	}
-
-	fmt.Println("\n  Gate passed! Run 'devteam advance <feature-id>' to move to the next phase.")
-}
-
-func handleRecirculate(baseDir string, cfg *config.Config) {
-	if len(os.Args) < 4 {
-		fmt.Fprintf(os.Stderr, "Usage: devteam recirculate <feature-id> <target-phase>\n")
-		fmt.Fprintf(os.Stderr, "Valid phases: inception, planning, construction, review, testing, delivery\n")
-		os.Exit(1)
-	}
-	featureID := os.Args[2]
-	targetPhaseStr := os.Args[3]
-
-	targetPhase := feature.ParsePhase(targetPhaseStr)
-
-	provider, database := newDBProvider(baseDir)
-	defer database.Close()
-	f, err := provider.LoadFeatureState(featureID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
-		os.Exit(1)
-	}
-
-	currentPhase := f.CurrentPhase()
-	reason := fmt.Sprintf("recirculated from %s to %s", currentPhase, targetPhase)
-
-	p := pipeline.NewPipeline(cfg, provider)
-	f, err = p.RecirculateFeature(f, targetPhase, reason)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error recirculating feature: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Feature %s recirculated from %s to %s\n", featureID, currentPhase, targetPhase)
-	fmt.Printf("Current phase: %s\n", f.CurrentPhase())
-	fmt.Printf("Status: %s\n", f.Status)
-	fmt.Println("\nRun 'devteam run <feature-id>' to re-execute this phase.")
 }
 
 func handlePlugin(baseDir string, cfg *config.Config) {
@@ -576,220 +576,24 @@ func handleBootstrap(baseDir string, cfg *config.Config) {
 	fmt.Println("======================")
 	fmt.Printf("Feature: %s\n", f.ID)
 	fmt.Printf("Title: %s\n", f.Title)
-	fmt.Printf("Current phase: %s\n", f.CurrentPhase())
+	fmt.Printf("Scope: %s\n", f.Scope)
+	fmt.Printf("Current stage: %s\n", f.CurrentStage)
 	fmt.Printf("Status: %s\n\n", f.Status)
 
-	p := pipeline.NewPipeline(cfg, provider)
-	result, err := p.EvaluateGate(f)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error evaluating gate: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Gate: %s\n", result.Phase)
-	fmt.Printf("Passed: %v\n", result.Passed)
-	if len(result.MissingArts) > 0 {
-		fmt.Println("Missing artifacts:")
-		for _, art := range result.MissingArts {
-			fmt.Printf("  - %s\n", art)
+	// Show stage progress
+	stages, _ := database.GetFeatureStages(featureID)
+	if len(stages) > 0 {
+		fmt.Printf("Stages (%d total):\n", len(stages))
+		for _, s := range stages {
+			fmt.Printf("  %s %s  %s\n", stage.StageCheckbox(s.Status), s.StageID, s.Status)
 		}
-	}
-	if len(result.Checks) > 0 {
-		fmt.Println("Checks:")
-		for _, check := range result.Checks {
-			status := "PASS"
-			if !check.Passed {
-				status = "FAIL"
-			}
-			fmt.Printf("  [%s] %s\n", status, check.Name)
-		}
-	}
-
-	if result.Passed {
-		fmt.Println("\nBootstrap gate passed! Run 'devteam advance 001-dev-team-platform' to continue.")
 	} else {
-		fmt.Println("\nBootstrap gate not yet passed. Complete the missing artifacts above.")
+		fmt.Println("No stages initialized. Use 'devteam intake' to create a feature with scope.")
 	}
+	fmt.Println("\nUse 'devteam run-stage <feature-id> <stage-id>' to run a stage.")
 }
 
-func handleProcess(baseDir string, cfg *config.Config) {
-	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "Usage: devteam process <feature-id> [--max-recirculations N]\n")
-		fmt.Fprintf(os.Stderr, "\nAutonomously process a feature through the entire pipeline.\n")
-		fmt.Fprintf(os.Stderr, "Runs each phase, evaluates gates, advances on pass, recirculates on failure.\n")
-		os.Exit(1)
-	}
-	featureID := os.Args[2]
-	maxRecirculations := 3
-	for i := 3; i < len(os.Args); i++ {
-		if os.Args[i] == "--max-recirculations" && i+1 < len(os.Args) {
-			fmt.Sscanf(os.Args[i+1], "%d", &maxRecirculations)
-			i++
-		}
-	}
 
-	provider, database := newDBProvider(baseDir)
-	defer database.Close()
-	f, err := provider.LoadFeatureState(featureID)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error loading feature %s: %v\n", featureID, err)
-		os.Exit(1)
-	}
-
-	p := pipeline.NewPipeline(cfg, provider)
-	p.SetDatabase(database)
-	recirculations := 0
-
-	fmt.Printf("Processing feature: %s\n", f.ID)
-	fmt.Printf("Title: %s\n", f.Title)
-	fmt.Printf("Current phase: %s\n", f.CurrentPhase())
-	fmt.Printf("Status: %s\n", f.Status)
-	fmt.Println(strings.Repeat("=", 70))
-
-	for {
-		// Reload feature from disk each iteration to stay in sync
-		f, err = provider.LoadFeatureState(featureID)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reloading feature %s: %v\n", featureID, err)
-			os.Exit(1)
-		}
-
-		currentPhase := f.CurrentPhase()
-
-		// Check if we're already done
-		if f.Status == feature.StatusDone {
-			fmt.Println("\nFeature already completed!")
-			fmt.Printf("  Feature: %s\n", f.ID)
-			fmt.Printf("  Title: %s\n", f.Title)
-			fmt.Printf("  Status: %s\n", f.Status)
-			return
-		}
-
-		// Check if delivery gate passes — mark done
-		if currentPhase == feature.PhaseDelivery {
-			gateResult, err := p.EvaluateGateForPhase(f, feature.PhaseDelivery)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error evaluating delivery gate: %v\n", err)
-				os.Exit(1)
-			}
-			if gateResult.Passed {
-				f.MarkDone()
-				if err := p.SaveFeature(f); err != nil {
-					fmt.Fprintf(os.Stderr, "error saving feature: %v\n", err)
-					os.Exit(1)
-				}
-				fmt.Println("\nFeature completed successfully!")
-				fmt.Printf("  Feature: %s\n", f.ID)
-				fmt.Printf("  Title: %s\n", f.Title)
-				fmt.Printf("  Status: %s\n", f.Status)
-				return
-			}
-		}
-
-		fmt.Printf("\n--- Phase: %s ---\n", currentPhase)
-		fmt.Printf("Dispatching agents for %s...\n", currentPhase)
-
-		result, err := p.RunPhase(context.Background(), f, nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error running phase %s: %v\n", currentPhase, err)
-			os.Exit(1)
-		}
-
-		for _, rr := range result.RoleResults {
-			status := "SUCCESS"
-			if !rr.Success {
-				status = "FAILED"
-			}
-			fmt.Printf("  Role %s (%s): %s (%v)\n", rr.Role, rr.Phase, status, rr.Duration.Round(time.Second))
-			if rr.Error != "" {
-				fmt.Printf("    Error: %s\n", truncateError(rr.Error, 200))
-			}
-		}
-
-		fmt.Printf("\nOutcome: %s (source: %s)\n", result.Outcome.Outcome, result.OutcomeSource)
-		if len(result.SmokeFailures) > 0 {
-			fmt.Println("Smoke check failures:")
-			for _, fail := range result.SmokeFailures {
-				fmt.Printf("  [FAIL] %s\n", fail)
-			}
-		}
-
-		if result.OutcomeSource == "smoke_failed" || result.Outcome.Outcome == "recirculate" {
-			recirculations++
-			if recirculations > maxRecirculations {
-				fmt.Printf("\nMaximum recirculations (%d) reached. Stopping.\n", maxRecirculations)
-				fmt.Println("Fix the issues above and re-run 'devteam process <feature-id>'.")
-				os.Exit(1)
-			}
-
-			targetPhase := pipeline.ResolveRecirculateTarget(result.Phase, result.Outcome.Target)
-
-			if targetPhase == result.Phase {
-				fmt.Printf("\nRetrying %s (attempt %d/%d)\n", result.Phase, recirculations, maxRecirculations)
-				if ps, ok := f.PhaseStates[result.Phase]; ok {
-					ps.Status = feature.StatusInProgress
-					ps.GateResult = nil
-				}
-				f.Status = feature.StatusInProgress
-				f.UpdatedAt = time.Now()
-				if err := p.SaveFeature(f); err != nil {
-					fmt.Fprintf(os.Stderr, "error saving feature state: %v\n", err)
-					os.Exit(1)
-				}
-			} else {
-				fmt.Printf("\nRecirculating from %s to %s (attempt %d/%d)\n", result.Phase, targetPhase, recirculations, maxRecirculations)
-				f, err = p.RecirculateFeature(f, targetPhase, fmt.Sprintf("failed at %s (attempt %d)", result.Phase, recirculations))
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "error recirculating: %v\n", err)
-					os.Exit(1)
-				}
-			}
-			continue
-		}
-
-		if result.Outcome.Outcome == "needs_feedback" {
-			fmt.Println("\nFeature is waiting for human feedback. Answer questions and re-run.")
-			return
-		}
-		if result.Outcome.Outcome == "failed" {
-			fmt.Println("\nPhase failed. Check the logs and re-run when fixed.")
-			os.Exit(1)
-		}
-
-		// Determine next phase based on the phase that was just run
-		phases := feature.AllPhases()
-		runPhaseIdx := -1
-		for i, phase := range phases {
-			if phase == result.Phase {
-				runPhaseIdx = i
-				break
-			}
-		}
-
-		if runPhaseIdx == len(phases)-1 {
-			f.MarkDone()
-			if err := p.SaveFeature(f); err != nil {
-				fmt.Fprintf(os.Stderr, "error saving feature: %v\n", err)
-				os.Exit(1)
-			}
-			fmt.Println("\nFeature completed successfully!")
-			fmt.Printf("  Feature: %s\n", f.ID)
-			fmt.Printf("  Title: %s\n", f.Title)
-			fmt.Printf("  Status: %s\n", f.Status)
-			return
-		}
-
-		nextPhase := phases[runPhaseIdx+1]
-		fmt.Printf("\nGate passed! Advancing from %s to %s.\n", result.Phase, nextPhase)
-		f, err = p.AdvanceFeatureFrom(f, result.Phase)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error advancing: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Advanced to: %s\n", f.CurrentPhase())
-		recirculations = 0
-	}
-}
 
 func truncateError(s string, maxLen int) string {
 	if len(s) <= maxLen {

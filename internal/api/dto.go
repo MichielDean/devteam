@@ -29,67 +29,35 @@ type RecirculateRequest struct {
 }
 
 type FeatureSummaryResponse struct {
-	ID                    string              `json:"id"`
-	Title                 string              `json:"title"`
-	Status                string              `json:"status"`
-	Priority              int                 `json:"priority"`
-	CurrentPhase          string              `json:"current_phase"`
-	Scope                 string              `json:"scope,omitempty"`
-	CurrentStage          string              `json:"current_stage,omitempty"`
-	UpdatedAt             time.Time           `json:"updated_at"`
-	GateResult            *GateResultResponse `json:"gate_result,omitempty"`
-	PendingQuestionsCount int                 `json:"pending_questions_count"`
+	ID                    string `json:"id"`
+	Title                 string `json:"title"`
+	Status                string `json:"status"`
+	Priority              int    `json:"priority"`
+	CurrentPhase          string `json:"current_phase"`
+	Scope                 string `json:"scope,omitempty"`
+	CurrentStage          string `json:"current_stage,omitempty"`
+	UpdatedAt             time.Time `json:"updated_at"`
+	PendingQuestionsCount int    `json:"pending_questions_count"`
 }
 
 type FeatureDetailResponse struct {
-	ID             string                        `json:"id"`
-	Title          string                        `json:"title"`
-	Status         string                        `json:"status"`
-	Priority       int                           `json:"priority"`
-	IntakePath     string                        `json:"intake_path"`
-	CurrentPhase   string                        `json:"current_phase"`
-	Scope          string                        `json:"scope,omitempty"`
-	Depth          string                        `json:"depth,omitempty"`
-	TestStrategy   string                        `json:"test_strategy,omitempty"`
-	AutonomyMode   string                        `json:"autonomy_mode,omitempty"`
-	CurrentStage   string                        `json:"current_stage,omitempty"`
-	CreatedAt      time.Time                     `json:"created_at"`
-	UpdatedAt      time.Time                     `json:"updated_at"`
-	PhaseStates    map[string]PhaseStateResponse `json:"phase_states"`
-	Dependencies   []string                      `json:"dependencies"`
-	Repos          []RepoRefResponse             `json:"repos"`
-	IsProcessing   bool                          `json:"is_processing"`
-	ProcessingMode string                        `json:"processing_mode,omitempty"`
-}
-
-type PhaseStateResponse struct {
-	Phase       string              `json:"phase"`
-	Status      string              `json:"status"`
-	StartedAt   *time.Time          `json:"started_at,omitempty"`
-	CompletedAt *time.Time          `json:"completed_at,omitempty"`
-	Artifacts   []ArtifactResponse  `json:"artifacts"`
-	GateResult  *GateResultResponse `json:"gate_result,omitempty"`
-}
-
-type ArtifactResponse struct {
-	Type        string    `json:"type"`
-	Path        string    `json:"path"`
-	GeneratedBy string    `json:"generated_by"`
-	GeneratedAt time.Time `json:"generated_at"`
-}
-
-type GateResultResponse struct {
-	Phase       string                `json:"phase"`
-	Passed      bool                  `json:"passed"`
-	MissingArts []string              `json:"missing_arts"`
-	Checks      []CheckResultResponse `json:"checks"`
-	EvaluatedAt time.Time             `json:"evaluated_at"`
-}
-
-type CheckResultResponse struct {
-	Name    string `json:"name"`
-	Passed  bool   `json:"passed"`
-	Message string `json:"message,omitempty"`
+	ID             string            `json:"id"`
+	Title          string            `json:"title"`
+	Status         string            `json:"status"`
+	Priority       int               `json:"priority"`
+	IntakePath     string            `json:"intake_path"`
+	CurrentPhase   string            `json:"current_phase"`
+	Scope          string            `json:"scope,omitempty"`
+	Depth          string            `json:"depth,omitempty"`
+	TestStrategy   string            `json:"test_strategy,omitempty"`
+	AutonomyMode   string            `json:"autonomy_mode,omitempty"`
+	CurrentStage   string            `json:"current_stage,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
+	Dependencies   []string          `json:"dependencies"`
+	Repos          []RepoRefResponse `json:"repos"`
+	IsProcessing   bool              `json:"is_processing"`
+	ProcessingMode string            `json:"processing_mode,omitempty"`
 }
 
 type RepoRefResponse struct {
@@ -103,7 +71,6 @@ func FeaturesToSummaryResponse(features []*feature.Feature, questionStore featur
 	for _, f := range features {
 		summary := FeatureToSummaryResponse(f)
 
-		// Populate pending questions count
 		if questionStore != nil {
 			count, err := questionStore.PendingCount(context.Background(), f.ID)
 			if err != nil {
@@ -118,48 +85,19 @@ func FeaturesToSummaryResponse(features []*feature.Feature, questionStore featur
 }
 
 func FeatureToSummaryResponse(f *feature.Feature) FeatureSummaryResponse {
-	resp := FeatureSummaryResponse{
+	return FeatureSummaryResponse{
 		ID:           f.ID,
 		Title:        f.Title,
 		Status:       string(f.Status),
 		Priority:     f.Priority,
-		CurrentPhase: string(f.Current),
+		CurrentPhase: f.CurrentPhase(),
 		Scope:        f.Scope,
 		CurrentStage: f.CurrentStage,
 		UpdatedAt:    f.UpdatedAt,
 	}
-	if ps, ok := f.PhaseStates[f.Current]; ok && ps != nil && ps.GateResult != nil {
-		gr := GateResultToResponse(ps.GateResult)
-		resp.GateResult = &gr
-	}
-	return resp
 }
 
 func FeatureToDetailResponse(f *feature.Feature, isProcessing bool, processingMode string) FeatureDetailResponse {
-	phaseStates := make(map[string]PhaseStateResponse)
-	for phase, ps := range f.PhaseStates {
-		resp := PhaseStateResponse{
-			Phase:       string(ps.Phase),
-			Status:      string(ps.Status),
-			StartedAt:   ps.StartedAt,
-			CompletedAt: ps.CompletedAt,
-			Artifacts:   []ArtifactResponse{},
-		}
-		for _, a := range ps.Artifacts {
-			resp.Artifacts = append(resp.Artifacts, ArtifactResponse{
-				Type:        string(a.Type),
-				Path:        a.Path,
-				GeneratedBy: string(a.GeneratedBy),
-				GeneratedAt: a.GeneratedAt,
-			})
-		}
-		if ps.GateResult != nil {
-			gr := GateResultToResponse(ps.GateResult)
-			resp.GateResult = &gr
-		}
-		phaseStates[string(phase)] = resp
-	}
-
 	deps := f.Dependencies
 	if deps == nil {
 		deps = []string{}
@@ -180,7 +118,7 @@ func FeatureToDetailResponse(f *feature.Feature, isProcessing bool, processingMo
 		Status:         string(f.Status),
 		Priority:       f.Priority,
 		IntakePath:     string(f.IntakePath),
-		CurrentPhase:   string(f.Current),
+		CurrentPhase:   f.CurrentPhase(),
 		Scope:          f.Scope,
 		Depth:          f.Depth,
 		TestStrategy:   f.TestStrategy,
@@ -188,36 +126,10 @@ func FeatureToDetailResponse(f *feature.Feature, isProcessing bool, processingMo
 		CurrentStage:   f.CurrentStage,
 		CreatedAt:      f.CreatedAt,
 		UpdatedAt:      f.UpdatedAt,
-		PhaseStates:    phaseStates,
 		Dependencies:   deps,
 		Repos:          repos,
 		IsProcessing:   isProcessing,
 		ProcessingMode: processingMode,
-	}
-}
-
-func GateResultToResponse(gr *feature.GateResult) GateResultResponse {
-	if gr == nil {
-		return GateResultResponse{Checks: []CheckResultResponse{}}
-	}
-	checks := make([]CheckResultResponse, 0, len(gr.Checks))
-	for _, c := range gr.Checks {
-		checks = append(checks, CheckResultResponse{
-			Name:    c.Name,
-			Passed:  c.Passed,
-			Message: c.Message,
-		})
-	}
-	missingArts := gr.MissingArts
-	if missingArts == nil {
-		missingArts = []string{}
-	}
-	return GateResultResponse{
-		Phase:       string(gr.Phase),
-		Passed:      gr.Passed,
-		MissingArts: missingArts,
-		Checks:      checks,
-		EvaluatedAt: gr.EvaluatedAt,
 	}
 }
 

@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/MichielDean/devteam/internal/db"
-	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/stage"
 )
 
@@ -16,6 +15,7 @@ func (s *Server) registerStageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/approve", s.approveStage)
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/reject", s.rejectStage)
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/accept-as-is", s.acceptStageAsIs)
+	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/add-skipped", s.addSkippedStage)
 	mux.HandleFunc("POST /api/features/{id}/jump", s.jumpToStage)
 	mux.HandleFunc("GET /api/features/{id}/stages", s.getFeatureStages)
 	mux.HandleFunc("GET /api/features/{id}/audit", s.getAuditTrail)
@@ -33,6 +33,7 @@ func (s *Server) registerStageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/knowledge", s.listAllKnowledge)
 	mux.HandleFunc("GET /api/knowledge/{agent}", s.getKnowledge)
 	mux.HandleFunc("POST /api/knowledge/{agent}", s.saveKnowledge)
+	mux.HandleFunc("PATCH /api/knowledge/{agent}/{topic}", s.updateKnowledge)
 	mux.HandleFunc("DELETE /api/knowledge/{agent}/{topic}", s.deleteKnowledge)
 }
 
@@ -198,6 +199,45 @@ func (s *Server) jumpToStage(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"jumped"}`))
+}
+
+// addSkippedStage inserts a previously skipped stage back into the workflow.
+// Only available for Ideation (1.x) and Inception (2.x) stages.
+func (s *Server) addSkippedStage(w http.ResponseWriter, r *http.Request) {
+	featureID := r.PathValue("id")
+	stageID := r.PathValue("stageId")
+	if s.db == nil {
+		http.Error(w, `{"error":"no_database"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Only ideation (1.x) and inception (2.x) stages can be re-added
+	if len(stageID) < 3 || (stageID[0] != '1' && stageID[0] != '2') {
+		http.Error(w, `{"error":"bad_request","details":"add-skipped only available for ideation (1.x) and inception (2.x) stages"}`, http.StatusBadRequest)
+		return
+	}
+
+	fs, err := s.db.GetFeatureStage(featureID, stageID)
+	if err != nil || fs == nil {
+		http.Error(w, `{"error":"not_found","details":"stage not found for feature"}`, http.StatusNotFound)
+		return
+	}
+
+	if fs.Status != stage.StatusSkipped {
+		http.Error(w, `{"error":"bad_request","details":"stage is not skipped — only skipped stages can be re-added"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Reset the stage to not_started
+	if err := s.db.UpdateFeatureStage(featureID, stageID, stage.StatusNotStarted, 0, nil, nil); err != nil {
+		http.Error(w, `{"error":"update_failed","details":"`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	s.db.RecordAuditEvent(featureID, "STAGE_RE_ADDED", stageID, "", "")
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"stage_re_added"}`))
 }
 
 // getFeatureStages returns all stages with their status for a feature.
@@ -550,6 +590,36 @@ func (s *Server) deleteKnowledge(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"deleted"}`))
 }
 
+// updateKnowledge updates the content of an existing team knowledge entry.
+func (s *Server) updateKnowledge(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil {
+		http.Error(w, `{"error":"no_database"}`, http.StatusInternalServerError)
+		return
+	}
+
+	agent := r.PathValue("agent")
+	topic := r.PathValue("topic")
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+		return
+	}
+	if req.Content == "" {
+		http.Error(w, `{"error":"bad_request","details":"content required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := s.db.SaveTeamKnowledge(agent, topic, req.Content); err != nil {
+		http.Error(w, `{"error":"update_failed"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"updated"}`))
+}
+
 // isFeatureActive checks if a feature is currently being processed.
 func (s *Server) isFeatureActive(featureID string) bool {
 	_, ok := s.active.Load(featureID)
@@ -565,9 +635,6 @@ func (s *Server) markFeatureActive(featureID string) {
 func (s *Server) unmarkFeatureActive(featureID string) {
 	s.active.Delete(featureID)
 }
-
-// _ unused import guard
-var _ = feature.PhaseInception
 
 // jsonString safely quotes a string for JSON embedding.
 func jsonString(s string) string {

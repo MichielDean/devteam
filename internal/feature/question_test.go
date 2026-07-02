@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestQuestionValidation(t *testing.T) {
@@ -15,52 +16,52 @@ func TestQuestionValidation(t *testing.T) {
 	}{
 		{
 			name:     "valid clarification question",
-			question: Question{Phase: "inception", Role: "pm", Question: "What is the target audience?", Type: "clarification"},
+			question: Question{Phase: "ideation", Role: "product", Question: "What is the target audience?", Type: "clarification"},
 			wantErr:  "",
 		},
 		{
 			name:     "valid decision question with options",
-			question: Question{Phase: "planning", Role: "architect", Question: "Which approach?", Type: "decision", Options: []string{"A", "B"}},
+			question: Question{Phase: "inception", Role: "architect", Question: "Which approach?", Type: "decision", Options: []string{"A", "B"}},
 			wantErr:  "",
 		},
 		{
 			name:     "valid priority question",
-			question: Question{Phase: "inception", Role: "pm", Question: "What priority?", Type: "priority"},
+			question: Question{Phase: "ideation", Role: "product", Question: "What priority?", Type: "priority"},
 			wantErr:  "",
 		},
 		{
 			name:     "empty question text",
-			question: Question{Phase: "inception", Role: "pm", Question: "", Type: "clarification"},
+			question: Question{Phase: "ideation", Role: "product", Question: "", Type: "clarification"},
 			wantErr:  "question is required",
 		},
 		{
 			name:     "question too long",
-			question: Question{Phase: "inception", Role: "pm", Question: string(make([]byte, 2001)), Type: "clarification"},
+			question: Question{Phase: "ideation", Role: "product", Question: string(make([]byte, 2001)), Type: "clarification"},
 			wantErr:  "question must be 1-2000 characters",
 		},
 		{
 			name:     "invalid phase",
-			question: Question{Phase: "construction", Role: "pm", Question: "What?", Type: "clarification"},
-			wantErr:  "phase must be one of: inception, planning",
+			question: Question{Phase: "construction", Role: "product", Question: "What?", Type: "clarification"},
+			wantErr:  "phase must be one of: ideation, inception",
 		},
 		{
 			name:     "invalid role",
-			question: Question{Phase: "inception", Role: "developer", Question: "What?", Type: "clarification"},
-			wantErr:  "role must be one of: pm, architect",
+			question: Question{Phase: "inception", Role: "invalid-role", Question: "What?", Type: "clarification"},
+			wantErr:  "role must be one of: product, architect, design, delivery, developer, platform, devsecops, quality, pipeline-deploy, operations",
 		},
 		{
 			name:     "invalid type",
-			question: Question{Phase: "inception", Role: "pm", Question: "What?", Type: "invalid"},
+			question: Question{Phase: "ideation", Role: "product", Question: "What?", Type: "invalid"},
 			wantErr:  "type must be one of: clarification, decision, priority",
 		},
 		{
 			name:     "too many options",
-			question: Question{Phase: "inception", Role: "pm", Question: "What?", Type: "clarification", Options: make([]string, 11)},
+			question: Question{Phase: "ideation", Role: "product", Question: "What?", Type: "clarification", Options: make([]string, 11)},
 			wantErr:  "options must have at most 10 items",
 		},
 		{
 			name:     "option too long",
-			question: Question{Phase: "inception", Role: "pm", Question: "What?", Type: "clarification", Options: []string{string(make([]byte, 501))}},
+			question: Question{Phase: "ideation", Role: "product", Question: "What?", Type: "clarification", Options: []string{string(make([]byte, 501))}},
 			wantErr:  "each option must be 1-500 characters",
 		},
 	}
@@ -331,8 +332,8 @@ func TestListQuestionsWithData(t *testing.T) {
 	ctx := context.Background()
 
 	// Create two questions
-	q1 := Question{FeatureID: "test-feature", Phase: "inception", Role: "pm", Question: "Q1?", Type: "clarification"}
-	q2 := Question{FeatureID: "test-feature", Phase: "planning", Role: "architect", Question: "Q2?", Type: "decision"}
+	q1 := Question{FeatureID: "test-feature", Phase: "ideation", Role: "product", Question: "Q1?", Type: "clarification"}
+	q2 := Question{FeatureID: "test-feature", Phase: "inception", Role: "architect", Question: "Q2?", Type: "decision"}
 
 	_, err := store.CreateQuestion(ctx, "test-feature", q1)
 	if err != nil {
@@ -356,9 +357,9 @@ func TestListPendingQuestions(t *testing.T) {
 	store := setupTestQuestionStore(t)
 	ctx := context.Background()
 
-	q1 := Question{FeatureID: "test-feature", Phase: "inception", Role: "pm", Question: "Q1?", Type: "clarification"}
-	q2 := Question{FeatureID: "test-feature", Phase: "planning", Role: "architect", Question: "Q2?", Type: "decision"}
-	q3 := Question{FeatureID: "test-feature", Phase: "inception", Role: "pm", Question: "Q3?", Type: "priority"}
+	q1 := Question{FeatureID: "test-feature", Phase: "ideation", Role: "product", Question: "Q1?", Type: "clarification"}
+	q2 := Question{FeatureID: "test-feature", Phase: "inception", Role: "architect", Question: "Q2?", Type: "decision"}
+	q3 := Question{FeatureID: "test-feature", Phase: "ideation", Role: "product", Question: "Q3?", Type: "priority"}
 
 	created1, _ := store.CreateQuestion(ctx, "test-feature", q1)
 	store.CreateQuestion(ctx, "test-feature", q2)
@@ -413,7 +414,7 @@ func TestDeleteQuestionsForFeature(t *testing.T) {
 	store := setupTestQuestionStore(t)
 	ctx := context.Background()
 
-	q := Question{FeatureID: "test-feature", Phase: "inception", Role: "pm", Question: "Q1?", Type: "clarification"}
+	q := Question{FeatureID: "test-feature", Phase: "ideation", Role: "product", Question: "Q1?", Type: "clarification"}
 	_, err := store.CreateQuestion(ctx, "test-feature", q)
 	if err != nil {
 		t.Fatalf("CreateQuestion() error = %v", err)
@@ -457,9 +458,9 @@ func TestPendingCount(t *testing.T) {
 	}
 
 	// Create 3 questions
-	q1 := Question{FeatureID: "test-feature", Phase: "inception", Role: "pm", Question: "Q1?", Type: "clarification"}
-	q2 := Question{FeatureID: "test-feature", Phase: "planning", Role: "architect", Question: "Q2?", Type: "decision"}
-	q3 := Question{FeatureID: "test-feature", Phase: "inception", Role: "pm", Question: "Q3?", Type: "priority"}
+	q1 := Question{FeatureID: "test-feature", Phase: "ideation", Role: "product", Question: "Q1?", Type: "clarification"}
+	q2 := Question{FeatureID: "test-feature", Phase: "inception", Role: "architect", Question: "Q2?", Type: "decision"}
+	q3 := Question{FeatureID: "test-feature", Phase: "ideation", Role: "product", Question: "Q3?", Type: "priority"}
 
 	created1, _ := store.CreateQuestion(ctx, "test-feature", q1)
 	store.CreateQuestion(ctx, "test-feature", q2)
@@ -492,7 +493,7 @@ func TestGetQuestion(t *testing.T) {
 	store := setupTestQuestionStore(t)
 	ctx := context.Background()
 
-	q := Question{FeatureID: "test-feature", Phase: "inception", Role: "pm", Question: "Q1?", Type: "clarification"}
+	q := Question{FeatureID: "test-feature", Phase: "ideation", Role: "product", Question: "Q1?", Type: "clarification"}
 	created, err := store.CreateQuestion(ctx, "test-feature", q)
 	if err != nil {
 		t.Fatalf("CreateQuestion() error = %v", err)
@@ -525,15 +526,15 @@ func TestDetectQuestions_Valid(t *testing.T) {
 	specDir := filepath.Join(dir, "specs", "test-feature")
 	os.MkdirAll(specDir, 0755)
 
-	content := `[{"phase":"inception","role":"pm","question":"What is the target?","type":"clarification","options":["A","B"]}]`
+	content := `[{"phase":"ideation","role":"product","question":"What is the target?","type":"clarification","options":["A","B"]}]`
 	os.WriteFile(filepath.Join(specDir, "questions.json"), []byte(content), 0644)
 
 	questions := DetectQuestions("test-feature", specDir)
 	if len(questions) != 1 {
 		t.Fatalf("DetectQuestions() returned %d questions, want 1", len(questions))
 	}
-	if questions[0].Phase != "inception" {
-		t.Errorf("Phase = %q, want inception", questions[0].Phase)
+	if questions[0].Phase != "ideation" {
+		t.Errorf("Phase = %q, want ideation", questions[0].Phase)
 	}
 	if questions[0].Question != "What is the target?" {
 		t.Errorf("Question = %q, want %q", questions[0].Question, "What is the target?")
@@ -602,9 +603,9 @@ func TestDetectQuestions_MixedValidInvalid(t *testing.T) {
 	os.MkdirAll(specDir, 0755)
 
 	content := `[
-		{"phase":"inception","role":"pm","question":"Valid question?","type":"clarification"},
-		{"phase":"construction","role":"pm","question":"Invalid phase","type":"clarification"},
-		{"phase":"planning","role":"architect","question":"Also valid?","type":"decision"}
+		{"phase":"ideation","role":"product","question":"Valid question?","type":"clarification"},
+		{"phase":"construction","role":"product","question":"Invalid phase","type":"clarification"},
+		{"phase":"inception","role":"architect","question":"Also valid?","type":"decision"}
 	]`
 	os.WriteFile(filepath.Join(specDir, "questions.json"), []byte(content), 0644)
 
@@ -623,43 +624,43 @@ func TestShouldPauseForHuman(t *testing.T) {
 	}{
 		{
 			name:           "in_progress inception with positive timeout",
-			feature:        &Feature{Current: PhaseInception, Status: StatusInProgress},
+			feature:        &Feature{CurrentStage: "1.1", Status: StatusInProgress},
 			timeoutMinutes: 30,
 			want:           true,
 		},
 		{
 			name:           "in_progress planning with positive timeout",
-			feature:        &Feature{Current: PhasePlanning, Status: StatusInProgress},
+			feature:        &Feature{CurrentStage: "2.1", Status: StatusInProgress},
 			timeoutMinutes: 30,
 			want:           true,
 		},
 		{
 			name:           "in_progress construction with positive timeout - not allowed",
-			feature:        &Feature{Current: PhaseConstruction, Status: StatusInProgress},
+			feature:        &Feature{CurrentStage: "3.1", Status: StatusInProgress},
 			timeoutMinutes: 30,
 			want:           false,
 		},
 		{
 			name:           "in_progress inception with zero timeout - fully autonomous",
-			feature:        &Feature{Current: PhaseInception, Status: StatusInProgress},
+			feature:        &Feature{CurrentStage: "1.1", Status: StatusInProgress},
 			timeoutMinutes: 0,
 			want:           false,
 		},
 		{
 			name:           "in_progress inception with -1 timeout - wait forever",
-			feature:        &Feature{Current: PhaseInception, Status: StatusInProgress},
+			feature:        &Feature{CurrentStage: "1.1", Status: StatusInProgress},
 			timeoutMinutes: -1,
 			want:           true,
 		},
 		{
 			name:           "draft status - not allowed",
-			feature:        &Feature{Current: PhaseInception, Status: StatusDraft},
+			feature:        &Feature{CurrentStage: "1.1", Status: StatusDraft},
 			timeoutMinutes: 30,
 			want:           false,
 		},
 		{
 			name:           "waiting_for_human status - not allowed (must resume first)",
-			feature:        &Feature{Current: PhaseInception, Status: StatusWaitingFeedback},
+			feature:        &Feature{CurrentStage: "1.1", Status: StatusWaitingFeedback},
 			timeoutMinutes: 30,
 			want:           false,
 		},
@@ -683,37 +684,37 @@ func TestCanTransitionToWaitingFeedback(t *testing.T) {
 	}{
 		{
 			name:    "in_progress inception - allowed",
-			feature: &Feature{Current: PhaseInception, Status: StatusInProgress},
+			feature: &Feature{CurrentStage: "1.1", Status: StatusInProgress},
 			want:    true,
 		},
 		{
 			name:    "in_progress planning - allowed",
-			feature: &Feature{Current: PhasePlanning, Status: StatusInProgress},
+			feature: &Feature{CurrentStage: "2.1", Status: StatusInProgress},
 			want:    true,
 		},
 		{
 			name:    "in_progress construction - not allowed",
-			feature: &Feature{Current: PhaseConstruction, Status: StatusInProgress},
+			feature: &Feature{CurrentStage: "3.1", Status: StatusInProgress},
 			want:    false,
 		},
 		{
 			name:    "draft status - not allowed",
-			feature: &Feature{Current: PhaseInception, Status: StatusDraft},
+			feature: &Feature{CurrentStage: "1.1", Status: StatusDraft},
 			want:    false,
 		},
 		{
 			name:    "waiting_for_human status - not allowed (no self-transition)",
-			feature: &Feature{Current: PhaseInception, Status: StatusWaitingFeedback},
+			feature: &Feature{CurrentStage: "1.1", Status: StatusWaitingFeedback},
 			want:    false,
 		},
 		{
 			name:    "gate_blocked status - not allowed",
-			feature: &Feature{Current: PhaseInception, Status: StatusGateBlocked},
+			feature: &Feature{CurrentStage: "1.1", Status: StatusGateBlocked},
 			want:    false,
 		},
 		{
 			name:    "done status - not allowed",
-			feature: &Feature{Current: PhaseDelivery, Status: StatusDone},
+			feature: &Feature{CurrentStage: "4.7", Status: StatusDone},
 			want:    false,
 		},
 	}
@@ -730,7 +731,7 @@ func TestCanTransitionToWaitingFeedback(t *testing.T) {
 
 func TestWaitForHuman(t *testing.T) {
 	f := NewFeature("test-feature", "Test Feature", 2, IntakeLooseIdea)
-	f.Start()
+	f.Status = StatusInProgress; f.UpdatedAt = time.Now()
 
 	err := f.WaitForHuman()
 	if err != nil {
@@ -749,8 +750,8 @@ func TestWaitForHuman_InvalidStatus(t *testing.T) {
 
 func TestWaitForHuman_InvalidPhase(t *testing.T) {
 	f := NewFeature("test-feature", "Test Feature", 2, IntakeLooseIdea)
-	f.Start()
-	f.Current = PhaseConstruction
+	f.Status = StatusInProgress; f.UpdatedAt = time.Now()
+	f.CurrentStage = "3.1"
 
 	// WaitForFeedback is more permissive — allows any non-terminal phase to pause for feedback
 	_ = f.WaitForHuman()
@@ -758,7 +759,7 @@ func TestWaitForHuman_InvalidPhase(t *testing.T) {
 
 func TestResumeFromWaitingHuman(t *testing.T) {
 	f := NewFeature("test-feature", "Test Feature", 2, IntakeLooseIdea)
-	f.Start()
+	f.Status = StatusInProgress; f.UpdatedAt = time.Now()
 	f.WaitForHuman()
 
 	err := f.ResumeFromWaitingHuman()
@@ -772,7 +773,7 @@ func TestResumeFromWaitingHuman(t *testing.T) {
 
 func TestResumeFromWaitingHuman_InvalidStatus(t *testing.T) {
 	f := NewFeature("test-feature", "Test Feature", 2, IntakeLooseIdea)
-	f.Start()
+	f.Status = StatusInProgress; f.UpdatedAt = time.Now()
 
 	err := f.ResumeFromWaitingHuman()
 	if err == nil {
@@ -782,18 +783,19 @@ func TestResumeFromWaitingHuman_InvalidStatus(t *testing.T) {
 
 func TestAdvanceFromWaitingHumanBlocked(t *testing.T) {
 	f := NewFeature("test-feature", "Test Feature", 2, IntakeLooseIdea)
-	f.Start()
+	f.Status = StatusInProgress
+	f.UpdatedAt = time.Now()
 	f.WaitForHuman()
 
-	err := f.AdvanceTo(PhasePlanning)
-	if err == nil {
-		t.Error("AdvanceTo() from waiting_for_human should return error")
+	// Cannot advance from waiting_for_human — stage flow handles this differently now
+	if f.Status != StatusWaitingFeedback {
+		t.Error("WaitForHuman should set status to waiting_for_feedback")
 	}
 }
 
 func TestCancelFromWaitingHuman(t *testing.T) {
 	f := NewFeature("test-feature", "Test Feature", 2, IntakeLooseIdea)
-	f.Start()
+	f.Status = StatusInProgress; f.UpdatedAt = time.Now()
 	f.WaitForHuman()
 
 	f.Cancel()
@@ -941,9 +943,9 @@ func TestAssumeAllPendingQuestions(t *testing.T) {
 	store := setupTestQuestionStore(t)
 	ctx := context.Background()
 
-	q1 := Question{FeatureID: "test-feature", Phase: "inception", Role: "pm", Question: "Q1?", Type: "clarification"}
-	q2 := Question{FeatureID: "test-feature", Phase: "planning", Role: "architect", Question: "Q2?", Type: "decision", Options: []string{"Option A"}}
-	q3 := Question{FeatureID: "test-feature", Phase: "inception", Role: "pm", Question: "Q3?", Type: "priority"}
+	q1 := Question{FeatureID: "test-feature", Phase: "ideation", Role: "product", Question: "Q1?", Type: "clarification"}
+	q2 := Question{FeatureID: "test-feature", Phase: "inception", Role: "architect", Question: "Q2?", Type: "decision", Options: []string{"Option A"}}
+	q3 := Question{FeatureID: "test-feature", Phase: "ideation", Role: "product", Question: "Q3?", Type: "priority"}
 
 	store.CreateQuestion(ctx, "test-feature", q1)
 	store.CreateQuestion(ctx, "test-feature", q2)

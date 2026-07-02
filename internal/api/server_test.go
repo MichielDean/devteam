@@ -212,19 +212,6 @@ func TestGetFeatureNotFound(t *testing.T) {
 	}
 }
 
-func TestEvaluateGateFeatureNotFound(t *testing.T) {
-	s, _ := setupTestServer(t)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/features/nonexistent/gate", nil)
-	req.SetPathValue("id", "nonexistent")
-	w := httptest.NewRecorder()
-	s.evaluateGate(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected status 404, got %d", w.Code)
-	}
-}
-
 func TestGetArtifactFeatureNotFound(t *testing.T) {
 	s, _ := setupTestServer(t)
 
@@ -278,11 +265,8 @@ func TestFeatureToDetailResponse(t *testing.T) {
 	if resp.Title != "Test Feature" {
 		t.Errorf("expected title 'Test Feature', got %s", resp.Title)
 	}
-	if resp.CurrentPhase != "inception" {
-		t.Errorf("expected current_phase 'inception', got %s", resp.CurrentPhase)
-	}
-	if len(resp.PhaseStates) != 6 {
-		t.Errorf("expected 6 phase states, got %d", len(resp.PhaseStates))
+	if resp.CurrentPhase != "ideation" {
+		t.Errorf("expected current_phase 'ideation', got %s", resp.CurrentPhase)
 	}
 }
 
@@ -451,8 +435,8 @@ func TestSmokeCreateAndGetFeature(t *testing.T) {
 	if created.Title != "Test Feature" {
 		t.Errorf("expected title 'Test Feature', got %s", created.Title)
 	}
-	if created.CurrentPhase != "inception" {
-		t.Errorf("expected current_phase 'inception', got %s", created.CurrentPhase)
+	if created.CurrentPhase != "ideation" {
+		t.Errorf("expected current_phase 'ideation', got %s", created.CurrentPhase)
 	}
 
 	getResp, err := http.Get(ts.URL + "/api/features/" + created.ID)
@@ -468,19 +452,6 @@ func TestSmokeCreateAndGetFeature(t *testing.T) {
 	var detail FeatureDetailResponse
 	if err := json.NewDecoder(getResp.Body).Decode(&detail); err != nil {
 		t.Fatalf("failed to decode feature detail: %v", err)
-	}
-
-	if len(detail.PhaseStates) != 6 {
-		t.Errorf("expected 6 phase states, got %d", len(detail.PhaseStates))
-	}
-
-	for phase, state := range detail.PhaseStates {
-		if state.Artifacts == nil {
-			t.Errorf("phase %s: artifacts should be [], got null", phase)
-		}
-		if state.GateResult != nil && state.GateResult.Checks == nil {
-			t.Errorf("phase %s: gate_result.checks should be [], got null", phase)
-		}
 	}
 
 	if detail.Dependencies == nil {
@@ -753,7 +724,7 @@ func TestCreateQuestionValid(t *testing.T) {
 	s, _ := setupTestServer(t)
 	fid := seedQuestionFeature(t, s)
 
-	body := `{"phase":"inception","role":"pm","question":"What is the target audience?","type":"clarification","options":["A","B"]}`
+	body := `{"phase":"ideation","role":"product","question":"What is the target audience?","type":"clarification","options":["A","B"]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(body))
 	req.SetPathValue("id", fid)
 	w := httptest.NewRecorder()
@@ -788,13 +759,13 @@ func TestCreateQuestionValidationErrors(t *testing.T) {
 		name string
 		body string
 	}{
-		{"missing question", `{"phase":"inception","role":"pm","type":"clarification"}`},
-		{"invalid phase", `{"phase":"construction","role":"pm","question":"q?","type":"clarification"}`},
-		{"invalid role", `{"phase":"inception","role":"developer","question":"q?","type":"clarification"}`},
-		{"invalid type", `{"phase":"inception","role":"pm","question":"q?","type":"unknown"}`},
-		{"empty question", `{"phase":"inception","role":"pm","question":"","type":"clarification"}`},
-		{"too many options", `{"phase":"inception","role":"pm","question":"q?","type":"clarification","options":["1","2","3","4","5","6","7","8","9","10","11"]}`},
-		{"question too long", `{"phase":"inception","role":"pm","question":"` + strings.Repeat("x", 2001) + `","type":"clarification"}`},
+		{"missing question", `{"phase":"ideation","role":"product","type":"clarification"}`},
+		{"invalid phase", `{"phase":"construction","role":"product","question":"q?","type":"clarification"}`},
+		{"invalid role", `{"phase":"ideation","role":"invalid-role","question":"q?","type":"clarification"}`},
+		{"invalid type", `{"phase":"ideation","role":"product","question":"q?","type":"unknown"}`},
+		{"empty question", `{"phase":"ideation","role":"product","question":"","type":"clarification"}`},
+		{"too many options", `{"phase":"ideation","role":"product","question":"q?","type":"clarification","options":["1","2","3","4","5","6","7","8","9","10","11"]}`},
+		{"question too long", `{"phase":"ideation","role":"product","question":"` + strings.Repeat("x", 2001) + `","type":"clarification"}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -818,7 +789,7 @@ func TestCreateQuestionValidationErrors(t *testing.T) {
 
 func TestCreateQuestionFeatureNotFound(t *testing.T) {
 	s, _ := setupTestServer(t)
-	body := `{"phase":"inception","role":"pm","question":"q?","type":"clarification"}`
+	body := `{"phase":"ideation","role":"product","question":"q?","type":"clarification"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/nonexistent/questions", strings.NewReader(body))
 	req.SetPathValue("id", "nonexistent")
 	w := httptest.NewRecorder()
@@ -833,7 +804,7 @@ func TestAnswerQuestionLifecycle(t *testing.T) {
 	fid := seedQuestionFeature(t, s)
 
 	// Create a question
-	createBody := `{"phase":"inception","role":"pm","question":"q?","type":"clarification"}`
+	createBody := `{"phase":"ideation","role":"product","question":"q?","type":"clarification"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(createBody))
 	req.SetPathValue("id", fid)
 	w := httptest.NewRecorder()
@@ -882,7 +853,7 @@ func TestAnswerQuestionValidationErrors(t *testing.T) {
 	fid := seedQuestionFeature(t, s)
 
 	// Create a question
-	createBody := `{"phase":"inception","role":"pm","question":"q?","type":"clarification"}`
+	createBody := `{"phase":"ideation","role":"product","question":"q?","type":"clarification"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(createBody))
 	req.SetPathValue("id", fid)
 	w := httptest.NewRecorder()
@@ -933,7 +904,7 @@ func TestListPendingQuestions(t *testing.T) {
 	// Create 3 questions, answer 1
 	var questionIDs []string
 	for i := 0; i < 3; i++ {
-		body := fmt.Sprintf(`{"phase":"inception","role":"pm","question":"q%d?","type":"clarification"}`, i)
+		body := fmt.Sprintf(`{"phase":"ideation","role":"product","question":"q%d?","type":"clarification"}`, i)
 		req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(body))
 		req.SetPathValue("id", fid)
 		w := httptest.NewRecorder()
@@ -1006,7 +977,7 @@ func TestQuestionsJSONArraysNeverNull(t *testing.T) {
 	fid := seedQuestionFeature(t, s)
 
 	// Create a question with no options
-	body := `{"phase":"inception","role":"pm","question":"q?","type":"clarification"}`
+	body := `{"phase":"ideation","role":"product","question":"q?","type":"clarification"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(body))
 	req.SetPathValue("id", fid)
 	w := httptest.NewRecorder()
@@ -1032,40 +1003,5 @@ func TestQuestionsJSONArraysNeverNull(t *testing.T) {
 	raw = w.Body.String()
 	if strings.Contains(raw, `"options":null`) {
 		t.Errorf("list response contains options:null — should be []")
-	}
-}
-
-func TestAdvanceFeatureWaitingHumanBlocked(t *testing.T) {
-	s, _ := setupTestServer(t)
-	fid := seedQuestionFeature(t, s)
-
-	// Manually set feature to waiting_for_human via spec provider
-	sp := s.specProvider
-	f, err := sp.LoadFeatureState(fid)
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	f.Status = feature.StatusInProgress
-	f.Current = feature.PhaseInception
-	if err := f.WaitForHuman(); err != nil {
-		t.Fatalf("WaitForHuman: %v", err)
-	}
-	if err := sp.SaveFeatureState(f); err != nil {
-		t.Fatalf("save: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/advance", nil)
-	req.SetPathValue("id", fid)
-	w := httptest.NewRecorder()
-	s.advanceFeature(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for advancing waiting_for_human feature, got %d: %s", w.Code, w.Body.String())
-	}
-	var errResp ErrorResponse
-	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if errResp.Error != "validation_error" {
-		t.Errorf("expected error=validation_error, got %s", errResp.Error)
 	}
 }

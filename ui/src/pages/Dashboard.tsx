@@ -8,6 +8,7 @@ import FeatureList from '../components/FeatureList';
 import KanbanBoard from '../components/KanbanBoard';
 import IntakeForm from '../components/IntakeForm';
 import EmptyState from '../components/EmptyState';
+import KnowledgeEditor from '../components/KnowledgeEditor';
 
 type DashboardView = 'list' | 'kanban';
 
@@ -167,6 +168,10 @@ export default function Dashboard() {
           ? <KanbanBoard features={features} />
           : <FeatureList features={features} />
       )}
+
+      <div className="mt-8">
+        <KnowledgeEditor />
+      </div>
     </div>
   );
 }

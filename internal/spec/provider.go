@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -110,7 +109,7 @@ func (sp *SpecProvider) SaveFeatureState(f *feature.Feature) error {
 		if err != nil {
 			return fmt.Errorf("marshaling feature state: %w", err)
 		}
-		return sp.database.SaveFeatureData(f.ID, f.Title, string(f.Current), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.WorktreeDir, f.CreatedAt, 0, data)
+		return sp.database.SaveFeatureData(f.ID, f.Title, f.CurrentPhaseLegacy(), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.WorktreeDir, f.CreatedAt, 0, data)
 	}
 	return sp.saveFeatureStateToDisk(f)
 }
@@ -252,28 +251,20 @@ func (sp *SpecProvider) ArtifactExists(featureID string, artType feature.Artifac
 	return err == nil
 }
 
-func (sp *SpecProvider) ValidateArtifacts(featureID string, requiredArts []feature.ArtifactType) feature.GateResult {
-	result := feature.GateResult{
-		Phase:       sp.currentPhase(featureID),
-		Passed:      true,
-		EvaluatedAt: time.Now(),
-	}
+// ArtifactValidationResult is a simplified result from ValidateArtifacts.
+type ArtifactValidationResult struct {
+	Passed      bool
+	MissingArts []string
+}
+
+func (sp *SpecProvider) ValidateArtifacts(featureID string, requiredArts []feature.ArtifactType) ArtifactValidationResult {
+	result := ArtifactValidationResult{Passed: true}
 	for _, art := range requiredArts {
 		exists := sp.ArtifactExists(featureID, art)
 		if !exists {
 			result.Passed = false
 			result.MissingArts = append(result.MissingArts, string(art))
 		}
-		result.Checks = append(result.Checks, feature.CheckResult{
-			Name:   fmt.Sprintf("artifact_%s_exists", art),
-			Passed: exists,
-			Message: func() string {
-				if exists {
-					return fmt.Sprintf("artifact %s present", art)
-				}
-				return fmt.Sprintf("artifact %s missing", art)
-			}(),
-		})
 	}
 	return result
 }
@@ -369,10 +360,11 @@ func readDirectoryContents(dir string) (string, error) {
 	return b.String(), nil
 }
 
-func (sp *SpecProvider) currentPhase(featureID string) feature.Phase {
+// currentPhaseString returns the current phase as a string.
+func (sp *SpecProvider) currentPhaseString(featureID string) string {
 	f, err := sp.LoadFeatureState(featureID)
 	if err != nil {
-		return feature.PhaseInception
+		return "ideation"
 	}
 	return f.CurrentPhase()
 }

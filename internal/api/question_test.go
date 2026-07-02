@@ -78,10 +78,10 @@ func TestSmokeQuestionEndpoints(t *testing.T) {
 	}{
 		{"GET questions for existing feature", "GET", "/api/features/" + featureID + "/questions", "", 200},
 		{"GET pending questions for existing feature", "GET", "/api/features/" + featureID + "/questions/pending", "", 200},
-		{"POST create question", "POST", "/api/features/" + featureID + "/questions", `{"phase":"inception","role":"pm","question":"What is the target?","type":"clarification"}`, 201},
+		{"POST create question", "POST", "/api/features/" + featureID + "/questions", `{"phase":"ideation","role":"product","question":"What is the target?","type":"clarification"}`, 201},
 		{"GET questions for nonexistent feature", "GET", "/api/features/nonexistent/questions", "", 404},
 		{"GET pending questions for nonexistent feature", "GET", "/api/features/nonexistent/questions/pending", "", 404},
-		{"POST question for nonexistent feature", "POST", "/api/features/nonexistent/questions", `{"phase":"inception","role":"pm","question":"test","type":"clarification"}`, 404},
+		{"POST question for nonexistent feature", "POST", "/api/features/nonexistent/questions", `{"phase":"ideation","role":"product","question":"test","type":"clarification"}`, 404},
 		{"PATCH answer for nonexistent feature", "PATCH", "/api/features/nonexistent/questions/Q-001", `{"answer":"test"}`, 404},
 	}
 
@@ -156,9 +156,9 @@ func TestIntegrationListQuestions(t *testing.T) {
 
 	// Create 3 questions
 	questions := []string{
-		`{"phase":"inception","role":"pm","question":"What is the target audience?","type":"clarification","options":["Internal","External"]}`,
-		`{"phase":"planning","role":"architect","question":"Which database?","type":"decision","options":["PostgreSQL","MongoDB"]}`,
-		`{"phase":"inception","role":"pm","question":"What is the priority?","type":"priority"}`,
+		`{"phase":"ideation","role":"product","question":"What is the target audience?","type":"clarification","options":["Internal","External"]}`,
+		`{"phase":"inception","role":"architect","question":"Which database?","type":"decision","options":["PostgreSQL","MongoDB"]}`,
+		`{"phase":"ideation","role":"product","question":"What is the priority?","type":"priority"}`,
 	}
 	for _, q := range questions {
 		resp, err := http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(q))
@@ -343,7 +343,7 @@ func TestIntegrationCreateQuestion(t *testing.T) {
 	featureID := created.ID
 
 	// [T008] [US-001] [AC-044] [INTEGRATION] Create a valid question
-	questionBody := `{"phase":"inception","role":"pm","question":"What is the target audience?","type":"clarification","options":["Internal developers","External users"]}`
+	questionBody := `{"phase":"ideation","role":"product","question":"What is the target audience?","type":"clarification","options":["Internal developers","External users"]}`
 	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)
@@ -370,11 +370,11 @@ func TestIntegrationCreateQuestion(t *testing.T) {
 	if question.FeatureID != featureID {
 		t.Errorf("expected feature_id %s, got %s", featureID, question.FeatureID)
 	}
-	if question.Phase != "inception" {
-		t.Errorf("expected phase inception, got %s", question.Phase)
+	if question.Phase != "ideation" {
+		t.Errorf("expected phase ideation, got %s", question.Phase)
 	}
-	if question.Role != "pm" {
-		t.Errorf("expected role pm, got %s", question.Role)
+	if question.Role != "product" {
+		t.Errorf("expected role product, got %s", question.Role)
 	}
 	if question.Question != "What is the target audience?" {
 		t.Errorf("expected question text, got %s", question.Question)
@@ -441,42 +441,42 @@ func TestIntegrationCreateQuestionValidation(t *testing.T) {
 	}{
 		{
 			name:    "empty question text",
-			body:    `{"phase":"inception","role":"pm","question":"","type":"clarification"}`,
+			body:    `{"phase":"ideation","role":"product","question":"","type":"clarification"}`,
 			wantErr: "question is required",
 		},
 		{
 			name:    "missing question field",
-			body:    `{"phase":"inception","role":"pm","type":"clarification"}`,
+			body:    `{"phase":"ideation","role":"product","type":"clarification"}`,
 			wantErr: "question is required",
 		},
 		{
 			name:    "invalid phase",
 			body:    `{"phase":"construction","role":"pm","question":"Test?","type":"clarification"}`,
-			wantErr: "phase must be one of: inception, planning",
+			wantErr: "phase must be one of: ideation, inception",
 		},
 		{
 			name:    "invalid role",
-			body:    `{"phase":"inception","role":"developer","question":"Test?","type":"clarification"}`,
-			wantErr: "role must be one of: pm, architect",
+			body:    `{"phase":"ideation","role":"invalid-role","question":"Test?","type":"clarification"}`,
+			wantErr: "role must be one of: product, architect, design, delivery, developer, platform, devsecops, quality, pipeline-deploy, operations",
 		},
 		{
 			name:    "invalid type",
-			body:    `{"phase":"inception","role":"pm","question":"Test?","type":"invalid_type"}`,
+			body:    `{"phase":"ideation","role":"product","question":"Test?","type":"invalid_type"}`,
 			wantErr: "type must be one of: clarification, decision, priority",
 		},
 		{
 			name:    "too many options",
-			body:    `{"phase":"inception","role":"pm","question":"Test?","type":"clarification","options":["1","2","3","4","5","6","7","8","9","10","11"]}`,
+			body:    `{"phase":"ideation","role":"product","question":"Test?","type":"clarification","options":["1","2","3","4","5","6","7","8","9","10","11"]}`,
 			wantErr: "options must have at most 10 items",
 		},
 		{
 			name:    "option too long",
-			body:    `{"phase":"inception","role":"pm","question":"Test?","type":"clarification","options":["` + strings.Repeat("a", 501) + `"]}`,
+			body:    `{"phase":"ideation","role":"product","question":"Test?","type":"clarification","options":["` + strings.Repeat("a", 501) + `"]}`,
 			wantErr: "each option must be 1-500 characters",
 		},
 		{
 			name:    "question too long",
-			body:    `{"phase":"inception","role":"pm","question":"` + strings.Repeat("a", 2001) + `","type":"clarification"}`,
+			body:    `{"phase":"ideation","role":"product","question":"` + strings.Repeat("a", 2001) + `","type":"clarification"}`,
 			wantErr: "question must be 1-2000 characters",
 		},
 	}
@@ -544,7 +544,7 @@ func TestIntegrationAnswerQuestion(t *testing.T) {
 	featureID := created.ID
 
 	// Create a question
-	questionBody := `{"phase":"inception","role":"pm","question":"What is the target?","type":"clarification"}`
+	questionBody := `{"phase":"ideation","role":"product","question":"What is the target?","type":"clarification"}`
 	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)
@@ -623,7 +623,7 @@ func TestIntegrationAnswerConflict(t *testing.T) {
 	featureID := created.ID
 
 	// Create a question
-	questionBody := `{"phase":"inception","role":"pm","question":"What is the target?","type":"clarification"}`
+	questionBody := `{"phase":"ideation","role":"product","question":"What is the target?","type":"clarification"}`
 	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)
@@ -752,7 +752,7 @@ func TestIntegrationAnswerEmptyString(t *testing.T) {
 	featureID := created.ID
 
 	// Create question
-	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
+	questionBody := `{"phase":"ideation","role":"product","question":"What?","type":"clarification"}`
 	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)
@@ -816,7 +816,7 @@ func TestIntegrationAnswerTooLong(t *testing.T) {
 	featureID := created.ID
 
 	// Create question
-	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
+	questionBody := `{"phase":"ideation","role":"product","question":"What?","type":"clarification"}`
 	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)
@@ -877,7 +877,7 @@ func TestIntegrationListPendingQuestions(t *testing.T) {
 
 	// Create 3 questions
 	for i := 0; i < 3; i++ {
-		q := `{"phase":"inception","role":"pm","question":"Question ` + string(rune('A'+i)) + `?","type":"clarification"}`
+		q := `{"phase":"ideation","role":"product","question":"Question ` + string(rune('A'+i)) + `?","type":"clarification"}`
 		resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(q))
 		if err != nil {
 			t.Fatalf("POST question failed: %v", err)
@@ -985,7 +985,7 @@ func TestIntegrationXSSInAnswer(t *testing.T) {
 	featureID := created.ID
 
 	// Create a question
-	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
+	questionBody := `{"phase":"ideation","role":"product","question":"What?","type":"clarification"}`
 	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)
@@ -1054,7 +1054,7 @@ func TestIntegrationQuestionTooLong(t *testing.T) {
 
 	// Create a question with > 2000 char text
 	longQuestion := strings.Repeat("a", 2001)
-	questionBody := `{"phase":"inception","role":"pm","question":"` + longQuestion + `","type":"clarification"}`
+	questionBody := `{"phase":"ideation","role":"product","question":"` + longQuestion + `","type":"clarification"}`
 	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)
@@ -1094,11 +1094,11 @@ func TestIntegrationAdvanceFromWaitingHumanBlocked(t *testing.T) {
 	// This requires direct manipulation since we can't easily set status via API
 	f := feature.NewFeature("test-wfh-feature", "Test WFH", 2, feature.IntakeLooseIdea)
 	f.Status = feature.StatusInProgress
-	f.Current = feature.PhaseInception
+	f.CurrentStage = "1.1"
 	sp.SaveFeatureState(f)
 
 	// Create a question (this is valid because the feature is in_progress in inception)
-	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
+	questionBody := `{"phase":"ideation","role":"product","question":"What?","type":"clarification"}`
 	resp, err := http.Post(ts.URL+"/api/features/"+f.ID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)
@@ -1188,7 +1188,7 @@ func TestIntegrationFeatureListIncludesPendingQuestionsCount(t *testing.T) {
 
 	// Create 2 questions
 	for i := 0; i < 2; i++ {
-		q := `{"phase":"inception","role":"pm","question":"Question ` + string(rune('0'+i)) + `?","type":"clarification"}`
+		q := `{"phase":"ideation","role":"product","question":"Question ` + string(rune('0'+i)) + `?","type":"clarification"}`
 		resp, err := http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(q))
 		if err != nil {
 			t.Fatalf("POST question failed: %v", err)
@@ -1277,7 +1277,7 @@ func TestIntegrationQuestionEndpointsArraysNeverNull(t *testing.T) {
 	}
 
 	// Create a question WITHOUT options and verify options is []
-	questionBody := `{"phase":"inception","role":"pm","question":"No options question?","type":"clarification"}`
+	questionBody := `{"phase":"ideation","role":"product","question":"No options question?","type":"clarification"}`
 	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)
@@ -1339,7 +1339,7 @@ func TestIntegrationQuestion404s(t *testing.T) {
 	}
 
 	// POST question for nonexistent feature → 404
-	resp, err = http.Post(ts.URL+"/api/features/nonexistent-feature-id/questions", "application/json", strings.NewReader(`{"phase":"inception","role":"pm","question":"test?","type":"clarification"}`))
+	resp, err = http.Post(ts.URL+"/api/features/nonexistent-feature-id/questions", "application/json", strings.NewReader(`{"phase":"ideation","role":"product","question":"test?","type":"clarification"}`))
 	if err != nil {
 		t.Fatalf("POST failed: %v", err)
 	}
@@ -1383,7 +1383,7 @@ func TestIntegrationAnswerAssumedConflict(t *testing.T) {
 	resp.Body.Close()
 	featureID := created.ID
 
-	questionBody := `{"phase":"inception","role":"pm","question":"What?","type":"clarification"}`
+	questionBody := `{"phase":"ideation","role":"product","question":"What?","type":"clarification"}`
 	resp, err = http.Post(ts.URL+"/api/features/"+featureID+"/questions", "application/json", strings.NewReader(questionBody))
 	if err != nil {
 		t.Fatalf("POST question failed: %v", err)

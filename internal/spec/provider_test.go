@@ -82,37 +82,3 @@ func TestSpecProviderArtifactExists(t *testing.T) {
 	}
 }
 
-func TestSpecWriterRecordArtifact(t *testing.T) {
-	sw, sp, _ := newTestWriter(t)
-
-	f := feature.NewFeature("001-record-test", "Record Test", 2, feature.IntakeLooseIdea)
-	if err := sp.SaveFeatureState(f); err != nil {
-		t.Fatalf("SaveFeatureState: %v", err)
-	}
-
-	if err := sw.WriteArtifact(f.ID, feature.ArtifactSpecMD, []byte("# Spec")); err != nil {
-		t.Fatalf("WriteArtifact() error: %v", err)
-	}
-	if err := sw.RecordArtifact(f.ID, feature.ArtifactSpecMD, feature.RolePM); err != nil {
-		t.Fatalf("RecordArtifact() error: %v", err)
-	}
-
-	loaded, err := sp.LoadFeatureState(f.ID)
-	if err != nil {
-		t.Fatalf("LoadFeatureState() error: %v", err)
-	}
-	phase := loaded.CurrentPhase()
-	ps, ok := loaded.PhaseStates[phase]
-	if !ok {
-		t.Fatalf("no phase state for %s", phase)
-	}
-	if len(ps.Artifacts) != 1 {
-		t.Fatalf("expected 1 artifact, got %d", len(ps.Artifacts))
-	}
-	if ps.Artifacts[0].Type != feature.ArtifactSpecMD {
-		t.Errorf("artifact type = %s, want %s", ps.Artifacts[0].Type, feature.ArtifactSpecMD)
-	}
-	if ps.Artifacts[0].GeneratedBy != feature.RolePM {
-		t.Errorf("artifact generated_by = %s, want %s", ps.Artifacts[0].GeneratedBy, feature.RolePM)
-	}
-}

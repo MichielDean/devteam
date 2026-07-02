@@ -179,60 +179,6 @@ func (s *Server) spaHandler(staticFS fs.FS) http.HandlerFunc {
 	}
 }
 
-// runPhaseGoroutine is the single entry point for dispatching a phase.
-// Replaces the 6 duplicated inline goroutines. Dispatches one phase, broadcasts
-// SSE events, removes the feature from active set on completion.
-func (s *Server) runPhaseGoroutine(id string, currentPhase feature.Phase) {
-	defer s.active.Delete(id)
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("PANIC in runPhase goroutine for %s: %v", id, r)
-			s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Internal error (recovered). Check logs."}`, id))
-		}
-	}()
-
-	ctx := context.Background()
-
-	s.broadcastSSE(id, "phase_change", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"in_progress"}`, id, currentPhase))
-	s.broadcastSSE(id, "agent_dispatch", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"dispatched"}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase)))
-
-	onOutput := func(line string, isStderr bool) {
-		escaped, _ := json.Marshal(line)
-		s.broadcastSSE(id, "agent_output", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","line":%s,"stderr":%v}`, id, currentPhase, string(escaped), isStderr))
-	}
-
-	f, err := s.pipeline.GetFeature(id)
-	if err != nil {
-		s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","message":"Failed to load feature: %s"}`, id, err.Error()))
-		return
-	}
-
-	result, err := s.pipeline.RunPhase(ctx, f, onOutput)
-	if err != nil {
-		log.Printf("error running phase for feature %s: %v", id, err)
-		s.broadcastSSE(id, "error", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","message":"Phase execution failed: %s"}`, id, currentPhase, err.Error()))
-		return
-	}
-	log.Printf("phase %s completed for feature %s in %v", currentPhase, id, result.Duration)
-
-	s.broadcastSSE(id, "agent_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","role":"%s","status":"success","duration_ms":%d}`, id, currentPhase, s.pipeline.PrimaryRole(currentPhase), result.Duration.Milliseconds()))
-
-	// Broadcast gate result (smoke check)
-	passed := len(result.SmokeFailures) == 0
-	checks := make([]map[string]interface{}, 0, len(result.SmokeFailures)+1)
-	if passed {
-		checks = append(checks, map[string]interface{}{"name": "smoke_check", "passed": true})
-	} else {
-		for _, fail := range result.SmokeFailures {
-			checks = append(checks, map[string]interface{}{"name": "smoke_check", "passed": false, "message": fail})
-		}
-	}
-	checksJSON, _ := json.Marshal(checks)
-	s.broadcastSSE(id, "gate_result", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","passed":%v,"checks":%s}`, id, currentPhase, passed, string(checksJSON)))
-
-	s.broadcastSSE(id, "phase_complete", fmt.Sprintf(`{"feature_id":"%s","phase":"%s","status":"complete"}`, id, currentPhase))
-}
-
 func (s *Server) listFeatures(w http.ResponseWriter, r *http.Request) {
 	features, err := s.pipeline.ListFeatures()
 	if err != nil {
@@ -316,7 +262,7 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 
 	if s.db != nil {
 		s.db.Exec(`INSERT OR IGNORE INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-			f.ID, f.Title, string(f.Current), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.CreatedAt, f.UpdatedAt)
+			f.ID, f.Title, f.CurrentPhaseLegacy(), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.CreatedAt, f.UpdatedAt)
 	}
 
 	// Set AIDLC v2 scope/depth/test_strategy
@@ -359,12 +305,6 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID), ""))
-
-	if !req.StartImmediately {
-		return
-	}
-
-	go s.runPhaseGoroutine(f.ID, f.Current)
 }
 
 func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
@@ -378,164 +318,6 @@ func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
 		return
-	}
-
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
-}
-
-func (s *Server) runPhase(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
-		return
-	}
-
-	f, err := s.pipeline.GetFeature(id)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
-		return
-	}
-
-	if f.IsTerminal() {
-		writeError(w, http.StatusBadRequest, "validation_error", fmt.Sprintf("Feature %s is in a terminal state (%s)", id, f.Status))
-		return
-	}
-
-	if f.Status == feature.StatusWaitingFeedback {
-		pending, _ := s.questionStore.PendingCount(r.Context(), id)
-		if pending > 0 {
-			writeError(w, http.StatusBadRequest, "validation_error", "Cannot run phase with pending questions")
-			return
-		}
-		f.Status = feature.StatusInProgress
-		s.pipeline.UpdateFeatureStatus(f)
-	}
-
-	if _, loaded := s.active.LoadOrStore(id, struct{}{}); loaded {
-		writeError(w, http.StatusConflict, "already_processing", fmt.Sprintf("Feature %s is already being processed", id))
-		return
-	}
-
-	// Prepare impl repos when entering construction
-	if f.Current == feature.PhaseConstruction {
-		if err := s.pipeline.PrepareImplRepos(f); err != nil {
-			log.Printf("warning: could not prepare impl repos for %s: %v", f.ID, err)
-		}
-	}
-
-	currentPhase := f.Current
-	writeJSON(w, http.StatusAccepted, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
-
-	go s.runPhaseGoroutine(id, currentPhase)
-}
-
-func (s *Server) advanceFeature(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
-		return
-	}
-
-	f, err := s.pipeline.GetFeature(id)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
-		return
-	}
-
-	if f.IsTerminal() {
-		writeError(w, http.StatusBadRequest, "validation_error", fmt.Sprintf("Feature %s is in a terminal state (%s)", id, f.Status))
-		return
-	}
-
-	if f.Status == feature.StatusWaitingFeedback {
-		pending, _ := s.questionStore.PendingCount(r.Context(), id)
-		if pending > 0 {
-			writeError(w, http.StatusBadRequest, "validation_error", "Cannot advance feature with pending questions")
-			return
-		}
-		f.Status = feature.StatusInProgress
-	}
-
-	if f.Current == feature.PhaseDelivery {
-		gr, _ := s.pipeline.EvaluateGate(f)
-		if gr != nil && gr.Passed {
-			f.MarkDone()
-			if err := s.pipeline.SaveFeature(f); err != nil {
-				writeError(w, http.StatusInternalServerError, "internal_error", "Failed to save feature state")
-				return
-			}
-			writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
-			return
-		}
-		writeError(w, http.StatusBadRequest, "validation_error", "Feature is at the final phase (delivery) and the gate has not passed")
-		return
-	}
-
-	gr, err := s.pipeline.EvaluateGate(f)
-	if err != nil {
-		log.Printf("error evaluating gate: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to evaluate gate")
-		return
-	}
-
-	if gr == nil || !gr.Passed {
-		writeError(w, http.StatusBadRequest, "validation_error", fmt.Sprintf("Gate has not passed for phase %s", f.Current))
-		return
-	}
-
-	f, err = s.pipeline.AdvanceFeature(f)
-	if err != nil {
-		log.Printf("error advancing feature: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to advance feature")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
-}
-
-func (s *Server) recirculateFeature(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
-		return
-	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-
-	var req RecirculateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "validation_error", "Invalid JSON body")
-		return
-	}
-
-	f, err := s.pipeline.GetFeature(id)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
-		return
-	}
-
-	if f.IsTerminal() {
-		writeError(w, http.StatusBadRequest, "validation_error", fmt.Sprintf("Feature %s is in a terminal state (%s)", id, f.Status))
-		return
-	}
-
-	targetPhase := feature.ParsePhase(req.TargetPhase)
-	if !feature.IsValidPhase(req.TargetPhase) {
-		writeError(w, http.StatusBadRequest, "invalid_phase", fmt.Sprintf("Invalid phase %q. Valid phases: %v", req.TargetPhase, feature.ValidPhaseNames()))
-		return
-	}
-
-	f, err = s.pipeline.RecirculateFeature(f, targetPhase, "recirculated via web UI")
-	if err != nil {
-		log.Printf("error recirculating feature: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to recirculate feature")
-		return
-	}
-
-	if s.questionStore != nil {
-		if err := s.questionStore.DeleteQuestionsForFeature(r.Context(), id); err != nil {
-			log.Printf("warning: failed to delete questions for feature %s on recirculate: %v", id, err)
-		}
 	}
 
 	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
@@ -576,29 +358,6 @@ func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
-}
-
-func (s *Server) evaluateGate(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "validation_error", "Feature ID is required")
-		return
-	}
-
-	f, err := s.pipeline.GetFeature(id)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "feature_not_found", fmt.Sprintf("Feature %s not found", id))
-		return
-	}
-
-	gr, err := s.pipeline.EvaluateGate(f)
-	if err != nil {
-		log.Printf("error evaluating gate: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to evaluate gate")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, GateResultToResponse(gr))
 }
 
 func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
@@ -646,7 +405,7 @@ func (s *Server) getCapturedOutput(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find the log file for the current phase
-	logPath := filepath.Join(s.pipeline.WorktreeDir(f), "logs", string(f.Current)+"-"+s.pipeline.PrimaryRole(f.Current)+".log")
+	logPath := filepath.Join(s.pipeline.WorktreeDir(f), "logs", f.CurrentPhaseLegacy()+".log")
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -870,11 +629,11 @@ func (s *Server) createQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !feature.ValidQuestionPhases[req.Phase] {
-		writeError(w, http.StatusBadRequest, "validation_error", "phase must be one of: inception, planning")
+		writeError(w, http.StatusBadRequest, "validation_error", "phase must be one of: ideation, inception")
 		return
 	}
 	if !feature.ValidQuestionRoles[req.Role] {
-		writeError(w, http.StatusBadRequest, "validation_error", "role must be one of: pm, architect")
+		writeError(w, http.StatusBadRequest, "validation_error", "role must be one of: product, architect, design, delivery, developer, platform, devsecops, quality, pipeline-deploy, operations")
 		return
 	}
 	if !feature.ValidQuestionTypes[req.Type] {

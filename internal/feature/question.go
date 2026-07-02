@@ -22,16 +22,24 @@ const (
 	QuestionStatusAssumed  = "assumed"
 )
 
-// Valid question phases
+// Valid question phases (AIDLC v2: ideation and inception stages can ask questions)
 var ValidQuestionPhases = map[string]bool{
-	string(PhaseInception): true,
-	string(PhasePlanning):  true,
+	"ideation":   true,
+	"inception":  true,
 }
 
-// Valid question roles
+// Valid question roles (AIDLC v2: any agent can ask questions)
 var ValidQuestionRoles = map[string]bool{
-	string(RolePM):        true,
-	string(RoleArchitect): true,
+	"product":    true,
+	"architect":  true,
+	"design":     true,
+	"delivery":   true,
+	"developer":  true,
+	"platform":   true,
+	"devsecops":  true,
+	"quality":    true,
+	"pipeline-deploy": true,
+	"operations": true,
 }
 
 // Valid question types
@@ -63,10 +71,10 @@ type Question struct {
 // ValidateQuestion validates a question's fields and returns an error description if invalid.
 func ValidateQuestion(q *Question) string {
 	if q.Phase == "" || !ValidQuestionPhases[q.Phase] {
-		return "phase must be one of: inception, planning"
+		return "phase must be one of: ideation, inception"
 	}
 	if q.Role == "" || !ValidQuestionRoles[q.Role] {
-		return "role must be one of: pm, architect"
+		return "role must be one of: product, architect, design, delivery, developer, platform, devsecops, quality, pipeline-deploy, operations"
 	}
 	qText := strings.TrimSpace(q.Question)
 	if qText == "" {
@@ -500,8 +508,9 @@ func ShouldPauseForHuman(f *Feature, timeoutMinutes int) bool {
 	if timeoutMinutes == 0 {
 		return false
 	}
-	// Can only pause for human during inception or planning
-	if f.Current != PhaseInception && f.Current != PhasePlanning {
+	// Can only pause for human during ideation or inception phases
+	phase := f.CurrentPhase()
+	if phase != "ideation" && phase != "inception" {
 		return false
 	}
 	// Must be in_progress status
@@ -522,11 +531,6 @@ func (f *Feature) WaitForFeedback() error {
 	return nil
 }
 
-// WaitForHuman is kept for backward compatibility
-func (f *Feature) WaitForHuman() error {
-	return f.WaitForFeedback()
-}
-
 // ResumeFromFeedback transitions the feature from waiting_for_feedback back to in_progress.
 func (f *Feature) ResumeFromFeedback() error {
 	if f.Status != StatusWaitingFeedback {
@@ -543,12 +547,12 @@ func (f *Feature) ResumeFromWaitingHuman() error {
 }
 
 // CanTransitionToWaitingFeedback checks if a feature can transition to waiting_for_feedback.
-// Only inception and planning phases in in_progress status can pause for user feedback.
 func (f *Feature) CanTransitionToWaitingFeedback() bool {
 	if f.Status != StatusInProgress {
 		return false
 	}
-	if f.Current != PhaseInception && f.Current != PhasePlanning {
+	phase := f.CurrentPhase()
+	if phase != "ideation" && phase != "inception" {
 		return false
 	}
 	return true

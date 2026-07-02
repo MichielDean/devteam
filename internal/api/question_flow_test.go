@@ -32,7 +32,7 @@ func seedWaitingHumanFeature(t *testing.T, s *Server) string {
 	sp := s.specProvider
 	fid := "waiting-human-feature"
 	f := feature.NewFeature(fid, "Waiting Human Feature", 1, feature.IntakeLooseIdea)
-	f.Start() // in_progress, inception
+	f.Status = feature.StatusInProgress // in_progress, inception
 	if err := f.WaitForHuman(); err != nil {
 		t.Fatalf("WaitForHuman: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestIntegrationRecirculateWaitingHumanClearsQuestions(t *testing.T) {
 	fid := seedWaitingHumanFeature(t, s)
 
 	// Seed a question directly via the handler
-	createBody := `{"phase":"inception","role":"pm","question":"q?","type":"clarification"}`
+	createBody := `{"phase":"ideation","role":"product","question":"q?","type":"clarification"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(createBody))
 	req.SetPathValue("id", fid)
 	w := httptest.NewRecorder()
@@ -92,17 +92,13 @@ func TestIntegrationRecirculateWaitingHumanClearsQuestions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	// Reset to in_progress and advance to planning
+	// Reset to in_progress
 	if err := f.ResumeFromWaitingHuman(); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
-	// Mark inception passed, move to planning
-	f.PhaseStates[feature.PhaseInception].Status = feature.StatusPassed
-	f.Current = feature.PhasePlanning
-	f.PhaseStates[feature.PhasePlanning].Status = feature.StatusInProgress
 	f.Status = feature.StatusInProgress
 	if err := f.WaitForHuman(); err != nil {
-		t.Fatalf("WaitForHuman in planning: %v", err)
+		t.Fatalf("WaitForHuman: %v", err)
 	}
 	if err := sp.SaveFeatureState(f); err != nil {
 		t.Fatalf("save: %v", err)
@@ -143,7 +139,7 @@ func TestIntegrationConcurrentAnswerConflict(t *testing.T) {
 	s, ts, _ := setupTestServerWithServer(t)
 	fid := seedQuestionFeature(t, s)
 
-	createBody := `{"phase":"inception","role":"pm","question":"concurrent?","type":"clarification"}`
+	createBody := `{"phase":"ideation","role":"product","question":"concurrent?","type":"clarification"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(createBody))
 	req.SetPathValue("id", fid)
 	w := httptest.NewRecorder()
@@ -201,7 +197,7 @@ func TestIntegrationConcurrentPatchAnswerConflict(t *testing.T) {
 	s, ts, _ := setupTestServerWithServer(t)
 	fid := seedQuestionFeature(t, s)
 
-	createBody := `{"phase":"inception","role":"pm","question":"concurrent patch?","type":"clarification"}`
+	createBody := `{"phase":"ideation","role":"product","question":"concurrent patch?","type":"clarification"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(createBody))
 	req.SetPathValue("id", fid)
 	w := httptest.NewRecorder()
@@ -264,7 +260,7 @@ func TestIntegrationFeatureListPendingQuestionsCount(t *testing.T) {
 
 	// Create 3 pending questions
 	for i := 0; i < 3; i++ {
-		body := fmt.Sprintf(`{"phase":"inception","role":"pm","question":"q%d?","type":"clarification"}`, i)
+		body := fmt.Sprintf(`{"phase":"ideation","role":"product","question":"q%d?","type":"clarification"}`, i)
 		req := httptest.NewRequest(http.MethodPost, "/api/features/"+fid+"/questions", strings.NewReader(body))
 		req.SetPathValue("id", fid)
 		w := httptest.NewRecorder()
@@ -324,7 +320,7 @@ func TestSmokeQuestionEndpointsViaRealServer(t *testing.T) {
 	}
 
 	// POST create
-	createBody := `{"phase":"inception","role":"pm","question":"smoke?","type":"clarification","options":["a","b"]}`
+	createBody := `{"phase":"ideation","role":"product","question":"smoke?","type":"clarification","options":["a","b"]}`
 	resp, err = http.Post(ts.URL+"/api/features/"+fid+"/questions", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST question: %v", err)

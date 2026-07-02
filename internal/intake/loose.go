@@ -38,7 +38,8 @@ func (li *LooseIdeaIntake) Submit(title string, description string, priority int
 	f := feature.NewFeature(id, title, priority, feature.IntakeLooseIdea)
 	f.Repos = repos
 
-	f.Start()
+	f.Status = feature.StatusInProgress
+	f.UpdatedAt = time.Now()
 	if err := li.provider.SaveFeatureState(f); err != nil {
 		return nil, fmt.Errorf("saving feature state: %w", err)
 	}

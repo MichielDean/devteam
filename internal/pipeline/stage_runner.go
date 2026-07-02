@@ -14,6 +14,9 @@ import (
 	"github.com/MichielDean/devteam/internal/stage"
 )
 
+// ReviewerMaxIterations is the maximum number of reviewer revision cycles.
+const ReviewerMaxIterations = 2
+
 // StageRunResult is the outcome of a single RunStage call.
 type StageRunResult struct {
 	StageID       string
@@ -266,8 +269,21 @@ func (p *Pipeline) dispatchReviewer(ctx context.Context, f *feature.Feature, sta
 		Reviewer:   reviewerName,
 		Verdict:    verdict,
 		Notes:      notes,
-		Iterations: 1,
+		Iterations: 1, // single pass; revision cycles tracked via feature_stages.revision_count
 	}, nil
+}
+
+// reviewerIterationsExceeded checks if the reviewer has exceeded max iterations
+// for this stage (based on revision_count in feature_stages).
+func (p *Pipeline) reviewerIterationsExceeded(f *feature.Feature, stageID string) bool {
+	if p.database == nil {
+		return false
+	}
+	fs, err := p.database.GetFeatureStage(f.ID, stageID)
+	if err != nil || fs == nil {
+		return false
+	}
+	return fs.RevisionCount >= ReviewerMaxIterations
 }
 
 // recordReviewerAudit records the reviewer dispatch result.

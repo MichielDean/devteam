@@ -1,9 +1,6 @@
 package spec
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/MichielDean/devteam/internal/feature"
 )
 
@@ -42,25 +39,4 @@ func (sw *SpecWriter) CreateFeatureDir(featureID string) error {
 // WriteArtifact writes an artifact to the DB (via the provider).
 func (sw *SpecWriter) WriteArtifact(featureID string, artType feature.ArtifactType, content []byte) error {
 	return sw.provider.SaveArtifactBytes(featureID, artType, content)
-}
-
-// RecordArtifact records that an artifact was generated in the feature's phase state.
-func (sw *SpecWriter) RecordArtifact(featureID string, artType feature.ArtifactType, role feature.RoleName) error {
-	f, err := sw.provider.LoadFeatureState(featureID)
-	if err != nil {
-		return fmt.Errorf("loading feature for RecordArtifact: %w", err)
-	}
-	phase := f.CurrentPhase()
-	ps, ok := f.PhaseStates[phase]
-	if !ok {
-		ps = &feature.PhaseState{Phase: phase, Status: feature.StatusInProgress}
-		f.PhaseStates[phase] = ps
-	}
-	ps.Artifacts = append(ps.Artifacts, feature.Artifact{
-		Type:        artType,
-		Path:        "", // no disk path — DB-backed
-		GeneratedBy: role,
-		GeneratedAt: time.Now(),
-	})
-	return sw.provider.SaveFeatureState(f)
 }

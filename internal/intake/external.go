@@ -43,7 +43,8 @@ func (es *ExternalSpecIntake) Submit(title string, documentContent string, prior
 	f := feature.NewFeature(id, title, priority, feature.IntakeExternalSpec)
 	f.Repos = repos
 
-	f.Start()
+	f.Status = feature.StatusInProgress
+	f.UpdatedAt = time.Now()
 	if err := es.provider.SaveFeatureState(f); err != nil {
 		return nil, fmt.Errorf("saving feature state: %w", err)
 	}

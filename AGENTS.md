@@ -1,6 +1,56 @@
-# AGENTS.md — Dev Team Repository
+# AGENTS.md — Dev Team Repository (AIDLC v2)
 
 This file provides context for AI agents working in this repository.
+
+## AIDLC v2 Workflow
+
+Dev Team uses the AIDLC v2 methodology: 5 phases, 32 stages, 10 agents + 2 reviewers, 9 scopes with auto-detection, 3 depth levels, 3 test strategy levels, per-stage approval gates, 68-event audit trail, Bolt-by-Bolt construction.
+
+### 5 Phases / 32 Stages
+
+| Phase | Stages | Purpose |
+|-------|--------|---------|
+| 0. Initialization | 0.1-0.3 (3) | Workspace scaffold, detection, state init. Auto-proceed, no gates. |
+| 1. Ideation | 1.1-1.7 (7) | Intent capture, market research, feasibility, scope, team, mockups, approval. |
+| 2. Inception | 2.1-2.8 (8) | Reverse engineering, practices, requirements, stories, mockups, app design, units, delivery planning. |
+| 3. Construction | 3.1-3.7 (7) | Functional design, NFR reqs, NFR design, infra design, code gen, build+test, CI. Per-Bolt (3.1-3.5), once (3.6-3.7). |
+| 4. Operation | 4.1-4.7 (7) | Deploy pipeline, env provisioning, deploy execution, observability, incident response, perf validation, feedback. |
+
+### 10 Agents + 2 Reviewers
+
+- product (opus) — requirements, stories, scope
+- design (opus) — UX/UI, wireframes
+- delivery (sonnet) — team formation, Bolt sequencing
+- architect (opus) — app design, domain modeling, NFRs
+- platform (opus) — infrastructure (cloud-agnostic: Linux/systemd/Docker)
+- devsecops (opus) — threat modeling, security scanning
+- developer (opus) — code implementation, reverse engineering
+- quality (opus) — test strategy, test generation
+- pipeline-deploy (sonnet) — CI/CD pipelines, deployment
+- operations (sonnet) — observability, incident response, SLOs
+
+Reviewers:
+- product-lead (sonnet) — reviews requirements/stories/UX
+- architecture-reviewer (sonnet) — reviews technical design
+
+### 9 Scopes (auto-detected from intent)
+
+enterprise (32 stages), feature (32), mvp (22), poc (8), bugfix (7), refactor (8), infra (13), security-patch (9), workshop (25)
+
+### Per-Stage Approval Gates
+
+Every stage (except 0.1-0.3) ends with a gate:
+- **Approve** → advance to next stage
+- **Request Changes** → revision cycle (up to 3, then "Accept as-is" escape hatch)
+- **Accept as-is** → after 3 rejections, accept despite issues
+
+### Learning Loop
+
+Gate rejections are saved as rules in the `rules` DB table. Future stages load relevant rules into agent context. Prevents repeating mistakes.
+
+### Team Knowledge
+
+Per-agent knowledge entries in `team_knowledge` DB table. Loaded into context at dispatch time. Managed via API (`/api/knowledge/{agent}`).
 
 ## State Management — USE THE CLI
 
@@ -8,207 +58,49 @@ You are an agent in the Dev Team pipeline. Use the `devteam` CLI to manage your 
 
 ### Submit Questions
 ```bash
-# Write questions.json, then:
 devteam questions ask <feature-id> --file questions.json
 devteam signal <feature-id> needs_feedback
 ```
 
 ### Signal Outcome
 ```bash
-devteam signal <feature-id> pass                          # work complete
-devteam signal <feature-id> recirculate:construction --notes "what to fix"  # send back
-devteam signal <feature-id> failed --notes "why"          # blocked
+devteam signal <feature-id> pass                                    # stage complete
+devteam signal <feature-id> recirculate:<stage-id> --notes "fix"    # send back for revision
+devteam signal <feature-id> failed --notes "why"                    # blocked
 ```
 
-### Add Notes for Next Phase
+### Submit Artifacts
 ```bash
-devteam notes add <feature-id> --phase <phase> --content "what you decided"
+devteam artifact submit <feature-id> <type> --file <filename>
+devteam artifact submit <feature-id> <type> --content "inline content"
 ```
+
+Artifact types: spec, acceptance, repos, plan, tasks, research, data_model, review_report, test_report, docs
 
 ### Query State
 ```bash
 devteam feature status <feature-id>
-devteam questions pending <feature-id>
+devteam stages <feature-id>        # show all 32 stages with status
+devteam audit <feature-id>         # show audit trail
 ```
 
-The CLI handles all database operations. You do NOT touch SQLite directly. The CLI finds the database automatically.
-
-## Project Overview
-
-Dev Team is an **AI-Driven Development Life Cycle (AI-DLC) platform** that orchestrates multi-agent software development through structured phases: inception → planning → construction → review → testing → delivery.
-
-The platform itself is a Go backend with a React/TypeScript frontend. It dispatches opencode agents to work on features in per-spec git worktrees.
-
-## CRITICAL: This Is a Platform, Not a Project
-
-Phase instructions, gate checks, and role instructions must NEVER reference:
-- Specific build commands (go build, npm run build, cargo build)
-- Specific test commands (go test, npm test, npx playwright test)
-- Specific file names (go.mod, package.json, playwright.config.ts)
-- Specific ports (8765, 18765)
-- Repository-specific helper scripts
-- Language-specific patterns (json tags, omitempty, httptest)
-
-Instructions should tell agents to **discover** the project's build/test infrastructure and use whatever commands the project supports.
-
-## Build & Test Commands
-
-### IMPORTANT: Go binary location
-
-The `go` binary is at `/usr/local/go/bin/go`. It may not be in your default PATH. Always use the full path or prepend to PATH:
-
+### Run a Stage
 ```bash
-export PATH="$PATH:/usr/local/go/bin"
+devteam run-stage <feature-id> <stage-id>    # e.g. devteam run-stage feat-001 1.1
 ```
 
-### Backend (Go)
-
+### Approve/Reject a Stage Gate
 ```bash
-# Build (use full path if go is not in PATH)
-PATH="$PATH:/usr/local/go/bin" go build -o ~/go/bin/devteam ./cmd/devteam/
-
-# Run tests
-PATH="$PATH:/usr/local/go/bin" go test ./... -count=1 -timeout 120s
-
-# Run with coverage
-PATH="$PATH:/usr/local/go/bin" go test ./... -cover -count=1
-
-# Vet
-PATH="$PATH:/usr/local/go/bin" go vet ./...
+devteam approve <feature-id> <stage-id>
+devteam reject <feature-id> <stage-id> "what needs fixing"
 ```
 
-### Frontend (UI)
-
+### Jump to a Stage or Phase
 ```bash
-cd ui
-npm install        # install dependencies
-npm run build      # production build
-npm run dev        # dev server
-npm run lint       # eslint
-npm run test:e2e   # Playwright e2e tests (uses port 18765, not 8765)
+devteam jump <feature-id> 2.3                    # jump to stage 2.3
+devteam jump <feature-id> phase:construction     # jump to first construction stage
 ```
 
-### Playwright E2E Tests
+## DB-Only
 
-Playwright config is at `ui/playwright.config.ts`. It uses port **18765** (not 8765, which is the production service).
-
-```bash
-cd ui
-npx playwright install chromium          # install browser if needed
-npx playwright test --reporter=line       # run all e2e tests
-npx playwright test kanban.spec.ts        # run specific test file
-```
-
-The Playwright `webServer` config automatically starts a test server on :18765. The config uses `cwd: repoRoot` so the server runs from the repo root (where `devteam.yaml` lives).
-
-- Set `START_SERVER=1` to force Playwright to start its own server
-- If using `SERVER_BINARY`, include `cd` to the repo root: `SERVER_BINARY="cd /path/to/repo && /path/to/binary -http :18765"`
-- Do NOT set `SERVER_BINARY` to just a binary path — the binary needs to run from the repo root to find `devteam.yaml`
-
-## Service Architecture
-
-- **devteam-web**: systemd service on `:8765` (production)
-- **Binary**: `~/go/bin/devteam`
-- **Working directory**: `~/source/devteam` (primary checkout)
-- **Config**: `devteam.yaml` in repo root
-- **Database**: `.devteam.db` (SQLite, default) or external PostgreSQL via `database:` config
-- **Specs**: `specs/<feature-id>/` (git-tracked runtime data)
-- **Spec worktrees**: `~/worktrees/devteam-specs/<feature-id>/` on branch `spec/<feature-id>`
-
-## Database Configuration
-
-Operational data (features, gate results, sessions, notes, questions, recirculations, events) is stored in a relational database. Markdown spec artifacts stay in git.
-
-### SQLite (default — local/single-user)
-
-```yaml
-# devteam.yaml
-database:
-  driver: sqlite3
-  dsn: ""  # defaults to .devteam.db in repo root
-```
-
-### PostgreSQL (shared/multi-user)
-
-```yaml
-# devteam.yaml
-database:
-  driver: postgres
-  dsn: "host=localhost port=5432 user=devteam dbname=devteam sslmode=disable"
-```
-
-### Environment variable overrides
-
-```bash
-DEVTEAM_DB_DRIVER=postgres
-DEVTEAM_DB_DSN="host=db.internal port=5432 user=devteam dbname=devteam sslmode=require"
-```
-
-### Migrations
-
-Migrations are versioned and tracked in the `schema_migrations` table. They run automatically on startup. To add a new migration:
-
-1. Create `internal/db/migration_NNN.go`
-2. Register with `RegisterMigration(Migration{Version: NNN, Name: "description", Up: func})`
-3. Migrations run in version order, each in a transaction
-4. Each migration adapts SQL for both SQLite and PostgreSQL (AUTOINCREMENT → SERIAL, DATETIME → TIMESTAMP)
-
-## Important Constraints
-
-### Specs Are Runtime Data
-- `specs/` directories contain runtime-generated artifacts that may not be committed to git yet
-- NEVER use `git reset --hard` on this repo — use `git pull` instead
-- Specs are auto-committed to the spec worktree after each gate passes
-- The primary checkout's `specs/` directory has state files for `ListFeatures` to find
-
-### Spec Worktrees
-Each feature gets its own git worktree at `~/worktrees/devteam-specs/<feature-id>/`. All agents dispatch with CWD = the worktree. The worktree is on branch `spec/<feature-id>`.
-
-### Testing
-- Production service runs on :8765 — do NOT start test servers on this port
-- Playwright tests use :18765 (configured in `ui/playwright.config.ts`)
-- Go tests should use `httptest` for in-process server testing, not external processes
-
-### Agent Dispatch
-- Agents run in tmux sessions named `devteam-<feature-id>`
-- Output is captured to log files (`logs/<phase>-<role>.log`) and streamed to the UI via SSE
-- The `~/go/bin/devteam` binary must be built from `origin/main` (never from a worktree)
-- One phase per `POST /run` call — no autopilot loop on the backend. UI drives multi-phase progression by calling `/run` repeatedly.
-- Agent signals outcome via `devteam signal` CLI → DB `outcomes` table. Pipeline reads outcome after dispatch completes.
-- No `outcome.txt` or `GATE_FAILURE.md` files on disk — all state is in SQLite.
-
-## Project Structure
-
-```
-devteam/
-├── cmd/devteam/          # Main entry point
-├── internal/
-│   ├── api/              # HTTP API server + SSE
-│   ├── feature/          # Feature state, questions, phases
-│   ├── gitops/           # Git operations
-│   ├── pipeline/         # Pipeline orchestration, smoke checks, RunPhase
-│   ├── repo/             # Repository management
-│   ├── role/             # Agent dispatch (tmux-based)
-│   ├── rules/            # AIDLC rule loading
-│   └── spec/             # Spec provider, artifact I/O
-├── roles/                # Role instructions (pm, architect, developer, reviewer, tester, ops)
-├── rules/                # AIDLC rules (inception, planning, construction, etc.)
-├── specs/                # Feature spec directories (runtime data, gitignored)
-├── ui/                   # React/TypeScript frontend
-│   ├── src/
-│   └── e2e/              # Playwright e2e tests
-├── devteam.yaml          # Pipeline configuration
-└── AGENTS.md             # This file
-```
-
-## Deployment
-
-```bash
-# Build from main (NEVER from a worktree)
-git pull origin main
-go build -o ~/go/bin/devteam ./cmd/devteam/
-cd ui && npm run build
-systemctl --user restart devteam-web
-```
-
-Never build or deploy from a worktree. Always wait for PRs to merge, pull main, then build.
+All specs, artifacts, audit events, state, team knowledge, and rules are in SQLite. Nothing on disk except the DB file and agent log files.

@@ -157,10 +157,18 @@ func (s *Server) handleSubmitArtifact(w http.ResponseWriter, r *http.Request) {
 
 	if s.db != nil {
 		ensureFeatureInDB(s.db, id)
+		// Check if artifact already exists (create vs update)
+		existing, _ := s.db.GetArtifact(id, dbKey)
 		if err := s.db.SaveArtifact(id, dbKey, req.Content); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to save artifact: %v", err))
 			return
 		}
+		// Record audit event
+		eventType := db.AuditArtifactCreated
+		if existing != nil {
+			eventType = db.AuditArtifactUpdated
+		}
+		s.db.RecordAuditEvent(id, eventType, "", "", fmt.Sprintf("artifact=%s size=%d", dbKey, len(req.Content)))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
