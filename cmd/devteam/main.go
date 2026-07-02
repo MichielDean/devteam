@@ -21,6 +21,7 @@ import (
 	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/plugins"
 	"github.com/MichielDean/devteam/internal/spec"
+	"github.com/MichielDean/devteam/internal/stage"
 )
 
 const version = "0.3.0"
@@ -74,6 +75,11 @@ func main() {
 			os.Exit(1)
 		}
 		defer database.Close()
+
+		if err := stage.SeedStages(database); err != nil {
+			fmt.Fprintf(os.Stderr, "error seeding stage definitions: %v\n", err)
+			os.Exit(1)
+		}
 
 		// Wire database and DB question store into pipeline
 		questionStore := feature.NewDBQuestionStore(database)
@@ -256,6 +262,10 @@ func openDB(baseDir string) *db.DB {
 	database, err := db.Open(db.Config{}, dbPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening database: %v\n", err)
+		os.Exit(1)
+	}
+	if err := stage.SeedStages(database); err != nil {
+		fmt.Fprintf(os.Stderr, "error seeding stage definitions: %v\n", err)
 		os.Exit(1)
 	}
 	return database
