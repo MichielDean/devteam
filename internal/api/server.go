@@ -174,6 +174,14 @@ func (s *Server) RestoreActiveProcesses() {
 				s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
 				s.db.RecordAuditEvent(f.ID, "STAGE_INTERRUPTED", fs.StageID, "", "server restarted mid-dispatch")
 			}
+
+			// Update the feature's current_stage and persist the full feature state
+			// so the JSON blob (feature_data) stays in sync with the DB columns.
+			// Without this, LoadFeatureState reads stale status from the JSON blob.
+			f.CurrentStage = fs.StageID
+			if err := s.pipeline.SaveFeature(f); err != nil {
+				log.Printf("RestoreActiveProcesses: failed to save feature state for %s: %v", f.ID, err)
+			}
 		}
 	}
 }
