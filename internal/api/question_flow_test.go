@@ -69,6 +69,7 @@ func TestIntegrationCancelWaitingHumanFeature(t *testing.T) {
 // [T-AC077] [US-003] [AC-077] [INTEGRATION] Recirculating a feature in
 // waiting_for_human status deletes all its questions.
 func TestIntegrationRecirculateWaitingHumanClearsQuestions(t *testing.T) {
+	t.Skip("old phase-based recirculate endpoint removed in AIDLC v2 — replaced by stage-based reject")
 	s, ts, _ := setupTestServerWithServer(t)
 	fid := seedWaitingHumanFeature(t, s)
 

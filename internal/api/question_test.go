@@ -1069,6 +1069,7 @@ func TestIntegrationQuestionTooLong(t *testing.T) {
 // [T020] [US-003] [AC-019] [INTEGRATION] Advance from waiting_for_human returns 400
 
 func TestIntegrationAdvanceFromWaitingHumanBlocked(t *testing.T) {
+	t.Skip("old phase-based advance endpoint removed in AIDLC v2 — replaced by stage-based approve")
 	_, tmpDir := setupTestServer(t)
 
 	cfg := &config.Config{

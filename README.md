@@ -1,41 +1,60 @@
 # Dev Team
 
-A multi-agent development platform with predefined specialist roles, spec-driven workflow, and cross-repository feature support.
+A multi-agent development platform aligned with the AIDLC v2 methodology. 10 specialist agents + 2 reviewers work through a 32-stage workflow with per-stage approval gates. All specs, artifacts, audit events, and state in SQLite.
 
 ## Status
 
-**v0.2.0** — Full pipeline engine implemented. Agent dispatch, gate evaluation, convergence detection, advance/recirculate commands, init scaffolding. 50+ tests passing. Self-bootstrap working.
+**v0.3.0** — AIDLC v2 alignment complete. 5 phases, 32 stages, 10 agents + 2 reviewers, 9 scopes with auto-detection, 3 depth levels, 3 test strategy levels, per-stage approval gates, 68-event audit trail, Bolt-by-Bolt construction, team knowledge in DB, learning loop from gate rejections. 283 tests passing.
 
 ## Architecture
 
-Dev Team has 6 specialist roles working through a fixed pipeline:
+### 5 Phases / 32 Stages
 
-1. **Product Manager** — Owns the *what* and *why*. Explores and refines ideas into specs.
-2. **Architect** — Owns the *how*. Creates technical plans and task breakdowns.
-3. **Developer** — Writes code across repos. Follows spec + plan.
-4. **Code Reviewer** — Adversarial review against spec acceptance criteria.
-5. **Tester** — Writes and runs tests traced to user stories.
-6. **Release Engineer** — Owns deployment, docs, and cross-repo coordination.
+| Phase | Stages | Purpose |
+|-------|--------|---------|
+| **0. Initialization** | 0.1-0.3 (3) | Workspace scaffold, detection, state init. Auto-proceed, no gates. |
+| **1. Ideation** | 1.1-1.7 (7) | Intent capture, market research, feasibility, scope, team, mockups, approval. |
+| **2. Inception** | 2.1-2.8 (8) | Reverse engineering, practices, requirements, stories, mockups, app design, units, delivery planning. |
+| **3. Construction** | 3.1-3.7 (7) | Functional design, NFR reqs, NFR design, infra design, code gen, build+test, CI. Per-Bolt (3.1-3.5), once (3.6-3.7). |
+| **4. Operation** | 4.1-4.7 (7) | Deploy pipeline, env provisioning, deploy execution, observability, incident response, perf validation, feedback. |
+
+### 10 Agents + 2 Reviewers
+
+| Agent | Domain | Model Tier |
+|-------|--------|-----------|
+| product | Requirements, stories, scope, market research | opus |
+| design | UX/UI, wireframes, interaction design | opus |
+| delivery | Team formation, Bolt sequencing, delivery planning | sonnet |
+| architect | App design, domain modeling, NFRs, decomposition | opus |
+| platform | Infrastructure, provisioning (cloud-agnostic: Linux/systemd/Docker) | opus |
+| devsecops | Threat modeling, security scanning, DevSecOps | opus |
+| developer | Code implementation, reverse engineering | opus |
+| quality | Test strategy, test generation, perf validation | opus |
+| pipeline-deploy | CI/CD pipelines, deployment strategy | sonnet |
+| operations | Observability, incident response, SLOs, feedback | sonnet |
+
+**Reviewers:**
+- product-lead (reviews requirements/stories/UX) — sonnet
+- architecture-reviewer (reviews technical design) — sonnet
+
+### 9 Scopes (auto-detected from intent)
+
+| Scope | Stages | Depth | Test Strategy | Use Case |
+|-------|--------|-------|---------------|----------|
+| enterprise | 32 | Comprehensive | Comprehensive | Regulated enterprise feature |
+| feature | 32 | Standard | Standard | Default for new features |
+| mvp | 22 | Standard | Standard | Greenfield, skip late operations |
+| poc | 8 | Minimal | Minimal | Prove feasibility fast |
+| bugfix | 7 | Minimal | Minimal | Fix a specific bug |
+| refactor | 8 | Minimal | Minimal | Clean up existing code |
+| infra | 13 | Standard | Standard | Infrastructure change |
+| security-patch | 9 | Minimal | Minimal | CVE response |
+| workshop | 25 | Standard | Minimal | AI-DLC workshop or training |
 
 ## Two Intake Paths
 
-- **Loose Ideas**: Submit a rough description. The PM explores, clarifies, and refines it into a structured spec.
-- **External Specs**: Bring in a PRD, RFC, or roadmap. The PM decomposes it into N feature specs with dependency edges.
-
-Both produce the same output: `spec.md` + `acceptance.md` + `repos.yaml`.
-
-## Central Spec Repository
-
-Specs live in one place — this repo. Features that span multiple implementation repos have one spec, not fragmented copies across repos. Each implementation repo gets a thin `.devteam/pointer.yaml` back to the central spec.
-
-## Pipeline
-
-```
-Inception → Planning → Construction → Review → Testing → Delivery
-  (PM+Arch)   (Arch)     (Dev)       (Reviewer) (Tester)   (Ops)
-```
-
-Each phase has a gate. You can't skip phases. Failed gates recirculate to the correct earlier phase.
+- **Loose Ideas**: Submit a rough description. Scope auto-detected. Product agent explores, clarifies, refines into structured specs.
+- **External Specs**: Bring in a PRD, RFC, or roadmap. Product agent decomposes into feature specs.
 
 ## Quick Start
 
@@ -44,96 +63,108 @@ Each phase has a gate. You can't skip phases. Failed gates recirculate to the co
 cd ~/source/devteam
 go build -o ~/go/bin/devteam ./cmd/devteam/
 
-# Initialize a new project
-devteam init
+# Start the web server
+devteam -http :8765
 
-# Check status
-devteam status
+# Create a feature (scope auto-detected)
+curl -X POST http://localhost:8765/api/features \
+  -H "Content-Type: application/json" \
+  -d '{"type":"loose_idea","title":"Fix login crash","description":"Fix the nil pointer crash in login handler","priority":1}'
 
-# Submit a loose idea
-devteam intake --type loose --text "We need user authentication" --priority 1
+# Run a stage
+curl -X POST http://localhost:8765/api/features/{id}/run-stage \
+  -H "Content-Type: application/json" \
+  -d '{"stage_id":"1.1"}'
 
-# Run current phase (dispatches agents)
-devteam run 001-user-auth
+# Approve a stage gate
+curl -X POST http://localhost:8765/api/features/{id}/stages/1.1/approve
 
-# Evaluate current gate
-devteam gate 001-user-auth
+# Reject a stage (saves rule for learning loop)
+curl -X POST http://localhost:8765/api/features/{id}/stages/1.1/reject \
+  -H "Content-Type: application/json" \
+  -d '{"notes":"Missing error case for duplicate users"}'
 
-# Advance to next phase after gate passes
-devteam advance 001-user-auth
+# Jump to a stage or phase
+curl -X POST http://localhost:8765/api/features/{id}/jump \
+  -H "Content-Type: application/json" \
+  -d '{"phase":"construction"}'
 
-# Recirculate back to a previous phase
-devteam recirculate 001-user-auth planning
+# View audit trail
+curl http://localhost:8765/api/features/{id}/audit
 
-# Self-bootstrap
-devteam bootstrap
+# View all stages with status
+curl http://localhost:8765/api/features/{id}/stages
 ```
 
-## Commands
+## API Endpoints
 
-| Command | Description |
-|---------|-------------|
-| `devteam init` | Initialize a new devteam project (scaffolds directory structure) |
-| `devteam status` | Show all features and their current phase |
-| `devteam intake` | Submit a new feature (loose idea or external spec) |
-| `devteam run <id>` | Run the current pipeline phase (dispatches agents) |
-| `devteam gate <id>` | Evaluate the current phase gate |
-| `devteam advance <id>` | Advance feature to next phase after gate passes |
-| `devteam recirculate <id> <phase>` | Send feature back to a previous phase |
-| `devteam bootstrap` | Process spec 001 (self-bootstrap) |
-| `devteam version` | Print version |
+### Stage Workflow
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/features/{id}/run-stage` | Dispatch one stage's lead agent |
+| `POST /api/features/{id}/stages/{stageId}/approve` | Approve gate, advance |
+| `POST /api/features/{id}/stages/{stageId}/reject` | Reject with notes (saves rule) |
+| `POST /api/features/{id}/stages/{stageId}/accept-as-is` | 3-strike escape hatch |
+| `POST /api/features/{id}/jump` | Jump to stage_id or phase |
+| `GET /api/features/{id}/stages` | All stages with status |
+| `GET /api/features/{id}/audit` | Full 68-event audit trail |
 
-## Pipeline Flow
+### Scope/Depth/Test Strategy
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/features/{id}/scope` | Change scope mid-workflow |
+| `POST /api/features/{id}/depth` | Change depth |
+| `POST /api/features/{id}/test-strategy` | Change test strategy |
+| `POST /api/features/{id}/ladder` | Set construction autonomy (gated/autonomous) |
 
-1. **Intake**: Submit a feature via `devteam intake`
-2. **Run phase**: `devteam run <id>` dispatches agents with role instructions + AIDLC rules + spec context
-3. **Check gate**: `devteam gate <id>` evaluates whether the phase gate passes
-4. **Advance**: `devteam advance <id>` moves to the next phase
-5. **Recirculate** (on failure): `devteam recirculate <id> <phase>` goes back to fix issues
+### Construction Bolts
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/features/{id}/prepare-bolts` | Create Bolts from inception output |
+| `GET /api/features/{id}/bolts` | List all Bolts |
+| `POST /api/features/{id}/run-bolt/{n}` | Run one Bolt through stages 3.1-3.5 |
 
-## Convergence Detection
+### Team Knowledge + Learning Loop
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/knowledge` | All team knowledge |
+| `GET /api/knowledge/{agent}` | Agent's knowledge |
+| `POST /api/knowledge/{agent}` | Save knowledge (topic + content) |
+| `DELETE /api/knowledge/{agent}/{topic}` | Delete knowledge |
+| `GET /api/features/{id}/rules` | Learned rules for feature |
+| `DELETE /api/features/{id}/rules/{ruleId}` | Delete rule |
 
-Dev Team detects when implementation has drifted from spec:
-- Unrefined placeholder text in spec.md or acceptance.md
-- Missing sections (user stories, requirements, success criteria)
-- Plan sections that don't cover all spec requirements
-- Priority-1 features missing security review
+## Key Features
 
-## Hybrid Framework
-
-| Aspect | From AIDLC | From Spec Kit | Dev Team Original |
-|--------|-----------|---------------|-------------------|
-| Phase governance | Adaptive rules per role | — | ✓ |
-| Artifact structure | — | Templates (spec.md, plan.md, tasks.md) | ✓ |
-| Quality gates | Phase gate reviews | checklist, analyze, converge | ✓ |
-| Extensions | Security, resiliency, testing | Community extensions | ✓ |
-| Human-in-the-loop | File-based approval gates | — | ✓ |
-| Multi-repo support | — | — | ✓ (central spec + repos.yaml) |
-| Distinct role agents | — | — | ✓ (6 fixed roles) |
-| Self-bootstrap | — | — | ✓ (platform processes its own spec) |
-| Intake paths | — | — | ✓ (loose ideas + external specs) |
-| Convergence detection | — | — | ✓ (spec drift checking) |
+- **Per-stage approval gates** — 32 gates per enterprise workflow, 3-strike escape hatch
+- **68-event audit trail** — full traceability in SQLite
+- **Bolt-by-Bolt construction** — walking skeleton first, then ladder prompt for autonomy mode
+- **Learning loop** — gate rejections become rules injected into future agent context
+- **Team knowledge in DB** — per-agent knowledge entries loaded at dispatch time
+- **Scope auto-detection** — intent text analyzed, scope selected, stage count determined
+- **Reviewer dispatch** — product-lead and architecture-reviewer fire as independent runs
+- **DB-only** — all specs, artifacts, events, state in SQLite. Nothing on disk except DB + log files
 
 ## Project Structure
 
 ```
-cmd/devteam/main.go           # CLI entrypoint
+cmd/devteam/main.go              # CLI + web server entrypoint
 internal/
-├── config/                    # YAML config loading
-├── feature/                   # Feature state machine, types, gates
-├── init/                       # Project initialization scaffolding
-├── intake/                     # Loose idea + external spec intake paths
-├── pipeline/                  # Pipeline orchestrator, gate evaluation, convergence
-├── role/                       # Role loader, agent dispatcher
-├── spec/                       # Spec provider, writer, artifact validation
-├── rules/                      # AIDLC phase rule loader
-└── repo/                       # Cross-repo git operations, pointer files
-specs/                           # Central spec repository
-roles/                           # 6 role INSTRUCTIONS.md files
-rules/                           # AIDLC governance rules
-constitution/                    # 10 governing principles
-devteam.yaml                     # Pipeline configuration
-repos.yaml                       # Repository registry
+├── api/                          # HTTP handlers, SSE, stage endpoints
+├── config/                       # YAML config loading
+├── db/                           # SQLite store, migrations, audit events, bolts
+├── feature/                      # Feature state machine, types
+├── gate/                         # Approval gate state machine
+├── init/                         # Project initialization scaffolding
+├── intake/                       # Loose idea + external spec intake paths
+├── pipeline/                     # RunStage, RunBolt, AdvanceStage, reviewer dispatch
+├── role/                         # 12 role loader, tmux dispatcher, knowledge injection
+├── spec/                         # Spec provider, writer, artifact validation
+├── stage/                        # 32 stage definitions, 9 scopes, auto-detection
+├── rules/                        # AIDLC phase rule loader
+└── repo/                         # Cross-repo git operations
+roles/                            # 12 agent INSTRUCTIONS.md files
+rules/                            # AIDLC governance rules
 ```
 
 ## License

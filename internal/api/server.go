@@ -52,11 +52,7 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("GET /api/features", s.listFeatures)
 	mux.HandleFunc("POST /api/features", s.createFeature)
 	mux.HandleFunc("GET /api/features/{id}", s.getFeature)
-	mux.HandleFunc("POST /api/features/{id}/run", s.runPhase)
-	mux.HandleFunc("POST /api/features/{id}/advance", s.advanceFeature)
-	mux.HandleFunc("POST /api/features/{id}/recirculate", s.recirculateFeature)
 	mux.HandleFunc("POST /api/features/{id}/cancel", s.cancelFeature)
-	mux.HandleFunc("GET /api/features/{id}/gate", s.evaluateGate)
 	mux.HandleFunc("GET /api/features/{id}/artifacts/{type}", s.getArtifact)
 	mux.HandleFunc("POST /api/features/{id}/artifacts/{type}", s.handleSubmitArtifact)
 	mux.HandleFunc("GET /api/features/{id}/stream", s.streamFeature)
@@ -73,11 +69,7 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipeline *pipeline.
 	mux.HandleFunc("PATCH /api/features/{id}/questions/{questionId}", s.answerQuestion)
 
 	// Database-backed history endpoints
-	mux.HandleFunc("GET /api/features/{id}/gate-history", s.getGateHistory)
-	mux.HandleFunc("GET /api/features/{id}/recirculations", s.getRecirculations)
-	mux.HandleFunc("GET /api/features/{id}/events", s.getEvents)
 	mux.HandleFunc("GET /api/features/{id}/notes", s.getNotes)
-	mux.HandleFunc("GET /api/features/{id}/churn", s.getChurnMetrics)
 
 	// AIDLC v2 stage-based endpoints
 	s.registerStageRoutes(mux)
@@ -328,27 +320,38 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set AIDLC v2 scope/depth/test_strategy
-	if req.Scope != "" || req.Depth != "" || req.TestStrategy != "" {
-		if req.Scope != "" {
-			f.Scope = req.Scope
-		} else {
-			f.Scope = stage.ScopeFeature
-		}
-		if req.Depth != "" {
-			f.Depth = req.Depth
+	if req.Scope != "" {
+		f.Scope = req.Scope
+	} else {
+		// Auto-detect scope from title + description
+		detectedScope, _ := stage.DetectScope(req.Title + " " + req.Description)
+		f.Scope = detectedScope
+	}
+	if req.Depth != "" {
+		f.Depth = req.Depth
+	} else {
+		// Default depth from scope
+		scopeInfo := stage.GetScopeInfo(f.Scope)
+		if scopeInfo != nil {
+			f.Depth = scopeInfo.DefaultDepth
 		} else {
 			f.Depth = stage.DepthStandard
 		}
-		if req.TestStrategy != "" {
-			f.TestStrategy = req.TestStrategy
+	}
+	if req.TestStrategy != "" {
+		f.TestStrategy = req.TestStrategy
+	} else {
+		scopeInfo := stage.GetScopeInfo(f.Scope)
+		if scopeInfo != nil {
+			f.TestStrategy = scopeInfo.DefaultTestStr
 		} else {
 			f.TestStrategy = stage.TestStrategyStandard
 		}
-		s.pipeline.SaveFeature(f)
-		if s.db != nil {
-			s.db.InitFeatureStages(f.ID, f.Scope)
-			s.db.RecordAuditEvent(f.ID, db.AuditWorkflowStart, "", "", fmt.Sprintf("scope=%s depth=%s test_strategy=%s", f.Scope, f.Depth, f.TestStrategy))
-		}
+	}
+	s.pipeline.SaveFeature(f)
+	if s.db != nil {
+		s.db.InitFeatureStages(f.ID, f.Scope)
+		s.db.RecordAuditEvent(f.ID, db.AuditWorkflowStart, "", "", fmt.Sprintf("scope=%s depth=%s test_strategy=%s", f.Scope, f.Depth, f.TestStrategy))
 	}
 
 	if req.StartImmediately {
