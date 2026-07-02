@@ -25,6 +25,11 @@ type Feature struct {
 	// re-cloning. Cleared by CleanupImplRepos on feature completion.
 	PreparedRepos []PreparedRepo        `yaml:"prepared_repos,omitempty" json:"prepared_repos,omitempty"`
 	PhaseStates   map[Phase]*PhaseState `yaml:"phase_states" json:"phase_states"`
+	Scope         string                `yaml:"scope,omitempty" json:"scope,omitempty"`
+	Depth         string                `yaml:"depth,omitempty" json:"depth,omitempty"`
+	TestStrategy  string                `yaml:"test_strategy,omitempty" json:"test_strategy,omitempty"`
+	AutonomyMode  string                `yaml:"autonomy_mode,omitempty" json:"autonomy_mode,omitempty"`
+	CurrentStage  string                `yaml:"current_stage,omitempty" json:"current_stage,omitempty"`
 }
 
 // PreparedRepo is a persisted record of a prepared implementation repo
