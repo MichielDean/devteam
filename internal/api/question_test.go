@@ -52,7 +52,7 @@ func TestSmokeQuestionEndpoints(t *testing.T) {
 	defer ts.Close()
 
 	// First create a feature
-	createBody := `{"type":"loose_idea","title":"Smoke Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Smoke Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -144,7 +144,7 @@ func TestIntegrationListQuestions(t *testing.T) {
 	defer ts.Close()
 
 	// Create a feature first
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -259,7 +259,7 @@ func TestIntegrationListQuestionsEmpty(t *testing.T) {
 	defer ts.Close()
 
 	// Create a feature (no questions)
-	createBody := `{"type":"loose_idea","title":"Empty Feature","description":"No questions","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Empty Feature","description":"No questions","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -330,7 +330,7 @@ func TestIntegrationCreateQuestion(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -422,7 +422,7 @@ func TestIntegrationCreateQuestionValidation(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -531,7 +531,7 @@ func TestIntegrationAnswerQuestion(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -610,7 +610,7 @@ func TestIntegrationAnswerConflict(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -694,7 +694,7 @@ func TestIntegrationAnswerNotFound(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -741,7 +741,7 @@ func TestIntegrationAnswerEmptyString(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -805,7 +805,7 @@ func TestIntegrationAnswerTooLong(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -865,7 +865,7 @@ func TestIntegrationListPendingQuestions(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -974,7 +974,7 @@ func TestIntegrationXSSInAnswer(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -1042,7 +1042,7 @@ func TestIntegrationQuestionTooLong(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -1154,7 +1154,7 @@ func TestIntegrationFeatureListIncludesPendingQuestionsCount(t *testing.T) {
 	defer ts.Close()
 
 	// Create a feature
-	createBody := `{"type":"loose_idea","title":"Badge Test Feature","description":"Testing badge","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Badge Test Feature","description":"Testing badge","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -1238,7 +1238,7 @@ func TestIntegrationQuestionEndpointsArraysNeverNull(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Array Test Feature","description":"Testing arrays","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Array Test Feature","description":"Testing arrays","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -1373,7 +1373,7 @@ func TestIntegrationAnswerAssumedConflict(t *testing.T) {
 	defer ts.Close()
 
 	// Create a feature and question
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"Testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)

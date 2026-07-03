@@ -46,14 +46,14 @@ func (s *DBQuestionStore) CreateQuestion(ctx context.Context, featureID string, 
 	}
 
 	_, err := s.db.Exec(
-		`INSERT INTO questions (id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO questions (id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at, stage_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (id) DO UPDATE SET
 		   feature_id = excluded.feature_id, phase = excluded.phase, role = excluded.role,
 		   question = excluded.question, question_type = excluded.question_type, options = excluded.options,
 		   answer = excluded.answer, status = excluded.status, assumed = excluded.assumed,
-		   created_at = excluded.created_at, answered_at = excluded.answered_at`,
-		q.ID, featureID, string(q.Phase), q.Role, q.Question, q.Type, string(optionsJSON), answerStr, q.Status, assumedInt, q.CreatedAt, q.AnsweredAt,
+		   created_at = excluded.created_at, answered_at = excluded.answered_at, stage_id = excluded.stage_id`,
+		q.ID, featureID, string(q.Phase), q.Role, q.Question, q.Type, string(optionsJSON), answerStr, q.Status, assumedInt, q.CreatedAt, q.AnsweredAt, q.StageID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating question: %w", err)
@@ -64,7 +64,7 @@ func (s *DBQuestionStore) CreateQuestion(ctx context.Context, featureID string, 
 
 func (s *DBQuestionStore) GetQuestion(ctx context.Context, featureID string, questionID string) (*Question, error) {
 	row := s.db.QueryRow(
-		`SELECT id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at
+		`SELECT id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at, stage_id
 		 FROM questions WHERE id = ?`, questionID,
 	)
 	return scanQuestion(row)
@@ -72,7 +72,7 @@ func (s *DBQuestionStore) GetQuestion(ctx context.Context, featureID string, que
 
 func (s *DBQuestionStore) ListQuestions(ctx context.Context, featureID string) ([]*Question, error) {
 	rows, err := s.db.Query(
-		`SELECT id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at
+		`SELECT id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at, stage_id
 		 FROM questions WHERE feature_id = ? ORDER BY created_at ASC`, featureID,
 	)
 	if err != nil {
@@ -93,7 +93,7 @@ func (s *DBQuestionStore) ListQuestions(ctx context.Context, featureID string) (
 
 func (s *DBQuestionStore) ListPendingQuestions(ctx context.Context, featureID string) ([]*Question, error) {
 	rows, err := s.db.Query(
-		`SELECT id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at
+		`SELECT id, feature_id, phase, role, question, question_type, options, answer, status, assumed, created_at, answered_at, stage_id
 		 FROM questions WHERE feature_id = ? AND status = 'pending' ORDER BY created_at ASC`, featureID,
 	)
 	if err != nil {
@@ -175,7 +175,7 @@ func scanQuestion(row *sql.Row) (*Question, error) {
 	var answerStr string
 	var assumedInt int
 	var answeredAt sql.NullTime
-	err := row.Scan(&q.ID, &q.FeatureID, &q.Phase, &q.Role, &q.Question, &q.Type, &optionsStr, &answerStr, &q.Status, &assumedInt, &q.CreatedAt, &answeredAt)
+	err := row.Scan(&q.ID, &q.FeatureID, &q.Phase, &q.Role, &q.Question, &q.Type, &optionsStr, &answerStr, &q.Status, &assumedInt, &q.CreatedAt, &answeredAt, &q.StageID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("question not found")
@@ -201,7 +201,7 @@ func scanQuestionRow(rows *sql.Rows) (*Question, error) {
 	var answerStr string
 	var assumedInt int
 	var answeredAt sql.NullTime
-	if err := rows.Scan(&q.ID, &q.FeatureID, &q.Phase, &q.Role, &q.Question, &q.Type, &optionsStr, &answerStr, &q.Status, &assumedInt, &q.CreatedAt, &answeredAt); err != nil {
+	if err := rows.Scan(&q.ID, &q.FeatureID, &q.Phase, &q.Role, &q.Question, &q.Type, &optionsStr, &answerStr, &q.Status, &assumedInt, &q.CreatedAt, &answeredAt, &q.StageID); err != nil {
 		return nil, fmt.Errorf("scanning question: %w", err)
 	}
 	if answerStr != "" {

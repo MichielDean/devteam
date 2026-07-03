@@ -58,6 +58,7 @@ type Question struct {
 	FeatureID  string     `json:"feature_id" yaml:"feature_id"`
 	Phase      string     `json:"phase" yaml:"phase"`
 	Role       string     `json:"role" yaml:"role"`
+	StageID    string     `json:"stage_id" yaml:"stage_id"`
 	Question   string     `json:"question" yaml:"question"`
 	Type       string     `json:"type" yaml:"type"`
 	Options    []string   `json:"options" yaml:"options"`

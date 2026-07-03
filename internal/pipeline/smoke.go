@@ -15,7 +15,16 @@ import (
 func (p *Pipeline) smokeImplFilesChanged(f *feature.Feature, preDispatchCommit string) []string {
 	repoDirs := p.implRepoDirs(f)
 	if len(repoDirs) == 0 {
-		repoDirs = []string{p.WorktreeDir(f)}
+		// No impl repos registered — check if ANY repos are registered in DB
+		if p.database != nil {
+			repos, _ := p.database.GetFeatureRepos(f.ID)
+			if len(repos) == 0 {
+				// No repos registered at all — this is a spec-only stage, skip smoke check
+				return nil
+			}
+		}
+		// Repos registered but dirs missing — that's a real problem
+		return []string{"implementation repos are registered but worktree directories are missing — repo preparation failed"}
 	}
 
 	totalImplFiles := 0

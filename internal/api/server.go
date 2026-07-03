@@ -271,6 +271,20 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Repos) == 0 {
+		// Scopes that require implementation repos
+		needsRepos := map[string]bool{"feature": true, "enterprise": true, "mvp": true, "infra": true, "security-patch": true}
+		scope := req.Scope
+		if scope == "" {
+			detectedScope, _ := stage.DetectScope(req.Title + " " + req.Description)
+			scope = string(detectedScope)
+		}
+		if needsRepos[scope] {
+			writeError(w, http.StatusBadRequest, "repos_required", "This scope requires at least one implementation repository. Add repos to the request (e.g. {\"repos\": [{\"name\": \"devteam\", \"url\": \"git@github.com:MichielDean/devteam.git\"}]}).")
+			return
+		}
+	}
+
 	var f *feature.Feature
 
 	switch req.Type {
@@ -280,7 +294,7 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 			looseIntake.SetDatabase(s.db)
 		}
 		var err error
-		f, err = looseIntake.Submit(req.Title, req.Description, req.Priority, nil)
+		f, err = looseIntake.Submit(req.Title, req.Description, req.Priority, req.Repos)
 		if err != nil {
 			log.Printf("error creating feature: %v", err)
 			writeError(w, http.StatusInternalServerError, "internal_error", "Failed to create feature")
@@ -295,7 +309,7 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		if s.db != nil {
 			extIntake.SetDatabase(s.db)
 		}
-		result, err := extIntake.Submit(req.Title, req.FileContent, req.Priority, nil)
+		result, err := extIntake.Submit(req.Title, req.FileContent, req.Priority, req.Repos)
 		if err != nil {
 			log.Printf("error creating feature: %v", err)
 			writeError(w, http.StatusInternalServerError, "internal_error", "Failed to create feature")
@@ -735,6 +749,11 @@ func (s *Server) createQuestion(w http.ResponseWriter, r *http.Request) {
 	}
 	if q.Options == nil {
 		q.Options = []string{}
+	}
+
+	// Populate stage_id from the feature's current stage
+	if f, ferr := s.pipeline.GetFeature(id); ferr == nil {
+		q.StageID = f.CurrentStage
 	}
 
 	created, err := s.questionStore.CreateQuestion(r.Context(), id, q)

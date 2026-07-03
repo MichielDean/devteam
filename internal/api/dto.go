@@ -13,15 +13,16 @@ type ErrorResponse struct {
 }
 
 type CreateFeatureRequest struct {
-	Type             string `json:"type"`
-	Title            string `json:"title"`
-	Description      string `json:"description"`
-	Priority         int    `json:"priority"`
-	FileContent      string `json:"file_content,omitempty"`
-	StartImmediately bool   `json:"start_immediately,omitempty"`
-	Scope            string `json:"scope,omitempty"`
-	Depth            string `json:"depth,omitempty"`
-	TestStrategy     string `json:"test_strategy,omitempty"`
+	Type             string            `json:"type"`
+	Title            string            `json:"title"`
+	Description      string            `json:"description"`
+	Priority         int               `json:"priority"`
+	FileContent      string            `json:"file_content,omitempty"`
+	StartImmediately bool              `json:"start_immediately,omitempty"`
+	Scope            string            `json:"scope,omitempty"`
+	Depth            string            `json:"depth,omitempty"`
+	TestStrategy     string            `json:"test_strategy,omitempty"`
+	Repos            []feature.RepoRef `json:"repos,omitempty"`
 }
 
 type RecirculateRequest struct {
@@ -138,6 +139,7 @@ type QuestionResponse struct {
 	FeatureID  string   `json:"feature_id"`
 	Phase      string   `json:"phase"`
 	Role       string   `json:"role"`
+	StageID    string   `json:"stage_id"`
 	Question   string   `json:"question"`
 	Type       string   `json:"type"`
 	Options    []string `json:"options"`
@@ -179,6 +181,7 @@ func QuestionToResponse(q *feature.Question) QuestionResponse {
 		FeatureID:  q.FeatureID,
 		Phase:      q.Phase,
 		Role:       q.Role,
+		StageID:    q.StageID,
 		Question:   q.Question,
 		Type:       q.Type,
 		Options:    options,

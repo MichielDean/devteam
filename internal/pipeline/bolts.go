@@ -205,9 +205,10 @@ func (p *Pipeline) RunBolt(ctx context.Context, f *feature.Feature, boltNumber i
 
 	result.StageResults = stageResults
 	result.Duration = time.Since(now)
+	// If we got through all stages without pausing or failing, bolt is complete
 	p.database.UpdateBoltStatus(f.ID, boltNumber, "completed")
 	p.database.RecordAuditEvent(f.ID, db.AuditBoltCompleted, "", stage.PhaseConstruction,
-		fmt.Sprintf("bolt %d completed", boltNumber))
+		fmt.Sprintf("bolt %d completed all construction stages", boltNumber))
 
 	return result, nil
 }

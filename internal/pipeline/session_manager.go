@@ -233,3 +233,25 @@ func (sm *SessionManager) ListActiveSessions() ([]db.TmuxSessionRow, error) {
 	}
 	return sm.database.ListActiveTmuxSessions()
 }
+
+// CompletePhaseSessions marks all sessions for a phase as done and kills the tmux sessions.
+func (sm *SessionManager) CompletePhaseSessions(featureID, phase string) error {
+	if sm == nil || sm.database == nil {
+		return nil
+	}
+	// Get all sessions for this phase
+	sessions, err := sm.database.ListTmuxSessionsForFeature(featureID)
+	if err != nil {
+		return err
+	}
+	for _, s := range sessions {
+		if s.Phase != phase {
+			continue
+		}
+		// Kill tmux session if alive
+		sm.dispatcher.KillSessionByName(s.SessionName)
+		// Mark as done in DB
+		sm.database.UpdateTmuxSessionState(featureID, phase, s.BoltNumber, db.TmuxSessionDone, "", "")
+	}
+	return nil
+}

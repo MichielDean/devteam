@@ -148,7 +148,7 @@ func TestListFeaturesTotalCountPopulated(t *testing.T) {
 	defer ts.Close()
 
 	for i := 0; i < 3; i++ {
-		createBody := `{"type":"loose_idea","title":"Populated ` + string(rune('A'+i)) + `","description":"desc","priority":2}`
+		createBody := `{"type":"loose_idea","title":"Populated ` + string(rune('A'+i)) + `","description":"desc","priority":2,"scope":"poc"}`
 		resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 		if err != nil {
 			t.Fatalf("POST /api/features failed: %v", err)
@@ -432,7 +432,7 @@ func TestSmokeCreateAndGetFeature(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Test Feature","description":"A test feature for smoke testing","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Test Feature","description":"A test feature for smoke testing","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)
@@ -535,7 +535,7 @@ func TestListFeaturesTotalCountConsistency(t *testing.T) {
 			defer ts.Close()
 
 			for i := 0; i < n; i++ {
-				body := `{"type":"loose_idea","title":"F` + strconv.Itoa(i) + `","description":"d","priority":2}`
+				body := `{"type":"loose_idea","title":"F` + strconv.Itoa(i) + `","description":"d","priority":2,"scope":"poc"}`
 				resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(body))
 				if err != nil {
 					t.Fatalf("POST failed: %v", err)
@@ -655,7 +655,7 @@ func TestIntegrationJSONArraysNeverNull(t *testing.T) {
 	ts := httptest.NewServer(s.httpServer.Handler)
 	defer ts.Close()
 
-	createBody := `{"type":"loose_idea","title":"Array Check","description":"Testing arrays are never null","priority":2}`
+	createBody := `{"type":"loose_idea","title":"Array Check","description":"Testing arrays are never null","priority":2,"scope":"poc"}`
 	resp, err := http.Post(ts.URL+"/api/features", "application/json", strings.NewReader(createBody))
 	if err != nil {
 		t.Fatalf("POST /api/features failed: %v", err)

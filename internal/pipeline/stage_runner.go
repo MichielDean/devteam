@@ -116,6 +116,13 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		log.Printf("warning: could not create spec worktree: %v — using base dir", err)
 	}
 
+	// Prepare implementation repos for construction/operation phases
+	if stageDef.Phase == stage.PhaseConstruction || stageDef.Phase == stage.PhaseOperation {
+		if err := p.PrepareImplRepos(f); err != nil {
+			log.Printf("warning: could not prepare impl repos: %v — agent will use spec worktree", err)
+		}
+	}
+
 	contextStr, err := p.buildStageContext(ctx, f, stageDef)
 	if err != nil {
 		return nil, err
@@ -186,6 +193,11 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		if len(smokeFailures) > 0 {
 			log.Printf("RunStage: smoke check failed for %s — %d failures", stageID, len(smokeFailures))
 			outcomeSource = "smoke_failed"
+			// Save smoke failure as a rule for the learning loop
+			if p.database != nil && len(smokeFailures) > 0 {
+				ruleText := fmt.Sprintf("Stage %s smoke check: %s", stageID, strings.Join(smokeFailures, "; "))
+				p.database.SaveRule(f.ID, stageDef.LeadAgent, stageID, ruleText, strings.Join(smokeFailures, "\n"))
+			}
 		}
 	}
 
@@ -207,7 +219,7 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	g := gate.New(f.ID, stageID)
 
 	if outcomeSource == "smoke_failed" || outcomeSource == "reviewer_rejected" {
-		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusRevising, fs.RevisionCount, &now, nil)
+		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusRevising, fs.RevisionCount + 1, &now, nil)
 		p.database.RecordAuditEvent(f.ID, db.AuditStageRevising, stageID, stageDef.Phase, strings.Join(smokeFailures, "; "))
 		p.broadcastSSE(f.ID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"reason":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(outcomeSource)))
 		g.RevisionNotes = strings.Join(smokeFailures, "\n")
@@ -366,6 +378,12 @@ func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) error {
 		return fmt.Errorf("stage %s is in %s state — can only approve stages that are awaiting_approval", stageID, fs.Status)
 	}
 
+	// Check if reviewer rejected — can't approve a NOT-READY stage
+	outcome, _ := p.database.GetLatestOutcome(f.ID, stageID)
+	if outcome != nil && outcome.Outcome == "recirculate" {
+		return fmt.Errorf("stage %s was rejected by reviewer (NOT-READY) — address the feedback and re-run the stage before approving", stageID)
+	}
+
 	now := time.Now().UTC()
 	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
 	p.database.RecordAuditEvent(f.ID, db.AuditGateApproved, stageID, "", "")
@@ -472,6 +490,7 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 	}
 
 	nextStage := stages[currentIdx+1]
+	oldStageDef := &stages[currentIdx]
 
 	// Check condition — skip stages that don't apply
 	for p.shouldSkipStage(f, nextStage) {
@@ -488,10 +507,19 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 		nextStage = stages[currentIdx+1]
 	}
 
+	newStageDef := &nextStage
+
 	// Update feature's current stage pointer
 	if p.database != nil {
 		p.database.UpdateFeatureStage(f.ID, nextStage.ID, stage.StatusNotStarted, 0, nil, nil)
 		p.database.RecordAuditEvent(f.ID, db.AuditStageAdvanced, nextStage.ID, nextStage.Phase, "")
+	}
+
+	// Complete sessions for the old phase if we've moved to a new phase
+	if oldStageDef != nil && newStageDef != nil && oldStageDef.Phase != newStageDef.Phase {
+		if p.sessionMgr != nil {
+			p.sessionMgr.CompletePhaseSessions(f.ID, oldStageDef.Phase)
+		}
 	}
 
 	log.Printf("AdvanceStage: advanced from %s to %s for feature %s", currentStageID, nextStage.ID, f.ID)
@@ -642,6 +670,14 @@ func (p *Pipeline) buildStageContext(ctx context.Context, f *feature.Feature, st
 	specContext, err := p.specProvider.BuildCrossRepoContext(f.ID, nil)
 	if err == nil && specContext != "" {
 		contextStr += "\n\n---\n\n" + specContext
+	}
+
+	// Implementation repo context for construction/operation phases
+	if stageDef.Phase == stage.PhaseConstruction || stageDef.Phase == stage.PhaseOperation {
+		implContext := p.implRepoContext(f, stageDef.Phase)
+		if implContext != "" {
+			contextStr += implContext
+		}
 	}
 
 	// Revision notes from prior rejections
