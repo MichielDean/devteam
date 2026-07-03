@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { listRepos } from '../api/client';
 import type { CreateFeatureRequest, ScopeName } from '../types';
 import { SCOPES, SCOPE_LABELS, SCOPE_DESCRIPTIONS } from '../types';
 
@@ -11,6 +13,9 @@ interface IntakeFormProps {
 const inputClass =
   'w-full px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-raised)] text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] focus:border-[var(--color-accent)] focus:outline-none transition-colors text-sm';
 const labelClass = 'block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5';
+
+// Scopes that require implementation repos
+const REPO_REQUIRED_SCOPES = ['feature', 'enterprise', 'mvp', 'infra', 'security-patch'];
 
 function detectScope(text: string): ScopeName {
   const lower = text.toLowerCase();
@@ -47,6 +52,12 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [startImmediately, setStartImmediately] = useState(false);
+  const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set());
+
+  const { data: repos = [] } = useQuery({
+    queryKey: ['repos'],
+    queryFn: listRepos,
+  });
 
   const detectedScope = useMemo(() => {
     if (scope) return null;
@@ -55,6 +66,21 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
     return detectScope(text);
   }, [title, description, scope]);
 
+  const effectiveScope = scope || detectedScope || 'feature';
+  const needsRepos = REPO_REQUIRED_SCOPES.includes(effectiveScope);
+
+  const toggleRepo = (name: string) => {
+    setSelectedRepos((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  };
+
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!title.trim()) newErrors.title = 'Title is required';
@@ -62,6 +88,9 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
     if (!description.trim()) newErrors.description = 'Description is required';
     else if (description.length > 10000) newErrors.description = 'Description must be 10,000 characters or less';
     if (type === 'external_spec' && !fileContent) newErrors.file = 'File is required for external spec';
+    if (needsRepos && selectedRepos.size === 0) {
+      newErrors.repos = `This scope (${effectiveScope}) requires at least one implementation repository. Select a repo below.`;
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -78,6 +107,14 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
     if (scope) req.scope = scope;
     if (depth) req.depth = depth;
     if (type === 'external_spec' && fileContent) req.file_content = fileContent;
+
+    // Add selected repos
+    if (selectedRepos.size > 0) {
+      req.repos = repos
+        .filter((r) => selectedRepos.has(r.name))
+        .map((r) => ({ name: r.name, url: r.url, branch: '' }));
+    }
+
     onSubmit(req, startImmediately);
   };
 
@@ -124,6 +161,61 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
           <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={10000} rows={5} className={`${inputClass} resize-y`} placeholder="Describe your feature idea..." data-testid="description-input" />
           {errors.description && <p className="mt-1 text-sm" style={{ color: 'var(--color-danger)' }} data-testid="description-error">{errors.description}</p>}
           <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">{description.length}/10000</p>
+        </div>
+
+        {/* Implementation Repositories */}
+        <div>
+          <label className={labelClass}>
+            Implementation Repositories {needsRepos && <span style={{ color: 'var(--color-warning)' }}>*</span>}
+          </label>
+          <p className="text-xs text-[var(--color-text-tertiary)] mb-2">
+            {needsRepos
+              ? 'This scope requires at least one repo — agents will write code here.'
+              : 'Optional — select repos if code changes are needed. Spec-only features can skip this.'}
+          </p>
+          <div className="space-y-1.5" data-testid="repo-selector">
+            {repos.length === 0 && (
+              <p className="text-xs text-[var(--color-text-tertiary)]">No repos found in repos.yaml</p>
+            )}
+            {repos.map((repo) => {
+              const isSelected = selectedRepos.has(repo.name);
+              return (
+                <label
+                  key={repo.name}
+                  className={`flex items-start gap-3 p-3 rounded-[var(--radius-md)] cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-[var(--color-surface-active)] border border-[var(--color-accent)]'
+                      : 'bg-[var(--color-surface)] border border-[var(--color-border-subtle)] hover:bg-[var(--color-surface-hover)]'
+                  }`}
+                  data-testid={`repo-option-${repo.name}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleRepo(repo.name)}
+                    className="mt-0.5 accent-[var(--color-accent)]"
+                    data-testid={`repo-checkbox-${repo.name}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-[var(--color-text-primary)]">{repo.name}</span>
+                      {repo.primary && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-accent)] text-white" data-testid={`repo-primary-${repo.name}`}>primary</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[var(--color-text-tertiary)] truncate">{repo.description}</p>
+                    <p className="text-xs text-[var(--color-text-tertiary)] font-mono truncate">{repo.url}</p>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          {errors.repos && <p className="mt-1 text-sm" style={{ color: 'var(--color-danger)' }} data-testid="repos-error">{errors.repos}</p>}
+          {selectedRepos.size > 0 && (
+            <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
+              {selectedRepos.size} repo{selectedRepos.size > 1 ? 's' : ''} selected
+            </p>
+          )}
         </div>
 
         <div>

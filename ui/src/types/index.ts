@@ -231,6 +231,7 @@ export interface CreateFeatureRequest {
   scope?: string;
   depth?: string;
   test_strategy?: string;
+  repos?: RepoRef[];
 }
 
 export interface RunStageRequest {

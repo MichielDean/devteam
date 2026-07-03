@@ -259,3 +259,15 @@ export async function getCapturePane(featureId: string, phase: string): Promise<
 export async function listActiveSessions(): Promise<TmuxSession[]> {
   return request<TmuxSession[]>('/sessions/active');
 }
+
+// ─── Repos ───
+export interface AvailableRepo {
+  name: string;
+  url: string;
+  description: string;
+  primary: boolean;
+}
+
+export async function listRepos(): Promise<AvailableRepo[]> {
+  return request<AvailableRepo[]>('/repos');
+}

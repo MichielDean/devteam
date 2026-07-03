@@ -19,6 +19,7 @@ import (
 	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/spec"
 	"github.com/MichielDean/devteam/internal/stage"
+	"gopkg.in/yaml.v3"
 )
 
 type Server struct {
@@ -60,6 +61,7 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 	mux.HandleFunc("POST /api/features/{id}/artifacts/{type}", s.handleSubmitArtifact)
 	mux.HandleFunc("GET /api/features/{id}/stream", s.streamFeature)
 	mux.HandleFunc("GET /api/features/{id}/output", s.getCapturedOutput)
+	mux.HandleFunc("GET /api/repos", s.listRepos)
 
 	// Agent CLI endpoints (called by devteam CLI from agents)
 	mux.HandleFunc("POST /api/features/{id}/signal", s.handleSignal)
@@ -370,6 +372,46 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID), ""))
+}
+
+// listRepos returns the available implementation repos from repos.yaml.
+func (s *Server) listRepos(w http.ResponseWriter, r *http.Request) {
+	type repoEntry struct {
+		Name        string `json:"name"`
+		URL         string `json:"url"`
+		Description string `json:"description"`
+		Primary     bool   `json:"primary"`
+	}
+
+	reposPath := filepath.Join(s.baseDir, "repos.yaml")
+	data, err := os.ReadFile(reposPath)
+	if err != nil {
+		writeJSON(w, http.StatusOK, []repoEntry{})
+		return
+	}
+
+	var parsed struct {
+		Repos map[string]struct {
+			URL         string `yaml:"url"`
+			Description string `yaml:"description"`
+			Primary     bool   `yaml:"primary"`
+		} `yaml:"repos"`
+	}
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		writeJSON(w, http.StatusOK, []repoEntry{})
+		return
+	}
+
+	result := []repoEntry{}
+	for name, r := range parsed.Repos {
+		result = append(result, repoEntry{
+			Name:        name,
+			URL:         r.URL,
+			Description: r.Description,
+			Primary:     r.Primary,
+		})
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
