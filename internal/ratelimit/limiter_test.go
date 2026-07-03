@@ -409,3 +409,25 @@ func TestLimiterNoGoroutineLeak(t *testing.T) {
 		t.Errorf("goroutine count jumped %d → %d (limiter must not spawn goroutines, REL-04)", before, after)
 	}
 }
+
+// BenchmarkRateLimitAllow measures the isolated Limiter.Allow hot path (O(1)
+// two-bucket weighted sliding window) under parallel contention. This is the
+// PERF-01/PERF-02/PERF-03 load-test surface — the limiter alone, without the
+// middleware harness (no httptest recorder allocations). The v1 4.6 load test
+// measured 206.7ns median, 0 allocs/op; v2 implements the identical algorithm,
+// so the same margins are expected (performance-nfrs §1 PERF-01 carries the
+// v1 baseline as the expected v2 result).
+//
+// v2 NOTE: v2's Allow takes (key, policy) — the policy is per-call (not set at
+// New time as in v1). The bench passes a high-limit policy so the verdict is
+// always allow (steady-state hot path, no deny branch).
+func BenchmarkRateLimitAllow(b *testing.B) {
+	l, _ := New(WithMaxTrackedKeys(DefaultMaxTrackedKeys))
+	p := Policy{Limit: 1 << 20, Window: 60 * time.Second}
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_ = l.Allow("ip|GET /x", p)
+		}
+	})
+}
