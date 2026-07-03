@@ -331,23 +331,35 @@ export default function FeatureDetail() {
                   <p className="text-sm" style={{ color: 'var(--color-warning)' }}>Answer the questions below. The pipeline resumes automatically once all are answered.</p>
                 </div>
               ) : isProcessing ? (
-                <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]" data-testid="processing-banner">
+                <div className="flex items-center gap-3 p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-surface-hover)' }} data-testid="processing-banner">
                   <span className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
-                  Agent working on stage {feature.current_stage || '...'}
+                  <div>
+                    <p className="text-sm font-medium text-[var(--color-text-primary)]">Agent working on stage {feature.current_stage || '...'}</p>
+                    <p className="text-xs text-[var(--color-text-tertiary)]">Output appears below in real time</p>
+                  </div>
                 </div>
               ) : awaitingStage ? (
-                <div data-testid="awaiting-approval-banner">
-                  <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-warning)' }}>Stage {awaitingStage.stage_id} awaiting approval</p>
-                  <Button variant="warning" onClick={() => setSelectedStage(awaitingStage.stage_id)} data-testid="review-gate-button">Review Gate</Button>
+                <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="awaiting-approval-banner">
+                  <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>✓ Stage {awaitingStage.stage_id} complete — review needed</p>
+                  <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+                    The agent finished. Review the artifacts below and approve or request changes.
+                  </p>
+                  <Button variant="primary" onClick={() => setSelectedStage(awaitingStage.stage_id)} data-testid="review-gate-button">Review & Approve</Button>
                 </div>
               ) : revisingStage ? (
-                <div className="p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)' }} data-testid="revising-banner">
-                  <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-warning)' }}>Stage {revisingStage.stage_id} needs revision ({revisingStage.revision_count} revisions)</p>
-                  <Button variant="warning" size="sm" onClick={() => runStageMutation.mutate(revisingStage.stage_id)} disabled={runStageMutation.isPending} data-testid="rerun-stage-button">Re-run Stage</Button>
+                <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="revising-banner">
+                  <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>⚠ Stage {revisingStage.stage_id} needs to be re-run</p>
+                  <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+                    This stage was interrupted (server restart or agent error). The agent didn't complete successfully.
+                    Click below to dispatch the agent again. Previous artifacts and context are preserved.
+                  </p>
+                  <Button variant="primary" size="sm" onClick={() => runStageMutation.mutate(revisingStage.stage_id)} disabled={runStageMutation.isPending} isLoading={runStageMutation.isPending} data-testid="rerun-stage-button">
+                    ▶ Re-run Stage {revisingStage.stage_id}
+                  </Button>
                 </div>
               ) : nextStage ? (
                 <div data-testid="next-stage-panel">
-                  <p className="text-sm text-[var(--color-text-secondary)] mb-2">Next: <strong className="text-[var(--color-text-primary)]">{nextStage.stage_id}</strong></p>
+                  <p className="text-sm text-[var(--color-text-secondary)] mb-2">Next stage: <strong className="text-[var(--color-text-primary)]">{nextStage.stage_id}</strong></p>
                   <Button variant="primary" onClick={() => runStageMutation.mutate(nextStage.stage_id)} disabled={runStageMutation.isPending} isLoading={runStageMutation.isPending} data-testid="run-stage-button">
                     ▶ Run Stage {nextStage.stage_id}
                   </Button>
