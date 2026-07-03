@@ -1,8 +1,10 @@
 package ratelimit
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -87,22 +89,31 @@ func TestKeyExtractorXFFTrimsWhitespace(t *testing.T) {
 }
 
 // TestKeyExtractorXFFMalformedFallsBack (BR-12, BR-13, US7 scenario 3) — a
-// malformed XFF when trusted falls back to RemoteAddr + a warning log. Never
-// panics.
+// malformed XFF (non-IP string) when trusted falls back to RemoteAddr AND emits
+// a warning log. Never panics. This is the LOCKED fail-safe fallback contract
+// (R-1 fix): the limiter never keys on a garbage string.
 func TestKeyExtractorXFFMalformedFallsBack(t *testing.T) {
+	// Capture log output to verify the warning is emitted (BR-12 mandates a
+	// log.Printf warning on fallback, not just silent fallback).
+	var logBuf strings.Builder
+	origOut := log.Writer()
+	log.SetOutput(&logBuf)
+	t.Cleanup(func() { log.SetOutput(origOut) })
+
 	ext := KeyExtractor{TrustProxyHeaders: true}
 	r := httptest.NewRequest(http.MethodGet, "/x", nil)
 	r.RemoteAddr = "10.0.0.1:1000"
 	r.Header.Set("X-Forwarded-For", "not-an-ip")
 	_, ip := ext.Extract(r)
-	// parseXFFLeftmost returns the trimmed entry even if it's not a valid IP
-	// (the limiter keys on the string; spoofed but non-empty is still a key).
-	// The "malformed → fallback" rule applies to a value that fails to parse
-	// as an IP for the *fallback* decision. Our implementation treats any
-	// non-empty trimmed entry as the IP; an all-empty/whitespace XFF falls
-	// back to RemoteAddr. This test asserts the all-empty case.
-	if ip != "not-an-ip" {
-		t.Logf("note: non-empty XFF entry %q is used verbatim as the key (BR-12 leftmost); got %q", "not-an-ip", ip)
+	// BR-12/BR-13 — malformed non-IP XFF must fall back to RemoteAddr, NOT key
+	// on the garbage string verbatim (R-1 fix).
+	if ip != "10.0.0.1" {
+		t.Errorf("malformed XFF must fall back to RemoteAddr; ip = %q, want 10.0.0.1 (BR-12/BR-13/US7)", ip)
+	}
+	// BR-12 mandates the warning log so an operator sees the XFF was unparseable.
+	logOut := logBuf.String()
+	if !strings.Contains(logOut, "malformed X-Forwarded-For") {
+		t.Errorf("malformed XFF must emit a warning log (BR-12); log = %q", logOut)
 	}
 }
 

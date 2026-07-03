@@ -203,7 +203,7 @@ func TestRateLimitStatusRouteRegisteredWhenArmed(t *testing.T) {
 // TestRateLimitStatusReturns200 (BR-26).
 func TestRateLimitStatusReturns200(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status endpoint must always return 200 (BR-26), got %d", resp.StatusCode)
@@ -213,7 +213,7 @@ func TestRateLimitStatusReturns200(t *testing.T) {
 // TestRateLimitStatusSchemaKeyOrder (BR-27) — keys in the locked order.
 func TestRateLimitStatusSchemaKeyOrder(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var raw map[string]json.RawMessage
@@ -258,7 +258,7 @@ func TestRateLimitStatusSchemaKeyOrder(t *testing.T) {
 // array, never null.
 func TestRateLimitStatusActiveKeysIsArray(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var raw map[string]json.RawMessage
@@ -278,7 +278,7 @@ func TestRateLimitStatusActiveKeysIsArray(t *testing.T) {
 // TestRateLimitStatusActiveKeysNotNull (BR-28) — explicit empty-array check.
 func TestRateLimitStatusActiveKeysNotNull(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if strings.Contains(string(body), `"active_keys":null`) {
@@ -289,7 +289,7 @@ func TestRateLimitStatusActiveKeysNotNull(t *testing.T) {
 // TestRateLimitStatusEmptyHealthy (BR-28) — no traffic → active_keys == [], counters 0.
 func TestRateLimitStatusEmptyHealthy(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	var typed rateLimitStatusResponse
 	body, _ := io.ReadAll(resp.Body)
@@ -313,9 +313,9 @@ func TestRateLimitStatusExemptFromLimiting(t *testing.T) {
 	window := 60
 	maxKeys := 10000
 	cfg := &config.RateLimitConfig{
-		Enabled:  true,
-		FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Enabled:        true,
+		FailMode:       "fail_open",
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: &maxKeys,
 	}
 	s, ts, _ := newRateLimitTestServer(t, cfg)
@@ -324,7 +324,7 @@ func TestRateLimitStatusExemptFromLimiting(t *testing.T) {
 	// Exhaust the /test key for this IP (the test server's RemoteAddr will be
 	// the httptest server's loopback).
 	for i := 0; i < 3; i++ {
-		resp := mustGet(t, ts.URL + "/test")
+		resp := mustGet(t, ts.URL+"/test")
 		resp.Body.Close()
 	}
 	// Now /test should 429. But /health/rate-limit must still 200.
@@ -341,7 +341,7 @@ func TestRateLimitStatusExemptFromLimiting(t *testing.T) {
 // TestRateLimitStatusConfigSource (BR-46) — config_source echoes the path.
 func TestRateLimitStatusConfigSource(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var typed rateLimitStatusResponse
@@ -354,7 +354,7 @@ func TestRateLimitStatusConfigSource(t *testing.T) {
 // TestRateLimitStatusGeneratedAtRFC3339 (BR-48).
 func TestRateLimitStatusGeneratedAtRFC3339(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var typed rateLimitStatusResponse
@@ -368,7 +368,7 @@ func TestRateLimitStatusGeneratedAtRFC3339(t *testing.T) {
 func TestRateLimitStatusShowsFullIPs(t *testing.T) {
 	s, ts, _ := newRateLimitTestServer(t, enabledCfg())
 	// Make a request so a key exists.
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	resp.Body.Close()
 	// Snapshot should contain the full loopback IP (no /24 redaction).
 	snap := s.rateLimiter.Snapshot(100)
@@ -386,7 +386,7 @@ func TestRateLimitStatusShowsFullIPs(t *testing.T) {
 // TestRateLimitStatusNoRedactIpsField (BR-30, NR-8) — no redact_ips config field.
 func TestRateLimitStatusNoRedactIpsField(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if strings.Contains(string(body), "redact_ips") {
@@ -420,14 +420,14 @@ func TestRateLimitRemainingDecrements(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults:      config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	_, ts, _ := newRateLimitTestServer(t, cfg)
 
-	r1 := mustGet(t, ts.URL + "/test")
+	r1 := mustGet(t, ts.URL+"/test")
 	r1.Body.Close()
-	r2 := mustGet(t, ts.URL + "/test")
+	r2 := mustGet(t, ts.URL+"/test")
 	r2.Body.Close()
 	rem1, _ := strconvAtoi(r1.Header.Get("Ratelimit-Remaining"))
 	rem2, _ := strconvAtoi(r2.Header.Get("Ratelimit-Remaining"))
@@ -441,7 +441,7 @@ func TestRateLimitRemainingDecrements(t *testing.T) {
 func TestRateLimitAdvisoryHeadersAbsentOnExempt(t *testing.T) {
 	cfg := cfgWithExempt("GET /test")
 	_, ts, _ := newRateLimitTestServer(t, cfg)
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	for _, h := range []string{"Ratelimit-Limit", "Ratelimit-Remaining", "X-Ratelimit-Policy"} {
 		if resp.Header.Get(h) != "" {
@@ -457,7 +457,7 @@ func TestRateLimitExemptRouteNoCount(t *testing.T) {
 	s, ts, _ := newRateLimitTestServer(t, cfg)
 	before := s.rateLimiter.Len()
 	for i := 0; i < 5; i++ {
-		resp := mustGet(t, ts.URL + "/test")
+		resp := mustGet(t, ts.URL+"/test")
 		resp.Body.Close()
 	}
 	after := s.rateLimiter.Len()
@@ -470,7 +470,7 @@ func TestRateLimitExemptRouteNoCount(t *testing.T) {
 func TestRateLimitExemptRouteNoHeaders(t *testing.T) {
 	cfg := cfgWithExempt("GET /test")
 	_, ts, _ := newRateLimitTestServer(t, cfg)
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	if resp.Header.Get("Ratelimit-Remaining") != "" {
 		t.Errorf("exempt route must not set RateLimit-Remaining (BR-09)")
@@ -483,7 +483,7 @@ func TestRateLimitRejection429Status(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	_, ts, called := newRateLimitTestServer(t, cfg)
@@ -493,7 +493,7 @@ func TestRateLimitRejection429Status(t *testing.T) {
 		r.Body.Close()
 	}
 	*called = false
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusTooManyRequests {
 		t.Errorf("expected 429 (BR-19), got %d", resp.StatusCode)
@@ -509,13 +509,13 @@ func TestRateLimitRejectionHeadersPresent(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	_, ts, _ := newRateLimitTestServer(t, cfg)
-	r1 := mustGet(t, ts.URL + "/test")
+	r1 := mustGet(t, ts.URL+"/test")
 	r1.Body.Close() // exhausts limit (1 allow; next denies)
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	for _, h := range []string{"Retry-After", "Ratelimit-Limit", "Ratelimit-Remaining", "Ratelimit-Reset", "X-Ratelimit-Policy"} {
 		if resp.Header.Get(h) == "" {
@@ -530,13 +530,13 @@ func TestRateLimitRejectionRetryAfterIsDeltaSeconds(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	_, ts, _ := newRateLimitTestServer(t, cfg)
-	r1 := mustGet(t, ts.URL + "/test")
+	r1 := mustGet(t, ts.URL+"/test")
 	r1.Body.Close()
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	ra := resp.Header.Get("Retry-After")
 	if ra == "" {
@@ -550,7 +550,7 @@ func TestRateLimitRejectionRetryAfterIsDeltaSeconds(t *testing.T) {
 // TestRateLimitPolicyHeaderFormat (BR-25) — "<Limit>;w=<Window>".
 func TestRateLimitPolicyHeaderFormat(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	pol := resp.Header.Get("X-Ratelimit-Policy")
 	if pol != "100;w=60" {
@@ -565,13 +565,13 @@ func TestRateLimitRejectionBodyIsErrorResponse(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	_, ts, _ := newRateLimitTestServer(t, cfg)
-	r1 := mustGet(t, ts.URL + "/test")
+	r1 := mustGet(t, ts.URL+"/test")
 	r1.Body.Close()
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	var er ErrorResponse
 	if err := json.NewDecoder(resp.Body).Decode(&er); err != nil {
@@ -581,7 +581,7 @@ func TestRateLimitRejectionBodyIsErrorResponse(t *testing.T) {
 		t.Errorf("error = %q, want rate_limit_exceeded (BR-21)", er.Error)
 	}
 	if er.Details == "" {
-		t.Errorf("details must be non-empty (F-6 omitempty — BR-21)", )
+		t.Errorf("details must be non-empty (F-6 omitempty — BR-21)")
 	}
 }
 
@@ -591,13 +591,13 @@ func TestRateLimitRejectionBodyNoKey(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	_, ts, _ := newRateLimitTestServer(t, cfg)
-	r1 := mustGet(t, ts.URL + "/test")
+	r1 := mustGet(t, ts.URL+"/test")
 	r1.Body.Close()
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	for _, forbidden := range []string{`"key"`, `"policy"`, `"request_id"`, `"retry_after_seconds"`} {
@@ -612,13 +612,13 @@ func TestRateLimitRejectionBodyDetailsPresent(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	_, ts, _ := newRateLimitTestServer(t, cfg)
-	r1 := mustGet(t, ts.URL + "/test")
+	r1 := mustGet(t, ts.URL+"/test")
 	r1.Body.Close()
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `"details":`) {
@@ -648,7 +648,7 @@ func TestRateLimitDenyIncrementsCount(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	s, ts, _ := newRateLimitTestServer(t, cfg)
@@ -681,7 +681,7 @@ func TestRateLimitOverrideAppliesToMatchingRoute(t *testing.T) {
 	// override is for POST /v1/run which isn't registered as a handler, but
 	// the policy resolution still applies. We verify via the policy header
 	// on /test (default 100).
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	if resp.Header.Get("X-Ratelimit-Policy") != "100;w=60" {
 		t.Errorf("default policy header = %q, want 100;w=60 (BR-17 default)", resp.Header.Get("X-Ratelimit-Policy"))
@@ -691,7 +691,7 @@ func TestRateLimitOverrideAppliesToMatchingRoute(t *testing.T) {
 // TestRateLimitUnlistedRouteUsesDefault (BR-17).
 func TestRateLimitUnlistedRouteUsesDefault(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	if resp.Header.Get("Ratelimit-Limit") != "100" {
 		t.Errorf("unlisted route should use default limit 100, got %q", resp.Header.Get("Ratelimit-Limit"))
@@ -704,13 +704,13 @@ func TestRateLimitDryRunNeverRejects(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 		DryRun:         ptrBool(true),
 	}
 	_, ts, _ := newRateLimitTestServer(t, cfg)
 	for i := 0; i < 10; i++ {
-		resp := mustGet(t, ts.URL + "/test")
+		resp := mustGet(t, ts.URL+"/test")
 		resp.Body.Close()
 		if resp.StatusCode == http.StatusTooManyRequests {
 			t.Errorf("dry_run must never reject (BR-42), request %d got 429", i+1)
@@ -724,14 +724,14 @@ func TestRateLimitDryRunRetryAfterPresent(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 		DryRun:         ptrBool(true),
 	}
 	_, ts, _ := newRateLimitTestServer(t, cfg)
-	r1 := mustGet(t, ts.URL + "/test") // exhaust
+	r1 := mustGet(t, ts.URL+"/test") // exhaust
 	r1.Body.Close()
-	resp := mustGet(t, ts.URL + "/test") // over-limit in dry-run
+	resp := mustGet(t, ts.URL+"/test") // over-limit in dry-run
 	defer resp.Body.Close()
 	if resp.Header.Get("Retry-After") == "" {
 		t.Errorf("dry_run over-limit must carry Retry-After (BR-42/M5)")
@@ -744,14 +744,14 @@ func TestRateLimit429LoopServerStable(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	s, ts, _ := newRateLimitTestServer(t, cfg)
-	r1 := mustGet(t, ts.URL + "/test")
+	r1 := mustGet(t, ts.URL+"/test")
 	r1.Body.Close()
 	for i := 0; i < 100; i++ {
-		resp := mustGet(t, ts.URL + "/test")
+		resp := mustGet(t, ts.URL+"/test")
 		resp.Body.Close()
 	}
 	if s.rateLimiter.RejectionsTotal() != 100 {
@@ -867,13 +867,13 @@ func TestRateLimitCleanDenialNotMalfunction(t *testing.T) {
 	window := 60
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: ptrIntAPI(10000),
 	}
 	s, ts, _ := newRateLimitTestServer(t, cfg)
-	r1 := mustGet(t, ts.URL + "/test")
+	r1 := mustGet(t, ts.URL+"/test")
 	r1.Body.Close()
-	r2 := mustGet(t, ts.URL + "/test")
+	r2 := mustGet(t, ts.URL+"/test")
 	defer r2.Body.Close()
 	if r2.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("expected 429, got %d", r2.StatusCode)
@@ -901,14 +901,18 @@ func TestRateLimitFailuresTotalNotReset(t *testing.T) {
 }
 
 // TestRateLimitMalfunctionNoCountIncrement (BR-11) — malfunction does not count.
+// Asserts the primed key's count stays at 1 (the malfunction path returns
+// before the critical section adds to the bucket), verifying BR-11 at the
+// middleware level (N-1 fix: the prior test captured `before` but never used
+// it and never checked the post-malfunction count).
 func TestRateLimitMalfunctionNoCountIncrement(t *testing.T) {
 	s, ts, _ := newRateLimitTestServer(t, enabledCfg())
 	// Prime with one normal request.
-	http.Get(ts.URL + "/test")
+	mustGet(t, ts.URL+"/test").Body.Close()
 	before := s.rateLimiter.Len()
 	// Inject malfunction.
 	s.rateLimiter.SwapClockForTest(panicTestClock{})
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	resp.Body.Close()
 	// The malfunction path does NOT create a new key (the panic happens
 	// before the entry is added) — actually it does reach Allow. We assert
@@ -916,7 +920,20 @@ func TestRateLimitMalfunctionNoCountIncrement(t *testing.T) {
 	if s.rateLimiter.FailuresTotal() < 1 {
 		t.Errorf("malfunction must increment failures_total (BR-50)")
 	}
-	_ = before
+	if s.rateLimiter.Len() != before {
+		t.Errorf("malfunction must NOT add a new key (BR-11), before=%d after=%d", before, s.rateLimiter.Len())
+	}
+	// N-1 fix: assert the primed key's count is still 1 (the malfunction did
+	// not increment it). The primed key is 127.0.0.1|GET /test (loopback).
+	s.rateLimiter.RestoreClockForTest()
+	snap := s.rateLimiter.Snapshot(100)
+	for _, k := range snap.Keys {
+		if k.Key == "127.0.0.1|GET /test" {
+			if k.Count != 1 {
+				t.Errorf("malfunction must NOT increment the primed key count (BR-11), got %d, want 1", k.Count)
+			}
+		}
+	}
 }
 
 // TestRateLimitMalfunctionPerRequest (BR-53) — malfunction on req 1, normal on req 2.
@@ -944,7 +961,7 @@ func TestRateLimitStatusFailuresTotalIncrements(t *testing.T) {
 	http.Get(ts.URL + "/test") // malfunction
 	s.rateLimiter.RestoreClockForTest()
 
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var typed rateLimitStatusResponse
@@ -964,7 +981,7 @@ func TestRateLimitStatusActiveKeysCapped(t *testing.T) {
 	maxKeys := 100
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: &maxKeys,
 	}
 	s, ts, _ := newRateLimitTestServer(t, cfg)
@@ -974,7 +991,7 @@ func TestRateLimitStatusActiveKeysCapped(t *testing.T) {
 	for i := 0; i < 150; i++ {
 		s.rateLimiter.Allow("127.0.0.1|GET /route-"+strconv.Itoa(i), ratelimit.Policy{Limit: limit, Window: 60 * time.Second})
 	}
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var typed rateLimitStatusResponse
@@ -995,14 +1012,14 @@ func TestRateLimitStatusNoSyntheticTruncationEntry(t *testing.T) {
 	maxKeys := 100
 	cfg := &config.RateLimitConfig{
 		Enabled: true, FailMode: "fail_open",
-		Defaults: config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
+		Defaults:       config.RateLimitDefaults{Limit: &limit, WindowSeconds: &window},
 		MaxTrackedKeys: &maxKeys,
 	}
 	s, ts, _ := newRateLimitTestServer(t, cfg)
 	for i := 0; i < 150; i++ {
 		s.rateLimiter.Allow("127.0.0.1|GET /route-"+strconv.Itoa(i), ratelimit.Policy{Limit: limit, Window: 60 * time.Second})
 	}
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var raw map[string]json.RawMessage
@@ -1028,7 +1045,7 @@ func TestRateLimitStatusActiveKeysSortedByCountDesc(t *testing.T) {
 			s.rateLimiter.Allow("ip|GET /r"+strconv.Itoa(i), ratelimit.Policy{Limit: 1000, Window: 60 * time.Second})
 		}
 	}
-	resp := mustGet(t, ts.URL + "/health/rate-limit")
+	resp := mustGet(t, ts.URL+"/health/rate-limit")
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var typed rateLimitStatusResponse
@@ -1044,7 +1061,7 @@ func TestRateLimitStatusActiveKeysSortedByCountDesc(t *testing.T) {
 func TestRateLimitAdvisoryHeadersAbsentOnMalfunction(t *testing.T) {
 	s, ts, _ := newRateLimitTestServer(t, enabledCfg())
 	s.rateLimiter.SwapClockForTest(panicTestClock{})
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	for _, h := range []string{"Ratelimit-Limit", "Ratelimit-Remaining", "X-Ratelimit-Policy"} {
 		if resp.Header.Get(h) != "" {
@@ -1056,7 +1073,7 @@ func TestRateLimitAdvisoryHeadersAbsentOnMalfunction(t *testing.T) {
 // TestRateLimitResetIsDeltaSeconds (BR-24) — RateLimit-Reset is integer.
 func TestRateLimitResetIsDeltaSeconds(t *testing.T) {
 	_, ts, _ := newRateLimitTestServer(t, enabledCfg())
-	resp := mustGet(t, ts.URL + "/test")
+	resp := mustGet(t, ts.URL+"/test")
 	defer resp.Body.Close()
 	reset := resp.Header.Get("Ratelimit-Reset")
 	if n, err := strconvAtoi(reset); err != nil || n < 0 {

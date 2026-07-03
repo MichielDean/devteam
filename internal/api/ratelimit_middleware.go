@@ -31,6 +31,14 @@ const rateLimitStatusRoute = "GET /health/rate-limit"
 // (§2.1/§2.14) → branch on verdict + dry_run (allow / deny+dry_run / deny+force)
 // → malfunction catch (§2.1, two-layer §2.2). Advisory headers on allow
 // (§2.10). 429 on deny+enforce (BR-19..BR-21).
+//
+// §2.2 two-layer recovery contract (BR-35/BR-56, invariant 5): the inner
+// defer/recover scope is LIMITER-DOMAIN ONLY — key extraction, policy resolve,
+// Allow, and header-setting. next.ServeHTTP is called EXACTLY ONCE, OUTSIDE the
+// recover scope, so a handler panic propagates to the outer recoveryMiddleware
+// (F-8) → 500. The limiter never swallows, re-invokes, or misattributes a
+// handler bug. This preserves the pre-feature error contract for every
+// existing endpoint (B-1 fix).
 func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// PERF-12 / §2.4 — the nil branch is EXACTLY two statements. No
@@ -40,25 +48,14 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// §2.2 inner-layer recovery: a panic anywhere in the closure (key
-		// extraction, policy resolve, Allow, header-setting) is caught here
-		// and routed to the fail-open path. If THIS path panics, the outer
-		// recoveryMiddleware (F-8) catches it → 500 (two-layer, BR-56).
-		defer func() {
-			if rec := recover(); rec != nil {
-				s.rateLimiter.RecordFailure()
-				log.Printf("rate_limit: internal_error err=%q key=<unknown> route=%s decision=allow fail_mode=%s",
-					fmt.Sprintf("%v", rec), r.Method+" "+r.URL.Path, s.rlCfg.FailMode)
-				// Fail-open skips ALL RateLimit-* headers (invariant 4).
-				next.ServeHTTP(w, r)
-			}
-		}()
-
 		route := r.Method + " " + r.URL.Path
 
 		// §2.13 — exempt BEFORE Allow. NO Allow call, NO header mutation, NO
 		// count increment, NO log. The status endpoint is exempt by route;
-		// config exempt overrides are matched here too.
+		// config exempt overrides are matched here too. Exempt routes call
+		// next.ServeHTTP directly — OUTSIDE the limiter-domain recover scope,
+		// so a handler panic on an exempt route still reaches the outer
+		// recoveryMiddleware (BR-35).
 		if route == rateLimitStatusRoute {
 			next.ServeHTTP(w, r)
 			return
@@ -68,26 +65,26 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// BR-10/BR-12 — composite key + bare IP. Never panics (BR-13/SEC-02).
-		compositeKey, _ := s.rlExtractor.Extract(r)
+		// adjudicate runs the limiter-domain work (key extraction, policy
+		// resolve, Allow, header-setting) inside a recover scope. A panic in
+		// any of those sites is caught here and routed to the fail-open path
+		// (§2.1/§2.2 inner layer). If THIS recovery path itself panics, the
+		// outer recoveryMiddleware (F-8) catches it → 500 (two-layer, BR-56).
+		//
+		// next.ServeHTTP is NEVER called inside adjudicate — the handler is
+		// invoked exactly once, after adjudicate returns, OUTSIDE the recover
+		// scope. A handler panic therefore propagates to recoveryMiddleware,
+		// never to this limiter-domain defer (B-1 fix).
+		verdict, failOpen := s.adjudicate(r, route, w)
 
-		// BR-17 — resolve matched policy (override or default).
-		policy, ok := s.resolvePolicy(route)
-		if !ok {
-			// An exempt override short-circuited above; a non-exempt override
-			// with no limit/window falls back to defaults inside resolvePolicy.
-		}
-
-		// §2.1/§2.14 — Allow. On malfunction returns fail-open verdict + err.
-		verdict := s.rateLimiter.Allow(compositeKey, policy)
-
-		// §2.1 — malfunction path: the limiter already incremented
-		// failures_total inside its own recover. Log M4.2 (BR-32), set NO
-		// RateLimit-* headers (invariant 4), pass through (D1/US6).
-		if verdict.Err != nil {
-			log.Printf("rate_limit: internal_error err=%q key=%s route=%s decision=allow fail_mode=%s",
-				verdict.Err.Error(), compositeKey, route, s.rlCfg.FailMode)
-			// NO RateLimit-* headers on malfunction (BR-23/BR-54).
+		if failOpen {
+			// §2.1 — malfunction path. The limiter already incremented
+			// failures_total inside its own recover (Allow) OR the middleware
+			// recover caught a panic in key-extraction/policy/header-setting.
+			// Log M4.2 (BR-32), set NO RateLimit-* headers (invariant 4),
+			// pass through (D1/US6). next.ServeHTTP is called OUTSIDE the
+			// recover scope — a handler panic on the fail-open path still
+			// reaches recoveryMiddleware (B-1 fix).
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -98,7 +95,8 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 			// §2.10 — advisory headers on allow (O-9, corrects C-2). Set on
 			// w.Header() BEFORE next.ServeHTTP (invariant 1 — stdlib locks
 			// the header map at WriteHeader; setting after is a silent no-op).
-			s.setAdvisoryHeaders(w, verdict)
+			// setAdvisoryHeaders ran inside adjudicate's recover scope; the
+			// handler call is outside.
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -108,33 +106,119 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 			// BR-42 — dry-run never rejects. Advisory headers + Retry-After
 			// (M5 — even on 200 so clients see what the limiter would say),
 			// log M4.3, call next, NO 429, NO rejections_total increment.
-			s.setAdvisoryHeaders(w, verdict)
-			retryAfter := retryAfterSeconds(verdict)
-			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-			log.Printf("rate_limit: dry_run would_reject key=%s route=%s count=%d limit=%d window=%ds retry_after=%ds",
-				compositeKey, route, verdict.Count, verdict.Limit, int(verdict.Window.Seconds()), retryAfter)
+			// setAdvisoryHeaders + Retry-After set inside adjudicate; the log
+			// + next.ServeHTTP run outside the recover scope.
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Clean 429 (BR-19..BR-21). Set 429 headers BEFORE writeError calls
-		// WriteHeader (invariant 1, F-5: writeJSON calls WriteHeader then
-		// encodes). NO next.ServeHTTP (invariant 2 — the handler never sees
-		// the rejected request).
-		s.setRejectionHeaders(w, verdict)
-		retryAfter := retryAfterSeconds(verdict)
-		// BR-21 — 429 body is ErrorResponse{Error, Details} via the EXISTING
-		// writeError (F-5, F-6). Do NOT edit dto.go. details MUST be non-empty
-		// (F-6: Details has omitempty; an empty details would omit the field).
-		details := fmt.Sprintf("Rate limit exceeded for %s; retry after %ds.", route, retryAfter)
-		// Log M4.1 (BR-31) BEFORE writeError so the log is emitted even if
-		// writeError somehow panicked (it won't, but the ordering matches the
-		// rejection-counter contract).
-		log.Printf("rate_limit: rejected key=%s route=%s count=%d limit=%d window=%ds retry_after=%ds",
-			compositeKey, route, verdict.Count, verdict.Limit, int(verdict.Window.Seconds()), retryAfter)
-		s.rateLimiter.RecordRejection()
-		writeError(w, http.StatusTooManyRequests, "rate_limit_exceeded", details)
+		// Clean 429 (BR-19..BR-21). The rejection headers + log +
+		// RecordRejection + writeError all ran inside adjudicate's recover
+		// scope (a panic in writeError is limiter-domain). NO next.ServeHTTP
+		// (invariant 2 — the handler never sees the rejected request). The
+		// 429 response is already written; we return without calling next.
 	})
+}
+
+// adjudicate runs the limiter-domain work and returns the verdict plus a
+// failOpen flag. It is the §2.2 inner-layer recover scope: a panic in key
+// extraction, policy resolve, Allow, or header-setting is caught here and
+// routed to the fail-open path. next.ServeHTTP is NEVER called inside this
+// function — the caller invokes the handler exactly once, outside this
+// recover scope, so handler panics reach the outer recoveryMiddleware (B-1).
+//
+// On the allow path, advisory headers are set on w here (inside the recover
+// scope, so a header-setting panic is caught). On the deny+enforce path, the
+// 429 response is fully written here (headers + log + RecordRejection +
+// writeError). On the deny+dry_run path, advisory headers + Retry-After are
+// set here and the M4.3 log is emitted here. The caller then calls
+// next.ServeHTTP once, outside the recover scope.
+//
+// Returns (zero Verdict, true) on fail-open; (verdict, false) otherwise.
+func (s *Server) adjudicate(r *http.Request, route string, w http.ResponseWriter) (verdict ratelimit.Verdict, failOpen bool) {
+	// §2.2 inner-layer recovery — limiter-domain ONLY. A panic in key
+	// extraction, policy resolve, Allow, or header-setting is caught here.
+	// If THIS recovery path panics, the outer recoveryMiddleware (F-8) catches
+	// it → 500 (two-layer, BR-56). next.ServeHTTP is never called here.
+	defer func() {
+		if rec := recover(); rec != nil {
+			s.rateLimiter.RecordFailure()
+			log.Printf("rate_limit: internal_error err=%q key=<unknown> route=%s decision=allow fail_mode=%s",
+				fmt.Sprintf("%v", rec), route, s.rlCfg.FailMode)
+			// Fail-open skips ALL RateLimit-* headers (invariant 4). The
+			// caller calls next.ServeHTTP once, outside this recover scope.
+			failOpen = true
+		}
+	}()
+
+	// BR-10/BR-12 — composite key + bare IP. Never panics (BR-13/SEC-02);
+	// if it ever does, the recover above catches it (fail-safe).
+	compositeKey, _ := s.rlExtractor.Extract(r)
+
+	// BR-17 — resolve matched policy (override or default).
+	policy, ok := s.resolvePolicy(route)
+	if !ok {
+		// An exempt override short-circuited above; a non-exempt override
+		// with no limit/window falls back to defaults inside resolvePolicy.
+	}
+
+	// §2.1/§2.14 — Allow. On malfunction returns fail-open verdict + err.
+	verdict = s.rateLimiter.Allow(compositeKey, policy)
+
+	// §2.1 — malfunction path: the limiter already incremented
+	// failures_total inside its own recover. Log M4.2 (BR-32), set NO
+	// RateLimit-* headers (invariant 4), pass through (D1/US6).
+	if verdict.Err != nil {
+		log.Printf("rate_limit: internal_error err=%q key=%s route=%s decision=allow fail_mode=%s",
+			verdict.Err.Error(), compositeKey, route, s.rlCfg.FailMode)
+		// NO RateLimit-* headers on malfunction (BR-23/BR-54). The caller
+		// calls next.ServeHTTP once, outside this recover scope.
+		failOpen = true
+		return
+	}
+
+	dryRun := s.rlCfg.GetDryRun()
+
+	if verdict.Allow {
+		// §2.10 — advisory headers on allow (O-9, corrects C-2). Set on
+		// w.Header() BEFORE the caller calls next.ServeHTTP (invariant 1).
+		s.setAdvisoryHeaders(w, verdict)
+		return
+	}
+
+	// Deny path.
+	if dryRun {
+		// BR-42 — dry-run never rejects. Advisory headers + Retry-After
+		// (M5 — even on 200 so clients see what the limiter would say),
+		// log M4.3, NO 429, NO rejections_total increment. The caller calls
+		// next.ServeHTTP once, outside this recover scope.
+		s.setAdvisoryHeaders(w, verdict)
+		retryAfter := retryAfterSeconds(verdict)
+		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+		log.Printf("rate_limit: dry_run would_reject key=%s route=%s count=%d limit=%d window=%ds retry_after=%ds",
+			compositeKey, route, verdict.Count, verdict.Limit, int(verdict.Window.Seconds()), retryAfter)
+		return
+	}
+
+	// Clean 429 (BR-19..BR-21). Set 429 headers BEFORE writeError calls
+	// WriteHeader (invariant 1, F-5: writeJSON calls WriteHeader then
+	// encodes). NO next.ServeHTTP (invariant 2 — the handler never sees
+	// the rejected request). The 429 is fully written here; the caller
+	// returns without calling next.
+	s.setRejectionHeaders(w, verdict)
+	retryAfter := retryAfterSeconds(verdict)
+	// BR-21 — 429 body is ErrorResponse{Error, Details} via the EXISTING
+	// writeError (F-5, F-6). Do NOT edit dto.go. details MUST be non-empty
+	// (F-6: Details has omitempty; an empty details would omit the field).
+	details := fmt.Sprintf("Rate limit exceeded for %s; retry after %ds.", route, retryAfter)
+	// Log M4.1 (BR-31) BEFORE writeError so the log is emitted even if
+	// writeError somehow panicked (it won't, but the ordering matches the
+	// rejection-counter contract).
+	log.Printf("rate_limit: rejected key=%s route=%s count=%d limit=%d window=%ds retry_after=%ds",
+		compositeKey, route, verdict.Count, verdict.Limit, int(verdict.Window.Seconds()), retryAfter)
+	s.rateLimiter.RecordRejection()
+	writeError(w, http.StatusTooManyRequests, "rate_limit_exceeded", details)
+	return
 }
 
 // isExempt returns true if the route has an exempt:true override (BR-09).
@@ -270,20 +354,20 @@ func (s *Server) ConfigureRateLimiting(cfg *config.RateLimitConfig, configPath s
 // generated_at. Go marshals struct fields in declaration order, so the
 // struct below defines the wire order.
 type rateLimitStatusResponse struct {
-	Status             string                       `json:"status"`
-	Enabled            bool                         `json:"enabled"`
-	Limiter            string                       `json:"limiter"`
-	ConfigSource       string                       `json:"config_source"`
-	TrustProxyHeaders  bool                         `json:"trust_proxy_headers"`
-	DryRun             bool                         `json:"dry_run"`
-	FailMode           string                       `json:"fail_mode"`
-	Defaults           rateLimitDefaultsResponse    `json:"defaults"`
-	EndpointOverrides  []rateLimitOverrideResponse  `json:"endpoint_overrides"`
-	ActiveKeys         []ratelimit.KeyState         `json:"active_keys"`
+	Status              string                      `json:"status"`
+	Enabled             bool                        `json:"enabled"`
+	Limiter             string                      `json:"limiter"`
+	ConfigSource        string                      `json:"config_source"`
+	TrustProxyHeaders   bool                        `json:"trust_proxy_headers"`
+	DryRun              bool                        `json:"dry_run"`
+	FailMode            string                      `json:"fail_mode"`
+	Defaults            rateLimitDefaultsResponse   `json:"defaults"`
+	EndpointOverrides   []rateLimitOverrideResponse `json:"endpoint_overrides"`
+	ActiveKeys          []ratelimit.KeyState        `json:"active_keys"`
 	ActiveKeysTruncated bool                        `json:"active_keys_truncated"`
-	RejectionsTotal    int64                        `json:"rejections_total"`
-	FailuresTotal      int64                        `json:"failures_total"`
-	GeneratedAt        string                       `json:"generated_at"`
+	RejectionsTotal     int64                       `json:"rejections_total"`
+	FailuresTotal       int64                       `json:"failures_total"`
+	GeneratedAt         string                      `json:"generated_at"`
 }
 
 type rateLimitDefaultsResponse struct {
@@ -309,20 +393,20 @@ func (s *Server) handleRateLimitStatus(w http.ResponseWriter, r *http.Request) {
 		// branch is unreachable in production. If reached, respond as a
 		// disabled limiter would (BR-33) rather than panicking.
 		writeJSON(w, http.StatusOK, rateLimitStatusResponse{
-			Status:             "healthy",
-			Enabled:            false,
-			Limiter:            "sliding_window",
-			ConfigSource:       "",
-			TrustProxyHeaders:  false,
-			DryRun:             false,
-			FailMode:           "fail_open",
-			Defaults:           rateLimitDefaultsResponse{Limit: 100, WindowSeconds: 60},
-			EndpointOverrides:  []rateLimitOverrideResponse{},
-			ActiveKeys:         []ratelimit.KeyState{},
+			Status:              "healthy",
+			Enabled:             false,
+			Limiter:             "sliding_window",
+			ConfigSource:        "",
+			TrustProxyHeaders:   false,
+			DryRun:              false,
+			FailMode:            "fail_open",
+			Defaults:            rateLimitDefaultsResponse{Limit: 100, WindowSeconds: 60},
+			EndpointOverrides:   []rateLimitOverrideResponse{},
+			ActiveKeys:          []ratelimit.KeyState{},
 			ActiveKeysTruncated: false,
-			RejectionsTotal:    0,
-			FailuresTotal:      0,
-			GeneratedAt:        time.Now().UTC().Format(time.RFC3339),
+			RejectionsTotal:     0,
+			FailuresTotal:       0,
+			GeneratedAt:         time.Now().UTC().Format(time.RFC3339),
 		})
 		return
 	}
@@ -340,18 +424,18 @@ func (s *Server) handleRateLimitStatus(w http.ResponseWriter, r *http.Request) {
 	overrides := buildOverrideResponse(s.rlCfg)
 
 	resp := rateLimitStatusResponse{
-		Status:             "healthy",
-		Enabled:            s.rlCfg.Enabled,
-		Limiter:            "sliding_window",
-		ConfigSource:       s.rlCfg.ConfigPath(),
-		TrustProxyHeaders:  s.rlCfg.GetTrustProxyHeaders(),
-		DryRun:             s.rlCfg.GetDryRun(),
-		FailMode:           s.rlCfg.FailMode,
-		Defaults:           rateLimitDefaultsResponse{
+		Status:            "healthy",
+		Enabled:           s.rlCfg.Enabled,
+		Limiter:           "sliding_window",
+		ConfigSource:      s.rlCfg.ConfigPath(),
+		TrustProxyHeaders: s.rlCfg.GetTrustProxyHeaders(),
+		DryRun:            s.rlCfg.GetDryRun(),
+		FailMode:          s.rlCfg.FailMode,
+		Defaults: rateLimitDefaultsResponse{
 			Limit:         s.rlCfg.GetDefaultLimit(),
 			WindowSeconds: s.rlCfg.GetDefaultWindowSeconds(),
 		},
-		EndpointOverrides:  overrides,
+		EndpointOverrides:   overrides,
 		ActiveKeys:          snap.Keys,
 		ActiveKeysTruncated: snap.Truncated,
 		RejectionsTotal:     snap.RejectionsTotal,

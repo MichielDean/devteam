@@ -63,10 +63,14 @@ func (k KeyExtractor) deriveIP(r *http.Request) string {
 }
 
 // parseXFFLeftmost returns the leftmost non-empty trimmed entry of an
-// X-Forwarded-For header, or "" if none parse (BR-12). It does NOT validate
-// that the entry is a real IP — the limiter keys on the string verbatim,
-// and a spoofed-but-non-empty value is still a usable key. An empty result
-// signals "fall back to RemoteAddr" to the caller.
+// X-Forwarded-For header that parses as a valid IP, or "" if the leftmost
+// non-empty entry is not a valid IP or no non-empty entry exists (BR-12). A
+// non-IP string (e.g. "not-an-ip") is MALFORMED and signals fallback to the
+// caller — the limiter never keys on a garbage string (BR-13 fail-safe, US7
+// scenario 3). An empty result signals "fall back to RemoteAddr + warn" to the
+// caller. This corrects the v2 review finding R-1: the previous implementation
+// returned non-IP strings verbatim, silently using a garbage key with no
+// operator warning, contradicting the LOCKED fail-safe fallback contract.
 func parseXFFLeftmost(xff string) string {
 	// XFF is comma-separated; the leftmost is the originating client under
 	// the single-proxy convention (ADR-009).
@@ -74,6 +78,12 @@ func parseXFFLeftmost(xff string) string {
 		entry := strings.TrimSpace(part)
 		if entry == "" {
 			continue
+		}
+		// BR-12/BR-13 — a non-empty entry that is not a valid IP is malformed.
+		// Fall back to RemoteAddr + a warning log (deriveIP logs it). Do NOT
+		// key on the garbage string (fail-safe, US7 scenario 3).
+		if net.ParseIP(entry) == nil {
+			return ""
 		}
 		return entry
 	}
