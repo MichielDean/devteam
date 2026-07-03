@@ -423,7 +423,6 @@ export default function FeatureDetail() {
             onSubmitAll={handleSubmitAll}
             isSubmitting={isSubmitting}
             allDrafted={allPendingDrafted}
-            isWaitingForHuman={isWaitingForHuman ?? false}
           />
 
           <Card className="p-4" data-testid="artifacts-panel">

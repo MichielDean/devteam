@@ -10,7 +10,6 @@ interface QuestionPanelProps {
   onSubmitAll: () => void;
   isSubmitting: boolean;
   allDrafted: boolean;
-  isWaitingForHuman: boolean;
 }
 
 function groupByRole(questions: Question[]): Record<string, Question[]> {
@@ -25,7 +24,7 @@ function groupByRole(questions: Question[]): Record<string, Question[]> {
 const inputClass =
   'w-full px-3 py-1.5 text-sm rounded-[var(--radius-md)] bg-[var(--color-surface-raised)] text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] focus:border-[var(--color-accent)] focus:outline-none transition-colors';
 
-export default function QuestionPanel({ questions, drafts, onSelect, onType, onSubmitAll, isSubmitting, allDrafted, isWaitingForHuman }: QuestionPanelProps) {
+export default function QuestionPanel({ questions, drafts, onSelect, onType, onSubmitAll, isSubmitting, allDrafted }: QuestionPanelProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const pending = questions.filter((q) => q.status === 'pending');
   const answered = questions.filter((q) => q.status !== 'pending');
@@ -109,7 +108,7 @@ export default function QuestionPanel({ questions, drafts, onSelect, onType, onS
         })}
       </div>
 
-      {isWaitingForHuman && pending.length > 0 && (
+      {pending.length > 0 && (
         <div className="mt-4 border-t border-[var(--color-border-subtle)] pt-3">
           <Button
             variant="primary"
@@ -120,7 +119,7 @@ export default function QuestionPanel({ questions, drafts, onSelect, onType, onS
             className="w-full"
             data-testid="submit-answers"
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Answers & Resume'}
+            {isSubmitting ? 'Submitting...' : 'Submit Answers'}
           </Button>
         </div>
       )}
