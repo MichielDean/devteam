@@ -200,17 +200,30 @@ func (s *Server) RestoreActiveProcesses() {
 						return
 					}
 
-					// Check if outcome was signaled
-					outcome, _ := s.db.GetLatestOutcome(featureID, stageID)
-					if outcome != nil && outcome.Outcome == "pass" {
+				// Check if outcome was signaled
+				outcome, _ := s.db.GetLatestOutcome(featureID, stageID)
+				if outcome != nil && outcome.Outcome == "pass" {
+					// Agent explicitly signaled pass
+					s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
+					s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart")
+					s.broadcastSSE(featureID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
+				} else {
+					// No explicit outcome — check if artifacts were produced for this stage
+					artifacts, _ := s.db.GetSpecArtifactsForStage(featureID, stageID)
+					if len(artifacts) > 0 {
+						// Artifacts exist — agent completed work but server died before processing
+						// Treat as pass (default_pass behavior, same as RunStage)
+						log.Printf("RestoreActiveProcesses: stage %s has %d artifacts, treating as pass", stageID, len(artifacts))
 						s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
-						s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart")
+						s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart (artifacts found)")
 						s.broadcastSSE(featureID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
 					} else {
+						// No outcome and no artifacts — agent likely failed
 						s.db.UpdateFeatureStage(featureID, stageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
 						s.db.RecordAuditEvent(featureID, "STAGE_INTERRUPTED", stageID, "", "server restarted mid-dispatch")
 						s.broadcastSSE(featureID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
 					}
+				}
 
 					// Update feature state
 					f.CurrentStage = stageID
@@ -219,20 +232,28 @@ func (s *Server) RestoreActiveProcesses() {
 				continue
 			}
 
-			// Stage is in_progress but no tmux session — agent exited (server died mid-dispatch)
-			// Check if the agent signaled an outcome
-			outcome, _ := s.db.GetLatestOutcome(f.ID, fs.StageID)
-			if outcome != nil && outcome.Outcome == "pass" {
-				// Agent signaled pass — mark as awaiting_approval
-				log.Printf("RestoreActiveProcesses: stage %s for feature %s has outcome pass — marking awaiting_approval", fs.StageID, f.ID)
+		// Stage is in_progress but no tmux session — agent exited (server died mid-dispatch)
+		// Check if the agent signaled an outcome
+		outcome, _ := s.db.GetLatestOutcome(f.ID, fs.StageID)
+		if outcome != nil && outcome.Outcome == "pass" {
+			// Agent signaled pass — mark as awaiting_approval
+			log.Printf("RestoreActiveProcesses: stage %s for feature %s has outcome pass — marking awaiting_approval", fs.StageID, f.ID)
+			s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
+			s.db.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, fs.StageID, "", "recovered after server restart")
+		} else {
+			// No explicit outcome — check if artifacts were produced
+			artifacts, _ := s.db.GetSpecArtifactsForStage(f.ID, fs.StageID)
+			if len(artifacts) > 0 {
+				log.Printf("RestoreActiveProcesses: stage %s for feature %s has %d artifacts — marking awaiting_approval", fs.StageID, f.ID, len(artifacts))
 				s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
-				s.db.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, fs.StageID, "", "recovered after server restart")
+				s.db.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, fs.StageID, "", "recovered after server restart (artifacts found)")
 			} else {
-				// No outcome or failed — mark as revising so user can re-run
+				// No outcome and no artifacts — mark as revising so user can re-run
 				log.Printf("RestoreActiveProcesses: stage %s for feature %s stuck in_progress, no outcome — marking revising", fs.StageID, f.ID)
 				s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
 				s.db.RecordAuditEvent(f.ID, "STAGE_INTERRUPTED", fs.StageID, "", "server restarted mid-dispatch")
 			}
+		}
 
 			// Update the feature's current_stage and persist the full feature state
 			// so the JSON blob (feature_data) stays in sync with the DB columns.

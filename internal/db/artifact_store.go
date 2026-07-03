@@ -80,3 +80,28 @@ func (db *DB) DeleteArtifact(featureID, artifactType string) error {
 	}
 	return nil
 }
+
+// GetSpecArtifactsForStage returns artifacts produced for a specific stage.
+// Used by RestoreActiveProcesses to check if an agent produced work
+// before the server crashed.
+func (db *DB) GetSpecArtifactsForStage(featureID, stageID string) ([]ArtifactRow, error) {
+	rows, err := db.Query(
+		`SELECT id, feature_id, artifact_type, content, created_at, updated_at
+		 FROM spec_artifacts WHERE feature_id = ? AND stage_id = ? ORDER BY created_at ASC`,
+		featureID, stageID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("getting artifacts for stage: %w", err)
+	}
+	defer rows.Close()
+
+	artifacts := []ArtifactRow{}
+	for rows.Next() {
+		var a ArtifactRow
+		if err := rows.Scan(&a.ID, &a.FeatureID, &a.ArtifactType, &a.Content, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scanning artifact: %w", err)
+		}
+		artifacts = append(artifacts, a)
+	}
+	return artifacts, nil
+}
