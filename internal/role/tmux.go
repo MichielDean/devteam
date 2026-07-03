@@ -201,10 +201,13 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	exec.Command("tmux", "set-window-option", "-t", sessionName, "remain-on-exit", "off").Run()
 
 	// Stream output by tailing the log file
+	// Use a cancellable context so tailLog stops when the tmux session exits
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	defer streamCancel()
 	streamDone := make(chan struct{})
 	go func() {
 		defer close(streamDone)
-		m.tailLog(ctx, logPath, lineCh)
+		m.tailLog(streamCtx, logPath, lineCh)
 	}()
 
 	// Wait for session command to finish
@@ -214,6 +217,7 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	for {
 		select {
 		case <-ctx.Done():
+			streamCancel()
 			m.KillSession(sessionName)
 			<-streamDone
 			result.Duration = time.Since(start)
@@ -224,6 +228,8 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 
 		case <-ticker.C:
 			if !m.IsSessionAlive(sessionName) {
+				// Cancel the tailLog goroutine — it's following the file forever
+				streamCancel()
 				<-streamDone
 				result.Duration = time.Since(start)
 				result.Output = readLogFile(logPath)
