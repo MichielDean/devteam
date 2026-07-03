@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MichielDean/devteam/internal/db"
@@ -285,38 +286,74 @@ func (p *Pipeline) RunAllBolts(ctx context.Context, f *feature.Feature, onOutput
 		return fmt.Errorf("no bolts prepared — call PrepareBolts first")
 	}
 
-	for _, bolt := range bolts {
-		result, err := p.RunBolt(ctx, f, bolt.BoltNumber, onOutput)
+	// Run bolt 1 (walking skeleton) first — always sequential
+	if len(bolts) > 0 {
+		result, err := p.RunBolt(ctx, f, bolts[0].BoltNumber, onOutput)
 		if err != nil {
-			return fmt.Errorf("bolt %d: %w", bolt.BoltNumber, err)
+			return fmt.Errorf("bolt %d: %w", bolts[0].BoltNumber, err)
 		}
-
 		if result.Failed {
-			// Halt-and-ask: return to user for retry/skip/abort decision
-			log.Printf("RunAllBolts: bolt %d failed at stage %s — halting for user decision", bolt.BoltNumber, result.FailureStage)
+			log.Printf("RunAllBolts: bolt %d failed — halting", bolts[0].BoltNumber)
 			return nil
 		}
-
-		// If gate opened, pause for approval
 		if len(result.StageResults) > 0 {
 			last := result.StageResults[len(result.StageResults)-1]
 			if last.Gate != nil && last.Gate.IsOpen() {
-				log.Printf("RunAllBolts: bolt %d gate open — pausing for approval", bolt.BoltNumber)
+				log.Printf("RunAllBolts: bolt %d gate open — pausing for approval", bolts[0].BoltNumber)
 				return nil
 			}
 		}
-
-		// After walking skeleton (bolt 1), fire ladder prompt if not yet answered
-		if bolt.IsWalkingSkeleton && f.AutonomyMode == "" {
-			log.Printf("RunAllBolts: walking skeleton complete — ladder prompt needed for feature %s", f.ID)
-			// In gated mode (default), continue with gates. User can change via API.
+		// Set autonomy mode after walking skeleton
+		if bolts[0].IsWalkingSkeleton && f.AutonomyMode == "" {
 			f.AutonomyMode = AutonomyGated
 			p.saveFeatureState(f)
-			p.database.RecordAuditEvent(f.ID, db.AuditLadderPrompt, "", stage.PhaseConstruction,
-				"defaulting to gated autonomy (user can change via API)")
 		}
+	}
 
-		// In autonomous mode, skip per-Bolt gate (already handled above — no gate opened)
+	// Run remaining bolts in parallel (if autonomous mode)
+	if len(bolts) > 1 && f.AutonomyMode == AutonomyAutonomous {
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var firstErr error
+
+		for i := 1; i < len(bolts); i++ {
+			boltNum := bolts[i].BoltNumber
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, err := p.RunBolt(ctx, f, boltNum, onOutput)
+				if err != nil {
+					mu.Lock()
+					if firstErr == nil {
+						firstErr = fmt.Errorf("bolt %d: %w", boltNum, err)
+					}
+					mu.Unlock()
+				}
+			}()
+		}
+		wg.Wait()
+		if firstErr != nil {
+			return firstErr
+		}
+	} else {
+		// Sequential for gated mode
+		for i := 1; i < len(bolts); i++ {
+			result, err := p.RunBolt(ctx, f, bolts[i].BoltNumber, onOutput)
+			if err != nil {
+				return fmt.Errorf("bolt %d: %w", bolts[i].BoltNumber, err)
+			}
+			if result.Failed {
+				log.Printf("RunAllBolts: bolt %d failed — halting", bolts[i].BoltNumber)
+				return nil
+			}
+			if len(result.StageResults) > 0 {
+				last := result.StageResults[len(result.StageResults)-1]
+				if last.Gate != nil && last.Gate.IsOpen() {
+					log.Printf("RunAllBolts: bolt %d gate open — pausing for approval", bolts[i].BoltNumber)
+					return nil
+				}
+			}
+		}
 	}
 
 	// Run once-at-end construction stages (3.6, 3.7)

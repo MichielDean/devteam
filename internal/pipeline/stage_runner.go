@@ -228,17 +228,29 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		}
 		g.RevisionCount = fs.RevisionCount
 	} else {
-		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, &now, nil)
-		p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, stageDef.Phase, "")
-		p.broadcastSSE(f.ID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase)))
+		// Check autonomy mode — autonomous mode auto-approves
+		if f.AutonomyMode == AutonomyAutonomous {
+			log.Printf("RunStage: autonomous mode — auto-approving stage %s for feature %s", stageID, f.ID)
+			p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, &now, nil)
+			p.database.RecordAuditEvent(f.ID, db.AuditGateApproved, stageID, "", "auto-approved (autonomous mode)")
+			p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
+			p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
+			p.broadcastSSE(f.ID, "gate_approved", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"auto":true}`, jsonString(f.ID), jsonString(stageID)))
+			// Mark gate as approved so caller sees it closed
+			g.Approve()
+		} else {
+			p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, &now, nil)
+			p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, stageDef.Phase, "")
+			p.broadcastSSE(f.ID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase)))
 
-		// Update session state to awaiting gate
-		if p.sessionMgr != nil {
-			boltNumber := 0
-			if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
-				boltNumber = f.CurrentBolt
+			// Update session state to awaiting gate
+			if p.sessionMgr != nil {
+				boltNumber := 0
+				if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
+					boltNumber = f.CurrentBolt
+				}
+				p.sessionMgr.SetSessionAwaitingGate(f.ID, stageDef.Phase, boltNumber, stageID)
 			}
-			p.sessionMgr.SetSessionAwaitingGate(f.ID, stageDef.Phase, boltNumber, stageID)
 		}
 	}
 
@@ -483,6 +495,9 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 	if currentIdx >= len(stages)-1 {
 		// Last stage — mark feature done
 		log.Printf("AdvanceStage: stage %s is the last stage for feature %s", currentStageID, f.ID)
+		f.Status = feature.StatusDone
+		f.CurrentStage = currentStageID
+		p.saveFeatureState(f)
 		if p.database != nil {
 			p.database.RecordAuditEvent(f.ID, db.AuditWorkflowComplete, "", "", "")
 		}
@@ -499,6 +514,9 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 		currentIdx++
 		if currentIdx >= len(stages)-1 {
 			log.Printf("AdvanceStage: reached end after skipping stages for feature %s", f.ID)
+			f.Status = feature.StatusDone
+			f.CurrentStage = currentStageID
+			p.saveFeatureState(f)
 			if p.database != nil {
 				p.database.RecordAuditEvent(f.ID, db.AuditWorkflowComplete, "", "", "")
 			}
@@ -509,8 +527,10 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 
 	newStageDef := &nextStage
 
-	// Update feature's current stage pointer
+	// Update feature's current stage pointer and persist
+	f.CurrentStage = nextStage.ID
 	if p.database != nil {
+		p.saveFeatureState(f)
 		p.database.UpdateFeatureStage(f.ID, nextStage.ID, stage.StatusNotStarted, 0, nil, nil)
 		p.database.RecordAuditEvent(f.ID, db.AuditStageAdvanced, nextStage.ID, nextStage.Phase, "")
 	}
@@ -519,6 +539,10 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 	if oldStageDef != nil && newStageDef != nil && oldStageDef.Phase != newStageDef.Phase {
 		if p.sessionMgr != nil {
 			p.sessionMgr.CompletePhaseSessions(f.ID, oldStageDef.Phase)
+		}
+		// Push impl repo changes for the completed phase
+		if err := p.PushPhaseChanges(f, oldStageDef.Phase); err != nil {
+			log.Printf("AdvanceStage: failed to push phase changes for %s: %v", oldStageDef.Phase, err)
 		}
 	}
 

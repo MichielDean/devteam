@@ -367,6 +367,48 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		s.db.RecordAuditEvent(f.ID, db.AuditWorkflowStart, "", "", fmt.Sprintf("scope=%s depth=%s test_strategy=%s", f.Scope, f.Depth, f.TestStrategy))
 	}
 
+	// Auto-run initialization stages (0.1-0.3) — they're auto-proceed, no gates
+	if s.db != nil {
+		go func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					log.Printf("init stages panic for feature %s: %v", f.ID, rec)
+				}
+			}()
+			initStages := []string{"0.1", "0.2", "0.3"}
+			for _, stageID := range initStages {
+				// Check if stage exists for this scope
+				stageDef, err := s.db.GetStageDefinition(stageID)
+				if err != nil || stageDef == nil {
+					continue
+				}
+				// Check if stage applies to this scope
+				scopeMatch := false
+				for _, sc := range stageDef.Scopes {
+					if sc == f.Scope {
+						scopeMatch = true
+						break
+					}
+				}
+				if !scopeMatch {
+					continue
+				}
+				// Run the stage
+				result, err := s.pipeline.RunStage(context.Background(), f, stageID, func(line string, isStderr bool) {
+					s.broadcastSSE(f.ID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+				})
+				if err != nil {
+					log.Printf("init stage %s failed for feature %s: %v", stageID, f.ID, err)
+					break
+				}
+				// Auto-approve init stages (no gate needed)
+				if result != nil && result.Gate != nil && result.Gate.IsOpen() {
+					s.pipeline.ApproveStage(f, stageID)
+				}
+			}
+		}()
+	}
+
 	if req.StartImmediately {
 		s.active.Store(f.ID, struct{}{})
 	}
