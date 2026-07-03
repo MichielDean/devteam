@@ -16,6 +16,7 @@ type Config struct {
 	Intake     IntakeConfig               `yaml:"intake"`
 	SpecRepo   SpecRepoConfig             `yaml:"spec_repo"`
 	Database   DatabaseConfig             `yaml:"database"`
+	RateLimit  RateLimitConfig            `yaml:"rate_limit"` // NEW (v2) — NOT "rate_limiting" (corrects C-6). Absent block = zero value = Enabled:false = passthrough (F-11, D7/R12). Parsed structurally by yaml.Unmarshal; semantic validation runs in RateLimitConfig.Validate() invoked by ConfigureRateLimiting, NOT in the fatal validateConfig path (F-10, BR-08).
 }
 
 // DatabaseConfig configures the PostgreSQL database connection.

@@ -13,10 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MichielDean/devteam/internal/config"
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/intake"
 	"github.com/MichielDean/devteam/internal/pipeline"
+	"github.com/MichielDean/devteam/internal/ratelimit"
 	"github.com/MichielDean/devteam/internal/spec"
 	"github.com/MichielDean/devteam/internal/stage"
 )
@@ -33,6 +35,15 @@ type Server struct {
 	baseDir      string
 	staticFS     fs.FS
 	questionStore feature.QuestionStore
+
+	// Rate limiting (v2 — F-1 additions). All three stay nil/zero when the
+	// limiter is disabled (absent config or enabled:false → §2.4 nil-passthrough).
+	// The middleware is a pure pass-through when s.rateLimiter == nil: one
+	// nil check + next.ServeHTTP, byte-identical to pre-feature (D7/R12).
+	rateLimiter *ratelimit.Limiter
+	rlExtractor  ratelimit.KeyExtractor
+	rlCfg        *config.RateLimitConfig
+	mux          *http.ServeMux // stored by NewServer so ConfigureRateLimiting can register the status route ONLY when armed (BR-47, §2.9)
 }
 
 func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore, database *db.DB) *Server {
@@ -84,7 +95,20 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 		mux.Handle("/", s.spaHandler(staticFS))
 	}
 
-	handler := s.recoveryMiddleware(s.corsMiddleware(mux))
+	// Store the mux so ConfigureRateLimiting can register the status route
+	// ONLY when armed (BR-47, §2.9). NewServer itself does NOT register
+	// /health/rate-limit — the limiter is nil at this point, so the route
+	// would always 404. Registration happens in ConfigureRateLimiting inside
+	// the armed branch (BR-33: when disabled the route is absent → 404).
+	s.mux = mux
+
+	// Chain order (D6, BR-58, F-4): recovery(cors(rateLimit(mux))).
+	//   - recovery outermost (F-8): catches panics anywhere, including in the
+	//     limiter's own malfunction path if THAT panics (two-layer, §2.2).
+	//   - cors middle (F-7): OPTIONS preflight short-circuits to 204 BEFORE
+	//     the limiter runs (BR-34 — browsers break if preflight is throttled).
+	//   - rate limit innermost (before mux): only real requests are counted.
+	handler := s.recoveryMiddleware(s.corsMiddleware(s.rateLimitMiddleware(mux)))
 
 	s.httpServer = &http.Server{
 		Addr:    addr,

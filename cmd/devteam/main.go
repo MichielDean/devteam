@@ -88,6 +88,15 @@ func main() {
 		// If ui/dist doesn't exist, staticFS is nil — API-only mode (no frontend)
 
 		server := api.NewServer(*httpAddr, specProvider, p, staticFS, questionStore, database)
+		// Arm rate limiting (v2 — F-15, BR-59). Inserted between NewServer
+		// and RestoreActiveProcesses per the setter-based wiring decision
+		// (D10/ADR-007). NewServer's signature is UNCHANGED (BR-57). When the
+		// rate_limit: block is absent or enabled:false, this is a no-op
+		// (BR-33 — passthrough, byte-identical to pre-feature). When invalid,
+		// ConfigureRateLimiting logs + leaves the limiter nil (BR-08 —
+		// fail-open startup, NOT a crash; the fatal validateConfig path at
+		// main.go:42-45 is NOT touched, F-10).
+		server.ConfigureRateLimiting(&cfg.RateLimit, filepath.Join(baseDir, "devteam.yaml"))
 		server.RestoreActiveProcesses()
 
 		fmt.Printf("Dev Team Web UI starting on %s\n", *httpAddr)
