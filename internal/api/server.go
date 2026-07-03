@@ -158,7 +158,64 @@ func (s *Server) RestoreActiveProcesses() {
 			}
 
 			if tmuxAlive {
-				// Stage is in_progress and tmux is alive — leave it running
+				// Stage is in_progress and tmux is alive — re-attach polling goroutine
+				// to wait for the tmux session to exit and process the outcome.
+				log.Printf("RestoreActiveProcesses: re-attaching poll for stage %s feature %s (tmux still alive)", fs.StageID, f.ID)
+				s.active.Store(f.ID, struct{}{})
+				stageID := fs.StageID
+				featureID := f.ID
+				go func() {
+					defer s.unmarkFeatureActive(featureID)
+					defer func() {
+						if rec := recover(); rec != nil {
+							log.Printf("RestoreActiveProcesses: poll goroutine panic for %s: %v", featureID, rec)
+						}
+					}()
+
+					// Wait for the tmux session to exit by polling
+					tmuxMgr := s.pipeline.Dispatcher().TmuxManager()
+					// Find the session name for this feature
+					var sessionName string
+					for name := range sessions {
+						if strings.Contains(name, featureID) {
+							sessionName = name
+							break
+						}
+					}
+					if sessionName == "" {
+						log.Printf("RestoreActiveProcesses: could not find session name for %s", featureID)
+						return
+					}
+
+					// Poll until tmux session exits
+					for tmuxMgr.IsSessionAlive(sessionName) {
+						time.Sleep(5 * time.Second)
+					}
+
+					// Tmux session exited — process the outcome
+					log.Printf("RestoreActiveProcesses: tmux session %s exited, processing outcome for %s", sessionName, featureID)
+					f, err := s.pipeline.GetFeature(featureID)
+					if err != nil {
+						log.Printf("RestoreActiveProcesses: failed to get feature %s: %v", featureID, err)
+						return
+					}
+
+					// Check if outcome was signaled
+					outcome, _ := s.db.GetLatestOutcome(featureID, stageID)
+					if outcome != nil && outcome.Outcome == "pass" {
+						s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
+						s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart")
+						s.broadcastSSE(featureID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
+					} else {
+						s.db.UpdateFeatureStage(featureID, stageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
+						s.db.RecordAuditEvent(featureID, "STAGE_INTERRUPTED", stageID, "", "server restarted mid-dispatch")
+						s.broadcastSSE(featureID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
+					}
+
+					// Update feature state
+					f.CurrentStage = stageID
+					s.pipeline.SaveFeature(f)
+				}()
 				continue
 			}
 
