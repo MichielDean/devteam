@@ -243,8 +243,11 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	}
 }
 
-// tailLog reads the log file line by line, sending each line to lineCh.
+// tailLog reads the log file line by line and follows it (like tail -f),
+// sending each line to lineCh. It keeps reading as the file grows until
+// the context is cancelled or the channel is closed.
 func (m *TmuxSessionManager) tailLog(ctx context.Context, logPath string, lineCh chan<- OutputLine) {
+	// Wait for log file to exist
 	for i := 0; i < 50; i++ {
 		if _, err := os.Stat(logPath); err == nil {
 			break
@@ -266,23 +269,47 @@ func (m *TmuxSessionManager) tailLog(ctx context.Context, logPath string, lineCh
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
 
-	for scanner.Scan() {
+	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
-		line := scanner.Text()
-		if lineCh != nil {
-			select {
-			case lineCh <- OutputLine{Line: line, IsStderr: false}:
-			default:
+
+		// Read available lines
+		for scanner.Scan() {
+			line := scanner.Text()
+			if lineCh != nil {
+				select {
+				case lineCh <- OutputLine{Line: line, IsStderr: false}:
+				default:
+				}
 			}
 		}
-	}
 
-	if err := scanner.Err(); err != nil {
-		log.Printf("tailLog: scanner error: %v", err)
+		if err := scanner.Err(); err != nil {
+			log.Printf("tailLog: scanner error: %v", err)
+			return
+		}
+
+		// EOF reached — check if context is done before waiting for more data
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(500 * time.Millisecond):
+			// Wait for more data, then continue scanning
+			// Seek to current position to continue reading new data
+			pos, _ := f.Seek(0, 1) // get current position
+			f.Close()
+			f, err = os.Open(logPath)
+			if err != nil {
+				log.Printf("tailLog: could not reopen %s: %v", logPath, err)
+				return
+			}
+			f.Seek(pos, 0) // seek to where we left off
+			scanner = bufio.NewScanner(f)
+			scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
+		}
 	}
 }
 
