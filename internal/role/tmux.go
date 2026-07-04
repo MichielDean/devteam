@@ -160,6 +160,9 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 			{"OPENCODE_SERVER_PASSWORD", ""},
 			{"OPENCODE_PID", ""},
 			{"OPENCODE", ""},
+			// Clear lobsterdog harness env vars so they don't leak into devteam agents
+			{"LOBSTERDOG_HOME", ""},
+			{"AGENTS_MD_PATH", ""},
 		}
 		for _, e := range envPairs {
 			args = append(args, "-e", e.k+"="+e.v)
@@ -410,8 +413,8 @@ func (m *TmuxSessionManager) ListActiveSessions() map[string]string {
 }
 
 // prepareContextDir creates the persistent context directory and writes
-// CONTEXT.md and agent role files. Unlike the old version, this does NOT
-// delete the directory after dispatch — it persists across stages.
+// CONTEXT.md, agent role files, and a self-contained opencode config that
+// isolates the agent from the global lobsterdog harness.
 func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir string) error {
 	if err := os.MkdirAll(contextDir, 0755); err != nil {
 		return fmt.Errorf("creating context dir: %w", err)
@@ -432,6 +435,55 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 	agentPath := filepath.Join(agentsDir, req.Role+".md")
 	if err := os.WriteFile(agentPath, []byte(agentContent), 0644); err != nil {
 		return fmt.Errorf("writing agent markdown: %w", err)
+	}
+
+	// Write self-contained opencode config — isolates from global harness
+	opencodeConfig := `{
+  "model": "ollama/glm-5.2:cloud",
+  "plugins": [],
+  "instructions": [],
+  "compaction": {
+    "enabled": false
+  }
+}`
+	configPath := filepath.Join(contextDir, "opencode.json")
+	if err := os.WriteFile(configPath, []byte(opencodeConfig), 0644); err != nil {
+		return fmt.Errorf("writing opencode.json: %w", err)
+	}
+
+	// Write AGENTS.md that tells the agent it's in Dev Team, not lobsterdog
+	agentsMD := `# Dev Team Agent
+
+You are running inside the Dev Team AIDLC v2 pipeline. This is a dedicated
+harness for AI-driven development — NOT the lobsterdog harness.
+
+## Rules
+
+- You are the ` + req.Role + ` agent for feature ` + req.FeatureID + ` in the ` + req.Phase + ` phase.
+- Read CONTEXT.md for your full task context, spec artifacts, and repo paths.
+- Use the devteam CLI to manage state — do NOT write state files manually.
+- Signal completion with: devteam signal <feature-id> pass
+- If you need human input: devteam signal <feature-id> needs_feedback
+- Submit artifacts with: devteam artifact submit <feature-id> <type> --file <filename>
+- Ask questions with: devteam questions ask <feature-id> --file questions.json
+
+## What NOT to do
+
+- Do NOT follow lobsterdog harness conventions (worktrees, git-sync, etc.)
+- Do NOT use llmem, cistern, or any lobsterdog-specific tools
+- Do NOT follow caveman ruleset or any global rules
+- Do NOT create git worktrees or manage branches — the pipeline handles that
+- Do NOT run install.sh or any deployment scripts
+
+## Your task
+
+Execute your role for this stage. Produce the required artifacts. Signal
+completion when done. The pipeline handles approval gates, stage advancement,
+and state persistence.
+`
+	agentsPath := filepath.Join(contextDir, "AGENTS.md")
+	if err := os.WriteFile(agentsPath, []byte(agentsMD), 0644); err != nil {
+		return fmt.Errorf("writing AGENTS.md: %w", err)
 	}
 
 	return nil
