@@ -36,6 +36,7 @@ export default function FeatureDetail() {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [artifactRefreshKey, setArtifactRefreshKey] = useState(0);
 
   const { data: feature, isLoading, error } = useQuery({
     queryKey: ['feature', id!],
@@ -103,10 +104,12 @@ export default function FeatureDetail() {
       queryClient.invalidateQueries({ queryKey: ['stages', id!] });
       queryClient.invalidateQueries({ queryKey: ['audit', id!] });
       queryClient.invalidateQueries({ queryKey: ['features'] });
+      setArtifactRefreshKey((k) => k + 1);
     } else if (event.type === 'stage_started' || event.type === 'stage_awaiting_approval' || event.type === 'stage_revising' || event.type === 'stage_completed' || event.type === 'gate_approved' || event.type === 'gate_rejected') {
       queryClient.invalidateQueries({ queryKey: ['feature', id!] });
       queryClient.invalidateQueries({ queryKey: ['stages', id!] });
       queryClient.invalidateQueries({ queryKey: ['audit', id!] });
+      setArtifactRefreshKey((k) => k + 1);
     }
   });
 
@@ -477,6 +480,7 @@ export default function FeatureDetail() {
               phaseStates={{}}
               stageId={activeStage?.stage_id}
               keyArtifacts={activeStage?.key_artifacts}
+              refreshKey={artifactRefreshKey}
             />
           </Card>
         </div>

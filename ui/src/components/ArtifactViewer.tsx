@@ -8,9 +8,10 @@ interface ArtifactViewerProps {
   phaseStates?: Record<string, unknown>;
   stageId?: string;
   keyArtifacts?: string[];
+  refreshKey?: number;
 }
 
-export default function ArtifactViewer({ featureId, phaseStates, stageId, keyArtifacts }: ArtifactViewerProps) {
+export default function ArtifactViewer({ featureId, phaseStates, stageId, keyArtifacts, refreshKey }: ArtifactViewerProps) {
   void phaseStates;
   const [allArtifacts, setAllArtifacts] = useState<ArtifactMeta[]>([]);
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -23,7 +24,7 @@ export default function ArtifactViewer({ featureId, phaseStates, stageId, keyArt
 
   useEffect(() => {
     listArtifacts(featureId).then(setAllArtifacts).catch(() => setAllArtifacts([]));
-  }, [featureId]);
+  }, [featureId, refreshKey]);
 
   const stageArtifacts = useMemo(() => {
     if (!allArtifacts.length) return [];
