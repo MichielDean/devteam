@@ -150,8 +150,13 @@ export interface FeatureStage {
   stage_id: string;
   status: string;
   revision_count: number;
-  started_at: string | null;
-  completed_at: string | null;
+  started_at?: string;
+  completed_at?: string;
+  name?: string;
+  phase?: string;
+  lead_agent?: string;
+  key_artifacts?: string[];
+  reviewer?: string;
 }
 
 // ─── Audit Events ───

@@ -438,9 +438,20 @@ export default function FeatureDetail() {
           />
 
           <Card className="p-4" data-testid="artifacts-panel">
-            <h3 className="text-base font-medium text-[var(--color-text-primary)] mb-1">Artifacts</h3>
-            <p className="text-xs text-[var(--color-text-tertiary)] mb-3">Click any artifact to review its content before approving.</p>
-            <ArtifactViewer featureId={feature.id} phaseStates={{}} stageId={activeStage?.stage_id} />
+            <h3 className="text-base font-medium text-[var(--color-text-primary)] mb-1">
+              Artifacts {activeStage?.name ? `for ${activeStage.stage_id} — ${activeStage.name}` : ''}
+            </h3>
+            <p className="text-xs text-[var(--color-text-tertiary)] mb-3">
+              {activeStage?.key_artifacts && activeStage.key_artifacts.length > 0
+                ? `Expected: ${activeStage.key_artifacts.join(', ')}`
+                : 'No artifacts expected for this stage.'}
+            </p>
+            <ArtifactViewer
+              featureId={feature.id}
+              phaseStates={{}}
+              stageId={activeStage?.stage_id}
+              keyArtifacts={activeStage?.key_artifacts}
+            />
           </Card>
         </div>
       </div>

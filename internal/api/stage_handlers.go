@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/stage"
@@ -275,8 +276,51 @@ func (s *Server) getFeatureStages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enrich with stage definition data (name, key_artifacts, lead_agent, phase)
+	type enrichedStage struct {
+		ID            int64      `json:"id"`
+		FeatureID    string     `json:"feature_id"`
+		StageID      string     `json:"stage_id"`
+		Status       string     `json:"status"`
+		RevisionCount int       `json:"revision_count"`
+		StartedAt    *time.Time `json:"started_at,omitempty"`
+		CompletedAt  *time.Time `json:"completed_at,omitempty"`
+		// Enriched fields
+		Name          string   `json:"name"`
+		Phase         string   `json:"phase"`
+		LeadAgent     string   `json:"lead_agent"`
+		KeyArtifacts  []string `json:"key_artifacts"`
+		Reviewer      string   `json:"reviewer"`
+	}
+
+	result := []enrichedStage{}
+	for _, fs := range stages {
+		es := enrichedStage{
+			ID:            fs.ID,
+			FeatureID:    fs.FeatureID,
+			StageID:      fs.StageID,
+			Status:       fs.Status,
+			RevisionCount: fs.RevisionCount,
+			StartedAt:    fs.StartedAt,
+			CompletedAt:  fs.CompletedAt,
+			KeyArtifacts: []string{},
+		}
+
+		// Get stage definition
+		def, err := s.db.GetStageDefinition(fs.StageID)
+		if err == nil && def != nil {
+			es.Name = def.Name
+			es.Phase = def.Phase
+			es.LeadAgent = def.LeadAgent
+			es.Reviewer = def.Reviewer
+			es.KeyArtifacts = def.KeyArtifacts
+		}
+
+		result = append(result, es)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stages)
+	json.NewEncoder(w).Encode(result)
 }
 
 // getAuditTrail returns the full audit trail for a feature.

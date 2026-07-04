@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import { getArtifact, listArtifacts, type ArtifactMeta } from '../api/client';
@@ -7,70 +7,82 @@ interface ArtifactViewerProps {
   featureId: string;
   phaseStates?: Record<string, unknown>;
   stageId?: string;
+  keyArtifacts?: string[];
 }
 
-export default function ArtifactViewer({ featureId, phaseStates, stageId }: ArtifactViewerProps) {
+export default function ArtifactViewer({ featureId, phaseStates, stageId, keyArtifacts }: ArtifactViewerProps) {
   void phaseStates;
-  const [artifacts, setArtifacts] = useState<ArtifactMeta[]>([]);
+  const [allArtifacts, setAllArtifacts] = useState<ArtifactMeta[]>([]);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [content, setContent] = useState<string>('');
-  const [loading, setLoading] = useState(false);
   const [contentLoading, setContentLoading] = useState(false);
 
-  // Fetch artifact list
+  // Fetch all artifacts for the feature
   useEffect(() => {
-    setLoading(true);
     listArtifacts(featureId)
-      .then((arts) => {
-        setArtifacts(arts);
-        // Auto-select the first artifact for the current stage, or the first overall
-        if (arts.length > 0 && !selectedType) {
-          const stageMatch = stageId
-            ? arts.find((a) => a.stage_id === stageId)
-            : null;
-          setSelectedType((stageMatch || arts[0]).artifact_type);
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [featureId, stageId]);
+      .then(setAllArtifacts)
+      .catch(() => setAllArtifacts([]));
+  }, [featureId]);
 
-  // Fetch artifact content when selected
+  // Filter: show artifacts relevant to the current stage
+  const stageArtifacts = useMemo(() => {
+    if (!allArtifacts.length) return [];
+
+    // If we have key_artifacts for this stage, filter to those
+    if (keyArtifacts && keyArtifacts.length > 0) {
+      const matching = allArtifacts.filter((a) => keyArtifacts.includes(a.artifact_type));
+      if (matching.length > 0) return matching;
+    }
+
+    // Fall back: filter by stage_id in the artifact record
+    if (stageId) {
+      const byStage = allArtifacts.filter((a) => a.stage_id === stageId);
+      if (byStage.length > 0) return byStage;
+    }
+
+    // No stage-specific artifacts found — return empty (not all artifacts)
+    return [];
+  }, [allArtifacts, keyArtifacts, stageId]);
+
+  // Auto-select first artifact when list changes
   useEffect(() => {
-    if (!selectedType) return;
+    if (stageArtifacts.length > 0 && !stageArtifacts.find((a) => a.artifact_type === selectedType)) {
+      setSelectedType(stageArtifacts[0].artifact_type);
+    } else if (stageArtifacts.length === 0) {
+      setSelectedType(null);
+    }
+  }, [stageArtifacts, selectedType]);
+
+  // Fetch content when selection changes
+  useEffect(() => {
+    if (!selectedType) { setContent(''); return; }
     setContentLoading(true);
     getArtifact(featureId, selectedType)
       .then((text) => { setContent(text); setContentLoading(false); })
       .catch(() => { setContent(''); setContentLoading(false); });
   }, [featureId, selectedType]);
 
-  if (loading) {
+  if (stageArtifacts.length === 0) {
     return (
-      <div className="flex items-center justify-center py-8" data-testid="artifact-loading">
-        <div className="animate-spin rounded-full h-6 w-6 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
-        <span className="ml-3 text-sm text-[var(--color-text-tertiary)]">Loading artifacts...</span>
-      </div>
-    );
-  }
-
-  if (artifacts.length === 0) {
-    return (
-      <div className="py-8 text-center" data-testid="artifact-empty">
-        <p className="text-sm font-medium text-[var(--color-text-secondary)] mb-1">No artifacts yet</p>
-        <p className="text-xs text-[var(--color-text-tertiary)]">Artifacts will appear here as stages complete.</p>
+      <div className="py-6 text-center" data-testid="artifact-empty">
+        <p className="text-sm text-[var(--color-text-tertiary)]">
+          {keyArtifacts && keyArtifacts.length > 0
+            ? `Expected: ${keyArtifacts.join(', ')} — not yet produced`
+            : 'No artifacts for this stage.'}
+        </p>
       </div>
     );
   }
 
   return (
     <div data-testid="artifact-viewer">
-      {/* Artifact list — show ALL artifacts for the feature */}
-      <div className="flex flex-wrap gap-1.5 mb-4" data-testid="artifact-list">
-        {artifacts.map((artifact) => (
+      {/* Artifact tabs — only for current stage */}
+      <div className="flex flex-wrap gap-1.5 mb-3" data-testid="artifact-list">
+        {stageArtifacts.map((artifact) => (
           <button
             key={artifact.artifact_type}
             onClick={() => setSelectedType(artifact.artifact_type)}
-            className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium transition-colors ${
               selectedType === artifact.artifact_type
                 ? 'bg-[var(--color-accent)] text-white'
                 : 'bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-active)]'
@@ -78,11 +90,9 @@ export default function ArtifactViewer({ featureId, phaseStates, stageId }: Arti
             data-testid={`artifact-tab-${artifact.artifact_type}`}
           >
             {artifact.artifact_type}
-            {artifact.stage_id && (
-              <span className={`text-xs ${selectedType === artifact.artifact_type ? 'text-blue-200' : 'text-[var(--color-text-tertiary)]'}`}>
-                {artifact.stage_id}
-              </span>
-            )}
+            <span className={`ml-1.5 text-xs ${selectedType === artifact.artifact_type ? 'text-blue-200' : 'text-[var(--color-text-tertiary)]'}`}>
+              {(artifact.size / 1024).toFixed(1)}KB
+            </span>
           </button>
         ))}
       </div>
@@ -91,19 +101,19 @@ export default function ArtifactViewer({ featureId, phaseStates, stageId }: Arti
       {selectedType && (
         <div className="rounded-[var(--radius-md)] overflow-hidden" style={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border-subtle)' }} data-testid="artifact-content">
           {contentLoading && (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
-              <span className="ml-3 text-sm text-[var(--color-text-tertiary)]">Loading...</span>
+            <div className="flex items-center justify-center py-6">
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+              <span className="ml-2 text-sm text-[var(--color-text-tertiary)]">Loading...</span>
             </div>
           )}
           {!contentLoading && content && (
-            <div className="prose prose-sm dark:prose-invert max-w-none p-4 overflow-auto max-h-[600px]" data-testid="artifact-markdown">
+            <div className="prose prose-sm dark:prose-invert max-w-none p-4 overflow-auto max-h-[500px]" data-testid="artifact-markdown">
               <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{content}</ReactMarkdown>
             </div>
           )}
           {!contentLoading && !content && (
-            <div className="p-6 text-center" data-testid="artifact-not-found">
-              <p className="text-sm text-[var(--color-text-tertiary)]">Artifact content not available.</p>
+            <div className="p-4 text-center" data-testid="artifact-not-found">
+              <p className="text-sm text-[var(--color-text-tertiary)]">Content not available.</p>
             </div>
           )}
         </div>
