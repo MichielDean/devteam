@@ -37,6 +37,17 @@ func jsonString(s string) string {
 	return string(b)
 }
 
+// humanSize formats a byte count as a human-readable string.
+func humanSize(bytes int) string {
+	if bytes < 1024 {
+		return fmt.Sprintf("%dB", bytes)
+	}
+	if bytes < 1024*1024 {
+		return fmt.Sprintf("%.1fKB", float64(bytes)/1024)
+	}
+	return fmt.Sprintf("%.1fMB", float64(bytes)/(1024*1024))
+}
+
 // ReviewerMaxIterations is the maximum number of reviewer revision cycles.
 const ReviewerMaxIterations = 2
 
@@ -707,6 +718,23 @@ func (p *Pipeline) buildStageContext(ctx context.Context, f *feature.Feature, st
 	specContext, err := p.specProvider.BuildCrossRepoContext(f.ID, nil)
 	if err == nil && specContext != "" {
 		contextStr += "\n\n---\n\n" + specContext
+	}
+
+	// List all available artifacts so the agent knows exactly what exists
+	// and can fetch them by the correct name
+	if p.database != nil {
+		artifacts, _ := p.database.ListArtifacts(f.ID)
+		if len(artifacts) > 0 {
+			contextStr += "\n\n---\n\n## Available Artifacts\n\n"
+			contextStr += "These artifacts already exist in the database. Fetch them with:\n"
+			contextStr += "`devteam artifact get <feature-id> <artifact_type>`\n\n"
+			contextStr += "| Artifact Type | Stage | Size |\n"
+			contextStr += "|---------------|-------|------|\n"
+			for _, a := range artifacts {
+				contextStr += fmt.Sprintf("| %s | %s | %s |\n", a.ArtifactType, a.StageID, humanSize(len(a.Content)))
+			}
+			contextStr += "\n"
+		}
 	}
 
 	// Implementation repo context for construction/operation phases
