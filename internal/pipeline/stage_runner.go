@@ -176,6 +176,13 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		return nil, fmt.Errorf("dispatching agent %s for stage %s: %w", stageDef.LeadAgent, stageID, err)
 	}
 
+	// Save the full agent output to the DB for persistent per-stage history
+	if result != nil && result.Output != "" {
+		if saveErr := p.database.SaveStageLog(f.ID, stageID, stageDef.LeadAgent, result.Output); saveErr != nil {
+			log.Printf("RunStage: failed to save stage log for %s: %v", stageID, saveErr)
+		}
+	}
+
 	outcomeSource := "default_pass"
 	var outcome *db.OutcomeRow
 	outcome, _ = p.database.GetLatestOutcome(f.ID, stageID)

@@ -415,7 +415,8 @@ export default function FeatureDetail() {
                 />
               )}
 
-              {(isProcessing || feature.is_processing) && (
+              {/* Always show agent output for the active stage — history for completed stages, live for in-progress */}
+              {activeStage && (
                 <AgentOutputLive featureId={feature.id} stageId={activeStage.stage_id} isProcessing={isProcessing || feature.is_processing} phase={feature.current_phase || undefined} />
               )}
             </Card>
