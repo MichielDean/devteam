@@ -637,7 +637,12 @@ func (s *Server) updateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.db.RecordAuditEvent(id, db.AuditArtifactUpdated, "", "", fmt.Sprintf("artifact=%s edited by user", artifactType))
+	// Look up stage for audit event
+	stageID := ""
+	if f, err := s.pipeline.GetFeature(id); err == nil && f != nil {
+		stageID = f.CurrentStage
+	}
+	s.db.RecordAuditEvent(id, db.AuditArtifactUpdated, stageID, "", fmt.Sprintf("artifact=%s edited by user", artifactType))
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 

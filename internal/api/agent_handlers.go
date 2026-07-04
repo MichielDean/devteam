@@ -157,9 +157,14 @@ func (s *Server) handleSubmitArtifact(w http.ResponseWriter, r *http.Request) {
 
 	if s.db != nil {
 		ensureFeatureInDB(s.db, id)
+		// Look up the feature's current stage to tag the artifact
+		stageID := ""
+		if f, err := s.pipeline.GetFeature(id); err == nil && f != nil {
+			stageID = f.CurrentStage
+		}
 		// Check if artifact already exists (create vs update)
 		existing, _ := s.db.GetArtifact(id, dbKey)
-		if err := s.db.SaveArtifact(id, dbKey, req.Content); err != nil {
+		if err := s.db.SaveArtifactWithStage(id, dbKey, req.Content, stageID); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to save artifact: %v", err))
 			return
 		}
@@ -168,7 +173,7 @@ func (s *Server) handleSubmitArtifact(w http.ResponseWriter, r *http.Request) {
 		if existing != nil {
 			eventType = db.AuditArtifactUpdated
 		}
-		s.db.RecordAuditEvent(id, eventType, "", "", fmt.Sprintf("artifact=%s size=%d", dbKey, len(req.Content)))
+		s.db.RecordAuditEvent(id, eventType, stageID, "", fmt.Sprintf("artifact=%s size=%d", dbKey, len(req.Content)))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{

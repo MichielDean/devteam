@@ -18,12 +18,17 @@ type ArtifactRow struct {
 
 // SaveArtifact stores or updates a spec artifact in the database.
 func (db *DB) SaveArtifact(featureID, artifactType, content string) error {
+	return db.SaveArtifactWithStage(featureID, artifactType, content, "")
+}
+
+// SaveArtifactWithStage stores or updates a spec artifact with the stage_id that produced it.
+func (db *DB) SaveArtifactWithStage(featureID, artifactType, content, stageID string) error {
 	now := time.Now().UTC()
 	_, err := db.Exec(
-		`INSERT INTO spec_artifacts (feature_id, artifact_type, content, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(feature_id, artifact_type) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`,
-		featureID, artifactType, content, now, now,
+		`INSERT INTO spec_artifacts (feature_id, artifact_type, content, stage_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(feature_id, artifact_type) DO UPDATE SET content = excluded.content, stage_id = excluded.stage_id, updated_at = excluded.updated_at`,
+		featureID, artifactType, content, stageID, now, now,
 	)
 	if err != nil {
 		return fmt.Errorf("saving artifact: %w", err)
