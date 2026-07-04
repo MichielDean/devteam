@@ -20,11 +20,25 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing, phas
   const [isExpanded, setIsExpanded] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [lastFetch, setLastFetch] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { connected, subscribe } = useSSE(featureId);
 
-  // SSE subscription for live agent output
+  // Load existing log content on mount — restores output after page refresh
+  useEffect(() => {
+    if (!phase) return;
+    getSessionOutput(featureId, phase, stageId)
+      .then((output) => {
+        if (output && output.trim()) {
+          const existingLines = output.split('\n').filter((l) => l.trim());
+          if (existingLines.length > 0) {
+            setLines(existingLines.map((line) => ({ line, isStderr: false, timestamp: new Date() })));
+          }
+        }
+      })
+      .catch(() => {});
+  }, [featureId, phase, stageId]);
+
+  // SSE subscription for live agent output — appends to existing log content
   useEffect(() => {
     const unsubscribe = subscribe('agent_output', (event) => {
       if (isPaused) return;
@@ -40,33 +54,7 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing, phas
     return unsubscribe;
   }, [subscribe, isPaused]);
 
-  // Fallback: poll session output when processing but no SSE events arrive
-  // This handles server restarts where the SSE stream doesn't re-broadcast
-  useEffect(() => {
-    if (!isProcessing || isPaused || !phase) return;
-
-    const pollInterval = setInterval(async () => {
-      // Only fetch if we haven't received SSE events recently
-      const now = Date.now();
-      if (now - lastFetch < 3000) return;
-
-      try {
-        const output = await getSessionOutput(featureId, phase, stageId);
-        if (output && output.trim()) {
-          // Split into lines and update — replace entire content since this is a full snapshot
-          const newLines = output.split('\n').filter((l) => l.trim());
-          if (newLines.length > 0) {
-            setLines(newLines.map((line) => ({ line, isStderr: false, timestamp: new Date() })));
-            setLastFetch(now);
-          }
-        }
-      } catch {
-        // Ignore fetch errors
-      }
-    }, 5000);
-
-    return () => clearInterval(pollInterval);
-  }, [isProcessing, isPaused, featureId, phase, stageId, lastFetch]);
+  // No polling fallback — log content is loaded on mount and SSE handles live updates
 
   useEffect(() => {
     if (scrollRef.current && !isPaused) {
