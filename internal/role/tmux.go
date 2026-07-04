@@ -440,7 +440,7 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 	// Write self-contained opencode config — isolates from global harness
 	// Must include provider config so the agent can reach the LLM
 	opencodeConfig := `{
-  "permission": "normal",
+  "permission": "allow",
   "instructions": [],
   "plugin": [],
   "compaction": {
