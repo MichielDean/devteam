@@ -141,7 +141,7 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 
 	// Build the shell command
 	agentCmd := fmt.Sprintf(
-		"%s run --dangerously-skip-permissions --agent %s %s 2>&1 | tee %s; echo ${PIPESTATUS[0]} > %s",
+		"%s run --pure --dangerously-skip-permissions --agent %s %s 2>&1 | tee %s; echo ${PIPESTATUS[0]} > %s",
 		cmdPath, req.Role, shellQuote(shortPrompt), shellQuote(logPath), shellQuote(exitCodePath),
 	)
 
@@ -471,6 +471,29 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 	configPath := filepath.Join(contextDir, "opencode.json")
 	if err := os.WriteFile(configPath, []byte(opencodeConfig), 0644); err != nil {
 		return fmt.Errorf("writing opencode.json: %w", err)
+	}
+
+	// Write a minimal AGENTS.md in the context dir to override ~/AGENTS.md.
+	// Opencode automatically loads AGENTS.md from home and project dirs.
+	// Without this, the lobsterdog harness AGENTS.md (with llmem, worktrees,
+	// caveman rules, etc.) leaks into the devteam agent session.
+	agentsMD := "# Dev Team Agent\n\n" +
+		"You are running inside the Dev Team AIDLC v2 pipeline.\n" +
+		"Use the devteam CLI for state management.\n" +
+		"Read CONTEXT.md for your full task context.\n\n" +
+		"## CLI Commands\n\n" +
+		"    devteam artifacts " + req.FeatureID + "              # get artifacts for current stage\n" +
+		"    devteam artifacts " + req.FeatureID + " --all        # get all artifacts\n" +
+		"    devteam artifact submit " + req.FeatureID + " <type> --file <file>   # submit artifact\n" +
+		"    devteam signal " + req.FeatureID + " pass            # signal completion\n" +
+		"    devteam signal " + req.FeatureID + " needs_feedback  # ask human input\n" +
+		"    devteam questions ask " + req.FeatureID + " --file questions.json    # ask questions\n" +
+		"    devteam feature status " + req.FeatureID + "         # check state\n" +
+		"    devteam stages " + req.FeatureID + "                 # list stages\n" +
+		"    devteam audit " + req.FeatureID + "                  # audit trail\n"
+	agentsPath := filepath.Join(contextDir, "AGENTS.md")
+	if err := os.WriteFile(agentsPath, []byte(agentsMD), 0644); err != nil {
+		return fmt.Errorf("writing AGENTS.md: %w", err)
 	}
 
 	return nil
