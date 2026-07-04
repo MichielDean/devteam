@@ -59,6 +59,7 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 	mux.HandleFunc("POST /api/features/{id}/cancel", s.cancelFeature)
 	mux.HandleFunc("GET /api/features/{id}/artifacts", s.listArtifacts)
 	mux.HandleFunc("GET /api/features/{id}/artifacts/{type}", s.getArtifact)
+	mux.HandleFunc("PATCH /api/features/{id}/artifacts/{type}", s.updateArtifact)
 	mux.HandleFunc("POST /api/features/{id}/artifacts/{type}", s.handleSubmitArtifact)
 	mux.HandleFunc("GET /api/features/{id}/stream", s.streamFeature)
 	mux.HandleFunc("GET /api/features/{id}/output", s.getCapturedOutput)
@@ -582,6 +583,32 @@ func (s *Server) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// updateArtifact allows editing artifact content before approving a gate.
+func (s *Server) updateArtifact(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	artifactType := r.PathValue("type")
+	if s.db == nil {
+		writeError(w, http.StatusInternalServerError, "no_database", "")
+		return
+	}
+
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON")
+		return
+	}
+
+	if err := s.db.SaveArtifact(id, artifactType, req.Content); err != nil {
+		writeError(w, http.StatusInternalServerError, "save_failed", err.Error())
+		return
+	}
+
+	s.db.RecordAuditEvent(id, db.AuditArtifactUpdated, "", "", fmt.Sprintf("artifact=%s edited by user", artifactType))
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
 func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {

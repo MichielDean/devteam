@@ -351,6 +351,7 @@ export interface Question {
   id: string;
   feature_id: string;
   phase: string;
+  stage_id: string;
   role: string;
   question: string;
   type: string;

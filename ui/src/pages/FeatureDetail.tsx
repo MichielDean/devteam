@@ -443,15 +443,25 @@ export default function FeatureDetail() {
             </Card>
           )}
 
-          <QuestionPanel
-            questions={questions}
-            drafts={draft}
-            onSelect={onSelect}
-            onType={onType}
-            onSubmitAll={handleSubmitAll}
-            isSubmitting={isSubmitting}
-            allDrafted={allPendingDrafted}
-          />
+          {/* Questions — only show for the active stage or if there are pending questions */}
+          {(() => {
+            const stageQuestions = questions.filter(q =>
+              q.status === 'pending' ||
+              (activeStage && q.stage_id === activeStage.stage_id)
+            );
+            if (stageQuestions.length === 0) return null;
+            return (
+              <QuestionPanel
+                questions={stageQuestions}
+                drafts={draft}
+                onSelect={onSelect}
+                onType={onType}
+                onSubmitAll={handleSubmitAll}
+                isSubmitting={isSubmitting}
+                allDrafted={allPendingDrafted}
+              />
+            );
+          })()}
 
           <Card className="p-4" data-testid="artifacts-panel">
             <h3 className="text-base font-medium text-[var(--color-text-primary)] mb-1">

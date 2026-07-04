@@ -201,6 +201,13 @@ export async function getArtifact(id: string, type: string): Promise<string> {
   return response.text();
 }
 
+export async function updateArtifact(featureId: string, type: string, content: string): Promise<void> {
+  await request<void>(`/features/${featureId}/artifacts/${type}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ content }),
+  });
+}
+
 export interface ArtifactMeta {
   artifact_type: string;
   stage_id: string;

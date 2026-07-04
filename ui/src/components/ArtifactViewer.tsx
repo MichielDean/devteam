@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
-import { getArtifact, listArtifacts, type ArtifactMeta } from '../api/client';
+import { getArtifact, updateArtifact, listArtifacts, type ArtifactMeta } from '../api/client';
 
 interface ArtifactViewerProps {
   featureId: string;
@@ -15,36 +15,29 @@ export default function ArtifactViewer({ featureId, phaseStates, stageId, keyArt
   const [allArtifacts, setAllArtifacts] = useState<ArtifactMeta[]>([]);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [content, setContent] = useState<string>('');
+  const [editedContent, setEditedContent] = useState<string>('');
   const [contentLoading, setContentLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
-  // Fetch all artifacts for the feature
   useEffect(() => {
-    listArtifacts(featureId)
-      .then(setAllArtifacts)
-      .catch(() => setAllArtifacts([]));
+    listArtifacts(featureId).then(setAllArtifacts).catch(() => setAllArtifacts([]));
   }, [featureId]);
 
-  // Filter: show artifacts relevant to the current stage
   const stageArtifacts = useMemo(() => {
     if (!allArtifacts.length) return [];
-
-    // If we have key_artifacts for this stage, filter to those
     if (keyArtifacts && keyArtifacts.length > 0) {
       const matching = allArtifacts.filter((a) => keyArtifacts.includes(a.artifact_type));
       if (matching.length > 0) return matching;
     }
-
-    // Fall back: filter by stage_id in the artifact record
     if (stageId) {
       const byStage = allArtifacts.filter((a) => a.stage_id === stageId);
       if (byStage.length > 0) return byStage;
     }
-
-    // No stage-specific artifacts found — return empty (not all artifacts)
     return [];
   }, [allArtifacts, keyArtifacts, stageId]);
 
-  // Auto-select first artifact when list changes
   useEffect(() => {
     if (stageArtifacts.length > 0 && !stageArtifacts.find((a) => a.artifact_type === selectedType)) {
       setSelectedType(stageArtifacts[0].artifact_type);
@@ -53,14 +46,41 @@ export default function ArtifactViewer({ featureId, phaseStates, stageId, keyArt
     }
   }, [stageArtifacts, selectedType]);
 
-  // Fetch content when selection changes
   useEffect(() => {
-    if (!selectedType) { setContent(''); return; }
+    if (!selectedType) { setContent(''); setEditedContent(''); return; }
     setContentLoading(true);
+    setIsEditing(false);
+    setDirty(false);
     getArtifact(featureId, selectedType)
-      .then((text) => { setContent(text); setContentLoading(false); })
-      .catch(() => { setContent(''); setContentLoading(false); });
+      .then((text) => { setContent(text); setEditedContent(text); setContentLoading(false); })
+      .catch(() => { setContent(''); setEditedContent(''); setContentLoading(false); });
   }, [featureId, selectedType]);
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditedContent(content);
+    setDirty(false);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditedContent(content);
+    setDirty(false);
+  };
+
+  const handleSave = async () => {
+    if (!selectedType || !dirty) return;
+    setIsSaving(true);
+    try {
+      await updateArtifact(featureId, selectedType, editedContent);
+      setContent(editedContent);
+      setIsEditing(false);
+      setDirty(false);
+    } catch (err) {
+      console.error('Failed to save artifact:', err);
+    }
+    setIsSaving(false);
+  };
 
   if (stageArtifacts.length === 0) {
     return (
@@ -76,7 +96,6 @@ export default function ArtifactViewer({ featureId, phaseStates, stageId, keyArt
 
   return (
     <div data-testid="artifact-viewer">
-      {/* Artifact tabs — only for current stage */}
       <div className="flex flex-wrap gap-1.5 mb-3" data-testid="artifact-list">
         {stageArtifacts.map((artifact) => (
           <button
@@ -97,21 +116,54 @@ export default function ArtifactViewer({ featureId, phaseStates, stageId, keyArt
         ))}
       </div>
 
-      {/* Artifact content */}
       {selectedType && (
         <div className="rounded-[var(--radius-md)] overflow-hidden" style={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border-subtle)' }} data-testid="artifact-content">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border-subtle)]" style={{ backgroundColor: 'var(--color-surface-hover)' }}>
+            <span className="text-xs text-[var(--color-text-tertiary)]">{selectedType}</span>
+            <div className="flex items-center gap-2">
+              {!isEditing ? (
+                <>
+                  <button onClick={handleEdit} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors" data-testid="artifact-edit-button">
+                    ✎ Edit
+                  </button>
+                </>
+              ) : (
+                <>
+                  {dirty && <span className="text-xs" style={{ color: 'var(--color-warning)' }}>unsaved</span>}
+                  <button onClick={handleSave} disabled={!dirty || isSaving} className="text-xs text-[var(--color-success)] hover:opacity-80 disabled:opacity-30 transition-opacity" data-testid="artifact-save-button">
+                    {isSaving ? 'Saving...' : '✓ Save'}
+                  </button>
+                  <button onClick={handleCancel} className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors" data-testid="artifact-cancel-edit">
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Content */}
           {contentLoading && (
             <div className="flex items-center justify-center py-6">
               <div className="animate-spin rounded-full h-5 w-5 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
               <span className="ml-2 text-sm text-[var(--color-text-tertiary)]">Loading...</span>
             </div>
           )}
-          {!contentLoading && content && (
+          {!contentLoading && isEditing && (
+            <textarea
+              value={editedContent}
+              onChange={(e) => { setEditedContent(e.target.value); setDirty(true); }}
+              className="w-full p-4 font-mono text-sm bg-[var(--color-surface)] text-[var(--color-text-primary)] border-none outline-none resize-y"
+              style={{ minHeight: '400px', fontFamily: 'var(--font-mono)' }}
+              data-testid="artifact-editor"
+            />
+          )}
+          {!contentLoading && !isEditing && content && (
             <div className="prose prose-sm dark:prose-invert max-w-none p-4 overflow-auto max-h-[500px]" data-testid="artifact-markdown">
               <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{content}</ReactMarkdown>
             </div>
           )}
-          {!contentLoading && !content && (
+          {!contentLoading && !isEditing && !content && (
             <div className="p-4 text-center" data-testid="artifact-not-found">
               <p className="text-sm text-[var(--color-text-tertiary)]">Content not available.</p>
             </div>
