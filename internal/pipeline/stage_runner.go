@@ -392,9 +392,9 @@ func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) error {
 		return fmt.Errorf("feature stage %s not found", stageID)
 	}
 
-	// Only allow approving stages that are awaiting approval
-	if fs.Status != stage.StatusAwaitingApproval {
-		return fmt.Errorf("stage %s is in %s state — can only approve stages that are awaiting_approval", stageID, fs.Status)
+	// Allow approving from awaiting_approval or revising (user override)
+	if fs.Status != stage.StatusAwaitingApproval && fs.Status != stage.StatusRevising {
+		return fmt.Errorf("stage %s is in %s state — can only approve stages that are awaiting_approval or revising", stageID, fs.Status)
 	}
 
 	// Check if reviewer rejected — can't approve a NOT-READY stage

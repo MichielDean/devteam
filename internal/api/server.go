@@ -211,17 +211,31 @@ func (s *Server) RestoreActiveProcesses() {
 					s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart")
 					s.broadcastSSE(featureID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
 				} else {
-					// No explicit outcome — check if artifacts were produced for this stage
+					// No explicit outcome — check if artifacts were produced
+					// First check by stage_id, then fall back to checking expected key_artifacts by name
 					artifacts, _ := s.db.GetSpecArtifactsForStage(featureID, stageID)
+					if len(artifacts) == 0 {
+						// stage_id might not be set on artifacts — check by expected key_artifacts
+						stageDef, _ := s.db.GetStageDefinition(stageID)
+						if stageDef != nil && len(stageDef.KeyArtifacts) > 0 {
+							allArtifacts, _ := s.db.ListArtifacts(featureID)
+							for _, a := range allArtifacts {
+								for _, expected := range stageDef.KeyArtifacts {
+									if a.ArtifactType == expected {
+										artifacts = append(artifacts, a)
+										break
+									}
+								}
+							}
+						}
+					}
 					if len(artifacts) > 0 {
 						// Artifacts exist — agent completed work but server died before processing
-						// Treat as pass (default_pass behavior, same as RunStage)
 						log.Printf("RestoreActiveProcesses: stage %s has %d artifacts, treating as pass", stageID, len(artifacts))
 						s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
 						s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart (artifacts found)")
 						s.broadcastSSE(featureID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
 					} else {
-						// No outcome and no artifacts — agent likely failed
 						s.db.UpdateFeatureStage(featureID, stageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
 						s.db.RecordAuditEvent(featureID, "STAGE_INTERRUPTED", stageID, "", "server restarted mid-dispatch")
 						s.broadcastSSE(featureID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
@@ -246,6 +260,21 @@ func (s *Server) RestoreActiveProcesses() {
 		} else {
 			// No explicit outcome — check if artifacts were produced
 			artifacts, _ := s.db.GetSpecArtifactsForStage(f.ID, fs.StageID)
+			if len(artifacts) == 0 {
+				// stage_id might not be set — check by expected key_artifacts
+				stageDef, _ := s.db.GetStageDefinition(fs.StageID)
+				if stageDef != nil && len(stageDef.KeyArtifacts) > 0 {
+					allArtifacts, _ := s.db.ListArtifacts(f.ID)
+					for _, a := range allArtifacts {
+						for _, expected := range stageDef.KeyArtifacts {
+							if a.ArtifactType == expected {
+								artifacts = append(artifacts, a)
+								break
+							}
+						}
+					}
+				}
+			}
 			if len(artifacts) > 0 {
 				log.Printf("RestoreActiveProcesses: stage %s for feature %s has %d artifacts — marking awaiting_approval", fs.StageID, f.ID, len(artifacts))
 				s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)

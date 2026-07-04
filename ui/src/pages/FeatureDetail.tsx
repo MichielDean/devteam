@@ -361,14 +361,18 @@ export default function FeatureDetail() {
                 </div>
               ) : revisingStage ? (
                 <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="revising-banner">
-                  <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>⚠ Stage {revisingStage.stage_id} needs to be re-run</p>
+                  <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>⚠ Stage {revisingStage.stage_id} needs attention</p>
                   <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-                    This stage was interrupted (server restart or agent error). The agent didn't complete successfully.
-                    Click below to dispatch the agent again. Previous artifacts and context are preserved.
+                    This stage was interrupted. If the artifacts look good, approve directly. Otherwise re-run the stage.
                   </p>
-                  <Button variant="primary" size="sm" onClick={() => runStageMutation.mutate(revisingStage.stage_id)} disabled={runStageMutation.isPending} isLoading={runStageMutation.isPending} data-testid="rerun-stage-button">
-                    ▶ Re-run Stage {revisingStage.stage_id}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="primary" size="sm" onClick={() => runStageMutation.mutate(revisingStage.stage_id)} disabled={runStageMutation.isPending} isLoading={runStageMutation.isPending} data-testid="rerun-stage-button">
+                      ▶ Re-run Stage {revisingStage.stage_id}
+                    </Button>
+                    <Button variant="success" size="sm" onClick={() => approveMutation.mutate(revisingStage.stage_id)} disabled={approveMutation.isPending} data-testid="approve-as-is-button">
+                      ✓ Approve as-is
+                    </Button>
+                  </div>
                 </div>
               ) : nextStage ? (
                 <div data-testid="next-stage-panel">
