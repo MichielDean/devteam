@@ -61,6 +61,7 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 	mux.HandleFunc("GET /api/features/{id}/artifacts/{type}", s.getArtifact)
 	mux.HandleFunc("PATCH /api/features/{id}/artifacts/{type}", s.updateArtifact)
 	mux.HandleFunc("POST /api/features/{id}/artifacts/{type}", s.handleSubmitArtifact)
+	mux.HandleFunc("GET /api/features/{id}/log/{stageId}", s.getStageLog)
 	mux.HandleFunc("GET /api/features/{id}/stream", s.streamFeature)
 	mux.HandleFunc("GET /api/features/{id}/output", s.getCapturedOutput)
 	mux.HandleFunc("GET /api/repos", s.listRepos)
@@ -609,6 +610,48 @@ func (s *Server) updateArtifact(w http.ResponseWriter, r *http.Request) {
 
 	s.db.RecordAuditEvent(id, db.AuditArtifactUpdated, "", "", fmt.Sprintf("artifact=%s edited by user", artifactType))
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+// getStageLog returns the raw log file content for a specific stage.
+// The log file is at ~/.local/share/devteam/sessions/{featureID}/{phase}/logs/{stageID}-{agent}.log
+func (s *Server) getStageLog(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	stageID := r.PathValue("stageId")
+
+	// Find the log file — we need to figure out the phase and agent
+	// The log dir is under the session context dir, but we don't know the phase.
+	// Just glob for the file across all phase dirs.
+	base := os.Getenv("XDG_DATA_HOME")
+	if base == "" {
+		home, _ := os.UserHomeDir()
+		base = filepath.Join(home, ".local", "share")
+	}
+	sessionsDir := filepath.Join(base, "devteam", "sessions", id)
+
+	// Search for {stageID}-*.log across all phase dirs
+	pattern := filepath.Join(sessionsDir, "*", "logs", stageID+"-*.log")
+	matches, _ := filepath.Glob(pattern)
+	if len(matches) == 0 {
+		// Try without stage ID prefix (older logs)
+		pattern = filepath.Join(sessionsDir, "*", "logs", "*"+stageID+"*.log")
+		matches, _ = filepath.Glob(pattern)
+	}
+	if len(matches) == 0 {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// Read the most recently modified matching file
+	data, err := os.ReadFile(matches[0])
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write(data)
 }
 
 func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {

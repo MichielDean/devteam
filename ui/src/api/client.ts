@@ -23,7 +23,7 @@ import type {
   TmuxSession,
 } from '../types';
 
-const API_BASE = '/api';
+export const API_BASE = '/api';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
