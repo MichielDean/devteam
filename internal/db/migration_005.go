@@ -24,6 +24,7 @@ func migration005AIDLCv2(tx *sql.Tx) error {
 			id TEXT PRIMARY KEY,
 			phase TEXT NOT NULL,
 			name TEXT NOT NULL,
+			description TEXT DEFAULT '',
 			lead_agent TEXT NOT NULL,
 			supporting_agents TEXT DEFAULT '[]',
 			key_artifacts TEXT DEFAULT '[]',

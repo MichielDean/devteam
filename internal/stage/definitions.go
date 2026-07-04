@@ -41,69 +41,69 @@ func allMinus(exclude ...string) []string {
 // Reviewers: product-lead, architecture-reviewer
 var stageDefinitions = []db.StageDefinition{
 	// ── Phase 0: Initialization (3 stages, auto-proceed, no gates) ──
-	{"0.1", PhaseInitialization, "Workspace Scaffold", "orchestrator", nil, []string{"record-dir"}, CondAlways, allScopes(), "", 1},
-	{"0.2", PhaseInitialization, "Workspace Detection", "orchestrator", nil, []string{"workspace-state"}, CondAlways, allScopes(), "", 2},
-	{"0.3", PhaseInitialization, "State Initialization", "orchestrator", nil, []string{"aidlc-state", "audit-shards"}, CondAlways, allScopes(), "", 3},
+	{"0.1", PhaseInitialization, "Workspace Scaffold", "Bootstrap the workspace — scaffold the docs directory structure for the feature's intent records.", "orchestrator", nil, []string{"record-dir"}, CondAlways, allScopes(), "", 1},
+	{"0.2", PhaseInitialization, "Workspace Detection", "Detect the workspace state — scan for existing code, config files, package manifests, and git status.", "orchestrator", nil, []string{"workspace-state"}, CondAlways, allScopes(), "", 2},
+	{"0.3", PhaseInitialization, "State Initialization", "Initialize AIDLC state files — audit shards, workflow state, and feature tracking records.", "orchestrator", nil, []string{"aidlc-state", "audit-shards"}, CondAlways, allScopes(), "", 3},
 
 	// ── Phase 1: Ideation (7 stages) ──
 	// 1.1 Intent Capture — ALWAYS, all scopes
-	{"1.1", PhaseIdeation, "Intent Capture & Framing", "product", []string{"architect"}, []string{"intent-statement", "stakeholder-map"}, CondAlways, allScopes(), "", 4},
+	{"1.1", PhaseIdeation, "Intent Capture & Framing", "Capture and frame the product intent — who wants what and why, success criteria, stakeholders, and initial constraints. The product agent explores the idea and asks clarifying questions.", "product", []string{"architect"}, []string{"intent-statement", "stakeholder-map"}, CondAlways, allScopes(), "", 4},
 	// 1.2 Market Research — CONDITIONAL, skip for poc/bugfix/refactor/infra/security-patch
-	{"1.2", PhaseIdeation, "Market Research", "product", nil, []string{"competitive-analysis", "build-vs-buy"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP, ScopeWorkshop), "", 5},
+	{"1.2", PhaseIdeation, "Market Research", "Research the market — competitive analysis, build-vs-buy assessment, and reference architecture survey. Helps decide whether to build, buy, or integrate.", "product", nil, []string{"competitive-analysis", "build-vs-buy"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP, ScopeWorkshop), "", 5},
 	// 1.3 Feasibility — CONDITIONAL, skip for poc/bugfix/refactor/security-patch/workshop
-	{"1.3", PhaseIdeation, "Feasibility & Constraints", "architect", []string{"platform", "devsecops"}, []string{"feasibility-assessment", "constraint-register", "raid-log"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP, ScopeInfra), "", 6},
+	{"1.3", PhaseIdeation, "Feasibility & Constraints", "Assess feasibility and constraints — technical feasibility, platform constraints, security requirements, and risk/assumption/issues (RAID) log. The architect evaluates what's possible.", "architect", []string{"platform", "devsecops"}, []string{"feasibility-assessment", "constraint-register", "raid-log"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP, ScopeInfra), "", 6},
 	// 1.4 Scope Definition — ALWAYS, all scopes
-	{"1.4", PhaseIdeation, "Scope Definition", "product", []string{"delivery"}, []string{"scope-definition", "intent-backlog"}, CondAlways, allScopes(), "", 7},
+	{"1.4", PhaseIdeation, "Scope Definition", "Define scope boundaries — what's in, what's out, MoSCoW prioritization, MVP boundary, and the intent backlog. This is the decision point for what the feature will actually deliver.", "product", []string{"delivery"}, []string{"scope-definition", "intent-backlog"}, CondAlways, allScopes(), "", 7},
 	// 1.5 Team Formation — CONDITIONAL, skip for poc/bugfix/refactor/infra/security-patch/workshop
-	{"1.5", PhaseIdeation, "Team Formation", "delivery", nil, []string{"team-assessment", "mob-composition"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP), "", 8},
+	{"1.5", PhaseIdeation, "Team Formation", "Form the delivery team — assess team capabilities, plan mob composition, and assign agents to roles based on the scope and depth.", "delivery", nil, []string{"team-assessment", "mob-composition"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP), "", 8},
 	// 1.6 Rough Mockups — CONDITIONAL, skip for poc/bugfix/refactor/infra/security-patch/workshop
-	{"1.6", PhaseIdeation, "Rough Mockups", "design", []string{"product"}, []string{"wireframes", "user-flows", "concept-deck"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP), "product-lead", 9},
+	{"1.6", PhaseIdeation, "Rough Mockups", "Create rough mockups — wireframes, user flows, and a concept deck. The design agent visualizes the key interactions before detailed design.", "design", []string{"product"}, []string{"wireframes", "user-flows", "concept-deck"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP), "product-lead", 9},
 	// 1.7 Approval & Handoff — skip for mvp/poc/bugfix/refactor
-	{"1.7", PhaseIdeation, "Approval & Handoff", "delivery", []string{"product"}, []string{"initiative-brief", "decision-log"}, CondAlways, scopes(ScopeEnterprise, ScopeFeature, ScopeInfra, ScopeSecurityPatch, ScopeWorkshop), "", 10},
+	{"1.7", PhaseIdeation, "Approval & Handoff", "Secure approval to proceed — compile the initiative brief, decision log, and handoff package. This is the verification gate between ideation and inception.", "delivery", []string{"product"}, []string{"initiative-brief", "decision-log"}, CondAlways, scopes(ScopeEnterprise, ScopeFeature, ScopeInfra, ScopeSecurityPatch, ScopeWorkshop), "", 10},
 
 	// ── Phase 2: Inception (8 stages) ──
 	// 2.1 Reverse Engineering — BROWNFIELD, skip for poc/bugfix
-	{"2.1", PhaseInception, "Reverse Engineering", "developer", []string{"architect"}, []string{"re-artifacts"}, CondBrownfield, allMinus(ScopePOC, ScopeBugfix), "", 11},
+	{"2.1", PhaseInception, "Reverse Engineering", "Reverse-engineer existing codebase — the developer scans the code for patterns, dependencies, and architecture. The architect synthesizes findings. Only runs for brownfield projects.", "developer", []string{"architect"}, []string{"re-artifacts"}, CondBrownfield, allMinus(ScopePOC, ScopeBugfix), "", 11},
 	// 2.2 Practices Discovery — CONDITIONAL, skip for poc/bugfix/refactor/security-patch
-	{"2.2", PhaseInception, "Practices Discovery", "pipeline-deploy", []string{"quality", "developer", "devsecops"}, []string{"team-practices", "discovered-rules", "evidence"}, CondConditional, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeSecurityPatch), "", 12},
+	{"2.2", PhaseInception, "Practices Discovery", "Discover team practices — scan CI configs, test conventions, code style, and deployment patterns. Promote discovered patterns to team rules.", "pipeline-deploy", []string{"quality", "developer", "devsecops"}, []string{"team-practices", "discovered-rules", "evidence"}, CondConditional, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeSecurityPatch), "", 12},
 	// 2.3 Requirements Analysis — ALWAYS, all scopes
-	{"2.3", PhaseInception, "Requirements Analysis", "product", nil, []string{"requirements.md"}, CondAlways, allScopes(), "product-lead", 13},
+	{"2.3", PhaseInception, "Requirements Analysis", "Analyze requirements — functional requirements (FRs), non-functional requirements (NFRs), and constraints. The product agent produces a structured requirements document.", "product", nil, []string{"requirements.md"}, CondAlways, allScopes(), "product-lead", 13},
 	// 2.4 User Stories — USER_FACING, skip for bugfix/refactor/infra/security-patch/poc
-	{"2.4", PhaseInception, "User Stories", "product", []string{"design"}, []string{"stories.md", "personas.md"}, CondUserFacing, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP, ScopeWorkshop), "product-lead", 14},
+	{"2.4", PhaseInception, "User Stories", "Write user stories — personas, jobs-to-be-done (JTBD), and story breakdown. The product agent translates requirements into actionable stories.", "product", []string{"design"}, []string{"stories.md", "personas.md"}, CondUserFacing, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP, ScopeWorkshop), "product-lead", 14},
 	// 2.5 Refined Mockups — UI_PROJECT, skip for bugfix/refactor/infra/security-patch/poc
-	{"2.5", PhaseInception, "Refined Mockups", "design", []string{"product"}, []string{"hi-fi-mockups", "interaction-spec"}, CondUIProject, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP, ScopeWorkshop), "product-lead", 15},
+	{"2.5", PhaseInception, "Refined Mockups", "Refine mockups — hi-fi mockups, interaction specifications, and accessibility considerations. The design agent produces detailed UI specs.", "design", []string{"product"}, []string{"hi-fi-mockups", "interaction-spec"}, CondUIProject, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP, ScopeWorkshop), "product-lead", 15},
 	// 2.6 Application Design — CONDITIONAL, skip for poc/bugfix/refactor
-	{"2.6", PhaseInception, "Application Design", "architect", []string{"platform", "design"}, []string{"app-design", "adrs"}, CondConditional, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor), "architecture-reviewer", 16},
+	{"2.6", PhaseInception, "Application Design", "Design the application — architecture, domain model, ADRs (architecture decision records), and technology choices. The architect produces the technical design.", "architect", []string{"platform", "design"}, []string{"app-design", "adrs"}, CondConditional, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor), "architecture-reviewer", 16},
 	// 2.7 Units Generation — ALWAYS, all scopes (skip for security-patch to hit 9)
-	{"2.7", PhaseInception, "Units Generation", "architect", []string{"delivery"}, []string{"unit-of-work", "dependency-dag", "story-map"}, CondAlways, allMinus(ScopeSecurityPatch), "architecture-reviewer", 17},
+	{"2.7", PhaseInception, "Units Generation", "Generate units of work — decompose the design into implementation units, dependency DAG, and story-to-unit mapping. This is what Bolts are built from.", "architect", []string{"delivery"}, []string{"unit-of-work", "dependency-dag", "story-map"}, CondAlways, allMinus(ScopeSecurityPatch), "architecture-reviewer", 17},
 	// 2.8 Delivery Planning — skip for poc/bugfix/refactor/security-patch
-	{"2.8", PhaseInception, "Delivery Planning", "delivery", []string{"architect"}, []string{"bolt-plan", "team-allocation", "risk-rationale", "external-dep-map"}, CondAlways, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeSecurityPatch), "", 18},
+	{"2.8", PhaseInception, "Delivery Planning", "Plan delivery — Bolt plan (sequencing), team allocation, risk and sequencing rationale, and external dependency map. This is the verification gate between inception and construction.", "delivery", []string{"architect"}, []string{"bolt-plan", "team-allocation", "risk-rationale", "external-dep-map"}, CondAlways, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeSecurityPatch), "", 18},
 
 	// ── Phase 3: Construction (7 stages) ──
 	// 3.1 Functional Design — PER_BOLT, skip for poc/bugfix/refactor/infra (infra = no app design)
-	{"3.1", PhaseConstruction, "Functional Design", "architect", []string{"developer"}, []string{"business-logic-model", "business-rules"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeInfra), "architecture-reviewer", 19},
+	{"3.1", PhaseConstruction, "Functional Design", "Functional design — business logic model, business rules, and domain contracts for the Bolt. The architect designs the implementation approach.", "architect", []string{"developer"}, []string{"business-logic-model", "business-rules"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeInfra), "architecture-reviewer", 19},
 	// 3.2 NFR Requirements — PER_BOLT, skip for poc/bugfix/refactor
-	{"3.2", PhaseConstruction, "NFR Requirements", "architect", []string{"devsecops", "quality"}, []string{"security-nfrs", "performance-nfrs", "reliability-nfrs"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor), "architecture-reviewer", 20},
+	{"3.2", PhaseConstruction, "NFR Requirements", "NFR requirements — security, performance, and reliability requirements specific to this Bolt. The architect with devsecops and quality input.", "architect", []string{"devsecops", "quality"}, []string{"security-nfrs", "performance-nfrs", "reliability-nfrs"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor), "architecture-reviewer", 20},
 	// 3.3 NFR Design — PER_BOLT, skip for poc/bugfix/refactor
-	{"3.3", PhaseConstruction, "NFR Design", "architect", []string{"platform"}, []string{"nfr-design-specs"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor), "architecture-reviewer", 21},
+	{"3.3", PhaseConstruction, "NFR Design", "NFR design — detailed design specifications for meeting non-functional requirements. Patterns, data structures, and algorithms.", "architect", []string{"platform"}, []string{"nfr-design-specs"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor), "architecture-reviewer", 21},
 	// 3.4 Infrastructure Design — PER_BOLT, skip for poc/bugfix/refactor/security-patch
-	{"3.4", PhaseConstruction, "Infrastructure Design", "platform", []string{"devsecops"}, []string{"infra-specs", "iac-designs"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeSecurityPatch), "architecture-reviewer", 22},
+	{"3.4", PhaseConstruction, "Infrastructure Design", "Infrastructure design — infrastructure specifications, IaC designs, and deployment topology for this Bolt.", "platform", []string{"devsecops"}, []string{"infra-specs", "iac-designs"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeSecurityPatch), "architecture-reviewer", 22},
 	// 3.5 Code Generation — PER_BOLT, all scopes (ALWAYS)
-	{"3.5", PhaseConstruction, "Code Generation", "developer", nil, []string{"application-code", "code-docs"}, CondPerBolt, allScopes(), "architecture-reviewer", 23},
+	{"3.5", PhaseConstruction, "Code Generation", "Code generation — the developer writes the actual code. This is where the implementation happens. Produces application code and code documentation.", "developer", nil, []string{"application-code", "code-docs"}, CondPerBolt, allScopes(), "architecture-reviewer", 23},
 	// 3.6 Build and Test — ONCE_AT_END, all scopes
-	{"3.6", PhaseConstruction, "Build and Test", "quality", []string{"devsecops"}, []string{"test-results", "quality-report"}, CondOnceAtEnd, allScopes(), "", 24},
+	{"3.6", PhaseConstruction, "Build and Test", "Build and test — compile, run tests, security scan, and quality gate. The quality agent verifies the code works and meets standards. Runs once across all Bolts.", "quality", []string{"devsecops"}, []string{"test-results", "quality-report"}, CondOnceAtEnd, allScopes(), "", 24},
 	// 3.7 CI Pipeline — ONCE_AT_END, skip for poc/bugfix/refactor/security-patch/mvp
-	{"3.7", PhaseConstruction, "CI Pipeline", "pipeline-deploy", nil, []string{"ci-config", "quality-gates"}, CondOnceAtEnd, scopes(ScopeEnterprise, ScopeFeature, ScopeInfra, ScopeWorkshop), "", 25},
+	{"3.7", PhaseConstruction, "CI Pipeline", "CI pipeline — configure CI/CD pipeline, quality gates, and automated checks. The pipeline-deploy agent sets up the build infrastructure.", "pipeline-deploy", nil, []string{"ci-config", "quality-gates"}, CondOnceAtEnd, scopes(ScopeEnterprise, ScopeFeature, ScopeInfra, ScopeWorkshop), "", 25},
 
 	// ── Phase 4: Operation (7 stages, all conditional) ──
 	// 4.1-4.7: skip for mvp/poc/bugfix/refactor/security-patch
-	{"4.1", PhaseOperation, "Deployment Pipeline", "pipeline-deploy", nil, []string{"cd-config", "deploy-strategy", "rollback-runbook"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeInfra, ScopeWorkshop), "", 26},
-	{"4.2", PhaseOperation, "Environment Provisioning", "platform", []string{"devsecops"}, []string{"env-inventory", "validation-report"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 27},
-	{"4.3", PhaseOperation, "Deployment Execution", "pipeline-deploy", []string{"developer"}, []string{"deploy-log", "smoke-tests", "health-checks"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeInfra), "", 28},
-	{"4.4", PhaseOperation, "Observability Setup", "operations", nil, []string{"dashboards", "alarms", "slo-config"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 29},
-	{"4.5", PhaseOperation, "Incident Response", "operations", nil, []string{"runbooks", "incident-plan", "escalation-matrix"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 30},
-	{"4.6", PhaseOperation, "Performance Validation", "quality", nil, []string{"load-test-results", "nfr-validation-matrix"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 31},
-	{"4.7", PhaseOperation, "Feedback & Optimization", "operations", []string{"platform"}, []string{"slo-report", "cost-analysis", "feedback-loop"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 32},
+	{"4.1", PhaseOperation, "Deployment Pipeline", "Deployment pipeline — CD configuration, deployment strategy (blue-green, canary, rolling), and rollback runbook.", "pipeline-deploy", nil, []string{"cd-config", "deploy-strategy", "rollback-runbook"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeInfra, ScopeWorkshop), "", 26},
+	{"4.2", PhaseOperation, "Environment Provisioning", "Environment provisioning — provision environments (dev, staging, prod), inventory, and validation report.", "platform", []string{"devsecops"}, []string{"env-inventory", "validation-report"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 27},
+	{"4.3", PhaseOperation, "Deployment Execution", "Deployment execution — deploy the code, run smoke tests, and verify health checks.", "pipeline-deploy", []string{"developer"}, []string{"deploy-log", "smoke-tests", "health-checks"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature, ScopeInfra), "", 28},
+	{"4.4", PhaseOperation, "Observability Setup", "Observability setup — dashboards, alarms, and SLO configuration. The operations agent sets up monitoring.", "operations", nil, []string{"dashboards", "alarms", "slo-config"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 29},
+	{"4.5", PhaseOperation, "Incident Response", "Incident response — SSM runbooks, incident plan, and escalation matrix. Prepare for when things go wrong.", "operations", nil, []string{"runbooks", "incident-plan", "escalation-matrix"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 30},
+	{"4.6", PhaseOperation, "Performance Validation", "Performance validation — load test results and NFR validation matrix. Verify the system meets performance requirements.", "quality", nil, []string{"load-test-results", "nfr-validation-matrix"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 31},
+	{"4.7", PhaseOperation, "Feedback & Optimization", "Feedback and optimization — SLO report, cost analysis, and feedback loop document. The terminal stage — on approval, the workflow is complete.", "operations", []string{"platform"}, []string{"slo-report", "cost-analysis", "feedback-loop"}, CondConditional, scopes(ScopeEnterprise, ScopeFeature), "", 32},
 }
 
 // SeedStages inserts all 32 stage definitions into the DB. Idempotent.

@@ -287,6 +287,7 @@ func (s *Server) getFeatureStages(w http.ResponseWriter, r *http.Request) {
 		CompletedAt  *time.Time `json:"completed_at,omitempty"`
 		// Enriched fields
 		Name          string   `json:"name"`
+		Description   string   `json:"description"`
 		Phase         string   `json:"phase"`
 		LeadAgent     string   `json:"lead_agent"`
 		KeyArtifacts  []string `json:"key_artifacts"`
@@ -310,6 +311,7 @@ func (s *Server) getFeatureStages(w http.ResponseWriter, r *http.Request) {
 		def, err := s.db.GetStageDefinition(fs.StageID)
 		if err == nil && def != nil {
 			es.Name = def.Name
+			es.Description = def.Description
 			es.Phase = def.Phase
 			es.LeadAgent = def.LeadAgent
 			es.Reviewer = def.Reviewer

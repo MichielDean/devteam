@@ -79,6 +79,7 @@ export default function StageRail({ stages, stageDefinitions, currentStageId }: 
                     <button
                       key={s.stage_id}
                       onClick={() => setSelectedStage(s.stage_id)}
+                      title={def?.description || undefined}
                       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-left text-xs transition-colors ${
                         isSelected
                           ? 'bg-[var(--color-surface-active)]'

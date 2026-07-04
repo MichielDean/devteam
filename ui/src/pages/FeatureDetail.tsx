@@ -379,15 +379,21 @@ export default function FeatureDetail() {
           {activeStage && (
             <Card className="p-4" data-testid="stage-detail">
               <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-base font-medium text-[var(--color-text-primary)]">{activeStage.stage_id}</h3>
+                <h3 className="text-base font-medium text-[var(--color-text-primary)]">
+                  {activeStage.stage_id}{activeStage.name ? ` · ${activeStage.name}` : ''}
+                </h3>
                 <Badge color="blue">{STAGE_STATUS_LABELS[activeStage.status] || activeStage.status}</Badge>
                 {activeStage.revision_count > 0 && <Badge color="yellow">×{activeStage.revision_count}</Badge>}
               </div>
 
+              {activeStage.description && (
+                <p className="text-sm text-[var(--color-text-secondary)] mb-4 leading-relaxed">{activeStage.description}</p>
+              )}
+
               {activeStage.status === 'awaiting_approval' && (
                 <GatePanel
                   stageId={activeStage.stage_id}
-                  stageName={activeStage.stage_id}
+                  stageName={activeStage.name || activeStage.stage_id}
                   revisionCount={activeStage.revision_count}
                   canAcceptAsIs={activeStage.revision_count >= MAX_REVISIONS}
                   onApprove={() => approveMutation.mutate(activeStage.stage_id)}
