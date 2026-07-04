@@ -98,6 +98,7 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 	if err := m.prepareContextDir(req, contextDir); err != nil {
 		return nil, fmt.Errorf("preparing context directory: %w", err)
 	}
+	log.Printf("tmux: prepared context dir %s (opencode.json + AGENTS.md + agents/%s.md)", contextDir, req.Role)
 
 	agentMDPath := filepath.Join(contextDir, "agents", req.Role+".md")
 	contextMDPath := filepath.Join(contextDir, "CONTEXT.md")
