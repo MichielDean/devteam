@@ -720,14 +720,19 @@ func (p *Pipeline) buildStageContext(ctx context.Context, f *feature.Feature, st
 		contextStr += "\n\n---\n\n" + specContext
 	}
 
-	// List all available artifacts so the agent knows exactly what exists
-	// and can fetch them by the correct name
+	// List all available artifacts so the agent knows what exists
+	// and can fetch them all at once with a single command
 	if p.database != nil {
 		artifacts, _ := p.database.ListArtifacts(f.ID)
 		if len(artifacts) > 0 {
 			contextStr += "\n\n---\n\n## Available Artifacts\n\n"
-			contextStr += "These artifacts already exist in the database. Fetch them with:\n"
-			contextStr += "`devteam artifact get <feature-id> <artifact_type>`\n\n"
+			contextStr += fmt.Sprintf("There are %d artifacts available from prior stages.\n\n", len(artifacts))
+			contextStr += "**Get all artifacts for the current stage:**\n"
+			contextStr += "```bash\ndevteam artifacts <feature-id>\n```\n\n"
+			contextStr += "**Get all artifacts (all stages):**\n"
+			contextStr += "```bash\ndevteam artifacts <feature-id> --all\n```\n\n"
+			contextStr += "**Get a specific artifact:**\n"
+			contextStr += "```bash\ndevteam artifact get <feature-id> <artifact_type>\n```\n\n"
 			contextStr += "| Artifact Type | Stage | Size |\n"
 			contextStr += "|---------------|-------|------|\n"
 			for _, a := range artifacts {

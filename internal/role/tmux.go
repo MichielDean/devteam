@@ -467,35 +467,42 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 	}
 
 	// Write AGENTS.md that tells the agent it's in Dev Team, not lobsterdog
-	agentsMD := `# Dev Team Agent
-
-You are running inside the Dev Team AIDLC v2 pipeline. This is a dedicated
-harness for AI-driven development — NOT the lobsterdog harness.
-
-## Rules
-
-- You are the ` + req.Role + ` agent for feature ` + req.FeatureID + ` in the ` + req.Phase + ` phase.
-- Read CONTEXT.md for your full task context, spec artifacts, and repo paths.
-- Use the devteam CLI to manage state — do NOT write state files manually.
-- Signal completion with: devteam signal <feature-id> pass
-- If you need human input: devteam signal <feature-id> needs_feedback
-- Submit artifacts with: devteam artifact submit <feature-id> <type> --file <filename>
-- Ask questions with: devteam questions ask <feature-id> --file questions.json
-
-## What NOT to do
-
-- Do NOT follow lobsterdog harness conventions (worktrees, git-sync, etc.)
-- Do NOT use llmem, cistern, or any lobsterdog-specific tools
-- Do NOT follow caveman ruleset or any global rules
-- Do NOT create git worktrees or manage branches — the pipeline handles that
-- Do NOT run install.sh or any deployment scripts
-
-## Your task
-
-Execute your role for this stage. Produce the required artifacts. Signal
-completion when done. The pipeline handles approval gates, stage advancement,
-and state persistence.
-`
+	agentsMD := "# Dev Team Agent\n\n" +
+		"You are running inside the Dev Team AIDLC v2 pipeline. This is a dedicated\n" +
+		"harness for AI-driven development — NOT the lobsterdog harness.\n\n" +
+		"## Rules\n\n" +
+		"- You are the " + req.Role + " agent for feature " + req.FeatureID + " in the " + req.Phase + " phase.\n" +
+		"- Read CONTEXT.md for your full task context, spec artifacts, and repo paths.\n" +
+		"- Use the devteam CLI to manage state — do NOT write state files manually.\n\n" +
+		"## CLI Commands\n\n" +
+		"### Get prior stage artifacts (DO THIS FIRST)\n" +
+		"    devteam artifacts " + req.FeatureID + "              # all artifacts for current stage\n" +
+		"    devteam artifacts " + req.FeatureID + " --all        # all artifacts from all stages\n" +
+		"    devteam artifact get " + req.FeatureID + " <type>    # specific artifact by name\n\n" +
+		"### Submit your work\n" +
+		"    devteam artifact submit " + req.FeatureID + " <type> --file <filename>\n" +
+		"    devteam artifact submit " + req.FeatureID + " <type> --content \"inline content\"\n\n" +
+		"### Ask questions (if you need human input)\n" +
+		"    devteam questions ask " + req.FeatureID + " --file questions.json\n" +
+		"    devteam signal " + req.FeatureID + " needs_feedback\n\n" +
+		"### Signal completion\n" +
+		"    devteam signal " + req.FeatureID + " pass\n" +
+		"    devteam signal " + req.FeatureID + " failed --notes \"what went wrong\"\n\n" +
+		"### Query state\n" +
+		"    devteam feature status " + req.FeatureID + "\n" +
+		"    devteam stages " + req.FeatureID + "\n" +
+		"    devteam audit " + req.FeatureID + "\n\n" +
+		"## What NOT to do\n\n" +
+		"- Do NOT follow lobsterdog harness conventions (worktrees, git-sync, etc.)\n" +
+		"- Do NOT use llmem, cistern, or any lobsterdog-specific tools\n" +
+		"- Do NOT follow caveman ruleset or any global rules\n" +
+		"- Do NOT create git worktrees or manage branches — the pipeline handles that\n" +
+		"- Do NOT run install.sh or any deployment scripts\n" +
+		"- Do NOT guess artifact names — use 'devteam artifacts' to see what exists\n\n" +
+		"## Your task\n\n" +
+		"Execute your role for this stage. Produce the required artifacts. Signal\n" +
+		"completion when done. The pipeline handles approval gates, stage advancement,\n" +
+		"and state persistence.\n"
 	agentsPath := filepath.Join(contextDir, "AGENTS.md")
 	if err := os.WriteFile(agentsPath, []byte(agentsMD), 0644); err != nil {
 		return fmt.Errorf("writing AGENTS.md: %w", err)

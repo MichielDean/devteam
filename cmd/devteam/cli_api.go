@@ -302,7 +302,125 @@ func handleArtifactAPICLI(args []string) {
 	}
 }
 
-// handleFeatureAPICLI handles: devteam feature <status|info> <feature-id>
+// handleArtifactsListCLI handles: devteam artifacts <feature-id> [--stage 1.4 | --all]
+// Fetches all artifacts for the current stage (or specified stage, or all) and
+// prints them as a single concatenated markdown document.
+func handleArtifactsListCLI(args []string) {
+	featureID := args[0]
+	stageID := ""
+	allArtifacts := false
+
+	for i, arg := range args[1:] {
+		if arg == "--stage" && i+1 < len(args[1:]) {
+			stageID = args[1:][i+1]
+		}
+		if arg == "--all" {
+			allArtifacts = true
+		}
+	}
+
+	// If no stage specified and not --all, look up the feature's current stage
+	if stageID == "" && !allArtifacts {
+		resp, err := apiGet(fmt.Sprintf("/api/features/%s", featureID))
+		if err == nil {
+			var f map[string]interface{}
+			json.Unmarshal([]byte(resp), &f)
+			if cs, ok := f["current_stage"].(string); ok && cs != "" {
+				stageID = cs
+			}
+		}
+	}
+
+	// Fetch the artifact list
+	resp, err := apiGet(fmt.Sprintf("/api/features/%s/artifacts", featureID))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error listing artifacts: %v\n", err)
+		os.Exit(1)
+	}
+
+	var artifacts []struct {
+		ArtifactType string `json:"artifact_type"`
+		StageID      string `json:"stage_id"`
+		Size         int    `json:"size"`
+	}
+	json.Unmarshal([]byte(resp), &artifacts)
+
+	if len(artifacts) == 0 {
+		fmt.Println("No artifacts found.")
+		return
+	}
+
+	// Filter to current stage if not --all
+	var filtered []struct {
+		ArtifactType string `json:"artifact_type"`
+		StageID      string `json:"stage_id"`
+		Size         int    `json:"size"`
+	}
+	for _, a := range artifacts {
+		if allArtifacts || a.StageID == stageID {
+			filtered = append(filtered, a)
+		}
+	}
+
+	// Also check stage definition for key_artifacts — fetch those too even if stage_id not set
+	if !allArtifacts && stageID != "" {
+		// Get stage definition to know expected key_artifacts
+		stageResp, err := apiGet(fmt.Sprintf("/api/features/%s/stages", featureID))
+		if err == nil {
+			var stages []struct {
+				StageID     string   `json:"stage_id"`
+				KeyArtifacts []string `json:"key_artifacts"`
+			}
+			json.Unmarshal([]byte(stageResp), &stages)
+			for _, s := range stages {
+				if s.StageID == stageID {
+					for _, expected := range s.KeyArtifacts {
+						// Check if we already have it
+						found := false
+						for _, f := range filtered {
+							if f.ArtifactType == expected {
+								found = true
+								break
+							}
+						}
+						if !found {
+							// Try to fetch it
+							for _, a := range artifacts {
+								if a.ArtifactType == expected {
+									filtered = append(filtered, a)
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if len(filtered) == 0 {
+		fmt.Printf("No artifacts found for stage %s.\n", stageID)
+		fmt.Println("Available artifacts:")
+		for _, a := range artifacts {
+			fmt.Printf("  %s (stage: %s, size: %d)\n", a.ArtifactType, a.StageID, a.Size)
+		}
+		return
+	}
+
+	// Fetch and print each artifact
+	for i, a := range filtered {
+		if i > 0 {
+			fmt.Print("\n---\n\n")
+		}
+		fmt.Printf("# Artifact: %s (stage: %s)\n\n", a.ArtifactType, a.StageID)
+		content, err := apiGet(fmt.Sprintf("/api/features/%s/artifacts/%s", featureID, a.ArtifactType))
+		if err != nil {
+			fmt.Printf("Error fetching %s: %v\n", a.ArtifactType, err)
+			continue
+		}
+		fmt.Println(content)
+	}
+}
 func handleFeatureAPICLI(args []string) {
 	if len(args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: devteam feature <status|info> <feature-id>\n")

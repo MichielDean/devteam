@@ -139,10 +139,18 @@ func main() {
 		return
 	case "artifact":
 		if len(os.Args) < 5 {
-			fmt.Fprintf(os.Stderr, "Usage: devteam artifact <submit|get> <feature-id> <type> [options]\n")
+			fmt.Fprintf(os.Stderr, "Usage: devteam artifact <submit|get|list> <feature-id> <type> [options]\n")
+			fmt.Fprintf(os.Stderr, "       devteam artifacts <feature-id> [--stage 1.4 | --all]\n")
 			os.Exit(1)
 		}
 		handleArtifactAPICLI(os.Args[2:])
+		return
+	case "artifacts":
+		if len(os.Args) < 3 {
+			fmt.Fprintf(os.Stderr, "Usage: devteam artifacts <feature-id> [--stage 1.4 | --all]\n")
+			os.Exit(1)
+		}
+		handleArtifactsListCLI(os.Args[2:])
 		return
 	case "feature":
 		if len(os.Args) < 4 {
