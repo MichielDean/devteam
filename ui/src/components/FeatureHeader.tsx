@@ -24,9 +24,9 @@ const statusColor: Record<string, Color> = {
 export default function FeatureHeader({ feature, sessionsCount = 0, isTerminal }: FeatureHeaderProps) {
   return (
     <div className="rounded-[var(--radius-lg)] p-4 mb-4" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-sm)' }} data-testid="feature-header">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-medium text-[var(--color-text-primary)] truncate" data-testid="feature-title">{feature.title}</h1>
+          <h1 className="text-lg sm:text-xl font-medium text-[var(--color-text-primary)] truncate" data-testid="feature-title">{feature.title}</h1>
           <p className="text-xs text-[var(--color-text-tertiary)] mt-1" data-testid="feature-id">{feature.id}</p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap shrink-0">

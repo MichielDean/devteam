@@ -14,6 +14,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { Button, Badge, Card } from '../ui/primitives';
 import FeatureHeader from '../components/FeatureHeader';
 import StageRail from '../components/StageRail';
+import MobileStageRail from '../components/MobileStageRail';
 import GatePanel from '../components/GatePanel';
 import AgentOutputLive from '../components/AgentOutputLive';
 import QuestionPanel from '../components/QuestionPanel';
@@ -320,8 +321,17 @@ export default function FeatureDetail() {
 
       <FeatureHeader feature={feature} sessionsCount={sessions.length} isTerminal={terminal} />
 
-      <div className="grid grid-cols-[auto_1fr] gap-4 flex-1 min-h-0">
-        <StageRail stages={stages} currentStageId={feature.current_stage} />
+      {/* Mobile: horizontal stage rail. Desktop: hidden (sidebar in grid below) */}
+      <div className="lg:hidden mb-4">
+        <MobileStageRail stages={stages} currentStageId={feature.current_stage} onSelect={(id) => setSelectedStage(id)} />
+      </div>
+
+      {/* Desktop: sidebar + content grid. Mobile: content only (full width) */}
+      <div className="flex flex-col lg:grid lg:grid-cols-[260px_1fr] gap-4 flex-1 min-h-0">
+        {/* Desktop sidebar */}
+        <div className="hidden lg:block">
+          <StageRail stages={stages} currentStageId={feature.current_stage} />
+        </div>
 
         <div className="flex-1 min-w-0 overflow-y-auto space-y-4">
           {!terminal && (
