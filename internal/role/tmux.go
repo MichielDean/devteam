@@ -438,15 +438,21 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 		return fmt.Errorf("writing agent markdown: %w", err)
 	}
 
-	// Write self-contained opencode config — isolates from global harness
-	// Must include provider config so the agent can reach the LLM
+	// Write self-contained opencode config — fully isolated from global harness.
+	// Config files are MERGED by opencode, so we must explicitly override
+	// everything from the global config that we don't want (plugins, agents, mcp, instructions).
 	opencodeConfig := `{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ollama/glm-5.2:cloud",
   "permission": "allow",
   "instructions": [],
   "plugin": [],
   "compaction": {
     "enabled": false
   },
+  "snapshot": false,
+  "mcp": {},
+  "agent": {},
   "provider": {
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",
@@ -465,48 +471,6 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 	configPath := filepath.Join(contextDir, "opencode.json")
 	if err := os.WriteFile(configPath, []byte(opencodeConfig), 0644); err != nil {
 		return fmt.Errorf("writing opencode.json: %w", err)
-	}
-
-	// Write AGENTS.md that tells the agent it's in Dev Team, not lobsterdog
-	agentsMD := "# Dev Team Agent\n\n" +
-		"You are running inside the Dev Team AIDLC v2 pipeline. This is a dedicated\n" +
-		"harness for AI-driven development — NOT the lobsterdog harness.\n\n" +
-		"## Rules\n\n" +
-		"- You are the " + req.Role + " agent for feature " + req.FeatureID + " in the " + req.Phase + " phase.\n" +
-		"- Read CONTEXT.md for your full task context, spec artifacts, and repo paths.\n" +
-		"- Use the devteam CLI to manage state — do NOT write state files manually.\n\n" +
-		"## CLI Commands\n\n" +
-		"### Get prior stage artifacts (DO THIS FIRST)\n" +
-		"    devteam artifacts " + req.FeatureID + "              # all artifacts for current stage\n" +
-		"    devteam artifacts " + req.FeatureID + " --all        # all artifacts from all stages\n" +
-		"    devteam artifact get " + req.FeatureID + " <type>    # specific artifact by name\n\n" +
-		"### Submit your work\n" +
-		"    devteam artifact submit " + req.FeatureID + " <type> --file <filename>\n" +
-		"    devteam artifact submit " + req.FeatureID + " <type> --content \"inline content\"\n\n" +
-		"### Ask questions (if you need human input)\n" +
-		"    devteam questions ask " + req.FeatureID + " --file questions.json\n" +
-		"    devteam signal " + req.FeatureID + " needs_feedback\n\n" +
-		"### Signal completion\n" +
-		"    devteam signal " + req.FeatureID + " pass\n" +
-		"    devteam signal " + req.FeatureID + " failed --notes \"what went wrong\"\n\n" +
-		"### Query state\n" +
-		"    devteam feature status " + req.FeatureID + "\n" +
-		"    devteam stages " + req.FeatureID + "\n" +
-		"    devteam audit " + req.FeatureID + "\n\n" +
-		"## What NOT to do\n\n" +
-		"- Do NOT follow lobsterdog harness conventions (worktrees, git-sync, etc.)\n" +
-		"- Do NOT use llmem, cistern, or any lobsterdog-specific tools\n" +
-		"- Do NOT follow caveman ruleset or any global rules\n" +
-		"- Do NOT create git worktrees or manage branches — the pipeline handles that\n" +
-		"- Do NOT run install.sh or any deployment scripts\n" +
-		"- Do NOT guess artifact names — use 'devteam artifacts' to see what exists\n\n" +
-		"## Your task\n\n" +
-		"Execute your role for this stage. Produce the required artifacts. Signal\n" +
-		"completion when done. The pipeline handles approval gates, stage advancement,\n" +
-		"and state persistence.\n"
-	agentsPath := filepath.Join(contextDir, "AGENTS.md")
-	if err := os.WriteFile(agentsPath, []byte(agentsMD), 0644); err != nil {
-		return fmt.Errorf("writing AGENTS.md: %w", err)
 	}
 
 	return nil
