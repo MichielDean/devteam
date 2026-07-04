@@ -11,7 +11,6 @@ import type {
   Question,
   CreateQuestionRequest,
   AnswerQuestionRequest,
-  RunStageRequest,
   RejectStageRequest,
   JumpRequest,
   SetScopeRequest,
@@ -76,10 +75,15 @@ export async function cancelFeature(id: string): Promise<FeatureDetail> {
 
 // ─── Stage Workflow ───
 export async function runStage(featureId: string, stageId: string): Promise<StageRunResult> {
-  const body: RunStageRequest = { stage_id: stageId };
   return request<StageRunResult>(`/features/${featureId}/run-stage`, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify({ stage_id: stageId }),
+  });
+}
+
+export async function resumeStage(featureId: string, stageId: string): Promise<{ status: string; stage_id: string; session_alive: boolean }> {
+  return request(`/features/${featureId}/stages/${stageId}/resume`, {
+    method: 'POST',
   });
 }
 

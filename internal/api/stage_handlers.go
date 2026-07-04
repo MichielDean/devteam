@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os/exec"
 	"time"
 
 	"github.com/MichielDean/devteam/internal/db"
@@ -18,6 +19,7 @@ func (s *Server) registerStageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/approve", s.approveStage)
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/reject", s.rejectStage)
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/accept-as-is", s.acceptStageAsIs)
+	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/resume", s.resumeStage)
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/add-skipped", s.addSkippedStage)
 	mux.HandleFunc("POST /api/features/{id}/jump", s.jumpToStage)
 	mux.HandleFunc("GET /api/features/{id}/stages", s.getFeatureStages)
@@ -115,6 +117,102 @@ func (s *Server) runStage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(`{"status":"dispatched","stage_id":"` + req.StageID + `"}`))
+}
+
+// resumeStage re-attaches to an existing tmux session for a stage and
+// tells the agent to continue. This preserves all context and work done
+// before a server restart. The agent's tmux session may still be alive
+// (agent paused) or dead (agent exited but work was done).
+func (s *Server) resumeStage(w http.ResponseWriter, r *http.Request) {
+	featureID := r.PathValue("id")
+	stageID := r.PathValue("stageId")
+	f, err := s.pipeline.GetFeature(featureID)
+	if err != nil {
+		http.Error(w, `{"error":"feature_not_found"}`, http.StatusNotFound)
+		return
+	}
+
+	if s.isFeatureActive(featureID) {
+		http.Error(w, `{"error":"conflict","details":"feature already running"}`, http.StatusConflict)
+		return
+	}
+
+	// Find the tmux session for this stage's phase
+	stageDef, err := s.db.GetStageDefinition(stageID)
+	if err != nil || stageDef == nil {
+		http.Error(w, `{"error":"stage_not_found"}`, http.StatusNotFound)
+		return
+	}
+
+	tmuxMgr := s.pipeline.Dispatcher().TmuxManager()
+	boltNumber := 0
+	if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
+		boltNumber = f.CurrentBolt
+	}
+
+	var sessionName string
+	if boltNumber > 0 {
+		sessionName = tmuxMgr.SessionNameForBolt(featureID, boltNumber)
+	} else {
+		sessionName = tmuxMgr.SessionNameForPhase(featureID, stageDef.Phase)
+	}
+
+	sessionAlive := s.pipeline.Dispatcher().IsSessionAliveByName(sessionName)
+
+	s.markFeatureActive(featureID)
+
+	go func() {
+		defer s.unmarkFeatureActive(featureID)
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("resumeStage goroutine panic for feature %s stage %s: %v", featureID, stageID, rec)
+			}
+		}()
+
+		if sessionAlive {
+			// Session is alive — send "please continue" to the agent
+			log.Printf("resumeStage: session %s is alive — sending continue command", sessionName)
+
+			// Mark stage as in_progress
+			fs, _ := s.db.GetFeatureStage(featureID, stageID)
+			if fs != nil {
+				now := time.Now()
+				s.db.UpdateFeatureStage(featureID, stageID, stage.StatusInProgress, fs.RevisionCount, &now, nil)
+			}
+			s.broadcastSSE(featureID, "stage_started", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s,"resumed":true}`, jsonString(featureID), jsonString(stageID), jsonString(stageDef.Phase)))
+
+			// Send "please continue" to the tmux session
+			exec.Command("tmux", "send-keys", "-t", sessionName, "Please continue with your task. If you were interrupted, resume from where you left off.", "Enter").Run()
+
+			// Poll for tmux session exit
+			for tmuxMgr.IsSessionAlive(sessionName) {
+				time.Sleep(5 * time.Second)
+			}
+
+			// Session exited — process the outcome
+			log.Printf("resumeStage: session %s exited", sessionName)
+		} else {
+			// Session is dead — re-dispatch with fresh context (standard RunStage)
+			log.Printf("resumeStage: session %s is dead — re-dispatching stage %s", sessionName, stageID)
+		}
+
+		// Either way, run the stage to process the outcome
+		result, err := s.pipeline.RunStage(context.Background(), f, stageID, func(line string, isStderr bool) {
+			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+		})
+		if err != nil {
+			log.Printf("resumeStage: failed for feature %s stage %s: %v", featureID, stageID, err)
+			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":%s}`, jsonString(featureID), jsonString(stageID), jsonString(err.Error())))
+			return
+		}
+
+		resultJSON, _ := json.Marshal(result)
+		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"result":%s}`, jsonString(featureID), jsonString(stageID), string(resultJSON)))
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte(`{"status":"resumed","stage_id":"` + stageID + `","session_alive":` + fmt.Sprintf("%t", sessionAlive) + `}`))
 }
 
 // approveStage approves a stage gate and advances.

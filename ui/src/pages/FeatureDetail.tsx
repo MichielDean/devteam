@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFeature, getFeatureStages, getAuditTrail, getBolts, getRules,
-  runStage, approveStage, rejectStage, acceptStageAsIs, jumpToStage,
+  runStage, resumeStage, approveStage, rejectStage, acceptStageAsIs, jumpToStage,
   setScope, setDepth, setTestStrategy, setLadderMode, prepareBolts,
   runBolt, cancelFeature, listQuestions, answerQuestion, ApiError,
 } from '../api/client';
@@ -275,6 +275,28 @@ export default function FeatureDetail() {
     onError: (err: Error) => addToast('error', err.message),
   });
 
+  const resumeMutation = useMutation({
+    mutationFn: (stageId: string) => resumeStage(id!, stageId),
+    onMutate: async (stageId) => {
+      setIsProcessing(true);
+      await queryClient.cancelQueries({ queryKey: ['stages', id!] });
+      const prev = queryClient.getQueryData(['stages', id!]) as any[] ?? [];
+      queryClient.setQueryData(['stages', id!], prev.map((s) => s.stage_id === stageId ? { ...s, status: 'in_progress' } : s));
+      return { prev };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['audit', id!] });
+      addToast('success', 'Stage resumed — re-attaching to session');
+    },
+    onError: (err: Error, _data, ctx) => {
+      setIsProcessing(false);
+      if (ctx?.prev) queryClient.setQueryData(['stages', id!], ctx.prev);
+      addToast('error', `Resume failed: ${err.message}`);
+    },
+  });
+
   useKeyboardShortcuts({
     shortcuts: [
       { key: 'a', handler: () => { const s = stages.find((s) => s.status === 'awaiting_approval'); if (s) approveMutation.mutate(s.stage_id); }, description: 'Approve gate' },
@@ -363,11 +385,14 @@ export default function FeatureDetail() {
                 <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="revising-banner">
                   <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>⚠ Stage {revisingStage.stage_id} needs attention</p>
                   <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-                    This stage was interrupted. If the artifacts look good, approve directly. Otherwise re-run the stage.
+                    This stage was interrupted. Resume to continue where the agent left off, re-run to start fresh, or approve if the artifacts look good.
                   </p>
-                  <div className="flex gap-2">
-                    <Button variant="primary" size="sm" onClick={() => runStageMutation.mutate(revisingStage.stage_id)} disabled={runStageMutation.isPending} isLoading={runStageMutation.isPending} data-testid="rerun-stage-button">
-                      ▶ Re-run Stage {revisingStage.stage_id}
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="primary" size="sm" onClick={() => resumeMutation.mutate(revisingStage.stage_id)} disabled={resumeMutation.isPending} isLoading={resumeMutation.isPending} data-testid="resume-stage-button">
+                      ▶ Resume {revisingStage.stage_id}
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => runStageMutation.mutate(revisingStage.stage_id)} disabled={runStageMutation.isPending} isLoading={runStageMutation.isPending} data-testid="rerun-stage-button">
+                      ↻ Re-run {revisingStage.stage_id}
                     </Button>
                     <Button variant="success" size="sm" onClick={() => approveMutation.mutate(revisingStage.stage_id)} disabled={approveMutation.isPending} data-testid="approve-as-is-button">
                       ✓ Approve as-is
