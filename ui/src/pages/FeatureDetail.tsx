@@ -416,7 +416,7 @@ export default function FeatureDetail() {
               )}
 
               {(isProcessing || feature.is_processing) && (
-                <AgentOutputLive featureId={feature.id} stageId={activeStage.stage_id} isProcessing={isProcessing || feature.is_processing} />
+                <AgentOutputLive featureId={feature.id} stageId={activeStage.stage_id} isProcessing={isProcessing || feature.is_processing} phase={feature.current_phase || undefined} />
               )}
             </Card>
           )}
