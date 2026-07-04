@@ -189,6 +189,11 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	if outcome != nil {
 		outcomeSource = "agent_signal"
 		log.Printf("RunStage: agent outcome for %s: %s notes=%d chars", stageID, outcome.Outcome, len(outcome.Notes))
+	} else if result != nil && !result.Success {
+		// Agent exited with error (non-zero exit code) and didn't signal — this is a failure
+		outcomeSource = "agent_failed"
+		outcome = &db.OutcomeRow{FeatureID: f.ID, Phase: stageID, Outcome: "failed"}
+		log.Printf("RunStage: agent exited with error for %s: %s", stageID, result.Error)
 	} else {
 		outcome = &db.OutcomeRow{FeatureID: f.ID, Phase: stageID, Outcome: "pass"}
 		log.Printf("RunStage: no outcome signal — defaulting to pass for %s", stageID)
@@ -266,8 +271,9 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	} else if outcome.Outcome == "pass" {
 		// Gate open for user approval
 	} else if outcome.Outcome == "failed" {
-		p.database.UpdateFeatureStage(f.ID, stageID, "failed", fs.RevisionCount, &now, nil)
-		p.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":"stage failed"}`, jsonString(f.ID), jsonString(stageID)))
+		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusRevising, fs.RevisionCount, &now, nil)
+		p.database.RecordAuditEvent(f.ID, "STAGE_FAILED", stageID, stageDef.Phase, result.Error)
+		p.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(result.Error)))
 	}
 
 	p.database.AddNote(f.ID, stageID, stageDef.LeadAgent, "summary", outcome.Notes)

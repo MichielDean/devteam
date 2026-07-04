@@ -438,12 +438,27 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 	}
 
 	// Write self-contained opencode config — isolates from global harness
+	// Must include provider config so the agent can reach the LLM
 	opencodeConfig := `{
-  "model": "ollama/glm-5.2:cloud",
-  "plugins": [],
+  "permission": "normal",
   "instructions": [],
+  "plugin": [],
   "compaction": {
     "enabled": false
+  },
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "glm-5.2:cloud": {
+          "name": "GLM 5.2 Cloud"
+        }
+      }
+    }
   }
 }`
 	configPath := filepath.Join(contextDir, "opencode.json")
