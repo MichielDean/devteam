@@ -135,6 +135,7 @@ export interface StageDefinition {
   id: string;
   phase: string;
   name: string;
+  description?: string;
   lead_agent: string;
   supporting_agents: string[];
   key_artifacts: string[];
@@ -153,6 +154,7 @@ export interface FeatureStage {
   started_at?: string;
   completed_at?: string;
   name?: string;
+  description?: string;
   phase?: string;
   lead_agent?: string;
   key_artifacts?: string[];
@@ -326,6 +328,7 @@ export interface StageDefinitionDetail {
   id: string;
   phase: string;
   name: string;
+  description?: string;
   lead_agent: string;
   supporting_agents: string[];
   key_artifacts: string[];

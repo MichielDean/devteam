@@ -11,6 +11,7 @@ type StageDefinition struct {
 	ID                string   `json:"id"`           // "1.1", "2.3", etc.
 	Phase             string   `json:"phase"`        // "ideation", "inception", etc.
 	Name              string   `json:"name"`
+	Description       string   `json:"description"`  // human-readable purpose of this stage
 	LeadAgent         string   `json:"lead_agent"`
 	SupportingAgents  []string `json:"supporting_agents"`
 	KeyArtifacts      []string `json:"key_artifacts"`
@@ -37,14 +38,14 @@ func (db *DB) UpsertStageDefinition(s StageDefinition) error {
 	artifacts, _ := json.Marshal(s.KeyArtifacts)
 	scopes, _ := json.Marshal(s.Scopes)
 	_, err := db.Exec(
-		`INSERT INTO stage_definitions (id, phase, name, lead_agent, supporting_agents, key_artifacts, condition, scopes, reviewer, sort_order)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO stage_definitions (id, phase, name, description, lead_agent, supporting_agents, key_artifacts, condition, scopes, reviewer, sort_order)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
-		   phase = excluded.phase, name = excluded.name, lead_agent = excluded.lead_agent,
+		   phase = excluded.phase, name = excluded.name, description = excluded.description, lead_agent = excluded.lead_agent,
 		   supporting_agents = excluded.supporting_agents, key_artifacts = excluded.key_artifacts,
 		   condition = excluded.condition, scopes = excluded.scopes, reviewer = excluded.reviewer,
 		   sort_order = excluded.sort_order`,
-		s.ID, s.Phase, s.Name, s.LeadAgent, string(supporting), string(artifacts), s.Condition, string(scopes), s.Reviewer, s.SortOrder,
+		s.ID, s.Phase, s.Name, s.Description, s.LeadAgent, string(supporting), string(artifacts), s.Condition, string(scopes), s.Reviewer, s.SortOrder,
 	)
 	if err != nil {
 		return fmt.Errorf("upserting stage definition %s: %w", s.ID, err)
@@ -55,7 +56,7 @@ func (db *DB) UpsertStageDefinition(s StageDefinition) error {
 // GetAllStageDefinitions returns all 32 stages ordered by sort_order.
 func (db *DB) GetAllStageDefinitions() ([]StageDefinition, error) {
 	rows, err := db.Query(
-		`SELECT id, phase, name, lead_agent, supporting_agents, key_artifacts, condition, scopes, reviewer, sort_order
+		`SELECT id, phase, name, description, lead_agent, supporting_agents, key_artifacts, condition, scopes, reviewer, sort_order
 		 FROM stage_definitions ORDER BY sort_order ASC`,
 	)
 	if err != nil {
@@ -67,7 +68,7 @@ func (db *DB) GetAllStageDefinitions() ([]StageDefinition, error) {
 	for rows.Next() {
 		var s StageDefinition
 		var supporting, artifacts, scopes string
-		if err := rows.Scan(&s.ID, &s.Phase, &s.Name, &s.LeadAgent, &supporting, &artifacts, &s.Condition, &scopes, &s.Reviewer, &s.SortOrder); err != nil {
+		if err := rows.Scan(&s.ID, &s.Phase, &s.Name, &s.Description, &s.LeadAgent, &supporting, &artifacts, &s.Condition, &scopes, &s.Reviewer, &s.SortOrder); err != nil {
 			return nil, fmt.Errorf("scanning stage definition: %w", err)
 		}
 		json.Unmarshal([]byte(supporting), &s.SupportingAgents)
@@ -81,12 +82,12 @@ func (db *DB) GetAllStageDefinitions() ([]StageDefinition, error) {
 // GetStageDefinition returns a single stage by ID.
 func (db *DB) GetStageDefinition(id string) (*StageDefinition, error) {
 	row := db.QueryRow(
-		`SELECT id, phase, name, lead_agent, supporting_agents, key_artifacts, condition, scopes, reviewer, sort_order
+		`SELECT id, phase, name, description, lead_agent, supporting_agents, key_artifacts, condition, scopes, reviewer, sort_order
 		 FROM stage_definitions WHERE id = ?`, id,
 	)
 	var s StageDefinition
 	var supporting, artifacts, scopes string
-	err := row.Scan(&s.ID, &s.Phase, &s.Name, &s.LeadAgent, &supporting, &artifacts, &s.Condition, &scopes, &s.Reviewer, &s.SortOrder)
+	err := row.Scan(&s.ID, &s.Phase, &s.Name, &s.Description, &s.LeadAgent, &supporting, &artifacts, &s.Condition, &scopes, &s.Reviewer, &s.SortOrder)
 	if err != nil {
 		return nil, fmt.Errorf("stage definition %s: %w", id, err)
 	}

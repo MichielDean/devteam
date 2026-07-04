@@ -54,6 +54,15 @@ func TestStageSortOrder(t *testing.T) {
 	}
 }
 
+func TestStageDescriptions(t *testing.T) {
+	defs := GetStageDefinitions()
+	for _, s := range defs {
+		if s.Description == "" {
+			t.Errorf("stage %s: missing description", s.ID)
+		}
+	}
+}
+
 func TestStageLeadAgents(t *testing.T) {
 	validAgents := map[string]bool{
 		"orchestrator": true, "product": true, "design": true, "delivery": true,
