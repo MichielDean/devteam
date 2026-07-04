@@ -57,6 +57,7 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 	mux.HandleFunc("POST /api/features", s.createFeature)
 	mux.HandleFunc("GET /api/features/{id}", s.getFeature)
 	mux.HandleFunc("POST /api/features/{id}/cancel", s.cancelFeature)
+	mux.HandleFunc("GET /api/features/{id}/artifacts", s.listArtifacts)
 	mux.HandleFunc("GET /api/features/{id}/artifacts/{type}", s.getArtifact)
 	mux.HandleFunc("POST /api/features/{id}/artifacts/{type}", s.handleSubmitArtifact)
 	mux.HandleFunc("GET /api/features/{id}/stream", s.streamFeature)
@@ -548,6 +549,39 @@ func (s *Server) getFeature(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, FeatureToDetailResponse(f, s.IsProcessing(id), ""))
+}
+
+// listArtifacts returns all artifacts for a feature with metadata (no content).
+func (s *Server) listArtifacts(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if s.db == nil {
+		writeJSON(w, http.StatusOK, []struct{}{})
+		return
+	}
+
+	type artifactMeta struct {
+		ArtifactType string `json:"artifact_type"`
+		StageID      string `json:"stage_id"`
+		Size         int    `json:"size"`
+		UpdatedAt    string `json:"updated_at"`
+	}
+
+	artifacts, err := s.db.ListArtifacts(id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, []artifactMeta{})
+		return
+	}
+
+	result := []artifactMeta{}
+	for _, a := range artifacts {
+		result = append(result, artifactMeta{
+			ArtifactType: a.ArtifactType,
+			StageID:      a.StageID,
+			Size:         len(a.Content),
+			UpdatedAt:    a.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {

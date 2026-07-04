@@ -11,6 +11,7 @@ type ArtifactRow struct {
 	FeatureID    string    `json:"feature_id"`
 	ArtifactType string    `json:"artifact_type"`
 	Content      string    `json:"content"`
+	StageID      string    `json:"stage_id"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -33,13 +34,13 @@ func (db *DB) SaveArtifact(featureID, artifactType, content string) error {
 // GetArtifact retrieves a spec artifact from the database.
 func (db *DB) GetArtifact(featureID, artifactType string) (*ArtifactRow, error) {
 	row := db.QueryRow(
-		`SELECT id, feature_id, artifact_type, content, created_at, updated_at
+		`SELECT id, feature_id, artifact_type, content, stage_id, created_at, updated_at
 		 FROM spec_artifacts WHERE feature_id = ? AND artifact_type = ?`,
 		featureID, artifactType,
 	)
 
 	var a ArtifactRow
-	err := row.Scan(&a.ID, &a.FeatureID, &a.ArtifactType, &a.Content, &a.CreatedAt, &a.UpdatedAt)
+	err := row.Scan(&a.ID, &a.FeatureID, &a.ArtifactType, &a.Content, &a.StageID, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("artifact not found: %w", err)
 	}
@@ -49,7 +50,7 @@ func (db *DB) GetArtifact(featureID, artifactType string) (*ArtifactRow, error) 
 // ListArtifacts retrieves all spec artifacts for a feature.
 func (db *DB) ListArtifacts(featureID string) ([]ArtifactRow, error) {
 	rows, err := db.Query(
-		`SELECT id, feature_id, artifact_type, content, created_at, updated_at
+		`SELECT id, feature_id, artifact_type, content, stage_id, created_at, updated_at
 		 FROM spec_artifacts WHERE feature_id = ? ORDER BY created_at ASC`,
 		featureID,
 	)
@@ -61,7 +62,7 @@ func (db *DB) ListArtifacts(featureID string) ([]ArtifactRow, error) {
 	artifacts := []ArtifactRow{}
 	for rows.Next() {
 		var a ArtifactRow
-		if err := rows.Scan(&a.ID, &a.FeatureID, &a.ArtifactType, &a.Content, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.FeatureID, &a.ArtifactType, &a.Content, &a.StageID, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scanning artifact: %w", err)
 		}
 		artifacts = append(artifacts, a)
@@ -86,7 +87,7 @@ func (db *DB) DeleteArtifact(featureID, artifactType string) error {
 // before the server crashed.
 func (db *DB) GetSpecArtifactsForStage(featureID, stageID string) ([]ArtifactRow, error) {
 	rows, err := db.Query(
-		`SELECT id, feature_id, artifact_type, content, created_at, updated_at
+		`SELECT id, feature_id, artifact_type, content, stage_id, created_at, updated_at
 		 FROM spec_artifacts WHERE feature_id = ? AND stage_id = ? ORDER BY created_at ASC`,
 		featureID, stageID,
 	)
@@ -98,7 +99,7 @@ func (db *DB) GetSpecArtifactsForStage(featureID, stageID string) ([]ArtifactRow
 	artifacts := []ArtifactRow{}
 	for rows.Next() {
 		var a ArtifactRow
-		if err := rows.Scan(&a.ID, &a.FeatureID, &a.ArtifactType, &a.Content, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.FeatureID, &a.ArtifactType, &a.Content, &a.StageID, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scanning artifact: %w", err)
 		}
 		artifacts = append(artifacts, a)

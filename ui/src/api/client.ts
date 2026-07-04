@@ -201,6 +201,17 @@ export async function getArtifact(id: string, type: string): Promise<string> {
   return response.text();
 }
 
+export interface ArtifactMeta {
+  artifact_type: string;
+  stage_id: string;
+  size: number;
+  updated_at: string;
+}
+
+export async function listArtifacts(featureId: string): Promise<ArtifactMeta[]> {
+  return request<ArtifactMeta[]>(`/features/${featureId}/artifacts`);
+}
+
 // ─── Questions ───
 export async function listQuestions(featureId: string): Promise<Question[]> {
   return request<Question[]>(`/features/${featureId}/questions`);
