@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI Rework — Concept Deck (Visual Companion)</title>
+<style>
+  :root {
+    --color-surface: #0a0a0a;
+    --color-surface-raised: #111111;
+    --color-surface-hover: #1a1a1a;
+    --color-surface-active: #222222;
+    --color-border-subtle: #1e1e1e;
+    --color-border-default: #2e2e2e;
+    --color-border-hover: #3a3a3a;
+    --color-text-primary: #ededed;
+    --color-text-secondary: #a1a1a1;
+    --color-text-tertiary: #6b6b6b;
+    --color-accent: #3b82f6;
+    --color-accent-hover: #2563eb;
+    --color-success: #22c55e;
+    --color-success-surface: #052e16;
+    --color-warning: #f59e0b;
+    --color-warning-surface: #422006;
+    --color-danger: #ef4444;
+    --color-danger-surface: #450a0a;
+    --color-info: #06b6d4;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -2px rgba(0,0,0,0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -4px rgba(0,0,0,0.3);
+    --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.6), 0 8px 10px -6px rgba(0,0,0,0.3);
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+    --font-mono: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  }
+  :root:not(.dark) {
+    --color-surface: #fafafa;
+    --color-surface-raised: #ffffff;
+    --color-surface-hover: #f4f4f5;
+    --color-surface-active: #e4e4e7;
+    --color-border-subtle: #e4e4e7;
+    --color-border-default: #d4d4d8;
+    --color-border-hover: #a1a1aa;
+    --color-text-primary: #18181b;
+    --color-text-secondary: #52525b;
+    --color-text-tertiary: #a1a1aa;
+    --color-success-surface: #f0fdf4;
+    --color-warning-surface: #fffbeb;
+    --color-danger-surface: #fef2f2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 32px 24px 96px;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 8px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 48px 0 16px; letter-spacing: -0.01em; }
+  h3 { font-size: 16px; font-weight: 600; margin: 32px 0 12px; }
+  h4 { font-size: 14px; font-weight: 600; margin: 24px 0 8px; color: var(--color-text-secondary); }
+  p { color: var(--color-text-secondary); margin-bottom: 12px; max-width: 72ch; }
+  .lede { color: var(--color-text-secondary); font-size: 16px; margin-bottom: 32px; max-width: 72ch; }
+  .meta { color: var(--color-text-tertiary); font-size: 12px; font-family: var(--font-mono); margin-bottom: 32px; }
+  .sep { height: 1px; background: var(--color-border-subtle); margin: 32px 0; }
+  code { font-family: var(--font-mono); font-size: 12px; background: var(--color-surface-hover); padding: 1px 5px; border-radius: var(--radius-sm); color: var(--color-text-secondary); }
+
+  /* Theme toggle */
+  .toggle { position: fixed; top: 16px; right: 16px; z-index: 100; }
+  .toggle button {
+    background: var(--color-surface-raised); color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-default); border-radius: var(--radius-md);
+    padding: 6px 12px; font-size: 12px; cursor: pointer; box-shadow: var(--shadow-sm);
+  }
+
+  /* Token swatches */
+  .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; }
+  .swatch { background: var(--color-surface-raised); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+  .swatch .chip { height: 56px; }
+  .swatch .info { padding: 8px 10px; }
+  .swatch .name { font-size: 12px; font-family: var(--font-mono); color: var(--color-text-primary); }
+  .swatch .val { font-size: 10px; font-family: var(--font-mono); color: var(--color-text-tertiary); }
+
+  /* Type scale */
+  .type-row { display: flex; align-items: baseline; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--color-border-subtle); }
+  .type-row .label { width: 120px; font-size: 10px; font-family: var(--font-mono); color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0; }
+  .t-10 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-tertiary); }
+  .t-xs { font-size: 12px; color: var(--color-text-secondary); }
+  .t-sm { font-size: 14px; color: var(--color-text-primary); }
+  .t-base { font-size: 16px; font-weight: 500; color: var(--color-text-primary); }
+  .t-lg { font-size: 18px; font-weight: 500; color: var(--color-text-primary); }
+  .t-xl { font-size: 20px; font-weight: 600; color: var(--color-text-primary); letter-spacing: -0.01em; }
+
+  /* App shell mock */
+  .shell { background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-lg); margin-top: 16px; }
+  .shell-header { background: var(--color-surface-raised); border-bottom: 1px solid var(--color-border-subtle); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .shell-brand { font-size: 16px; font-weight: 600; color: var(--color-text-primary); }
+  .shell-nav { display: flex; gap: 4px; align-items: center; }
+  .nav-link { font-size: 13px; color: var(--color-text-secondary); padding: 6px 10px; border-radius: var(--radius-md); cursor: pointer; }
+  .nav-link:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
+  .shell-body { padding: 20px; }
+
+  /* Feature card */
+  .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 900px) { .card-grid { grid-template-columns: 1fr; } }
+  .card { background: var(--color-surface-raised); border-radius: var(--radius-lg); padding: 14px 16px; position: relative; box-shadow: var(--shadow-sm); cursor: pointer; transition: box-shadow 0.15s, background 0.15s; border: 1px solid var(--color-border-subtle); }
+  .card:hover { background: var(--color-surface-hover); box-shadow: var(--shadow-md); }
+  .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
+  .card.review::before { background: var(--color-warning); }
+  .card.processing::before { background: var(--color-accent); }
+  .card.questions::before { background: var(--color-warning); }
+  .card.done::before { background: var(--color-success); }
+  .card.draft::before { background: var(--color-text-tertiary); }
+  .card.cancelled::before { background: var(--color-danger); }
+  .card .status { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .card.review .status { color: var(--color-warning); }
+  .card.processing .status { color: var(--color-accent); }
+  .card.questions .status { color: var(--color-warning); }
+  .card.done .status { color: var(--color-success); }
+  .card.draft .status { color: var(--color-text-tertiary); }
+  .card.cancelled .status { color: var(--color-danger); }
+  .card .title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 8px; }
+  .card .stage { font-size: 12px; color: var(--color-text-secondary); font-family: var(--font-mono); margin-bottom: 8px; }
+  .card .phases { display: flex; gap: 3px; margin-bottom: 10px; }
+  .card .phase-seg { height: 4px; flex: 1; background: var(--color-border-subtle); border-radius: 2px; }
+  .card .phase-seg.done { background: var(--color-success); }
+  .card .phase-seg.current { background: var(--color-accent); }
+  .card .phase-seg.warning { background: var(--color-warning); }
+  .card .meta-row { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--color-text-tertiary); }
+  .card .cta { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: var(--radius-sm); cursor: pointer; }
+  .card.review .cta { background: var(--color-warning-surface); color: var(--color-warning); border: 1px solid var(--color-warning); }
+  .card.questions .cta { background: var(--color-warning-surface); color: var(--color-warning); border: 1px solid var(--color-warning); }
+  .card .pill { background: var(--color-warning); color: #000; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+
+  /* Stage rail */
+  .detail-grid { display: grid; grid-template-columns: 260px 1fr; gap: 16px; }
+  @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
+  .rail { background: var(--color-surface-raised); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 12px; max-height: 560px; overflow-y: auto; }
+  .rail-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--color-border-subtle); margin-bottom: 10px; }
+  .rail-head h3 { margin: 0; font-size: 13px; }
+  .rail-head .count { font-size: 11px; color: var(--color-text-tertiary); font-family: var(--font-mono); }
+  .rail-progress { height: 4px; background: var(--color-border-subtle); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .rail-progress .fill { height: 100%; width: 37%; background: var(--color-accent); }
+  .phase-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-tertiary); margin: 12px 4px 4px; }
+  .stage-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; border-left: 2px solid transparent; }
+  .stage-row:hover { background: var(--color-surface-hover); }
+  .stage-row.selected { background: var(--color-surface-active); border-left-color: var(--color-accent); }
+  .stage-row.current .name { font-weight: 500; color: var(--color-text-primary); }
+  .stage-row .icon { width: 14px; text-align: center; font-family: var(--font-mono); font-size: 12px; flex-shrink: 0; }
+  .stage-row .name { color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .stage-row .agent { font-size: 10px; color: var(--color-text-tertiary); }
+  .ic-done { color: var(--color-success); }
+  .ic-current { color: var(--color-warning); }
+  .ic-pending { color: var(--color-text-tertiary); }
+  .ic-processing { color: var(--color-accent); }
+  .rev-badge { font-size: 10px; background: var(--color-warning-surface); color: var(--color-warning); padding: 0 5px; border-radius: var(--radius-sm); border: 1px solid var(--color-warning); }
+
+  /* Workspace */
+  .workspace { display: flex; flex-direction: column; gap: 12px; }
+  .banner { padding: 14px 16px; border-radius: var(--radius-md); display: flex; align-items: center; gap: 12px; font-size: 14px; }
+  .banner.review { background: var(--color-warning-surface); border: 1px solid var(--color-warning); color: var(--color-warning); }
+  .banner.processing { background: var(--color-surface-hover); color: var(--color-text-primary); }
+  .spinner { width: 16px; height: 16px; border: 2px solid var(--color-accent); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .panel { background: var(--color-surface-raised); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow-sm); }
+  .panel h3 { margin-top: 0; }
+  .gate { background: var(--color-surface-raised); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow-md); border-left: 3px solid var(--color-warning); }
+  .gate-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .gate-head h3 { margin: 0; font-size: 16px; }
+  .gate-head .sub { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
+  .badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; display: inline-block; }
+  .badge.warning { background: var(--color-warning-surface); color: var(--color-warning); border: 1px solid var(--color-warning); }
+  .badge.success { background: var(--color-success-surface); color: var(--color-success); border: 1px solid var(--color-success); }
+  .badge.accent { background: var(--color-surface-active); color: var(--color-accent); border: 1px solid var(--color-accent); }
+  .badge.gray { background: var(--color-surface-active); color: var(--color-text-secondary); }
+  .gate-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .btn { font-size: 14px; font-weight: 500; padding: 9px 14px; border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer; text-align: left; transition: background 0.15s; }
+  .btn-success { background: var(--color-success); color: #fff; }
+  .btn-success:hover { background: #16a34a; }
+  .btn-warning { background: var(--color-warning); color: #000; }
+  .btn-warning:hover { background: #d97706; }
+  .btn-secondary { background: var(--color-surface-active); color: var(--color-text-primary); border-color: var(--color-border-default); }
+  .btn-ghost { background: transparent; color: var(--color-text-secondary); border-color: var(--color-border-default); }
+  .btn-ghost:hover { background: var(--color-surface-hover); }
+
+  /* Question bar */
+  .qbar { background: var(--color-warning-surface); border-top: 1px solid var(--color-warning); border-bottom: 1px solid var(--color-warning); padding: 10px 16px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; font-size: 14px; color: var(--color-warning); }
+  .qbar .cta { background: var(--color-warning); color: #000; padding: 4px 10px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; cursor: pointer; }
+
+  /* Audit drawer */
+  .drawer-demo { position: relative; height: 360px; background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); overflow: hidden; margin-top: 12px; }
+  .drawer-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
+  .drawer { position: absolute; right: 0; top: 0; bottom: 0; width: 480px; background: var(--color-surface-raised); box-shadow: var(--shadow-xl); display: flex; flex-direction: column; }
+  @media (max-width: 700px) { .drawer { width: 100%; } }
+  .drawer-head { padding: 12px 16px; border-bottom: 1px solid var(--color-border-subtle); display: flex; justify-content: space-between; align-items: center; }
+  .drawer-filters { padding: 10px 16px; border-bottom: 1px solid var(--color-border-subtle); font-size: 11px; color: var(--color-text-secondary); display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-chip { background: var(--color-surface-active); color: var(--color-text-secondary); padding: 2px 8px; border-radius: 999px; font-size: 11px; }
+  .filter-chip.active { background: var(--color-accent); color: #fff; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  .audit-group { margin-bottom: 16px; }
+  .audit-group-head { font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 6px; cursor: pointer; }
+  .audit-event { display: flex; gap: 10px; padding: 4px 0; font-size: 12px; border-left: 2px solid transparent; padding-left: 8px; margin-left: -8px; }
+  .audit-event.new { border-left-color: var(--color-warning); background: var(--color-warning-surface); }
+  .audit-event .time { color: var(--color-text-tertiary); font-family: var(--font-mono); width: 50px; flex-shrink: 0; }
+  .audit-event .label { color: var(--color-text-primary); font-family: var(--font-mono); }
+  .audit-event .ctx { color: var(--color-text-tertiary); font-family: var(--font-mono); }
+
+  /* Repo picker */
+  .picker-demo { max-width: 460px; }
+  .picker-input { width: 100%; background: var(--color-surface-raised); border: 1px solid var(--color-border-default); color: var(--color-text-primary); padding: 8px 12px; border-radius: var(--radius-md); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .picker-input .chev { margin-left: auto; color: var(--color-text-tertiary); }
+  .picker-pop { margin-top: 6px; background: var(--color-surface-raised); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); box-shadow: var(--shadow-md); overflow: hidden; }
+  .picker-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; border-left: 2px solid transparent; cursor: pointer; }
+  .picker-row:hover { background: var(--color-surface-hover); }
+  .picker-row.selected { background: var(--color-surface-active); border-left-color: var(--color-accent); }
+  .picker-row .pname { color: var(--color-text-primary); font-weight: 500; }
+  .picker-row .pmeta { color: var(--color-text-tertiary); font-size: 11px; font-family: var(--font-mono); margin-left: auto; }
+  .primary-tag { background: var(--color-accent); color: #fff; font-size: 10px; padding: 1px 5px; border-radius: var(--radius-sm); }
+  .picker-foot { padding: 8px 12px; border-top: 1px solid var(--color-border-subtle); font-size: 12px; color: var(--color-accent); cursor: pointer; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .chip-tag { background: var(--color-surface-active); color: var(--color-text-primary); font-size: 12px; padding: 3px 8px; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 6px; }
+  .chip-tag .x { color: var(--color-text-tertiary); cursor: pointer; }
+  .chip-tag .x:hover { color: var(--color-danger); }
+
+  /* Header band */
+  .header-band { background: var(--color-surface-raised); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 12px; }
+  .header-band .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .header-band .title { font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
+  .header-band .fid { font-size: 11px; color: var(--color-text-tertiary); font-family: var(--font-mono); margin-top: 2px; }
+  .header-band .badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); overflow: hidden; }
+  .seg button { background: var(--color-surface-raised); color: var(--color-text-secondary); border: none; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  .seg button.active { background: var(--color-accent); color: #fff; }
+  .header-band .bottom { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; font-size: 12px; }
+  @media (max-width: 600px) { .header-band .bottom { grid-template-columns: repeat(2, 1fr); } }
+  .header-band .bottom .k { color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; }
+  .header-band .bottom .v { color: var(--color-text-primary); font-weight: 500; margin-top: 2px; font-family: var(--font-mono); }
+
+  /* Notes block */
+  .note { background: var(--color-surface-raised); border-left: 3px solid var(--color-info); padding: 12px 16px; border-radius: var(--radius-md); margin: 16px 0; font-size: 13px; color: var(--color-text-secondary); }
+  .note strong { color: var(--color-text-primary); }
+
+  /* Status binding table */
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--color-border-subtle); }
+  th { color: var(--color-text-tertiary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
+  td { color: var(--color-text-secondary); }
+  td .swatch-inline { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 8px; }
+
+  .pulse { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner, .pulse { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="toggle"><button onclick="document.documentElement.classList.toggle('dark')">◐ / ●  theme</button></div>
+<div class="wrap">
+
+  <h1>UI Rework — Concept Deck</h1>
+  <p class="lede">Visual companion to the <code>concept-deck</code> artifact. The markdown is authoritative; this HTML is the demonstration. Stage 1.6 Rough Mockups, fresh-start direction (Q4).</p>
+  <div class="meta">feature: ui-rework · stage: 1.6 · author: design · 2026-07-04</div>
+
+  <h2>1. Conceptual metaphor — "The Pipeline Glass"</h2>
+  <p>The UI makes the AIDLC pipeline <strong>legible through a pane of glass</strong>: you see the flow, you see where it's stuck, you see what just moved. The operator is watching and steering a process, not using a website. Three principles:</p>
+  <p><strong>Glass is transparent to state</strong> — the UI never cosmetically hides what the backend is doing (P5). <strong>Glass has depth, not ornament</strong> — elevation = attention, not aesthetics; density &gt; delight. <strong>Glass focuses</strong> — when the operator does one thing, that thing owns the glass (G2, SC1).</p>
+
+  <h2>2. Color tokens (semantic-first)</h2>
+  <p>Every token names a <em>meaning</em>, not a hue. The status→color binding is canonical — the same state never renders in two colors.</p>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:var(--color-surface)"></div><div class="info"><div class="name">--surface</div><div class="val">canvas</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-surface-raised)"></div><div class="info"><div class="name">--surface-raised</div><div class="val">cards, header</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-surface-hover)"></div><div class="info"><div class="name">--surface-hover</div><div class="val">hover</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-surface-active)"></div><div class="info"><div class="name">--surface-active</div><div class="val">selected</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-accent)"></div><div class="info"><div class="name">--accent</div><div class="val">action · in-progress</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-success)"></div><div class="info"><div class="name">--success</div><div class="val">done · ready</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-warning)"></div><div class="info"><div class="name">--warning</div><div class="val">awaiting · needs-human</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-danger)"></div><div class="info"><div class="name">--danger</div><div class="val">failed · cancelled</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-text-primary)"></div><div class="info"><div class="name">--text-primary</div><div class="val">highest contrast</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-text-secondary)"></div><div class="info"><div class="name">--text-secondary</div><div class="val">labels · metadata</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-text-tertiary)"></div><div class="info"><div class="name">--text-tertiary</div><div class="val">hints · captions</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-info)"></div><div class="info"><div class="name">--info</div><div class="val">neutral info</div></div></div>
+  </div>
+
+  <h3>Status → color binding (canonical, the design invariant)</h3>
+  <table>
+    <thead><tr><th>Pipeline state</th><th>Token</th><th>Icon</th><th>Used on</th></tr></thead>
+    <tbody>
+      <tr><td><span class="swatch-inline" style="background:var(--color-text-tertiary)"></span>not_started</td><td>--text-tertiary</td><td>○</td><td>rail, card rail</td></tr>
+      <tr><td><span class="swatch-inline" style="background:var(--color-accent)"></span>in_progress / processing</td><td>--accent</td><td>▶</td><td>rail, card, banner</td></tr>
+      <tr><td><span class="swatch-inline" style="background:var(--color-warning)"></span>awaiting_approval / gate_blocked</td><td>--warning</td><td>?</td><td>rail, card, gate, banner</td></tr>
+      <tr><td><span class="swatch-inline" style="background:var(--color-warning)"></span>revising</td><td>--warning</td><td>↻</td><td>rail, card, banner</td></tr>
+      <tr><td><span class="swatch-inline" style="background:var(--color-warning)"></span>waiting_for_feedback</td><td>--warning</td><td>?</td><td>card, question bar, header</td></tr>
+      <tr><td><span class="swatch-inline" style="background:var(--color-success)"></span>completed / done</td><td>--success</td><td>✓</td><td>rail, card, terminal banner</td></tr>
+      <tr><td><span class="swatch-inline" style="background:var(--color-text-tertiary)"></span>skipped</td><td>--text-tertiary</td><td>·</td><td>rail</td></tr>
+      <tr><td><span class="swatch-inline" style="background:var(--color-danger)"></span>cancelled / failed</td><td>--danger</td><td>✗</td><td>card, terminal banner</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><strong>WCAG 1.4.1:</strong> color is never the only indicator. Every state also carries an icon + text label. Contrast verified in 2.5.</div>
+
+  <h2>3. Type scale (operator-grade density)</h2>
+  <div class="type-row"><div class="label">10px / upper</div><div class="t-10">INITIALIZATION · IDEATION · INCEPTION</div></div>
+  <div class="type-row"><div class="label">12px xs</div><div class="t-xs">Updated 2m ago · 12/32 stages · metadata and counters</div></div>
+  <div class="type-row"><div class="label">14px sm</div><div class="t-sm">Body text, inputs, rail rows — the default. ui-rework</div></div>
+  <div class="type-row"><div class="label">16px base</div><div class="t-base">Panel headings. Stage 2.4: User Stories</div></div>
+  <div class="type-row"><div class="label">18px lg</div><div class="t-lg">Page headings. Feature detail title</div></div>
+  <div class="type-row"><div class="label">20px xl</div><div class="t-xl">Section titles</div></div>
+
+  <div class="sep"></div>
+
+  <h2>4. Dashboard — status is the loudest element</h2>
+  <p>Each card's status label and left rail outweigh the title (competitive analysis §B4). Phase progress is 5 segments, not 32 — at-a-glance. Inline CTAs only on cards that need action.</p>
+
+  <div class="shell">
+    <div class="shell-header">
+      <div class="shell-brand">Dev Team</div>
+      <div class="shell-nav">
+        <span class="nav-link">Knowledge</span>
+        <span class="nav-link">Repositories</span>
+        <span class="nav-link">◐ / ●</span>
+      </div>
+    </div>
+    <div class="shell-body">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <h3 style="margin:0;">Features</h3>
+          <span class="badge gray">12</span>
+        </div>
+        <button class="btn btn-secondary" style="background:var(--color-accent); color:#fff; border:none;">+ New Feature</button>
+      </div>
+      <div style="display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap;">
+        <span class="filter-chip active">Needs attention · 3</span>
+        <span class="filter-chip">Processing · 2</span>
+        <span class="filter-chip">Waiting · 1</span>
+        <span class="filter-chip">Done · 6</span>
+        <span class="filter-chip">All</span>
+      </div>
+
+      <div class="card-grid">
+        <div class="card review">
+          <div class="status">⚠ Review</div>
+          <div class="title">ui-rework</div>
+          <div class="stage">2.4 · User Stories</div>
+          <div class="phases">
+            <div class="phase-seg done"></div><div class="phase-seg current warning"></div><div class="phase-seg"></div><div class="phase-seg"></div><div class="phase-seg"></div>
+          </div>
+          <div class="meta-row"><span>P1 · 2m ago</span><span class="cta">Review →</span></div>
+        </div>
+        <div class="card processing">
+          <div class="status">▶ Processing</div>
+          <div class="title">rate-limiting-v2</div>
+          <div class="stage">3.1 · Bolt 2</div>
+          <div class="phases">
+            <div class="phase-seg done"></div><div class="phase-seg done"></div><div class="phase-seg done"></div><div class="phase-seg current"></div><div class="phase-seg"></div>
+          </div>
+          <div class="meta-row"><span>P2 · 14s ago</span><span></span></div>
+        </div>
+        <div class="card questions">
+          <div class="status">⚠ 3 questions</div>
+          <div class="title">db-migrations</div>
+          <div class="stage">1.6 · Rough Mockups</div>
+          <div class="phases">
+            <div class="phase-seg done"></div><div class="phase-seg current warning"></div><div class="phase-seg"></div><div class="phase-seg"></div><div class="phase-seg"></div>
+          </div>
+          <div class="meta-row"><span>P2 · 1h ago</span><span class="cta">Answer →</span></div>
+        </div>
+        <div class="card done">
+          <div class="status">✓ Complete</div>
+          <div class="title">auth-refresh</div>
+          <div class="stage">4.2 · Delivery</div>
+          <div class="phases">
+            <div class="phase-seg done"></div><div class="phase-seg done"></div><div class="phase-seg done"></div><div class="phase-seg done"></div><div class="phase-seg done"></div>
+          </div>
+          <div class="meta-row"><span>P2 · 3d ago</span><span></span></div>
+        </div>
+        <div class="card done">
+          <div class="status">✓ Complete</div>
+          <div class="title">kanban-view</div>
+          <div class="stage">4.2 · Delivery</div>
+          <div class="phases">
+            <div class="phase-seg done"></div><div class="phase-seg done"></div><div class="phase-seg done"></div><div class="phase-seg done"></div><div class="phase-seg done"></div>
+          </div>
+          <div class="meta-row"><span>P1 · 5d ago</span><span></span></div>
+        </div>
+        <div class="card draft">
+          <div class="status">○ Not started</div>
+          <div class="title">next-thing</div>
+          <div class="stage">—</div>
+          <div class="phases">
+            <div class="phase-seg"></div><div class="phase-seg"></div><div class="phase-seg"></div><div class="phase-seg"></div><div class="phase-seg"></div>
+          </div>
+          <div class="meta-row"><span>P3 · 1w ago</span><span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <h2>5. FeatureDetail — header band + stage rail + workspace</h2>
+  <p>The rail <em>is</em> the state — every stage's status visible without clicking (G4). Gate is inline, not a modal (SC5). The question bar spans the workspace width when the pipeline is paused (G5). Autonomy toggle always present in the header (Q5).</p>
+
+  <div class="shell">
+    <div class="shell-header">
+      <div class="shell-brand">Dev Team</div>
+      <div class="shell-nav"><span class="nav-link">Knowledge</span><span class="nav-link">Repositories</span><span class="nav-link">◐ / ●</span></div>
+    </div>
+    <div class="shell-body">
+
+      <div class="header-band">
+        <div class="top">
+          <div>
+            <div class="title">ui-rework</div>
+            <div class="fid">feat-xyz-123</div>
+          </div>
+          <div class="badges">
+            <span class="badge warning">Review</span>
+            <span class="badge gray">P1</span>
+            <span class="badge accent">Feature</span>
+            <span class="badge gray">Comprehensive</span>
+            <span class="seg"><button>Gated</button><button class="active">Autonomous</button></span>
+            <span class="badge gray">Audit</span>
+          </div>
+        </div>
+        <div class="bottom">
+          <div><div class="k">Current stage</div><div class="v">2.4</div></div>
+          <div><div class="k">Phase</div><div class="v">Ideation</div></div>
+          <div><div class="k">Intake</div><div class="v">Loose Idea</div></div>
+          <div><div class="k">Sessions</div><div class="v">2</div></div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;"></div>
+
+      <div class="qbar">
+        <span>⚠ 3 questions waiting — the pipeline is paused</span>
+        <span class="cta">Answer →</span>
+      </div>
+
+      <div style="margin-top:12px;"></div>
+
+      <div class="detail-grid">
+        <div class="rail">
+          <div class="rail-head">
+            <h3>Stages</h3>
+            <span class="count">12/32</span>
+          </div>
+          <div class="rail-progress"><div class="fill"></div></div>
+
+          <div class="phase-label">Initialization</div>
+          <div class="stage-row"><span class="icon ic-done">✓</span><span class="name">0.1</span></div>
+          <div class="stage-row"><span class="icon ic-done">✓</span><span class="name">0.2</span></div>
+          <div class="stage-row"><span class="icon ic-done">✓</span><span class="name">0.3</span></div>
+
+          <div class="phase-label">Ideation</div>
+          <div class="stage-row"><span class="icon ic-done">✓</span><span class="name">1.1 Intent</span></div>
+          <div class="stage-row"><span class="icon ic-done">✓</span><span class="name">1.2 Market</span></div>
+          <div class="stage-row"><span class="icon ic-done">✓</span><span class="name">1.3 Architect</span></div>
+          <div class="stage-row"><span class="icon ic-done">✓</span><span class="name">1.4 Scope</span></div>
+          <div class="stage-row"><span class="icon ic-done">✓</span><span class="name">1.5 Delivery</span></div>
+          <div class="stage-row selected current"><span class="icon ic-current">?</span><span class="name">1.6 Rough Mocks</span><span class="rev-badge">×1</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">1.7 Persona</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">1.8 Risk</span></div>
+
+          <div class="phase-label">Inception</div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">2.1 Reverse</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">2.2 JTBD</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">2.3 App Design</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">2.4 Stories</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">2.5 Mockups</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">2.6 App Design</span></div>
+
+          <div class="phase-label">Construction</div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">3.1 Bolt 1</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">3.2 Bolt 2</span></div>
+
+          <div class="phase-label">Operation</div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">4.1 Validate</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">4.2 Delivery</span></div>
+        </div>
+
+        <div class="workspace">
+          <div class="banner review">
+            <span>✓</span>
+            <div>
+              <div style="font-weight:500;">Stage 1.6 complete — review needed</div>
+              <div style="font-size:12px; color:var(--color-text-secondary); margin-top:2px;">The agent finished. Review the artifacts and approve or request changes.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Stage 1.6 · Rough Mockups <span class="badge warning" style="margin-left:8px;">Awaiting</span> <span class="rev-badge" style="margin-left:6px;">×1</span></h3>
+            <p style="font-size:13px; color:var(--color-text-secondary); margin:8px 0 0;">The design role produces wireframes, user flows, and a concept deck. Reviewer: product-lead.</p>
+          </div>
+
+          <div class="gate">
+            <div class="gate-head">
+              <div>
+                <h3>Gate — Stage 1.6: Rough Mockups</h3>
+                <div class="sub">First review — awaiting your approval · 1 revision so far</div>
+              </div>
+              <span class="badge warning">Awaiting Approval</span>
+            </div>
+            <div class="gate-actions">
+              <button class="btn btn-success">✓ Approve — move to next stage</button>
+              <button class="btn btn-warning">✗ Request changes — send back for revision</button>
+              <button class="btn btn-secondary">Accept as-is (escape hatch — 1 revision)</button>
+              <button class="btn btn-ghost">+ Add skipped stage</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Artifacts</h3>
+            <p style="font-size:12px; color:var(--color-text-tertiary); margin:0 0 10px;">Expected: wireframes, user-flows, concept-deck</p>
+            <div style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-secondary); display:flex; flex-direction:column; gap:4px;">
+              <div>• wireframes.md &nbsp; <span style="color:var(--color-accent); cursor:pointer;">[view]</span> <span style="color:var(--color-accent); cursor:pointer;">[diff]</span></div>
+              <div>• user-flows.md &nbsp; <span style="color:var(--color-accent); cursor:pointer;">[view]</span> <span style="color:var(--color-accent); cursor:pointer;">[diff]</span></div>
+              <div>• concept-deck.md <span style="color:var(--color-accent); cursor:pointer;">[view]</span> <span style="color:var(--color-accent); cursor:pointer;">[diff]</span></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Learned Rules (2)</h3>
+            <div style="display:flex; flex-direction:column; gap:6px; font-size:12px;">
+              <div style="background:var(--color-warning-surface); padding:8px 10px; border-radius:var(--radius-md);"><span style="color:var(--color-warning); font-size:11px;">architect · 1.3</span><div style="color:var(--color-text-primary); margin-top:2px;">Always check the existing types/index.ts before proposing new types.</div></div>
+              <div style="background:var(--color-warning-surface); padding:8px 10px; border-radius:var(--radius-md);"><span style="color:var(--color-warning); font-size:11px;">product · 1.4</span><div style="color:var(--color-text-primary); margin-top:2px;">Scope items must each map to a JTBD.</div></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3 style="cursor:pointer;">▸ What the design agent knows (3 entries)</h3>
+            <p style="font-size:12px; color:var(--color-text-tertiary); margin:0;">Knowledge entries scoped to the design role — click to expand and edit in-context.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px; padding:12px 16px; background:var(--color-surface-raised); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); display:flex; gap:8px; flex-wrap:wrap; font-size:13px;">
+        <button class="btn btn-secondary">Jump to stage ▾</button>
+        <button class="btn btn-secondary">Phase ▾</button>
+        <button class="btn btn-secondary">Scope ▾</button>
+        <button class="btn btn-secondary">Depth ▾</button>
+        <button class="btn btn-ghost" style="margin-left:auto;">Cancel feature</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <h2>6. Processing state — "one pulse = live"</h2>
+  <p>When a stage is processing, exactly one element pulses: the running stage's rail row. The banner shows a spinner. Agent output streams as structured lines, not raw stdout (competitive analysis §B1 reject).</p>
+
+  <div class="shell">
+    <div class="shell-body">
+      <div class="detail-grid">
+        <div class="rail">
+          <div class="phase-label">Ideation</div>
+          <div class="stage-row"><span class="icon ic-done">✓</span><span class="name">1.5 Delivery</span></div>
+          <div class="stage-row selected current"><span class="icon ic-processing pulse">▶</span><span class="name">1.6 Rough Mocks</span></div>
+          <div class="stage-row"><span class="icon ic-pending">○</span><span class="name">1.7 Persona</span></div>
+        </div>
+        <div class="workspace">
+          <div class="banner processing">
+            <div class="spinner"></div>
+            <div>
+              <div style="font-weight:500;">Agent working on stage 1.6 — Rough Mockups</div>
+              <div style="font-size:12px; color:var(--color-text-tertiary); margin-top:2px;">Output appears below in real time.</div>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>Agent output (live)</h3>
+            <div style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-secondary); display:flex; flex-direction:column; gap:3px;">
+              <div><span style="color:var(--color-text-tertiary);">14:30</span>&nbsp; Agent dispatched (design)</div>
+              <div><span style="color:var(--color-text-tertiary);">14:31</span>&nbsp; Reading CONTEXT.md…</div>
+              <div><span style="color:var(--color-text-tertiary);">14:31</span>&nbsp; Reading intent-statement, stakeholder-map…</div>
+              <div><span style="color:var(--color-text-tertiary);">14:32</span>&nbsp; Drafting wireframes…</div>
+              <div><span style="color:var(--color-text-tertiary);">14:32</span>&nbsp; Submitted artifact: wireframes.md</div>
+              <div class="pulse"><span style="color:var(--color-text-tertiary);">14:33</span>&nbsp; Drafting user-flows…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <h2>7. Audit drawer — grouped, filterable, "since last viewed"</h2>
+  <p>Right slide-over. Events grouped by stage, collapsible. New events (since last visit) emphasized with a warning left-border (intent R6). Virtualized when large (build-vs-buy §1.19).</p>
+
+  <div class="drawer-demo">
+    <div class="drawer-backdrop"></div>
+    <div class="drawer">
+      <div class="drawer-head">
+        <div><strong>Audit Trail</strong><div style="font-size:11px; color:var(--color-text-tertiary); font-family:var(--font-mono);">ui-rework</div></div>
+        <span style="color:var(--color-text-tertiary); cursor:pointer;">✕</span>
+      </div>
+      <div class="drawer-filters">
+        <span class="filter-chip active">Since last viewed ✓</span>
+        <span class="filter-chip">All</span>
+        <span class="filter-chip">gate</span>
+        <span class="filter-chip">agent</span>
+        <span class="filter-chip">artifact</span>
+        <span class="filter-chip">question</span>
+        <span class="filter-chip">bolt</span>
+        <span class="filter-chip">system</span>
+      </div>
+      <div class="drawer-body">
+        <div class="audit-group">
+          <div class="audit-group-head">▼ Stage 1.6 — Rough Mockups</div>
+          <div class="audit-event new"><span class="time">14:32</span><span class="label">gate.opened</span></div>
+          <div class="audit-event new"><span class="time">14:32</span><span class="label">artifact.submitted</span><span class="ctx">user-flows.md</span></div>
+          <div class="audit-event new"><span class="time">14:31</span><span class="label">agent.dispatched</span><span class="ctx">design</span></div>
+        </div>
+        <div class="audit-group">
+          <div class="audit-group-head">▼ Stage 1.5 — Delivery Plan</div>
+          <div class="audit-event"><span class="time">14:10</span><span class="label">gate.approved</span><span class="ctx">by: operator</span></div>
+          <div class="audit-event"><span class="time">14:09</span><span class="label">artifact.submitted</span><span class="ctx">delivery-plan.md</span></div>
+          <div class="audit-event"><span class="time">14:00</span><span class="label">agent.dispatched</span><span class="ctx">delivery</span></div>
+        </div>
+        <div class="audit-group">
+          <div class="audit-group-head">▶ Stage 1.4 — Scope Definition (collapsed)</div>
+        </div>
+        <div class="audit-group">
+          <div class="audit-group-head">▶ Stage 1.3 — Architecture (collapsed)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <h2>8. Repo picker — headless combobox, multi-select, searchable</h2>
+  <p>Build-vs-buy §1.4: integrate a headless combobox (downshift/cmdk). Selected repos as removable chips. "Manage repositories →" links to <code>/repositories</code>. Reused at intake and on feature detail (SC2, SC3).</p>
+
+  <div class="picker-demo">
+    <div style="font-size:12px; color:var(--color-text-secondary); margin-bottom:6px;">Implementation Repositories <span style="color:var(--color-warning);">*</span></div>
+    <div class="picker-input">
+      <span style="color:var(--color-text-tertiary);">🔍</span>
+      <span style="color:var(--color-text-tertiary);">Search repositories…</span>
+      <span class="chev">▾</span>
+    </div>
+    <div class="picker-pop">
+      <div class="picker-row selected">
+        <span style="color:var(--color-accent);">✓</span>
+        <span class="pname">devteam</span>
+        <span class="primary-tag">primary</span>
+        <span class="pmeta">main · 3 in use</span>
+      </div>
+      <div class="picker-row">
+        <span style="color:var(--color-text-tertiary);">○</span>
+        <span class="pname">devteam-specs</span>
+        <span class="pmeta">main · 2 in use</span>
+      </div>
+      <div class="picker-row">
+        <span style="color:var(--color-text-tertiary);">○</span>
+        <span class="pname">devteam-ui</span>
+        <span class="pmeta">main · 1 in use</span>
+      </div>
+      <div class="picker-row">
+        <span style="color:var(--color-text-tertiary);">○</span>
+        <span class="pname">portfolio-website</span>
+        <span class="pmeta">main · 0 in use</span>
+      </div>
+      <div class="picker-foot">Manage repositories →</div>
+    </div>
+    <div class="chips">
+      <span class="chip-tag">devteam <span class="x">×</span></span>
+    </div>
+    <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:8px;">1 repo selected</div>
+  </div>
+
+  <div class="sep"></div>
+
+  <h2>9. Motion principles</h2>
+  <div class="note"><strong>Motion is state-transition communication, not delight.</strong> Stage transitions: 150ms ease, no bounce. Drawer: 200ms slide. <strong>Exactly one element pulses at a time</strong> — the running stage. Optimistic rollback: instant revert + 200ms warning flash. <code>prefers-reduced-motion</code> disables the pulse and slide.</div>
+
+  <div class="sep"></div>
+
+  <h2>10. What this deck does NOT lock in</h2>
+  <p>Final pixel values (2.5 Refined Mockups tightens). Component API. Backend endpoints (R5 gaps degraded). Marketing/brand — none, internal tool (NG6).</p>
+
+  <div class="sep"></div>
+
+  <h2>11. Fresh-start delta (vs current)</h2>
+  <table>
+    <thead><tr><th>Area</th><th>Current</th><th>Fresh start</th></tr></thead>
+    <tbody>
+      <tr><td>Intake</td><td>Overlay on dashboard</td><td>Dedicated <code>/new</code> route (SC1)</td></tr>
+      <tr><td>Repo select</td><td>Flat checkbox list</td><td>Headless combobox + <code>/repositories</code> CRUD</td></tr>
+      <tr><td>Dashboard cards</td><td>Uniform, thin progress</td><td>Status-loudest, 5-seg phase progress, inline CTAs</td></tr>
+      <tr><td>Gate</td><td>Modal</td><td>Inline panel (SC5)</td></tr>
+      <tr><td>Questions</td><td>Panel competes for attention</td><td>Full-width question bar + inline panel (G5)</td></tr>
+      <tr><td>Audit</td><td>Flat list</td><td>Grouped/filterable timeline, "since last viewed" (SC6)</td></tr>
+      <tr><td>Autonomy</td><td>Bolt-1 ladder prompt only</td><td>Header toggle, always present (Q5)</td></tr>
+      <tr><td>Knowledge</td><td>Destination page only</td><td>In-context workspace section (JTBD-4.1/4.2)</td></tr>
+      <tr><td>Icons</td><td>Mixed Lucide + emoji</td><td>Lucide for actions, glyphs for stage status, no emoji</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note" style="margin-top:32px;"><strong>Preserved (not a fresh start):</strong> tech stack (NG4), TanStack Query, dark-mode-via-tokens, SPA-from-Go-binary (C2), data model (C4), optimistic-rollback invariant (P5).</div>
+
+</div>
+</body>
+</html>
