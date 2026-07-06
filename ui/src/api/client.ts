@@ -87,6 +87,12 @@ export async function resumeStage(featureId: string, stageId: string): Promise<{
   });
 }
 
+export async function forceRerunStage(featureId: string, stageId: string): Promise<{ status: string; stage_id: string }> {
+  return request(`/features/${featureId}/stages/${stageId}/force-rerun`, {
+    method: 'POST',
+  });
+}
+
 export async function approveStage(featureId: string, stageId: string): Promise<void> {
   await request<void>(`/features/${featureId}/stages/${stageId}/approve`, { method: 'POST' });
 }

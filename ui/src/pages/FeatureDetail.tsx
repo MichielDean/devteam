@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFeature, getFeatureStages, getAuditTrail, getBolts, getRules,
-  runStage, resumeStage, approveStage, rejectStage, acceptStageAsIs, jumpToStage,
+  runStage, resumeStage, forceRerunStage, approveStage, rejectStage, acceptStageAsIs, jumpToStage,
   setScope, setDepth, setTestStrategy, setLadderMode, prepareBolts,
   runBolt, cancelFeature, listQuestions, answerQuestion, ApiError,
 } from '../api/client';
@@ -297,6 +297,28 @@ export default function FeatureDetail() {
     },
   });
 
+  const forceRerunMutation = useMutation({
+    mutationFn: (stageId: string) => forceRerunStage(id!, stageId),
+    onMutate: async (stageId) => {
+      setIsProcessing(true);
+      await queryClient.cancelQueries({ queryKey: ['stages', id!] });
+      const prev = queryClient.getQueryData(['stages', id!]) as any[] ?? [];
+      queryClient.setQueryData(['stages', id!], prev.map((s) => s.stage_id === stageId ? { ...s, status: 'in_progress' } : s));
+      return { prev };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stages', id!] });
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['audit', id!] });
+      addToast('success', 'Stage force re-run — fresh dispatch');
+    },
+    onError: (err: Error, _data, ctx) => {
+      setIsProcessing(false);
+      if (ctx?.prev) queryClient.setQueryData(['stages', id!], ctx.prev);
+      addToast('error', `Force re-run failed: ${err.message}`);
+    },
+  });
+
   useKeyboardShortcuts({
     shortcuts: [
       { key: 'a', handler: () => { const s = stages.find((s) => s.status === 'awaiting_approval'); if (s) approveMutation.mutate(s.stage_id); }, description: 'Approve gate' },
@@ -366,12 +388,21 @@ export default function FeatureDetail() {
                   <p className="text-sm" style={{ color: 'var(--color-warning)' }}>Answer the questions below. The pipeline resumes automatically once all are answered.</p>
                 </div>
               ) : isProcessing ? (
-                <div className="flex items-center gap-3 p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-surface-hover)' }} data-testid="processing-banner">
-                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
-                  <div>
-                    <p className="text-sm font-medium text-[var(--color-text-primary)]">Agent working on stage {feature.current_stage || '...'}</p>
-                    <p className="text-xs text-[var(--color-text-tertiary)]">Output appears below in real time</p>
+                <div className="flex items-center justify-between p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-surface-hover)' }} data-testid="processing-banner">
+                  <div className="flex items-center gap-3">
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+                    <div>
+                      <p className="text-sm font-medium text-[var(--color-text-primary)]">Agent working on stage {feature.current_stage || '...'}</p>
+                      <p className="text-xs text-[var(--color-text-tertiary)]">Output appears below in real time</p>
+                    </div>
                   </div>
+                  <Button variant="danger" size="sm" onClick={() => {
+                    if (window.confirm('Force re-run this stage? This kills the current agent session and starts fresh.')) {
+                      forceRerunMutation.mutate(feature.current_stage || '');
+                    }
+                  }} data-testid="force-rerun-button">
+                    Force Re-run
+                  </Button>
                 </div>
               ) : awaitingStage ? (
                 <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="awaiting-approval-banner">

@@ -20,6 +20,7 @@ func (s *Server) registerStageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/reject", s.rejectStage)
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/accept-as-is", s.acceptStageAsIs)
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/resume", s.resumeStage)
+	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/force-rerun", s.forceRerunStage)
 	mux.HandleFunc("POST /api/features/{id}/stages/{stageId}/add-skipped", s.addSkippedStage)
 	mux.HandleFunc("POST /api/features/{id}/jump", s.jumpToStage)
 	mux.HandleFunc("GET /api/features/{id}/stages", s.getFeatureStages)
@@ -117,6 +118,74 @@ func (s *Server) runStage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(`{"status":"dispatched","stage_id":"` + req.StageID + `"}`))
+}
+
+// forceRerunStage clears the active flag and re-dispatches a stage.
+// Used when a stage is stuck in_progress (e.g. agent ran out of credits)
+// and the user needs to force a fresh start.
+func (s *Server) forceRerunStage(w http.ResponseWriter, r *http.Request) {
+	featureID := r.PathValue("id")
+	stageID := r.PathValue("stageId")
+	f, err := s.pipeline.GetFeature(featureID)
+	if err != nil {
+		http.Error(w, `{"error":"feature_not_found"}`, http.StatusNotFound)
+		return
+	}
+
+	// Kill any existing tmux session for this feature
+	tmuxMgr := s.pipeline.Dispatcher().TmuxManager()
+	stageDef, _ := s.db.GetStageDefinition(stageID)
+	if stageDef != nil {
+		var sessionName string
+		boltNumber := 0
+		if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
+			boltNumber = f.CurrentBolt
+		}
+		if boltNumber > 0 {
+			sessionName = tmuxMgr.SessionNameForBolt(featureID, boltNumber)
+		} else {
+			sessionName = tmuxMgr.SessionNameForPhase(featureID, stageDef.Phase)
+		}
+		tmuxMgr.KillSession(sessionName)
+		log.Printf("forceRerunStage: killed session %s", sessionName)
+	}
+
+	// Clear the active flag
+	s.unmarkFeatureActive(featureID)
+
+	// Mark stage as revising so it can be re-dispatched
+	fs, _ := s.db.GetFeatureStage(featureID, stageID)
+	if fs != nil {
+		now := time.Now()
+		s.db.UpdateFeatureStage(featureID, stageID, stage.StatusRevising, fs.RevisionCount, &now, nil)
+		s.db.RecordAuditEvent(featureID, "STAGE_FORCE_RERUN", stageID, "", "user forced re-run (stuck in_progress)")
+	}
+
+	// Now dispatch fresh
+	s.markFeatureActive(featureID)
+	go func() {
+		defer s.unmarkFeatureActive(featureID)
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("forceRerunStage goroutine panic: %v", rec)
+			}
+		}()
+
+		result, err := s.pipeline.RunStage(context.Background(), f, stageID, func(line string, isStderr bool) {
+			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+		})
+		if err != nil {
+			log.Printf("forceRerunStage: dispatch failed: %v", err)
+			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":%s}`, jsonString(featureID), jsonString(stageID), jsonString(err.Error())))
+			return
+		}
+		resultJSON, _ := json.Marshal(result)
+		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"result":%s}`, jsonString(featureID), jsonString(stageID), string(resultJSON)))
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte(`{"status":"force_rerun","stage_id":"` + stageID + `"}`))
 }
 
 // resumeStage re-attaches to an existing tmux session for a stage and
