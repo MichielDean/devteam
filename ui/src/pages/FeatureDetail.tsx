@@ -19,6 +19,7 @@ import GatePanel from '../components/GatePanel';
 import AgentOutputLive from '../components/AgentOutputLive';
 import QuestionPanel from '../components/QuestionPanel';
 import ControlBar from '../components/ControlBar';
+import AutoApprovePanel from '../components/AutoApprovePanel';
 import AuditDrawer from '../components/AuditDrawer';
 import ArtifactViewer from '../components/ArtifactViewer';
 import type { FeatureDetail as FeatureDetailType } from '../types';
@@ -467,13 +468,18 @@ export default function FeatureDetail() {
                   )}
                 </div>
               ) : awaitingStage ? (
-                <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="awaiting-approval-banner">
-                  <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>✓ Stage {awaitingStage.stage_id} complete — review needed</p>
-                  <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-                    {isGuided ? 'Phase-end review gate. Review the artifacts and approve to continue.' : 'The agent finished. Review the artifacts below and approve or request changes.'}
-                  </p>
-                  <Button variant="primary" onClick={() => setSelectedStage(awaitingStage.stage_id)} data-testid="review-gate-button">Review & Approve</Button>
-                </div>
+                isAutonomous ? (
+                  // In autonomous mode, auto-approve and continue — no human review panel
+                  <AutoApprovePanel stageId={awaitingStage.stage_id} onApprove={() => approveMutation.mutate(awaitingStage.stage_id)} />
+                ) : (
+                  <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="awaiting-approval-banner">
+                    <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>✓ Stage {awaitingStage.stage_id} complete — review needed</p>
+                    <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+                      {isGuided ? 'Phase-end review gate. Review the artifacts and approve to continue.' : 'The agent finished. Review the artifacts below and approve or request changes.'}
+                    </p>
+                    <Button variant="primary" onClick={() => setSelectedStage(awaitingStage.stage_id)} data-testid="review-gate-button">Review & Approve</Button>
+                  </div>
+                )
               ) : revisingStage ? (
                 <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="revising-banner">
                   <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>⚠ Stage {revisingStage.stage_id} needs attention</p>
@@ -554,7 +560,7 @@ export default function FeatureDetail() {
                 <p className="text-sm text-[var(--color-text-secondary)] mb-4 leading-relaxed">{activeStage.description}</p>
               )}
 
-              {activeStage.status === 'awaiting_approval' && (
+              {activeStage.status === 'awaiting_approval' && !isAutonomous && (
                 <GatePanel
                   stageId={activeStage.stage_id}
                   stageName={activeStage.name || activeStage.stage_id}

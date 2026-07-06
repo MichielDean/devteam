@@ -143,7 +143,15 @@ func (s *Server) RestoreActiveProcesses() {
 
 		stages, _ := s.db.GetFeatureStages(f.ID)
 		for _, fs := range stages {
-			if fs.Status != stage.StatusInProgress {
+			// Handle stuck in_progress stages
+			if fs.Status == stage.StatusInProgress {
+				// ... existing in_progress recovery logic below
+			} else if fs.Status == stage.StatusAwaitingApproval && (f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided") {
+				// In autonomous/guided mode, auto-approve any awaiting_approval stages
+				// that were left pending from mode switches or server restarts
+				s.recoverStage(f.ID, fs.StageID)
+				continue
+			} else {
 				continue
 			}
 
@@ -202,12 +210,37 @@ func (s *Server) RestoreActiveProcesses() {
 // Uses the state machine for all gate/mode/advance decisions.
 func (s *Server) recoverStage(featureID, stageID string) {
 	fs, _ := s.db.GetFeatureStage(featureID, stageID)
-	if fs == nil || fs.Status != stage.StatusInProgress {
+	if fs == nil {
 		return
 	}
 
 	f, err := s.pipeline.GetFeature(featureID)
 	if err != nil {
+		return
+	}
+
+	// If the stage is awaiting_approval and mode is autonomous/guided (non-phase-end),
+	// auto-approve it — it was likely left pending from a mode switch or server restart.
+	if fs.Status == stage.StatusAwaitingApproval {
+		if f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided" {
+			stageDef, _ := s.db.GetStageDefinition(stageID)
+			isPhaseEndGate := stageDef != nil && (stageID == "1.7" || stageID == "2.8" || stageID == "3.7" || stageID == "4.7" || (stageDef.Phase == "construction" && stageID == "3.5"))
+			isInitStage := stageDef != nil && stageDef.Phase == "initialization"
+			shouldAutoApprove := isInitStage || f.ExecutionMode == "autonomous" || (f.ExecutionMode == "guided" && !isPhaseEndGate)
+			if shouldAutoApprove {
+				log.Printf("recoverStage: auto-approving awaiting_approval stage %s (%s mode)", stageID, f.ExecutionMode)
+				nextStageID, _ := s.pipeline.ApproveStage(f, stageID)
+				if nextStageID != "" && !s.isFeatureActive(featureID) {
+					s.markFeatureActive(featureID)
+					go s.runStageAsync(context.Background(), featureID, nextStageID)
+				}
+				return
+			}
+		}
+		return // leave for human review
+	}
+
+	if fs.Status != stage.StatusInProgress {
 		return
 	}
 
