@@ -34,6 +34,26 @@ func apiPost(path string, body interface{}) (string, error) {
 	return string(respBody), nil
 }
 
+// apiPatch sends a PATCH request to the API and returns the response body
+func apiPatch(path string, body interface{}) (string, error) {
+	jsonBody, _ := json.Marshal(body)
+	req, err := http.NewRequest(http.MethodPatch, apiURL()+path, bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("building PATCH request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("API returned %d: %s", resp.StatusCode, string(respBody))
+	}
+	return string(respBody), nil
+}
+
 // apiGet sends a GET request and returns the response body
 func apiGet(path string) (string, error) {
 	resp, err := http.Get(apiURL() + path)
@@ -143,7 +163,7 @@ func handleQuestionsAPICLI(args []string) {
 		answer := strings.Join(args[3:], " ")
 
 		body := map[string]interface{}{"answer": answer}
-		resp, err := apiPost(fmt.Sprintf("/api/features/%s/questions/%s", featureID, questionID), body)
+		resp, err := apiPatch(fmt.Sprintf("/api/features/%s/questions/%s", featureID, questionID), body)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error answering question: %v\n", err)
 			os.Exit(1)
