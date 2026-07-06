@@ -1,0 +1,254 @@
+name: ci
+
+# CI Pipeline for the devteam repo (Go backend + React/Vite/TS frontend).
+# Feature: full-crud-and-ui-for-managing-repositories — stage 3.7 (minimal).
+#
+# Every commit on the feature branch is a release candidate (P1).
+# This pipeline encodes the manual gate commands from team-practices.md (P7)
+# and the quality-gates artifact into an automated, fast-feedback CI run.
+#
+# Toolchain pins (R5): Go 1.26.1, Node v22.23, no new deps (R4).
+# Gate commands are exactly the ones in the P7 verification table — do not
+# drift from them without updating team-practices.md first.
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+# Cancel superseded runs on the same ref so a push doesn't queue behind a
+# stale PR run. Keeps feedback fast (principle #3).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------------------------------------------------
+  # Job 1 — Backend (Go)
+  # -------------------------------------------------------------------
+  backend:
+    name: backend (build + vet + unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Postgres service container — the db package tests (and the new
+    # repo_store_test.go) require a live Postgres per the existing test
+    # harness. Matches the local operator setup (single Postgres instance).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: devteam
+          POSTGRES_PASSWORD: devteam
+          POSTGRES_DB: devteam
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U devteam"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # DSN the test harness expects. Adjust if the codebase reads a
+      # different env var name — the existing tests use the same pattern.
+      DEVTEAM_DB_DSN: "host=localhost port=5432 user=devteam password=devteam dbname=devteam sslmode=disable"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go 1.26.1
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+          cache: true
+
+      - name: go.mod tidy check (no new deps — R4)
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Unit tests — db + api packages (Bolt gate)
+        # The load-bearing gate command from P7. Runs the two packages the
+        # feature extends. Full `go test ./...` runs in the release job.
+        run: go test ./internal/db/... ./internal/api/... -count=1
+
+  # -------------------------------------------------------------------
+  # Job 2 — Frontend (lint + build)
+  # -------------------------------------------------------------------
+  frontend:
+    name: frontend (lint + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ui
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node v22.23
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.23'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install (npm ci — lockfile pinned, no new deps — R4)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (tsc -b && vite build — strict-mode gate, R10)
+        run: npm run build
+
+  # -------------------------------------------------------------------
+  # Job 3 — Full Go test suite (release candidate gate)
+  # -------------------------------------------------------------------
+  # Runs the broader suite to catch regressions outside db/api. This is the
+  # `go test ./...` release gate from P7. It runs in parallel with nothing
+  # that depends on it and is the heaviest Go job, so it's split out.
+  backend-full:
+    name: backend (full test suite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: devteam
+          POSTGRES_PASSWORD: devteam
+          POSTGRES_DB: devteam
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U devteam"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DEVTEAM_DB_DSN: "host=localhost port=5432 user=devteam password=devteam dbname=devteam sslmode=disable"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go 1.26.1
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Full test suite (release gate)
+        run: go test ./... -count=1
+
+  # -------------------------------------------------------------------
+  # Job 4 — E2E (Playwright smoke + non-regression)
+  # -------------------------------------------------------------------
+  # The smoke gate (P10). Runs repos.spec.ts + the existing aidlc/questions
+  # specs against a dedicated server on :18765 (per playwright.config.ts).
+  # This is the gate that makes a commit a release candidate (P1) and the
+  # gate 4.3 Deployment Execution will re-run post-deploy.
+  e2e:
+    name: e2e (playwright smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [backend, frontend]
+    defaults:
+      run:
+        working-directory: ui
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: devteam
+          POSTGRES_PASSWORD: devteam
+          POSTGRES_DB: devteam
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U devteam"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DEVTEAM_DB_DSN: "host=localhost port=5432 user=devteam password=devteam dbname=devteam sslmode=disable"
+      # Force Playwright to spawn its own server on :18765 (per config).
+      START_SERVER: "1"
+      BASE_URL: "http://localhost:18765"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go 1.26.1
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+          cache: true
+
+      - name: Build server binary
+        run: go build -o /tmp/devteam-ci ./cmd/devteam
+
+      - name: Set up Node v22.23
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.23'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E (repos + aidlc + questions — non-regression + smoke)
+        env:
+          SERVER_BINARY: "/tmp/devteam-ci -http :18765"
+        run: npm run test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: ui/playwright-report
+          retention-days: 7
+
+  # -------------------------------------------------------------------
+  # Job 5 — Quality gate aggregate (promotion gate)
+  # -------------------------------------------------------------------
+  # Minimal gate: fails if any required job failed. This is the encoded
+  # quality-gates artifact — a commit is a release candidate only if this
+  # job is green. 4.1 Deployment Pipeline consumes this as the promotion
+  # gate input.
+  gate:
+    name: quality-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    needs: [backend, frontend, backend-full, e2e]
+    if: always()
+    steps:
+      - name: Fail if any required job failed
+        if: ${{ needs.backend.result != 'success' || needs.frontend.result != 'success' || needs.backend-full.result != 'success' || needs.e2e.result != 'success' }}
+        run: |
+          echo "Quality gate FAILED — one or more required jobs did not pass."
+          echo "backend=${{ needs.backend.result }} frontend=${{ needs.frontend.result }} backend-full=${{ needs.backend-full.result }} e2e=${{ needs.e2e.result }}"
+          exit 1
+      - name: Quality gate passed
+        run: echo "All required jobs passed — commit is a release candidate."
