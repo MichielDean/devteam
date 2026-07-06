@@ -424,3 +424,165 @@ func (p *Pipeline) SaveFeature(f *feature.Feature) error {
 func (p *Pipeline) UpdateFeatureStatus(f *feature.Feature) error {
 	return p.specProvider.SaveFeatureState(f)
 }
+
+// MergeFeatureToMain merges the feature's worktree branch into main.
+// Called after construction (3.1-3.7) completes so code doesn't die in
+// a random worktree. In autonomous/guided mode this runs automatically;
+// in human mode the user triggers it via the API.
+//
+// Steps per repo:
+// 1. Commit any uncommitted changes in the worktree
+// 2. Push the feature branch to origin
+// 3. Merge the feature branch into main (fast-forward if possible)
+// 4. Push main to origin
+// 5. Record audit event
+func (p *Pipeline) MergeFeatureToMain(f *feature.Feature) error {
+	if p.database == nil {
+		return nil
+	}
+
+	repos, err := p.database.GetFeatureRepos(f.ID)
+	if err != nil || len(repos) == 0 {
+		log.Printf("MergeFeatureToMain: %s has no repos — nothing to merge", f.ID)
+		return nil
+	}
+
+	for _, r := range repos {
+		if _, err := os.Stat(r.Dir); err != nil {
+			log.Printf("MergeFeatureToMain: worktree dir %s does not exist — skipping %s", r.Dir, r.Name)
+			continue
+		}
+
+		// 1. Commit uncommitted changes
+		commitMsg := fmt.Sprintf("feat: merge %s — construction complete", f.ID)
+		if err := p.gitCommitIfChanges(r.Dir, commitMsg); err != nil {
+			log.Printf("MergeFeatureToMain: commit failed for %s: %v — continuing", r.Name, err)
+		}
+
+		// 2. Push feature branch to origin
+		pushCmd := exec.Command("git", "-C", r.Dir, "push", "-u", "origin", r.Branch)
+		pushOutput, err := pushCmd.CombinedOutput()
+		if err != nil {
+			log.Printf("MergeFeatureToMain: push failed for %s branch %s: %v\n%s", r.Name, r.Branch, err, string(pushOutput))
+			continue
+		}
+		log.Printf("MergeFeatureToMain: pushed %s branch %s", r.Name, r.Branch)
+
+		// 3. Merge feature branch into main locally
+		// Find the main repo (not the worktree) — use the URL to locate it
+		mainDir := p.findMainRepoDir(r.URL)
+		if mainDir == "" {
+			// Fallback: merge via origin — create a PR and merge
+			if err := p.mergeViaPR(r.URL, r.Branch, f.ID); err != nil {
+				log.Printf("MergeFeatureToMain: PR merge failed for %s: %v", r.Name, err)
+			}
+			continue
+		}
+
+		// Fetch latest main, merge feature branch, push
+		fetchCmd := exec.Command("git", "-C", mainDir, "fetch", "origin")
+		fetchCmd.Run()
+
+		mergeCmd := exec.Command("git", "-C", mainDir, "merge", "--no-ff", "-m",
+			fmt.Sprintf("Merge %s — construction complete", f.Title),
+			r.Branch)
+		mergeOutput, err := mergeCmd.CombinedOutput()
+		if err != nil {
+			log.Printf("MergeFeatureToMain: merge failed for %s: %v\n%s — trying PR", r.Name, err, string(mergeOutput))
+			// Merge conflict — fall back to PR
+			if err := p.mergeViaPR(r.URL, r.Branch, f.ID); err != nil {
+				log.Printf("MergeFeatureToMain: PR merge also failed for %s: %v", r.Name, err)
+			}
+			continue
+		}
+
+		pushMainCmd := exec.Command("git", "-C", mainDir, "push", "origin", "main")
+		pushMainOutput, err := pushMainCmd.CombinedOutput()
+		if err != nil {
+			log.Printf("MergeFeatureToMain: push main failed for %s: %v\n%s", r.Name, err, string(pushMainOutput))
+			continue
+		}
+
+		log.Printf("MergeFeatureToMain: merged %s branch %s into main and pushed", r.Name, r.Branch)
+		p.database.RecordAuditEvent(f.ID, "MERGED_TO_MAIN", "", "", fmt.Sprintf("%s branch %s merged to main", r.Name, r.Branch))
+		p.broadcastSSE(f.ID, "merged_to_main",
+			fmt.Sprintf(`{"feature_id":%s,"repo":%s,"branch":%s}`, jsonString(f.ID), jsonString(r.Name), jsonString(r.Branch)))
+	}
+
+	return nil
+}
+
+// gitCommitIfChanges commits uncommitted changes in a directory if any exist.
+func (p *Pipeline) gitCommitIfChanges(dir, message string) error {
+	statusCmd := exec.Command("git", "-C", dir, "status", "--porcelain")
+	output, err := statusCmd.Output()
+	if err != nil || len(output) == 0 {
+		return nil // no changes or error
+	}
+	exec.Command("git", "-C", dir, "add", "-A").Run()
+	commitCmd := exec.Command("git", "-C", dir, "commit", "-m", message)
+	return commitCmd.Run()
+}
+
+// findMainRepoDir finds the primary checkout directory for a repo URL.
+// Worktrees are under ~/source/<repo>/worktrees/<feature>/<repo>; the
+// primary checkout is at ~/source/<repo>.
+func (p *Pipeline) findMainRepoDir(repoURL string) string {
+	// Extract repo name from URL (last path segment, strip .git)
+	parts := strings.Split(repoURL, "/")
+	name := parts[len(parts)-1]
+	name = strings.TrimSuffix(name, ".git")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	mainDir := filepath.Join(home, "source", name)
+	if _, err := os.Stat(filepath.Join(mainDir, ".git")); err == nil {
+		return mainDir
+	}
+	return ""
+}
+
+// mergeViaPR creates a GitHub PR and merges it via gh CLI.
+// Used when we can't find the main checkout (e.g. remote-only repos).
+func (p *Pipeline) mergeViaPR(repoURL, branch, featureID string) error {
+	// Extract owner/repo from URL
+	// git@github.com:owner/repo.git → owner/repo
+	repoPath := ""
+	if strings.Contains(repoURL, "github.com:") {
+		repoPath = strings.TrimPrefix(repoURL, "git@github.com:")
+	} else if strings.Contains(repoURL, "github.com/") {
+		repoPath = strings.TrimPrefix(repoURL, "https://github.com/")
+	}
+	repoPath = strings.TrimSuffix(repoPath, ".git")
+
+	title := fmt.Sprintf("feat: merge %s — construction complete", featureID)
+	prCmd := exec.Command("gh", "pr", "create",
+		"--repo", repoPath,
+		"--title", title,
+		"--body", fmt.Sprintf("Auto-merged from devteam construction phase for feature %s", featureID),
+		"--head", branch,
+		"--base", "main",
+	)
+	prOutput, err := prCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("creating PR: %w\n%s", err, string(prOutput))
+	}
+
+	// Extract PR number from output (URL contains it)
+	prURL := strings.TrimSpace(string(prOutput))
+	parts := strings.Split(prURL, "/")
+	prNum := parts[len(parts)-1]
+
+	mergeCmd := exec.Command("gh", "pr", "merge", prNum,
+		"--repo", repoPath,
+		"--squash",
+	)
+	mergeOutput, err := mergeCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("merging PR %s: %w\n%s", prNum, err, string(mergeOutput))
+	}
+
+	log.Printf("mergeViaPR: merged PR %s for %s", prNum, repoPath)
+	return nil
+}

@@ -1078,6 +1078,16 @@ func (s *Server) runStageAsync(ctx context.Context, featureID, stageID string) {
 			return // human mode — stop after each stage
 		}
 
+		// After 3.7 (CI Pipeline) completes, merge feature branch to main
+		// so code doesn't die in a worktree.
+		if stageID == "3.7" {
+			log.Printf("runStageAsync: 3.7 complete — merging %s to main", featureID)
+			s.broadcastSSE(featureID, "merging_to_main", fmt.Sprintf(`{"feature_id":%s}`, jsonString(featureID)))
+			if err := s.pipeline.MergeFeatureToMain(f); err != nil {
+				log.Printf("runStageAsync: MergeFeatureToMain failed for %s: %v — continuing", featureID, err)
+			}
+		}
+
 		// After 2.8 (Delivery Planning) completes, prepare bolts for construction.
 		// Then trigger RunAllBolts instead of linear advance — 3.1-3.5 are per-bolt
 		// stages driven by the bolt loop, not by NextStageToRun.
@@ -1103,7 +1113,15 @@ func (s *Server) runStageAsync(ctx context.Context, featureID, stageID string) {
 						s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":%s}`, jsonString(featureID), jsonString(err.Error())))
 						return
 					}
-					// After RunAllBolts completes (3.1-3.7), continue to operation phase
+					// Construction complete — merge feature branch to main so code
+					// doesn't die in a random worktree.
+					log.Printf("runStageAsync: construction complete — merging %s to main", featureID)
+					s.broadcastSSE(featureID, "merging_to_main", fmt.Sprintf(`{"feature_id":%s}`, jsonString(featureID)))
+					if err := s.pipeline.MergeFeatureToMain(f); err != nil {
+						log.Printf("runStageAsync: MergeFeatureToMain failed for %s: %v — continuing to operation", featureID, err)
+						s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":"merge to main failed: %s"}`, jsonString(featureID), jsonString(err.Error())))
+					}
+					// After merge, continue to operation phase
 					next := s.pipeline.NextStageToRun(featureID)
 					if next != "" {
 						s.runStageAsync(context.Background(), featureID, next)
