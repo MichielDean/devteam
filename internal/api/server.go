@@ -122,9 +122,13 @@ func (s *Server) RestoreActiveProcesses() {
 		return
 	}
 
+	// Mark features with live tmux sessions as active — their goroutines
+	// died on restart but the tmux session is still running.
 	sessions := s.pipeline.Dispatcher().ListActiveSessions()
+	liveFeatures := make(map[string]bool)
 	for featureID := range sessions {
 		s.active.Store(featureID, struct{}{})
+		liveFeatures[featureID] = true
 		log.Printf("restored active state for feature %s from tmux session", featureID)
 	}
 
@@ -139,88 +143,42 @@ func (s *Server) RestoreActiveProcesses() {
 			continue
 		}
 		if s.IsProcessing(f.ID) {
-			continue
+			continue // already has a live tmux session, leave it
 		}
 
+		// Check if the feature has any stages that need attention.
 		stages, _ := s.db.GetFeatureStages(f.ID)
+		needsAdvance := false
 		for _, fs := range stages {
-			// Handle stuck in_progress stages
 			if fs.Status == stage.StatusInProgress {
-				// ... existing in_progress recovery logic below
-			} else if fs.Status == stage.StatusAwaitingApproval && (f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided") {
-				// In autonomous/guided mode, auto-approve any awaiting_approval stages
-				// that were left pending from mode switches or server restarts
-				if fs.BoltNumber > 0 {
-					s.recoverBoltStage(f.ID, fs.StageID, fs.BoltNumber)
-				} else {
-					s.recoverStage(f.ID, fs.StageID)
-				}
-				continue
-			} else {
-				continue
+				// Stage was in-progress but tmux session died — mark as
+				// revising so advanceFeature will re-run it.
+				now := time.Now()
+				s.db.UpdateFeatureStageForBolt(f.ID, fs.StageID, fs.BoltNumber, stage.StatusRevising, 0, &now, nil)
+				s.db.RecordAuditEvent(f.ID, "STAGE_INTERRUPTED", fs.StageID, "", "server restarted mid-dispatch")
+				needsAdvance = true
+			} else if fs.Status == stage.StatusAwaitingApproval {
+				// Was awaiting approval — advanceFeature will auto-approve
+				// in autonomous/guided mode.
+				needsAdvance = true
+			} else if fs.Status == stage.StatusRevising {
+				// Was already revising — advanceFeature will re-run it
+				// in autonomous/guided mode.
+				needsAdvance = true
+			} else if fs.Status == stage.StatusNotStarted {
+				// Has not-started stages — needs to advance.
+				needsAdvance = true
 			}
+		}
 
-			// Check if this stage's tmux session is alive
-			tmuxAlive := false
-			for sessName := range sessions {
-				if strings.Contains(sessName, f.ID) {
-					tmuxAlive = true
-					break
-				}
-			}
-
-			if tmuxAlive {
-				// Re-attach polling goroutine
-				log.Printf("RestoreActiveProcesses: re-attaching poll for stage %s feature %s (tmux still alive)", fs.StageID, f.ID)
-				s.active.Store(f.ID, struct{}{})
-				stageID := fs.StageID
-				boltNum := fs.BoltNumber
-				featureID := f.ID
-				go func() {
-					defer s.unmarkFeatureActive(featureID)
-					defer func() {
-						if rec := recover(); rec != nil {
-							log.Printf("RestoreActiveProcesses: poll panic for %s: %v", featureID, rec)
-						}
-					}()
-
-					tmuxMgr := s.pipeline.Dispatcher().TmuxManager()
-					var sessionName string
-					for name := range sessions {
-						if strings.Contains(name, featureID) {
-							sessionName = name
-							break
-						}
-					}
-					if sessionName == "" {
-						return
-					}
-
-					for tmuxMgr.IsSessionAlive(sessionName) {
-						time.Sleep(5 * time.Second)
-					}
-
-					log.Printf("RestoreActiveProcesses: tmux session %s exited", sessionName)
-					if boltNum > 0 {
-						s.recoverBoltStage(featureID, stageID, boltNum)
-					} else {
-						s.recoverStage(featureID, stageID)
-					}
-				}()
-				continue
-			}
-
-			// No tmux session — recover immediately
-			if fs.BoltNumber > 0 {
-				s.recoverBoltStage(f.ID, fs.StageID, fs.BoltNumber)
-			} else {
-				s.recoverStage(f.ID, fs.StageID)
-			}
+		if needsAdvance {
+			log.Printf("RestoreActiveProcesses: advancing feature %s (recovery)", f.ID)
+			s.markFeatureActive(f.ID)
+			go s.advanceFeature(context.Background(), f.ID)
 		}
 	}
 }
 
-// recoverStage processes a stuck stage after server restart.
 // recoverStage processes a stuck stage after server restart.
 // Uses the state machine for all gate/mode/advance decisions.
 // For per-Bolt construction stages, this is called per (stageID, boltNumber)

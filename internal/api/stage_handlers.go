@@ -11,7 +11,6 @@ import (
 
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
-	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/stage"
 )
 
@@ -229,9 +228,7 @@ func (s *Server) resumeStage(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"resumed","stage_id":"` + stageID + `","session_alive":` + fmt.Sprintf("%t", sessionAlive) + `}`))
 }
 
-// approveStage approves a stage gate and advances.
-// For per-Bolt construction stages (3.1-3.5), the bolt number is read from
-// f.CurrentBolt (set by RunBolt). For all other stages, bolt number is 0.
+// approveStage approves a stage gate, then lets advanceFeature decide what's next.
 func (s *Server) approveStage(w http.ResponseWriter, r *http.Request) {
 	featureID := r.PathValue("id")
 	stageID := r.PathValue("stageId")
@@ -242,51 +239,21 @@ func (s *Server) approveStage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	boltNumber := resolveBoltNumberForStage(f, stageID)
-	nextStageID, err := s.pipeline.ApproveStage(f, stageID, boltNumber)
+	_, err = s.pipeline.ApproveStage(f, stageID, boltNumber)
 	if err != nil {
 		http.Error(w, `{"error":"approve_failed","details":"`+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
 
-	// In autonomous/guided mode, auto-advance.
+	// Let advanceFeature decide what to do next — it handles bolt continuation,
+	// linear advance, merge-to-main, etc. Don't dispatch if already active.
 	if f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided" {
-		if s.isFeatureActive(featureID) {
-			// Already running (e.g. RunAllBolts is driving the bolt loop) —
-			// the approval will unblock it. Don't dispatch a new goroutine.
-			goto respond
-		}
-
-		// If this was a per-bolt stage (3.1-3.5), continue the bolt loop
-		// by re-dispatching RunBolt for the same bolt. RunBolt will skip
-		// already-completed stages and continue from the next one.
-		if isPerBoltStageAPI(stageID) && boltNumber > 0 {
+		if !s.isFeatureActive(featureID) {
 			s.markFeatureActive(featureID)
-			go func() {
-				defer s.unmarkFeatureActive(featureID)
-				_, err := s.pipeline.RunBolt(context.Background(), f, boltNumber, func(line string, isStderr bool) {
-					s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
-				})
-				if err != nil {
-					log.Printf("approveStage: RunBolt continuation failed for %s bolt %d: %v", featureID, boltNumber, err)
-					return
-				}
-				// After bolt completes, check if all bolts are done and advance to 3.6+
-				next := s.pipeline.NextStageToRun(featureID)
-				if next != "" {
-					s.runStageAsync(context.Background(), featureID, next)
-				}
-			}()
-			goto respond
-		}
-
-		// Non-per-bolt stage — advance linearly
-		if nextStageID != "" {
-			s.markFeatureActive(featureID)
-			go s.runStageAsync(context.Background(), featureID, nextStageID)
+			go s.advanceFeature(context.Background(), featureID)
 		}
 	}
 
-respond:
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"approved"}`))
 }
@@ -653,8 +620,8 @@ func (s *Server) prepareBolts(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"bolts_prepared"}`))
 }
 
-// runBolt runs one Bolt through construction stages.
-// Returns immediately with 202 Accepted — output streams via SSE.
+// runBolt runs one Bolt through construction stages, then continues the
+// pipeline via advanceFeature. Returns 202 — output streams via SSE.
 func (s *Server) runBolt(w http.ResponseWriter, r *http.Request) {
 	featureID := r.PathValue("id")
 	boltStr := r.PathValue("boltNumber")
@@ -686,6 +653,10 @@ func (s *Server) runBolt(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 
+		// Set CurrentBolt and run the bolt.
+		f.CurrentBolt = boltNumber
+		s.pipeline.SaveFeature(f)
+
 		result, err := s.pipeline.RunBolt(context.Background(), f, boltNumber, func(line string, isStderr bool) {
 			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
 		})
@@ -697,19 +668,11 @@ func (s *Server) runBolt(w http.ResponseWriter, r *http.Request) {
 		resultJSON, _ := json.Marshal(result)
 		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"bolt":%d,"result":%s}`, jsonString(featureID), boltNumber, string(resultJSON)))
 
-		// In autonomous/guided mode, if the bolt completed (not paused at a gate),
-		// continue to the next non-per-bolt stage (3.6, 3.7, 4.x) via the linear
-		// auto-advance loop. RunBolt only does 3.1-3.5; 3.6/3.7 are driven by
-		// NextStageToRun + runStageAsync.
-		if !result.Failed && (f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided") {
-			nextStageID := s.pipeline.NextStageToRun(featureID)
-			if nextStageID != "" {
-				log.Printf("runBolt: bolt %d complete — auto-advancing to stage %s for feature %s", boltNumber, nextStageID, featureID)
-				time.Sleep(2 * time.Second)
-				s.runStageAsync(context.Background(), featureID, nextStageID)
-			} else {
-				log.Printf("runBolt: bolt %d complete — no more stages for feature %s", boltNumber, featureID)
-			}
+		// Bolt done — let advanceFeature decide what's next (next bolt, 3.6, merge, etc.)
+		if !result.Failed && !result.PausedAtGate() {
+			s.pipeline.AdvanceFeature(context.Background(), featureID, func(line string, isStderr bool) {
+				s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+			})
 		}
 	}()
 
@@ -718,50 +681,17 @@ func (s *Server) runBolt(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"dispatched","bolt":` + boltStr + `}`))
 }
 
-// runConstruction runs the full construction phase per the AIDLC v2 spec:
-// walking skeleton → ladder prompt → dependency-batched parallel bolts → 3.6/3.7.
-// This is the spec-correct entry point; run-bolt remains for manual per-bolt
-// dispatch in human mode. Returns 202 Accepted — output streams via SSE.
+// runConstruction runs the full construction phase. Delegates to advanceFeature
+// which handles bolts, merge-to-main, and continuation to operation.
 func (s *Server) runConstruction(w http.ResponseWriter, r *http.Request) {
 	featureID := r.PathValue("id")
-	f, err := s.pipeline.GetFeature(featureID)
-	if err != nil {
-		http.Error(w, `{"error":"feature_not_found"}`, http.StatusNotFound)
-		return
-	}
-
 	if s.isFeatureActive(featureID) {
 		http.Error(w, `{"error":"conflict","details":"feature already running"}`, http.StatusConflict)
 		return
 	}
 
-	// Ensure bolts are prepared (idempotent — PrepareBolts no-ops if they exist).
-	if err := s.pipeline.PrepareBolts(f); err != nil {
-		http.Error(w, `{"error":"prepare_bolts_failed","details":"`+err.Error()+`"}`, http.StatusInternalServerError)
-		return
-	}
-
 	s.markFeatureActive(featureID)
-
-	go func() {
-		defer s.unmarkFeatureActive(featureID)
-		defer func() {
-			if rec := recover(); rec != nil {
-				log.Printf("runConstruction goroutine panic for feature %s: %v", featureID, rec)
-				s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":"construction panic"}`, jsonString(featureID)))
-			}
-		}()
-
-		err := s.pipeline.RunAllBolts(context.Background(), f, func(line string, isStderr bool) {
-			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
-		})
-		if err != nil {
-			log.Printf("runConstruction: failed for feature %s: %v", featureID, err)
-			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":%s}`, jsonString(featureID), jsonString(err.Error())))
-			return
-		}
-		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"construction":true}`, jsonString(featureID)))
-	}()
+	go s.advanceFeature(context.Background(), featureID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
@@ -995,150 +925,40 @@ func (s *Server) setExecutionMode(w http.ResponseWriter, r *http.Request) {
 		s.db.RecordAuditEvent(id, db.AuditScopeChange, "", "", "execution_mode="+req.Mode)
 	}
 
-	// If switching to autonomous/guided and a stage is awaiting_approval,
-	// auto-approve it and advance — the user switched mode to unblock.
+	// If switching to autonomous/guided, advanceFeature will auto-approve
+	// any awaiting_approval stages and continue the pipeline.
 	if (req.Mode == "autonomous" || req.Mode == "guided") && !s.isFeatureActive(id) {
-		stages, _ := s.db.GetFeatureStages(id)
-		for _, fs := range stages {
-			if fs.Status == "awaiting_approval" {
-				s.markFeatureActive(id)
-				go func(stageID string, boltNum int) {
-					defer s.unmarkFeatureActive(id)
-					_, err := s.pipeline.ApproveStage(f, stageID, boltNum)
-					if err != nil {
-						log.Printf("setExecutionMode: auto-approve failed for %s stage %s: %v", id, stageID, err)
-						return
-					}
-					if req.Mode == "autonomous" || req.Mode == "guided" {
-						next := s.pipeline.NextStageToRun(id)
-						if next != "" {
-							s.runStageAsync(context.Background(), id, next)
-						}
-					}
-				}(fs.StageID, fs.BoltNumber)
-				break
-			}
-		}
+		s.markFeatureActive(id)
+		go s.advanceFeature(context.Background(), id)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "mode": req.Mode})
 }
 
-// runStageAsync is the SINGLE entry point for running a stage asynchronously.
-// It runs the stage, processes the result via the state machine, and
-// auto-advances if execution mode allows. All callers use this.
-func (s *Server) runStageAsync(ctx context.Context, featureID, stageID string) {
+// advanceFeature is the SINGLE entry point for advancing a feature through
+// the pipeline. Delegates to Pipeline.AdvanceFeature which handles all
+// stage/bolt/gate/merge logic in one control flow.
+func (s *Server) advanceFeature(ctx context.Context, featureID string) {
 	defer s.unmarkFeatureActive(featureID)
 	defer func() {
 		if rec := recover(); rec != nil {
-			log.Printf("runStageAsync panic for feature %s stage %s: %v", featureID, stageID, rec)
-			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":"internal panic"}`, jsonString(featureID), jsonString(stageID)))
+			log.Printf("advanceFeature panic for %s: %v", featureID, rec)
+			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":"internal panic"}`, jsonString(featureID)))
 		}
 	}()
 
-	for {
-		f, err := s.pipeline.GetFeature(featureID)
-		if err != nil {
-			log.Printf("runStageAsync: failed to load feature %s: %v", featureID, err)
-			return
-		}
-
-		// Run the stage
-		log.Printf("runStageAsync: running stage %s for feature %s (mode=%s)", stageID, featureID, f.ExecutionMode)
-		result, err := s.pipeline.RunStage(ctx, f, stageID, func(line string, isStderr bool) {
-			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
-		})
-		if err != nil {
-			log.Printf("runStageAsync: RunStage failed for %s stage %s: %v", featureID, stageID, err)
-			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":%s}`, jsonString(featureID), jsonString(stageID), jsonString(err.Error())))
-			return
-		}
-
-		// Broadcast completion
-		resultJSON, _ := json.Marshal(result)
-		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"result":%s}`, jsonString(featureID), jsonString(stageID), string(resultJSON)))
-
-		// Process the result through the state machine — ONE place for all gate/mode/advance logic
-		outcome := s.pipeline.ProcessStageResult(f, stageID, result)
-
-		switch outcome {
-		case pipeline.OutcomeNeedsReview:
-			log.Printf("runStageAsync: stage %s needs human review — stopping", stageID)
-			return
-		case pipeline.OutcomeFailed:
-			log.Printf("runStageAsync: stage %s failed — stopping", stageID)
-			return
-		case pipeline.OutcomeComplete:
-			log.Printf("runStageAsync: feature %s complete", featureID)
-			return
-		}
-
-		// OutcomeAutoApproved — check if we should advance to the next stage
-		if !s.pipeline.ShouldAutoAdvance(f, stageID) {
-			return // human mode — stop after each stage
-		}
-
-		// After 3.7 (CI Pipeline) completes, merge feature branch to main
-		// so code doesn't die in a worktree.
-		if stageID == "3.7" {
-			log.Printf("runStageAsync: 3.7 complete — merging %s to main", featureID)
-			s.broadcastSSE(featureID, "merging_to_main", fmt.Sprintf(`{"feature_id":%s}`, jsonString(featureID)))
-			if err := s.pipeline.MergeFeatureToMain(f); err != nil {
-				log.Printf("runStageAsync: MergeFeatureToMain failed for %s: %v — continuing", featureID, err)
-			}
-		}
-
-		// After 2.8 (Delivery Planning) completes, prepare bolts for construction.
-		// Then trigger RunAllBolts instead of linear advance — 3.1-3.5 are per-bolt
-		// stages driven by the bolt loop, not by NextStageToRun.
-		if stageID == "2.8" {
-			if err := s.pipeline.PrepareBolts(f); err != nil {
-				log.Printf("runStageAsync: PrepareBolts failed for %s: %v — continuing to 3.6", featureID, err)
-			}
-			bolts, _ := s.db.GetBolts(featureID)
-			if len(bolts) > 0 {
-				log.Printf("runStageAsync: 2.8 complete — %d bolts prepared, starting RunAllBolts for %s", len(bolts), featureID)
-				go func() {
-					defer s.unmarkFeatureActive(featureID)
-					defer func() {
-						if rec := recover(); rec != nil {
-							log.Printf("runStageAsync: RunAllBolts panic for %s: %v", featureID, rec)
-						}
-					}()
-					err := s.pipeline.RunAllBolts(context.Background(), f, func(line string, isStderr bool) {
-						s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
-					})
-					if err != nil {
-						log.Printf("runStageAsync: RunAllBolts failed for %s: %v", featureID, err)
-						s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":%s}`, jsonString(featureID), jsonString(err.Error())))
-						return
-					}
-					// Construction complete — merge feature branch to main so code
-					// doesn't die in a random worktree.
-					log.Printf("runStageAsync: construction complete — merging %s to main", featureID)
-					s.broadcastSSE(featureID, "merging_to_main", fmt.Sprintf(`{"feature_id":%s}`, jsonString(featureID)))
-					if err := s.pipeline.MergeFeatureToMain(f); err != nil {
-						log.Printf("runStageAsync: MergeFeatureToMain failed for %s: %v — continuing to operation", featureID, err)
-						s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":"merge to main failed: %s"}`, jsonString(featureID), jsonString(err.Error())))
-					}
-					// After merge, continue to operation phase
-					next := s.pipeline.NextStageToRun(featureID)
-					if next != "" {
-						s.runStageAsync(context.Background(), featureID, next)
-					}
-				}()
-				return // RunAllBolts handles 3.1-3.7, don't continue the linear loop
-			}
-			// No bolts prepared — fall through to linear advance (3.6+)
-		}
-
-		nextStageID := s.pipeline.NextStageToRun(featureID)
-		if nextStageID == "" {
-			log.Printf("runStageAsync: no more stages for feature %s — complete", featureID)
-			return
-		}
-
-		stageID = nextStageID
-		time.Sleep(2 * time.Second)
+	err := s.pipeline.AdvanceFeature(ctx, featureID, func(line string, isStderr bool) {
+		s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+	})
+	if err != nil {
+		log.Printf("advanceFeature: %s failed: %v", featureID, err)
+		s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":%s}`, jsonString(featureID), jsonString(err.Error())))
 	}
+}
+
+// runStageAsync is kept for backward compatibility with callers that pass a
+// specific stageID. It now just delegates to advanceFeature — the single
+// control flow decides what to run next, ignoring the stageID hint.
+func (s *Server) runStageAsync(ctx context.Context, featureID, stageID string) {
+	s.advanceFeature(ctx, featureID)
 }
