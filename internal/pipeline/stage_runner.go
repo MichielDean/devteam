@@ -808,8 +808,14 @@ func (p *Pipeline) stageInstruction(stageDef *db.StageDefinition, f *feature.Fea
 	}
 
 	b.WriteString("## Asking Questions\n\n")
-	b.WriteString(fmt.Sprintf("If you need clarification, ask via CLI:\n  devteam questions ask %s --file questions.json\n", f.ID))
-	b.WriteString(fmt.Sprintf("Then signal: devteam signal %s needs_feedback\n\n", f.ID))
+	b.WriteString(fmt.Sprintf("If you need clarification from the product owner, use the CLI — do NOT print questions in your output:\n"))
+	b.WriteString(fmt.Sprintf("  1. Write questions to a JSON file: echo '[{\"question\":\"...\",\"role\":\"product\",\"options\":[\"opt1\",\"opt2\"]}]' > questions.json\n"))
+	b.WriteString(fmt.Sprintf("  2. Submit: devteam questions ask %s --file questions.json\n", f.ID))
+	b.WriteString(fmt.Sprintf("  3. Signal: devteam signal %s needs_feedback\n", f.ID))
+	b.WriteString(fmt.Sprintf("  4. WAIT — the pipeline will answer your questions and tell you to continue\n"))
+	b.WriteString(fmt.Sprintf("  5. Read answers: devteam questions list %s\n", f.ID))
+	b.WriteString(fmt.Sprintf("  6. Use the answers to refine your artifacts, then signal: devteam signal %s pass\n\n", f.ID))
+	b.WriteString("IMPORTANT: Never present questions as text in your output. Always use the CLI. The pipeline handles routing questions to the human or auto-answering in autonomous mode.\n\n")
 
 	b.WriteString("## Implementation Repositories\n\n")
 	b.WriteString("If this stage involves code changes, the implementation repo worktrees are listed in CONTEXT.md. Commit in those worktrees, not the spec repo.\n")

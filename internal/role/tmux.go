@@ -486,11 +486,19 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 		"    devteam artifacts " + req.FeatureID + " --all        # get all artifacts\n" +
 		"    devteam artifact submit " + req.FeatureID + " <type> --file <file>   # submit artifact\n" +
 		"    devteam signal " + req.FeatureID + " pass            # signal completion\n" +
-		"    devteam signal " + req.FeatureID + " needs_feedback  # ask human input\n" +
 		"    devteam questions ask " + req.FeatureID + " --file questions.json    # ask questions\n" +
+		"    devteam signal " + req.FeatureID + " needs_feedback  # signal you need answers\n" +
+		"    devteam questions list " + req.FeatureID + "          # read answers after resuming\n" +
 		"    devteam feature status " + req.FeatureID + "         # check state\n" +
 		"    devteam stages " + req.FeatureID + "                 # list stages\n" +
-		"    devteam audit " + req.FeatureID + "                  # audit trail\n"
+		"    devteam audit " + req.FeatureID + "                  # audit trail\n\n" +
+		"## Asking Questions\n\n" +
+		"NEVER print questions in your output text. Always use the CLI:\n" +
+		"  1. devteam questions ask to submit questions\n" +
+		"  2. devteam signal needs_feedback to request answers\n" +
+		"  3. WAIT for the pipeline to resume you\n" +
+		"  4. devteam questions list to read the answers\n" +
+		"  5. Use answers to refine artifacts, then signal pass\n"
 	agentsPath := filepath.Join(contextDir, "AGENTS.md")
 	if err := os.WriteFile(agentsPath, []byte(agentsMD), 0644); err != nil {
 		return fmt.Errorf("writing AGENTS.md: %w", err)

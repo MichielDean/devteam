@@ -232,12 +232,65 @@ func (s *Server) dispatchHumanProxy(featureID, phase string) {
 		return
 	}
 
-	// All questions answered — resume the stage
-	log.Printf("dispatchHumanProxy: all questions answered — resuming stage %s for %s", f.CurrentStage, featureID)
+	// All questions answered — resume the existing tmux session.
+	// The stage agent was waiting for needs_feedback. Send "continue" to
+	// the same tmux session so it reads the answers and finishes the artifacts.
+	// Do NOT re-dispatch from scratch — the agent already has context.
+	log.Printf("dispatchHumanProxy: all questions answered — resuming existing session for %s", featureID)
+
+	// Find the stage's tmux session
+	stageDef2, _ := s.db.GetStageDefinition(f.CurrentStage)
+	if stageDef2 == nil {
+		log.Printf("dispatchHumanProxy: could not find stage def for %s", f.CurrentStage)
+		return
+	}
+
+	tmuxMgr2 := s.pipeline.Dispatcher().TmuxManager()
+	boltNumber2 := 0
+	if stageDef2.Phase == "construction" && f.CurrentBolt > 0 {
+		boltNumber2 = f.CurrentBolt
+	}
+	var resumeSessionName string
+	if boltNumber2 > 0 {
+		resumeSessionName = tmuxMgr2.SessionNameForBolt(featureID, boltNumber2)
+	} else {
+		resumeSessionName = tmuxMgr2.SessionNameForPhase(featureID, stageDef2.Phase)
+	}
+
+	if !tmuxMgr2.IsSessionAlive(resumeSessionName) {
+		// Session died — fall back to fresh dispatch
+		log.Printf("dispatchHumanProxy: session %s is dead — falling back to fresh dispatch", resumeSessionName)
+		if !s.isFeatureActive(featureID) {
+			s.markFeatureActive(featureID)
+			go s.runStageAsync(context.Background(), featureID, f.CurrentStage)
+		}
+		return
+	}
+
+	// Session is alive — send "continue" and poll for exit
 	if !s.isFeatureActive(featureID) {
 		s.markFeatureActive(featureID)
-		go s.runStageAsync(context.Background(), featureID, f.CurrentStage)
 	}
+	go func() {
+		defer s.unmarkFeatureActive(featureID)
+		log.Printf("dispatchHumanProxy: sending continue to session %s", resumeSessionName)
+		exec.Command("tmux", "send-keys", "-t", resumeSessionName,
+			"The user has answered your questions. Run 'devteam questions list "+featureID+"' to see the answers, then continue with your task and signal pass when done.", "Enter").Run()
+
+		// Poll for session exit
+		for i := 0; i < 600; i++ {
+			if !tmuxMgr2.IsSessionAlive(resumeSessionName) {
+				break
+			}
+			time.Sleep(5 * time.Second)
+		}
+		if tmuxMgr2.IsSessionAlive(resumeSessionName) {
+			tmuxMgr2.KillSession(resumeSessionName)
+		}
+
+		// Process the outcome via the state machine
+		s.recoverStage(featureID, f.CurrentStage)
+	}()
 }
 
 func minimalTmuxEnvForProxy() []string {
