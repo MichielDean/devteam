@@ -40,7 +40,7 @@ func TestResolveProvider_DefaultSafeWhenNilConfig(t *testing.T) {
 
 func TestResolveProvider_MappedTierResolves(t *testing.T) {
 	cfg := &config.Config{
-		Providers: config.ProviderList{
+		Providers: config.YAMLProviderList{
 			{Name: "ollama", BaseURL: "http://localhost:11434/v1", Model: "glm-5.2:cloud", Adapter: "openai", Tiers: []string{"opus", "sonnet"}},
 			{Name: "openai", BaseURL: "https://api.openai.com/v1", APIKeyEnv: "OPENAI_API_KEY", Model: "gpt-4o", Adapter: "openai", Tiers: []string{"opus"}},
 			{Name: "anthropic", BaseURL: "https://api.anthropic.com/v1", APIKeyEnv: "ANTHROPIC_API_KEY", Model: "claude-3-5-sonnet-20241022", Adapter: "anthropic", Tiers: []string{"sonnet"}},
@@ -56,7 +56,7 @@ func TestResolveProvider_MappedTierResolves(t *testing.T) {
 	}
 	// A different config order: openai listed first for opus → openai
 	cfg2 := &config.Config{
-		Providers: config.ProviderList{
+		Providers: config.YAMLProviderList{
 			{Name: "openai", BaseURL: "https://api.openai.com/v1", APIKeyEnv: "OPENAI_API_KEY", Model: "gpt-4o", Adapter: "openai", Tiers: []string{"opus"}},
 			{Name: "ollama", BaseURL: "http://localhost:11434/v1", Model: "glm-5.2:cloud", Adapter: "openai", Tiers: []string{"opus", "sonnet"}},
 		},
@@ -72,7 +72,7 @@ func TestResolveProvider_MappedTierResolves(t *testing.T) {
 
 func TestResolveProvider_UnmappedTierFallsBackToDefault(t *testing.T) {
 	cfg := &config.Config{
-		Providers: config.ProviderList{
+		Providers: config.YAMLProviderList{
 			{Name: "openai", BaseURL: "https://api.openai.com/v1", Model: "gpt-4o", Adapter: "openai", Tiers: []string{"opus"}},
 		},
 	}
@@ -88,7 +88,7 @@ func TestResolveProvider_UnmappedTierFallsBackToDefault(t *testing.T) {
 
 func TestResolveProvider_ByName(t *testing.T) {
 	cfg := &config.Config{
-		Providers: config.ProviderList{
+		Providers: config.YAMLProviderList{
 			{Name: "ollama", BaseURL: "http://localhost:11434/v1", Model: "glm-5.2:cloud", Adapter: "openai"},
 			{Name: "openai", BaseURL: "https://api.openai.com/v1", Model: "gpt-4o", Adapter: "openai"},
 		},
@@ -141,7 +141,7 @@ func TestBuildOpencodeJSON_DefaultSafeSingleOllama(t *testing.T) {
 }
 
 func TestBuildOpencodeJSON_EmitsAllConfiguredProviders(t *testing.T) {
-	providers := config.ProviderList{
+	providers := config.YAMLProviderList{
 		{Name: "ollama", BaseURL: "http://localhost:11434/v1", Model: "glm-5.2:cloud", Adapter: "openai", Tiers: []string{"opus", "sonnet"}},
 		{Name: "openai", BaseURL: "https://api.openai.com/v1", APIKeyEnv: "OPENAI_API_KEY", Model: "gpt-4o", Adapter: "openai", Tiers: []string{"opus"}},
 		{Name: "anthropic", BaseURL: "https://api.anthropic.com/v1", APIKeyEnv: "ANTHROPIC_API_KEY", Model: "claude-3-5-sonnet-20241022", Adapter: "anthropic", Tiers: []string{"sonnet"}},
@@ -181,7 +181,7 @@ func TestBuildOpencodeJSON_EmitsAllConfiguredProviders(t *testing.T) {
 // This is the test that catches R4 divergence. It simulates calling BuildOpencodeJSON
 // from tmux.go and from agent_handlers.go with the same config — the bytes match.
 func TestBuildOpencodeJSON_LockstepBothSitesIdentical(t *testing.T) {
-	providers := config.ProviderList{
+	providers := config.YAMLProviderList{
 		{Name: "ollama", BaseURL: "http://localhost:11434/v1", Model: "glm-5.2:cloud", Adapter: "openai"},
 		{Name: "openai", BaseURL: "https://api.openai.com/v1", Model: "gpt-4o", Adapter: "openai"},
 	}
@@ -197,7 +197,7 @@ func TestBuildOpencodeJSON_LockstepBothSitesIdentical(t *testing.T) {
 // config entry. Verify the builder handles an unknown adapter gracefully
 // (falls back to openai-compatible).
 func TestBuildOpencodeJSON_UnknownAdapterFallsBack(t *testing.T) {
-	providers := config.ProviderList{
+	providers := config.YAMLProviderList{
 		{Name: "future", BaseURL: "https://x/v1", Model: "m1", Adapter: "google"},
 	}
 	out, err := BuildOpencodeJSON(OpencodeConfigInput{Model: "future/m1", Providers: providers})

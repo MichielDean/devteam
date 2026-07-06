@@ -9,6 +9,7 @@ const TmuxPaneViewer = lazy(() => import('./components/TmuxPaneViewer'));
 const KnowledgePage = lazy(() => import('./pages/KnowledgePage'));
 const Chat = lazy(() => import('./pages/Chat'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const AdminProvidersPage = lazy(() => import('./pages/AdminProvidersPage'));
 
 const loadingStyle: React.CSSProperties = { color: 'var(--color-text-tertiary)' };
 
@@ -73,6 +74,13 @@ export default function App() {
           <Route path="/admin" element={
             <Suspense fallback={<div className="text-center py-12" style={loadingStyle}>Loading...</div>}>
               <AdminPage />
+            </Suspense>
+          } />
+          <Route path="/admin/providers" element={
+            <Suspense fallback={<div className="text-center py-12" style={loadingStyle}>Loading...</div>}>
+              <AdminProvidersPage />
+            </Suspense>
+          } />
             </Suspense>
           } />
         </Routes>

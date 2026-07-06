@@ -122,6 +122,13 @@ const (
 	EventSessionStart     = "session_start"
 	EventSessionEnd       = "session_end"
 	EventLivenessKill     = "liveness_kill"
+
+	// Config mutation events — platform-global audit (feature_id="__platform__").
+	// Recorded via RecordAuditEvent so they land in audit_events (the table the
+	// stage UI reads), satisfying the feature_id FK via the sentinel __platform__
+	// row seeded in migration 017. See iac-designs §5 and architecture-review 3.4.
+	EventProviderConfigMutated = "provider_config_mutated"
+	EventTierConfigMutated     = "tier_config_mutated"
 )
 
 // RecordEvent inserts an event into the audit trail.

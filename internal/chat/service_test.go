@@ -44,7 +44,7 @@ func TestService_ListProviders_DefaultSafe(t *testing.T) {
 func TestService_ListProviders_ConfiguredNoKeys(t *testing.T) {
 	d := openChatTestDB(t)
 	cfg := &config.Config{
-		Providers: config.ProviderList{
+		Providers: config.YAMLProviderList{
 			{Name: "ollama", BaseURL: "http://localhost:11434/v1", Model: "glm-5.2:cloud", Adapter: "openai"},
 			{Name: "openai", BaseURL: "https://api.openai.com/v1", APIKeyEnv: "OPENAI_API_KEY", Model: "gpt-4o", Adapter: "openai"},
 		},
