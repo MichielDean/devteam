@@ -33,6 +33,12 @@ type Pipeline struct {
 	repoManager    *repo.Manager
 	database       *db.DB
 	sessionMgr     *SessionManager
+	// Provider resolution layer (multi-provider-llm-configuration). Wired in
+	// SetDatabase. If database is nil these are nil and ResolveProviderForRole
+	// returns (nil, nil) → legacy ollama fallback (FR-006 backward compat).
+	providerStore *config.ProviderStore
+	tierStore     *config.TierStore
+	configMerger  *config.ConfigMerger
 }
 
 func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline {
@@ -53,6 +59,12 @@ func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline 
 func (p *Pipeline) SetDatabase(database *db.DB) {
 	p.database = database
 	p.sessionMgr = NewSessionManager(database, p.dispatcher)
+	// Wire the provider resolution layer (multi-provider-llm-configuration feature).
+	// The stores are DB-backed; if the DB is nil (CLI mode without DB), resolution
+	// returns nil,nil and dispatch falls back to the legacy ollama config (FR-006).
+	p.providerStore = config.NewProviderStore(database)
+	p.tierStore = config.NewTierStore(database)
+	p.configMerger = config.NewConfigMerger(p.providerStore)
 }
 
 func (p *Pipeline) SetQuestionStore(qs feature.QuestionStore) {
@@ -70,6 +82,41 @@ func (p *Pipeline) Database() *db.DB {
 // SessionMgr returns the session manager for tmux session lifecycle management.
 func (p *Pipeline) SessionMgr() *SessionManager {
 	return p.sessionMgr
+}
+
+// ResolveProviderForRole resolves the LLM provider+model for a dispatch.
+// Returns (rp, nil) on success, (nil, nil) when no provider is configured
+// (FR-006: opencode default / legacy ollama fallback), or (nil, err) on a
+// resolution failure (e.g. missing API key env var). The caller (stage_runner)
+// sets req.Provider = rp when rp != nil; when rp == nil the dispatch falls back
+// to the legacy hardcoded ollama config (backward compat).
+//
+// Traces U-CFG-01, U-DISP. See business-logic-model §3.2, app-design §5.
+func (p *Pipeline) ResolveProviderForRole(roleName string) (*config.ResolvedProvider, error) {
+	if p.configMerger == nil || p.providerStore == nil {
+		// No DB wired (CLI mode without DB) → legacy fallback.
+		return nil, nil
+	}
+	providers := p.configMerger.MergeProviders(nil)
+	if len(providers) == 0 {
+		return nil, nil
+	}
+	var overrides map[string]config.RoleOverride
+	if p.tierStore != nil {
+		overrides, _ = p.tierStore.RoleOverrides()
+	}
+	if overrides == nil {
+		overrides = map[string]config.RoleOverride{}
+	}
+	// roleLoader reads the role's ModelTier from the agentRoster (role.go).
+	roleLoader := func(r string) (string, error) {
+		rd, err := p.roleLoader.Load(r)
+		if err != nil {
+			return "", err
+		}
+		return rd.ModelTier, nil
+	}
+	return config.ResolveProvider(roleName, providers, overrides, p.tierStore, roleLoader)
 }
 
 func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecProvider, dispatcher *role.Dispatcher) *Pipeline {

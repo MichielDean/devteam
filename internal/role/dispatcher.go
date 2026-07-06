@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/MichielDean/devteam/internal/config"
 )
 
 type DispatchRequest struct {
@@ -17,6 +19,11 @@ type DispatchRequest struct {
 	WorkingDir  string
 	SessionName string // tmux session name — if set, reuse existing session; if empty, derive from feature+phase
 	ContextDir  string // persistent context dir — if set, use it; if empty, derive from feature+phase
+	// Provider is the resolved LLM provider for this dispatch. If nil, the
+	// opencode.json falls back to the legacy hardcoded ollama config (backward
+	// compat for tests / unconfigured deployments). Set by the pipeline via
+	// config.ResolveProvider before dispatch. See U-DISP, business-logic-model §3.3.
+	Provider *config.ResolvedProvider
 }
 
 type DispatchResult struct {
@@ -115,7 +122,17 @@ func buildAgentMD(req DispatchRequest) string {
 	b.WriteString("---\n")
 	b.WriteString("description: Dev Team " + req.Role + " role for feature " + req.FeatureID + "\n")
 	b.WriteString("mode: primary\n")
-	b.WriteString("model: ollama/glm-5.2:cloud\n")
+	// Model: use the resolved provider's model when set; otherwise fall back to the
+	// legacy ollama default (backward compat for unconfigured deployments).
+	modelLine := "ollama/glm-5.2:cloud"
+	if req.Provider != nil && req.Provider.Model != "" {
+		// opencode model format is "<provider>/<model>". The provider name is the
+		// opencode provider key (the npm adapter block key in opencode.json), which
+		// for all MVP providers is the providers.name value (anthropic, ollama-cloud, ...).
+		// The buildOpencodeJSON function writes the provider block keyed by the same name.
+		modelLine = opencodeModelID(req.Provider)
+	}
+	b.WriteString("model: " + modelLine + "\n")
 	b.WriteString("---\n\n")
 	b.WriteString(fmt.Sprintf("You are the %s role in the Dev Team AIDLC v2 pipeline.\n", req.Role))
 	b.WriteString(fmt.Sprintf("Feature: %s\n", req.FeatureID))

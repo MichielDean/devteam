@@ -7,6 +7,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// init wires the package-level env getter to os.Getenv. Tests may override
+// osGetenv (defined in types.go) to inject controlled env-var values.
+func init() {
+	osGetenv = os.Getenv
+}
+
 type Config struct {
 	Version    string                     `yaml:"version"`
 	Pipeline   PipelineConfig             `yaml:"pipeline"`

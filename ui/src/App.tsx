@@ -7,6 +7,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 
 const TmuxPaneViewer = lazy(() => import('./components/TmuxPaneViewer'));
 const KnowledgePage = lazy(() => import('./pages/KnowledgePage'));
+const AdminProvidersPage = lazy(() => import('./pages/AdminProvidersPage'));
 
 const loadingStyle: React.CSSProperties = { color: 'var(--color-text-tertiary)' };
 
@@ -27,6 +28,12 @@ export default function App() {
               className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] rounded-[var(--radius-md)] transition-colors"
             >
               Knowledge
+            </Link>
+            <Link
+              to="/admin/providers"
+              className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] rounded-[var(--radius-md)] transition-colors"
+            >
+              Admin
             </Link>
             <ThemeToggle />
           </nav>
@@ -49,6 +56,11 @@ export default function App() {
           <Route path="/knowledge" element={
             <Suspense fallback={<div className="text-center py-12" style={loadingStyle}>Loading...</div>}>
               <KnowledgePage />
+            </Suspense>
+          } />
+          <Route path="/admin/providers" element={
+            <Suspense fallback={<div className="text-center py-12" style={loadingStyle}>Loading...</div>}>
+              <AdminProvidersPage />
             </Suspense>
           } />
         </Routes>

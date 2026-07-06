@@ -444,3 +444,113 @@ export const AGENT_LABELS: Record<string, string> = {
   'product-lead': 'Product Lead (Reviewer)',
   'architecture-reviewer': 'Architecture Reviewer',
 };
+
+// ─── Provider Config (multi-provider-llm-configuration) ───
+
+export interface ProviderModelDTO {
+  model_id: string;
+  friendly_name: string;
+}
+
+export interface ProviderConfigDTO {
+  name: string;
+  display_name: string;
+  enabled: boolean;
+  base_url: string;
+  api_key_env: string; // "$VAR" reference or "" (never the raw key)
+  key_state: 'set' | 'not_set' | 'not_required';
+  default_model_id: string;
+  npm_adapter: string;
+  env_var_supported: boolean;
+  preset_id: string;
+  models: ProviderModelDTO[];
+}
+
+export interface ProvidersResponse {
+  providers: ProviderConfigDTO[];
+}
+
+export interface ProviderRequest {
+  name: string;
+  display_name: string;
+  enabled: boolean;
+  base_url: string;
+  api_key_env: string;
+  default_model_id: string;
+  npm_adapter?: string;
+  env_var_supported?: boolean;
+  preset_id?: string;
+  models: ProviderModelDTO[];
+}
+
+// Tier assignment
+export interface TierAssignment {
+  provider: string;
+  model_id: string;
+  provider_enabled: boolean;
+}
+
+export interface TierEntry {
+  tier: string;
+  assignments: TierAssignment[];
+  resolved?: TierAssignment;
+}
+
+export interface StaleAssignment {
+  provider: string;
+  model_id: string;
+  provider_enabled: boolean;
+}
+
+export interface TiersResponse {
+  tiers: TierEntry[];
+  stale_assignments: StaleAssignment[];
+}
+
+export interface TierRequest {
+  tier: string;
+  provider: string;
+  model_id: string;
+}
+
+// Role overrides
+export interface RoleOverrideDTO {
+  role: string;
+  provider: string;
+  model_id: string;
+}
+
+export interface RoleOverridesResponse {
+  role_overrides: RoleOverrideDTO[];
+}
+
+export interface RoleOverrideRequest {
+  role: string;
+  provider: string; // "" removes the override (FR-007 c)
+  model_id: string;
+}
+
+// Preset list for the Add Provider modal
+export const PRESETS = [
+  { id: 'anthropic', label: 'Anthropic', base_url: 'https://api.anthropic.com/v1', api_key_env: '$ANTHROPIC_API_KEY', default_model_id: 'claude-opus-4' },
+  { id: 'ollama-cloud', label: 'Ollama Cloud', base_url: '', api_key_env: '$OLLAMA_API_KEY', default_model_id: 'glm-5.2:cloud' },
+  { id: 'openai', label: 'OpenAI', base_url: 'https://api.openai.com/v1', api_key_env: '$OPENAI_API_KEY', default_model_id: 'gpt-4o' },
+  { id: 'copilot', label: 'GitHub Copilot', base_url: '', api_key_env: '', default_model_id: '', env_var_supported: false },
+  { id: 'custom', label: 'Custom', base_url: '', api_key_env: '', default_model_id: '' },
+] as const;
+
+// Agent roster tiers (matches internal/role/role.go agentRoster)
+export const AGENT_TIERS: Record<string, string> = {
+  product: 'opus',
+  design: 'opus',
+  delivery: 'sonnet',
+  architect: 'opus',
+  platform: 'opus',
+  devsecops: 'opus',
+  developer: 'opus',
+  quality: 'opus',
+  'pipeline-deploy': 'sonnet',
+  operations: 'sonnet',
+  'product-lead': 'sonnet',
+  'architecture-reviewer': 'sonnet',
+};

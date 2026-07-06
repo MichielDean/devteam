@@ -188,6 +188,17 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		ContextDir:  p.resolveContextDir(f, stageDef),
 	}
 
+	// Resolve the LLM provider for this role (multi-provider-llm-configuration).
+	// On success, req.Provider is set and the dispatch uses the resolved provider's
+	// model + key. On (nil, nil) the dispatch falls back to legacy ollama (FR-006).
+	// On error (e.g. missing API key), log and fall back to legacy — the agent will
+	// fail at runtime with a clear provider error; the pipeline does not block.
+	resolvedProvider, rpErr := p.ResolveProviderForRole(stageDef.LeadAgent)
+	if rpErr != nil {
+		log.Printf("RunStage: provider resolution failed for %s: %v (falling back to legacy)", stageDef.LeadAgent, rpErr)
+	}
+	req.Provider = resolvedProvider
+
 	log.Printf("RunStage: dispatching agent %s for stage %s (session=%s)", stageDef.LeadAgent, stageID, req.SessionName)
 	result, err := p.dispatcher.DispatchStreaming(ctx, req, lineCh)
 	close(lineCh)
@@ -346,6 +357,13 @@ func (p *Pipeline) dispatchReviewer(ctx context.Context, f *feature.Feature, sta
 		Context:    reviewContext,
 		WorkingDir: p.WorktreeDir(f),
 	}
+
+	// Resolve the reviewer's LLM provider (same path as the stage agent).
+	reviewerProvider, rpErr := p.ResolveProviderForRole(reviewerName)
+	if rpErr != nil {
+		log.Printf("RunStage: reviewer provider resolution failed for %s: %v (falling back to legacy)", reviewerName, rpErr)
+	}
+	req.Provider = reviewerProvider
 
 	reviewResult, err := p.dispatcher.DispatchStreaming(ctx, req, lineCh)
 	close(lineCh)

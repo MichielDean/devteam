@@ -165,6 +165,12 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 			{"LOBSTERDOG_HOME", ""},
 			{"AGENTS_MD_PATH", ""},
 		}
+		// Inject the resolved provider's API key env var (e.g. ANTHROPIC_API_KEY=sk-...)
+		// so provider SDKs reading the env var pick it up. The value lives only in the
+		// tmux session env (never logged as a tmux arg that would surface in process lists
+		// — it's passed via -e which tmux stores in the session, not in the command line).
+		// See NFR-SEC-01, 3.3 review F-03 (no redaction layer; kept out of logs by construction).
+		envPairs = append(envPairs, buildAgentEnvPairs(req)...)
 		for _, e := range envPairs {
 			args = append(args, "-e", e.k+"="+e.v)
 		}
@@ -441,35 +447,12 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 	// Write self-contained opencode config — fully isolated from global harness.
 	// Config files are MERGED by opencode, so we must explicitly override
 	// everything from the global config that we don't want (plugins, agents, mcp, instructions).
-	opencodeConfig := `{
-  "$schema": "https://opencode.ai/config.json",
-  "model": "ollama/glm-5.2:cloud",
-  "permission": "allow",
-  "instructions": [],
-  "plugin": [],
-  "compaction": {
-    "enabled": false
-  },
-  "snapshot": false,
-  "mcp": {},
-  "agent": {},
-  "provider": {
-    "ollama": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Ollama (local)",
-      "options": {
-        "baseURL": "http://localhost:11434/v1"
-      },
-      "models": {
-        "glm-5.2:cloud": {
-          "name": "GLM 5.2 Cloud"
-        }
-      }
-    }
-  }
-}`
+	// Mode 0600 because the file may carry a resolved API key value (NFR-SEC-01,
+	// 3.3 review F-05). The buildOpencodeJSON function consolidates the provider
+	// block (replaces the 3 hardcoded ollama blocks).
+	opencodeConfig := buildOpencodeJSON(req)
 	configPath := filepath.Join(contextDir, "opencode.json")
-	if err := os.WriteFile(configPath, []byte(opencodeConfig), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(opencodeConfig), 0600); err != nil {
 		return fmt.Errorf("writing opencode.json: %w", err)
 	}
 

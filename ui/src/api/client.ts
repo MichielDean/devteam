@@ -21,6 +21,7 @@ import type {
   SaveKnowledgeRequest,
   ErrorResponse,
   TmuxSession,
+  ProviderConfigDTO,
 } from '../types';
 
 export const API_BASE = '/api';
@@ -307,4 +308,48 @@ export interface AvailableRepo {
 
 export async function listRepos(): Promise<AvailableRepo[]> {
   return request<AvailableRepo[]>('/repos');
+}
+
+// ─── Provider Config (multi-provider-llm-configuration) ───
+
+import type {
+  ProvidersResponse,
+  ProviderRequest,
+  TiersResponse,
+  TierRequest,
+  RoleOverridesResponse,
+  RoleOverrideRequest,
+} from '../types';
+
+export async function getConfigProviders(): Promise<ProvidersResponse> {
+  return request<ProvidersResponse>('/config/providers');
+}
+
+export async function putConfigProvider(req: ProviderRequest): Promise<ProviderConfigDTO> {
+  return request<ProviderConfigDTO>('/config/providers', {
+    method: 'PUT',
+    body: JSON.stringify(req),
+  });
+}
+
+export async function getConfigTiers(): Promise<TiersResponse> {
+  return request<TiersResponse>('/config/tiers');
+}
+
+export async function putConfigTier(req: TierRequest): Promise<{ status: string }> {
+  return request<{ status: string }>('/config/tiers', {
+    method: 'PUT',
+    body: JSON.stringify(req),
+  });
+}
+
+export async function getConfigRoleOverrides(): Promise<RoleOverridesResponse> {
+  return request<RoleOverridesResponse>('/config/role-overrides');
+}
+
+export async function putConfigRoleOverride(req: RoleOverrideRequest): Promise<{ status: string }> {
+  return request<{ status: string }>('/config/role-overrides', {
+    method: 'PUT',
+    body: JSON.stringify(req),
+  });
 }

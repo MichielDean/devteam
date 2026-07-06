@@ -7,9 +7,13 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/MichielDean/devteam/internal/api"
 	"github.com/MichielDean/devteam/internal/config"
@@ -90,8 +94,28 @@ func main() {
 		server := api.NewServer(*httpAddr, specProvider, p, staticFS, questionStore, database)
 		server.RestoreActiveProcesses()
 
-		fmt.Printf("Dev Team Web UI starting on %s\n", *httpAddr)
-		if err := server.Start(); err != nil {
+		// Graceful shutdown on SIGTERM/SIGINT (construction prerequisite, iac-designs
+		// §5 item 4 / infra-specs §6.2). Gives in-flight requests 30s to drain before
+		// the process exits; systemd's TimeoutStopSec=35 provides 5s margin.
+		shutdownErrCh := make(chan error, 1)
+		go func() {
+			fmt.Printf("Dev Team Web UI starting on %s\n", *httpAddr)
+			if err := server.Start(); err != nil && err != http.ErrServerClosed {
+				shutdownErrCh <- err
+			}
+		}()
+
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+		select {
+		case <-sigCh:
+			fmt.Println("\nreceived shutdown signal, draining...")
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			server.Shutdown(ctx)
+			database.Close()
+			fmt.Println("shutdown complete")
+		case err := <-shutdownErrCh:
 			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 			os.Exit(1)
 		}
