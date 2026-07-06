@@ -57,7 +57,7 @@ function groupByPhase(stages: FeatureStage[], bolts: Bolt[]): Record<string, (Fe
 }
 
 function isBolt(item: FeatureStage | Bolt): item is Bolt {
-  return 'bolt_number' in item;
+  return 'is_walking_skeleton' in item;
 }
 
 export default function StageRail({ stages, currentStageId, bolts = [] }: StageRailProps) {
