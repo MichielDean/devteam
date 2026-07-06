@@ -271,9 +271,28 @@ func (p *Pipeline) RunBolt(ctx context.Context, f *feature.Feature, boltNumber i
 		}
 		stageResults = append(stageResults, stageResult)
 
-		// If gate is open (awaiting approval), stop and return
+		// If gate is open, auto-approve in autonomous/guided mode; pause in human mode.
 		if stageResult.Gate != nil && stageResult.Gate.IsOpen() {
-			log.Printf("RunBolt: stage %s opened gate — pausing bolt %d", stageID, boltNumber)
+			mode := f.ExecutionMode
+			if mode == "" {
+				mode = ExecutionHuman
+			}
+			if mode == ExecutionAutonomous || mode == ExecutionGuided {
+				// Auto-approve per-bolt stages — the batch-level gate (if any)
+				// is handled by presentBatchGate in RunAllBolts.
+				log.Printf("RunBolt: auto-approving stage %s bolt %d (%s mode)", stageID, boltNumber, mode)
+				if _, err := p.ApproveStage(f, stageID, boltNumber); err != nil {
+					log.Printf("RunBolt: auto-approve failed for %s bolt %d: %v — pausing", stageID, boltNumber, err)
+					p.database.UpdateBoltStatus(f.ID, boltNumber, "pending")
+					result.StageResults = stageResults
+					result.Duration = time.Since(now)
+					return result, nil
+				}
+				// Gate approved — continue to next stage in the bolt
+				continue
+			}
+			// Human mode — pause for manual approval
+			log.Printf("RunBolt: stage %s opened gate — pausing bolt %d (human mode)", stageID, boltNumber)
 			p.database.UpdateBoltStatus(f.ID, boltNumber, "pending")
 			result.StageResults = stageResults
 			result.Duration = time.Since(now)
