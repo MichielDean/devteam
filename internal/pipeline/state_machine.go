@@ -89,15 +89,30 @@ func (p *Pipeline) ProcessStageResult(f *feature.Feature, stageID string, result
 	return OutcomeNeedsReview
 }
 
-// NextStageToRun finds the next not_started stage for a feature.
+// NextStageToRun finds the next not_started stage for a feature,
+// skipping any stages that are not in the feature's scope.
+// Marks skipped stages as skipped in the DB and records audit events.
 // Returns empty string if no more stages exist.
 func (p *Pipeline) NextStageToRun(featureID string) string {
 	stages, err := p.database.GetFeatureStages(featureID)
 	if err != nil {
 		return ""
 	}
+	scope := ""
+	if f, err := p.GetFeature(featureID); err == nil {
+		scope = f.Scope
+	}
 	for _, s := range stages {
 		if s.Status == stage.StatusNotStarted {
+			// Check if this stage should be skipped based on scope
+			stageDef, _ := p.database.GetStageDefinition(s.StageID)
+			if stageDef != nil && p.ShouldSkipStage(&feature.Feature{Scope: scope}, *stageDef) {
+				now := time.Now()
+				p.database.UpdateFeatureStage(featureID, s.StageID, stage.StatusSkipped, 0, &now, nil)
+				p.database.RecordAuditEvent(featureID, db.AuditStageSkipped, s.StageID, stageDef.Phase, fmt.Sprintf("not in scope %q", scope))
+				p.broadcastSSE(featureID, "stage_skipped", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(s.StageID)))
+				continue // skip this stage, check the next one
+			}
 			return s.StageID
 		}
 	}

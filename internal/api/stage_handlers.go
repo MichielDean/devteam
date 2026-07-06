@@ -892,27 +892,6 @@ func (s *Server) runStageAsync(ctx context.Context, featureID, stageID string) {
 			return
 		}
 
-		// Check if this stage should be skipped based on scope
-		stageDef, _ := s.db.GetStageDefinition(stageID)
-		if stageDef != nil && s.pipeline.ShouldSkipStage(f, *stageDef) {
-			log.Printf("runStageAsync: skipping stage %s (not in scope %q)", stageID, f.Scope)
-			fs, _ := s.db.GetFeatureStage(featureID, stageID)
-			if fs != nil {
-				now := time.Now()
-				s.db.UpdateFeatureStage(featureID, stageID, stage.StatusSkipped, 0, &now, nil)
-				s.db.RecordAuditEvent(featureID, db.AuditStageSkipped, stageID, stageDef.Phase, fmt.Sprintf("not in scope %q", f.Scope))
-				s.broadcastSSE(featureID, "stage_skipped", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
-			}
-			// Find next stage
-			nextStageID := s.pipeline.NextStageToRun(featureID)
-			if nextStageID == "" {
-				log.Printf("runStageAsync: no more stages for feature %s — complete", featureID)
-				return
-			}
-			stageID = nextStageID
-			continue
-		}
-
 		// Run the stage
 		log.Printf("runStageAsync: running stage %s for feature %s (mode=%s)", stageID, featureID, f.ExecutionMode)
 		result, err := s.pipeline.RunStage(ctx, f, stageID, func(line string, isStderr bool) {

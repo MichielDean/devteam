@@ -497,10 +497,13 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 	nextStage := stages[currentIdx+1]
 	oldStageDef := &stages[currentIdx]
 
-	// Check condition — skip stages that don't apply
+	// Skip stages not in scope — NextStageToRun handles this,
+	// but AdvanceStage also needs to skip here for manual approval flow.
 	for p.ShouldSkipStage(f, nextStage) {
-		p.database.UpdateFeatureStage(f.ID, nextStage.ID, stage.StatusSkipped, 0, nil, nil)
-		p.database.RecordAuditEvent(f.ID, db.AuditStageSkipped, nextStage.ID, nextStage.Phase, nextStage.Condition)
+		now := time.Now()
+		p.database.UpdateFeatureStage(f.ID, nextStage.ID, stage.StatusSkipped, 0, &now, nil)
+		p.database.RecordAuditEvent(f.ID, db.AuditStageSkipped, nextStage.ID, nextStage.Phase, fmt.Sprintf("not in scope %q", f.Scope))
+		p.broadcastSSE(f.ID, "stage_skipped", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(nextStage.ID)))
 		currentIdx++
 		if currentIdx >= len(stages)-1 {
 			log.Printf("AdvanceStage: reached end after skipping stages for feature %s", f.ID)
