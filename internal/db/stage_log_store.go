@@ -2,8 +2,15 @@ package db
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
+
+// sanitizeForPostgres removes bytes that cause Postgres UTF-8 encoding errors
+// (notably null bytes 0x00 which tmux/terminal output can contain).
+func sanitizeForPostgres(s string) string {
+	return strings.ReplaceAll(s, "\x00", "")
+}
 
 // SaveStageLog upserts the agent output log for a specific stage at
 // bolt_number=0 (non-construction stages). For per-Bolt construction stages
@@ -14,8 +21,11 @@ func (db *DB) SaveStageLog(featureID, stageID, agentRole, content string) error 
 
 // SaveStageLogForBolt upserts the agent output log for a specific stage at a
 // specific bolt_number. Use bolt_number=0 for non-construction stages.
+// Null bytes and other invalid UTF-8 sequences are stripped to prevent
+// Postgres encoding errors (pq: invalid byte sequence for encoding "UTF8").
 func (db *DB) SaveStageLogForBolt(featureID, stageID string, boltNumber int, agentRole, content string) error {
 	now := time.Now().UTC()
+	content = sanitizeForPostgres(content)
 	_, err := db.Exec(
 		`INSERT INTO stage_logs (feature_id, stage_id, bolt_number, agent_role, content, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -38,6 +48,7 @@ func (db *DB) AppendStageLog(featureID, stageID, agentRole, content string) erro
 // bolt_number (or creates it). Use bolt_number=0 for non-construction stages.
 func (db *DB) AppendStageLogForBolt(featureID, stageID string, boltNumber int, agentRole, content string) error {
 	now := time.Now().UTC()
+	content = sanitizeForPostgres(content)
 	_, err := db.Exec(
 		`INSERT INTO stage_logs (feature_id, stage_id, bolt_number, agent_role, content, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)

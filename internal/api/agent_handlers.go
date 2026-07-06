@@ -200,6 +200,13 @@ func (s *Server) dispatchHumanProxy(featureID, phase string) {
 	logPath := filepath.Join(contextDir, "logs")
 	os.MkdirAll(logPath, 0755)
 
+	// Kill any existing proxy session for this feature (e.g. from a re-trigger)
+	if tmuxMgr.IsSessionAlive(sessionName) {
+		log.Printf("dispatchHumanProxy: killing existing proxy session %s before re-creating", sessionName)
+		tmuxMgr.KillSession(sessionName)
+		time.Sleep(500 * time.Millisecond)
+	}
+
 	// Create tmux session
 	args := []string{"new-session", "-d", "-s", sessionName, "-c", contextDir}
 	home := os.Getenv("HOME")
