@@ -88,7 +88,12 @@ jobs:
         # Scoped to the packages the feature extends. A full `go vet ./...`
         # surfaces pre-existing unkeyed-field warnings in internal/stage
         # that predate this feature and are out of scope to fix here.
-        run: go vet ./internal/db/... ./internal/api/...
+        # Widened for settings-and-admin-ui to cover the feature's new +
+        # extended packages (internal/repos, internal/settings,
+        # internal/opencode, internal/config write path). These are net-new
+        # or extended under this feature and should vet clean; if they don't,
+        # the fix is to the code, not the gate.
+        run: go vet ./internal/db/... ./internal/api/... ./internal/repos/... ./internal/settings/... ./internal/opencode/... ./internal/config/...
 
       - name: Unit tests — db + api packages (Bolt gate)
         # The load-bearing gate command from P7. Runs the two packages the
