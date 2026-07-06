@@ -646,48 +646,45 @@ func (s *Server) updateArtifact(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
-// getStageLog returns the agent output log for a specific stage from the DB.
+// getStageLog returns the agent output log for a specific stage.
+// During active dispatch, reads from the log file (being actively written).
+// After dispatch completes, reads from the DB (saved by RunStage).
 func (s *Server) getStageLog(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	stageID := r.PathValue("stageId")
 
-	if s.db == nil {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusNoContent)
-		return
+	// Always try the file first — it's live during dispatch and has the freshest content
+	base := os.Getenv("XDG_DATA_HOME")
+	if base == "" {
+		home, _ := os.UserHomeDir()
+		base = filepath.Join(home, ".local", "share")
+	}
+	sessionsDir := filepath.Join(base, "devteam", "sessions", id)
+	pattern := filepath.Join(sessionsDir, "*", "logs", stageID+"-*.log")
+	matches, _ := filepath.Glob(pattern)
+
+	if len(matches) > 0 {
+		// Read the most recent matching file
+		data, err := os.ReadFile(matches[0])
+		if err == nil && len(data) > 0 {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write(data)
+			return
+		}
 	}
 
-	content, err := s.db.GetStageLog(id, stageID)
-	if err != nil || content == "" {
-		// Fall back to file-based logs for stages that ran before DB logging
-		base := os.Getenv("XDG_DATA_HOME")
-		if base == "" {
-			home, _ := os.UserHomeDir()
-			base = filepath.Join(home, ".local", "share")
-		}
-		sessionsDir := filepath.Join(base, "devteam", "sessions", id)
-		pattern := filepath.Join(sessionsDir, "*", "logs", stageID+"-*.log")
-		matches, _ := filepath.Glob(pattern)
-		if len(matches) == 0 {
+	// Fall back to DB
+	if s.db != nil {
+		content, err := s.db.GetStageLog(id, stageID)
+		if err == nil && content != "" {
 			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusNoContent)
+			w.Write([]byte(content))
 			return
 		}
-		data, err := os.ReadFile(matches[0])
-		if err != nil {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		// Migrate to DB for future lookups
-		s.db.SaveStageLog(id, stageID, "", string(data))
-		w.Header().Set("Content-Type", "text/plain")
-		w.Write(data)
-		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(content))
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {
