@@ -225,8 +225,8 @@ func TestGetBolts(t *testing.T) {
 	s, _, database := setupStageTestServer(t)
 	fid := insertTestFeature(t, database, "feature", s)
 
-	database.CreateBolt(fid, 1, []string{"unit-1"}, true)
-	database.CreateBolt(fid, 2, []string{"unit-2"}, false)
+	database.CreateBolt(fid, 1, []string{"unit-1"}, nil, true)
+	database.CreateBolt(fid, 2, []string{"unit-2"}, []int{1}, false)
 
 	w := doRequest(t, s, "GET", "/api/features/"+fid+"/bolts", nil)
 	if w.Code != http.StatusOK {
