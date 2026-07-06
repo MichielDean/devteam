@@ -60,7 +60,7 @@ export default function ControlBar({
             >
               <option value="">Select a stage...</option>
               {availableStages.filter((s) => s.status === 'not_started' || s.status === 'skipped').map((s) => (
-                <option key={s.stage_id} value={s.stage_id}>Stage {s.stage_id}</option>
+                <option key={`${s.stage_id}-bolt${(s as { bolt_number?: number }).bolt_number ?? 0}`} value={s.stage_id}>Stage {s.stage_id}{(s as { bolt_number?: number }).bolt_number ? ` · Bolt ${(s as { bolt_number?: number }).bolt_number}` : ''}</option>
               ))}
             </select>
           </div>

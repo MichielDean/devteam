@@ -373,7 +373,7 @@ func handleApprove(baseDir string, cfg *config.Config) {
 	p := pipeline.NewPipeline(cfg, provider)
 	p.SetDatabase(database)
 
-	if _, err := p.ApproveStage(f, stageID); err != nil {
+	if _, err := p.ApproveStage(f, stageID, f.CurrentBolt); err != nil {
 		fmt.Fprintf(os.Stderr, "error approving stage: %v\n", err)
 		os.Exit(1)
 	}
@@ -400,7 +400,7 @@ func handleReject(baseDir string, cfg *config.Config) {
 	p := pipeline.NewPipeline(cfg, provider)
 	p.SetDatabase(database)
 
-	if err := p.RejectStage(f, stageID, notes); err != nil {
+	if err := p.RejectStage(f, stageID, f.CurrentBolt, notes); err != nil {
 		fmt.Fprintf(os.Stderr, "error rejecting stage: %v\n", err)
 		os.Exit(1)
 	}
@@ -593,8 +593,6 @@ func handleBootstrap(baseDir string, cfg *config.Config) {
 	}
 	fmt.Println("\nUse 'devteam run-stage <feature-id> <stage-id>' to run a stage.")
 }
-
-
 
 func truncateError(s string, maxLen int) string {
 	if len(s) <= maxLen {

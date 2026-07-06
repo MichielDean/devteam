@@ -32,9 +32,9 @@ const (
 
 // Execution modes (apply to all phases, not just construction).
 const (
-	ExecutionHuman      = "human"       // Mode 1: every stage started and approved manually
-	ExecutionGuided     = "guided"      // Mode 2: auto-run stages, pause at phase-end review gates
-	ExecutionAutonomous = "autonomous"  // Mode 3: auto-run everything, auto-approve all gates, LLM answers questions
+	ExecutionHuman      = "human"      // Mode 1: every stage started and approved manually
+	ExecutionGuided     = "guided"     // Mode 2: auto-run stages, pause at phase-end review gates
+	ExecutionAutonomous = "autonomous" // Mode 3: auto-run everything, auto-approve all gates, LLM answers questions
 )
 
 // PrepareBolts reads units-of-work and the dependency DAG from inception output
@@ -204,6 +204,19 @@ func (p *Pipeline) RunBolt(ctx context.Context, f *feature.Feature, boltNumber i
 		return nil, fmt.Errorf("bolt %d not found for feature %s", boltNumber, f.ID)
 	}
 
+	// Ensure per-Bolt stage rows exist for this bolt.
+	scope := f.Scope
+	if scope == "" {
+		scope = stage.ScopeFeature
+	}
+	if err := p.database.InitBoltStages(f.ID, boltNumber, scope); err != nil {
+		return nil, fmt.Errorf("init bolt stages for bolt %d: %w", boltNumber, err)
+	}
+
+	// Set CurrentBolt so RunStage resolves the per-Bolt stage row and session.
+	f.CurrentBolt = boltNumber
+	p.saveFeatureState(f)
+
 	now := time.Now()
 	p.database.UpdateBoltStatus(f.ID, boltNumber, "in_progress")
 	p.database.RecordAuditEvent(f.ID, db.AuditBoltStarted, "", stage.PhaseConstruction,
@@ -219,10 +232,10 @@ func (p *Pipeline) RunBolt(ctx context.Context, f *feature.Feature, boltNumber i
 	}
 
 	for _, stageID := range constructionStages {
-		// Check if this stage is already completed — skip it
-		fs, _ := p.database.GetFeatureStage(f.ID, stageID)
+		// Check if this per-Bolt stage is already completed for this bolt — skip it
+		fs, _ := p.database.GetFeatureStageForBolt(f.ID, stageID, boltNumber)
 		if fs != nil && fs.Status == stage.StatusCompleted {
-			log.Printf("RunBolt: skipping stage %s — already completed", stageID)
+			log.Printf("RunBolt: skipping stage %s bolt %d — already completed", stageID, boltNumber)
 			continue
 		}
 
@@ -233,10 +246,6 @@ func (p *Pipeline) RunBolt(ctx context.Context, f *feature.Feature, boltNumber i
 			continue
 		}
 
-		scope := f.Scope
-		if scope == "" {
-			scope = stage.ScopeFeature
-		}
 		scopeMatch := false
 		for _, s := range stageDef.Scopes {
 			if s == scope {
@@ -413,7 +422,12 @@ func (p *Pipeline) RunAllBolts(ctx context.Context, f *feature.Feature, onOutput
 	}
 	mode := f.AutonomyMode
 	if mode == "" {
-		mode = AutonomyGated // safe default if the wait returned without a set mode
+		// Spec: the ladder prompt fires exactly once after the walking-skeleton
+		// gate and the user MUST pick gated or autonomous. If we get here with
+		// no mode, the wait returned without a choice — that's a protocol
+		// violation, not a safe-default situation. Surface it as an error so
+		// the caller knows to re-trigger the ladder.
+		return fmt.Errorf("ladder prompt not resolved for feature %s — user must choose gated or autonomous", f.ID)
 	}
 
 	// 3. Remaining bolts in dependency-ordered batches.
@@ -529,45 +543,47 @@ func (p *Pipeline) waitForLadderMode(ctx context.Context, featureID string) erro
 	}
 }
 
-// presentBatchGate opens a single gate covering every bolt in the batch and
-// blocks until the gate is approved. The gate is recorded against the last
-// stage of the last bolt in the batch (3.5) so the existing approve endpoint
-// resolves it. Autonomous mode never calls this.
+// presentBatchGate waits for every bolt in the batch to have its 3.5 stage
+// reach a terminal state (completed/failed/skipped). Each bolt's RunBolt
+// already opened a per-bolt gate at 3.5; the user (or autonomous auto-approve)
+// resolves each one. This method blocks until all are resolved.
+// Autonomous mode never calls this — ProcessStageResult auto-approves there.
 func (p *Pipeline) presentBatchGate(ctx context.Context, f *feature.Feature, batch []db.BoltRow) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	// Mark the 3.5 stage of the first bolt in the batch as awaiting approval.
-	// The UI's approve endpoint will resolve it; this method polls until then.
-	lastBolt := batch[len(batch)-1]
 	stageID := "3.5"
-	fs, _ := p.database.GetFeatureStage(f.ID, stageID)
-	if fs == nil {
-		return nil // stage not tracked — nothing to gate
-	}
-	if fs.Status == stage.StatusAwaitingApproval {
-		// Already gated (e.g. RunBolt opened it). Wait for resolution.
-	} else {
-		now := time.Now()
-		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, &now)
-		p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, stage.PhaseConstruction,
-			fmt.Sprintf("batch gate covering bolts %v", boltNumbers(batch)))
-		p.broadcastSSE(f.ID, "stage_awaiting_approval",
-			fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"batch":%v}`, jsonString(f.ID), jsonString(stageID), boltNumbers(batch)))
-	}
+	p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, stage.PhaseConstruction,
+		fmt.Sprintf("batch gate covering bolts %v — awaiting per-bolt 3.5 approval", boltNumbers(batch)))
+	p.broadcastSSE(f.ID, "batch_gate_awaiting",
+		fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolts":%v}`, jsonString(f.ID), jsonString(stageID), boltNumbers(batch)))
 
-	// Poll until the gate is resolved (approved or rejected).
+	// Poll until every bolt in the batch has a terminal 3.5 status.
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
-		fs, err := p.database.GetFeatureStage(f.ID, stageID)
-		if err != nil || fs == nil {
+		allTerminal := true
+		for _, b := range batch {
+			fs, _ := p.database.GetFeatureStageForBolt(f.ID, stageID, b.BoltNumber)
+			if fs == nil {
+				// Row missing — bolt may not have reached 3.5 yet. Keep waiting.
+				allTerminal = false
+				break
+			}
+			switch fs.Status {
+			case stage.StatusCompleted, stage.StatusSkipped, stage.StatusRevising:
+				// terminal or being revised — count as resolved for batch flow
+			default:
+				allTerminal = false
+			}
+			if fs.Status == stage.StatusRevising {
+				// A revision means the bolt is being re-run — not terminal.
+				allTerminal = false
+			}
+		}
+		if allTerminal {
 			return nil
 		}
-		if fs.Status != stage.StatusAwaitingApproval && fs.Status != stage.StatusRevising {
-			return nil
-		}
-		_ = lastBolt // referenced for clarity; gate resolution is feature-scoped
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

@@ -172,6 +172,7 @@ export interface FeatureStage {
   id: number;
   feature_id: string;
   stage_id: string;
+  bolt_number: number;
   status: string;
   revision_count: number;
   started_at?: string;

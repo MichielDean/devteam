@@ -14,25 +14,26 @@ import (
 type StageOutcome int
 
 const (
-	OutcomeNeedsReview    StageOutcome = iota // gate open, human must approve
-	OutcomeAutoApproved                       // auto-approved, ready to advance
-	OutcomeFailed                             // stage failed, human intervention needed
-	OutcomeComplete                           // no more stages, feature is done
+	OutcomeNeedsReview  StageOutcome = iota // gate open, human must approve
+	OutcomeAutoApproved                     // auto-approved, ready to advance
+	OutcomeFailed                           // stage failed, human intervention needed
+	OutcomeComplete                         // no more stages, feature is done
 )
 
 // ProcessStageResult is the SINGLE function that decides what happens after a stage runs.
 // It handles gate decisions, auto-approval, SSE broadcasts, and advancement.
 // All callers (runStageAsync, recoverStage, bolts) must use this — no duplicate logic.
 //
-// Returns the outcome and the next stage ID to run (if auto-advancing).
-// The caller is responsible for actually running the next stage (calling RunStage).
+// The bolt number is read from result.BoltNumber (0 for non-construction stages).
+// Returns the outcome. The caller is responsible for running the next stage.
 func (p *Pipeline) ProcessStageResult(f *feature.Feature, stageID string, result *StageRunResult) StageOutcome {
 	if result == nil {
 		return OutcomeFailed
 	}
 
+	boltNumber := result.BoltNumber
 	now := time.Now()
-	fs, _ := p.database.GetFeatureStage(f.ID, stageID)
+	fs, _ := p.getFeatureStageRow(f.ID, stageID, boltNumber)
 	if fs == nil {
 		return OutcomeFailed
 	}
@@ -44,9 +45,9 @@ func (p *Pipeline) ProcessStageResult(f *feature.Feature, stageID string, result
 
 	// Check for failures first
 	if result.OutcomeSource == "smoke_failed" || result.OutcomeSource == "reviewer_rejected" || result.OutcomeSource == "agent_failed" {
-		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusRevising, fs.RevisionCount, &now, nil)
+		p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusRevising, fs.RevisionCount, &now, nil)
 		p.database.RecordAuditEvent(f.ID, "STAGE_FAILED", stageID, "", result.RoleResult.Error)
-		p.broadcastSSE(f.ID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"reason":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(result.OutcomeSource)))
+		p.broadcastSSE(f.ID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d,"reason":%s}`, jsonString(f.ID), jsonString(stageID), boltNumber, jsonString(result.OutcomeSource)))
 		return OutcomeFailed
 	}
 
@@ -54,16 +55,19 @@ func (p *Pipeline) ProcessStageResult(f *feature.Feature, stageID string, result
 	if result.Gate == nil || !result.Gate.IsOpen() {
 		// Gate was auto-approved inside RunStage (autonomous/guided/init)
 		// or stage completed without a gate
-		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
+		p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
 		p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
-		p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
+		p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d}`, jsonString(f.ID), jsonString(stageID), boltNumber))
 		return OutcomeAutoApproved
 	}
 
 	// Gate is open — check if we should auto-approve based on execution mode
 	stageDef, _ := p.database.GetStageDefinition(stageID)
 	isInitStage := stageDef != nil && stageDef.Phase == stage.PhaseInitialization
-	isPhaseEndGate := stageDef != nil && (stageID == "1.7" || stageID == "2.8" || stageID == "3.7" || stageID == "4.7" || (stageDef.Phase == stage.PhaseConstruction && stageID == "3.5"))
+	// Per-Bolt stages (3.1-3.5) are gated at the Bolt/batch level by RunAllBolts,
+	// not at the individual stage level. So 3.5 is NOT a phase-end gate here;
+	// the Bolt-level gate replaces it (AIDLC v2 spec).
+	isPhaseEndGate := stageDef != nil && (stageID == "1.7" || stageID == "2.8" || stageID == "3.7" || stageID == "4.7")
 
 	mode := f.ExecutionMode
 	if mode == "" {
@@ -74,23 +78,26 @@ func (p *Pipeline) ProcessStageResult(f *feature.Feature, stageID string, result
 
 	if shouldAutoApprove {
 		// Auto-approve
-		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
+		p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
 		p.database.RecordAuditEvent(f.ID, db.AuditGateApproved, stageID, "", fmt.Sprintf("auto-approved (%s mode)", mode))
 		p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
-		p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
-		p.broadcastSSE(f.ID, "gate_approved", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"auto":true}`, jsonString(f.ID), jsonString(stageID)))
+		p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d}`, jsonString(f.ID), jsonString(stageID), boltNumber))
+		p.broadcastSSE(f.ID, "gate_approved", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d,"auto":true}`, jsonString(f.ID), jsonString(stageID), boltNumber))
 		return OutcomeAutoApproved
 	}
 
 	// Gate open, needs human review
-	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, &now)
+	p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, &now)
 	p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, "", "")
-	p.broadcastSSE(f.ID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
+	p.broadcastSSE(f.ID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d}`, jsonString(f.ID), jsonString(stageID), boltNumber))
 	return OutcomeNeedsReview
 }
 
-// NextStageToRun finds the next not_started stage for a feature,
+// NextStageToRun finds the next not_started NON-per-Bolt stage for a feature,
 // skipping any stages that are not in the feature's scope.
+// Per-Bolt construction stages (3.1-3.5) are driven by RunAllBolts/RunBolt,
+// NOT by this function — they are skipped here so the auto-advance loop in
+// runStageAsync doesn't try to run them out of bolt order.
 // Marks skipped stages as skipped in the DB and records audit events.
 // Returns empty string if no more stages exist.
 func (p *Pipeline) NextStageToRun(featureID string) string {
@@ -103,6 +110,10 @@ func (p *Pipeline) NextStageToRun(featureID string) string {
 		scope = f.Scope
 	}
 	for _, s := range stages {
+		// Skip per-Bolt stages — they're driven by RunAllBolts/RunBolt.
+		if isPerBoltStageID(s.StageID) {
+			continue
+		}
 		if s.Status == stage.StatusNotStarted {
 			// Check if this stage should be skipped based on scope
 			stageDef, _ := p.database.GetStageDefinition(s.StageID)
@@ -133,16 +144,17 @@ func (p *Pipeline) ShouldAutoAdvance(f *feature.Feature, stageID string) bool {
 
 // ApproveAndAdvance approves a stage gate and advances to the next stage.
 // Used by the approve API handler and by auto-approval flows.
-// Returns the next stage ID to run (empty if no more stages).
-func (p *Pipeline) ApproveAndAdvance(f *feature.Feature, stageID string) (string, error) {
-	fs, err := p.database.GetFeatureStage(f.ID, stageID)
+// boltNumber is 0 for non-construction stages; 1+ for per-Bolt stages.
+// Returns the next NON-per-Bolt stage ID to run (empty if no more stages).
+func (p *Pipeline) ApproveAndAdvance(f *feature.Feature, stageID string, boltNumber int) (string, error) {
+	fs, err := p.getFeatureStageRow(f.ID, stageID, boltNumber)
 	if err != nil || fs == nil {
-		return "", fmt.Errorf("feature stage %s not found", stageID)
+		return "", fmt.Errorf("feature stage %s (bolt %d) not found", stageID, boltNumber)
 	}
 
 	// Only allow approving from awaiting_approval or revising
 	if fs.Status != stage.StatusAwaitingApproval && fs.Status != stage.StatusRevising {
-		return "", fmt.Errorf("stage %s is in %s state — can only approve awaiting_approval or revising", stageID, fs.Status)
+		return "", fmt.Errorf("stage %s (bolt %d) is in %s state — can only approve awaiting_approval or revising", stageID, boltNumber, fs.Status)
 	}
 
 	// Check reviewer rejection
@@ -152,16 +164,20 @@ func (p *Pipeline) ApproveAndAdvance(f *feature.Feature, stageID string) (string
 	}
 
 	now := time.Now().UTC()
-	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
+	p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
 	p.database.RecordAuditEvent(f.ID, db.AuditGateApproved, stageID, "", "")
 	p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
-	p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
-	p.broadcastSSE(f.ID, "gate_approved", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
+	p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d}`, jsonString(f.ID), jsonString(stageID), boltNumber))
+	p.broadcastSSE(f.ID, "gate_approved", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d}`, jsonString(f.ID), jsonString(stageID), boltNumber))
 
-	if err := p.AdvanceStage(f, stageID); err != nil {
-		return "", err
+	// AdvanceStage only applies to non-per-Bolt stages. Per-Bolt stages
+	// are sequenced by RunAllBolts, not by the linear AdvanceStage logic.
+	if !isPerBoltStageID(stageID) {
+		if err := p.AdvanceStage(f, stageID); err != nil {
+			return "", err
+		}
 	}
 
-	// Return the next stage to run
+	// Return the next NON-per-Bolt stage to run
 	return p.NextStageToRun(f.ID), nil
 }

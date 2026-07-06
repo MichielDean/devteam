@@ -56,10 +56,11 @@ export default function MobileStageRail({ stages, currentStageId, onSelect }: Mo
           const isSelected = s.stage_id === selectedStageId;
           const icon = STATUS_ICONS[s.status] || '○';
           const color = STATUS_COLORS[s.status] || 'var(--color-text-tertiary)';
+          const key = `${s.stage_id}-bolt${s.bolt_number ?? 0}`;
           return (
             <button
-              key={s.stage_id}
-              data-stage={s.stage_id}
+              key={key}
+              data-stage={key}
               onClick={() => { setSelectedStage(s.stage_id); onSelect(s.stage_id); }}
               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[var(--radius-md)] text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
                 isSelected
@@ -69,10 +70,11 @@ export default function MobileStageRail({ stages, currentStageId, onSelect }: Mo
                   : 'text-[var(--color-text-secondary)]'
               }`}
               style={!isSelected && !isCurrent ? { backgroundColor: 'var(--color-surface-hover)' } : isCurrent && !isSelected ? { backgroundColor: 'var(--color-surface-active)', border: '1px solid var(--color-accent)' } : undefined}
-              data-testid={`mobile-rail-${s.stage_id}`}
+              data-testid={`mobile-rail-${key}`}
             >
               <span style={{ color: isSelected ? 'white' : color }}>{icon}</span>
               {s.stage_id}
+              {s.bolt_number > 0 && <span className="text-[10px] opacity-60">·B{s.bolt_number}</span>}
               {s.name && <span className="text-[10px] opacity-70 hidden sm:inline">· {s.name.split(' ')[0]}</span>}
             </button>
           );
