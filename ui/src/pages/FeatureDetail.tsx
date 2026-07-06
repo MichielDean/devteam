@@ -398,6 +398,8 @@ export default function FeatureDetail() {
   const nextStage = stages.find((s) => s.status === 'not_started');
   const activeStage = selectedStage ?? awaitingStage ?? revisingStage ?? stages.find((s) => s.stage_id === feature.current_stage);
   const showLadderPrompt = bolts.length > 0 && bolts[0]?.status === 'completed' && !feature.autonomy_mode;
+  const isAutonomous = feature.execution_mode === 'autonomous';
+  const isGuided = feature.execution_mode === 'guided';
 
   return (
     <div className="flex flex-col h-full" data-testid="feature-detail-page">
@@ -422,7 +424,24 @@ export default function FeatureDetail() {
         <div className="flex-1 min-w-0 overflow-y-auto space-y-4">
           {!terminal && (
             <Card className="p-4" data-testid="current-stage-panel">
-              {isWaitingForHuman ? (
+              {isAutonomous ? (
+                <div className="flex items-center justify-between p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-surface-hover)' }} data-testid="autonomous-banner">
+                  <div className="flex items-center gap-3">
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+                    <div>
+                      <p className="text-sm font-medium text-[var(--color-text-primary)]">Running autonomously — stage {feature.current_stage || 'starting...'}</p>
+                      <p className="text-xs text-[var(--color-text-tertiary)]">Stages auto-run and auto-approve. Change mode in Settings to regain control.</p>
+                    </div>
+                  </div>
+                  <Button variant="danger" size="sm" onClick={() => {
+                    if (window.confirm('Stop autonomous execution? You can resume manually or switch to a different mode.')) {
+                      executionModeMutation.mutate('human');
+                    }
+                  }} data-testid="stop-autonomous-button">
+                    ⏹ Stop
+                  </Button>
+                </div>
+              ) : isWaitingForHuman ? (
                 <div className="p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)' }} data-testid="waiting-banner">
                   <p className="text-sm" style={{ color: 'var(--color-warning)' }}>Answer the questions below. The pipeline resumes automatically once all are answered.</p>
                 </div>
@@ -435,26 +454,30 @@ export default function FeatureDetail() {
                       <p className="text-xs text-[var(--color-text-tertiary)]">Output appears below in real time</p>
                     </div>
                   </div>
-                  <Button variant="danger" size="sm" onClick={() => {
-                    if (window.confirm('Force re-run this stage? This kills the current agent session and starts fresh.')) {
-                      forceRerunMutation.mutate(feature.current_stage || '');
-                    }
-                  }} data-testid="force-rerun-button">
-                    Force Re-run
-                  </Button>
+                  {isGuided ? (
+                    <span className="text-xs text-[var(--color-text-tertiary)]">Running in guided mode</span>
+                  ) : (
+                    <Button variant="danger" size="sm" onClick={() => {
+                      if (window.confirm('Force re-run this stage? This kills the current agent session and starts fresh.')) {
+                        forceRerunMutation.mutate(feature.current_stage || '');
+                      }
+                    }} data-testid="force-rerun-button">
+                      Force Re-run
+                    </Button>
+                  )}
                 </div>
               ) : awaitingStage ? (
                 <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="awaiting-approval-banner">
                   <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>✓ Stage {awaitingStage.stage_id} complete — review needed</p>
                   <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-                    The agent finished. Review the artifacts below and approve or request changes.
+                    {isGuided ? 'Phase-end review gate. Review the artifacts and approve to continue.' : 'The agent finished. Review the artifacts below and approve or request changes.'}
                   </p>
                   <Button variant="primary" onClick={() => setSelectedStage(awaitingStage.stage_id)} data-testid="review-gate-button">Review & Approve</Button>
                 </div>
               ) : revisingStage ? (
                 <div className="p-4 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)', border: '1px solid var(--color-warning)' }} data-testid="revising-banner">
                   <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-warning)' }}>⚠ Stage {revisingStage.stage_id} needs attention</p>
-                  <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+                  <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)]' }}>
                     This stage was interrupted. Resume to continue where the agent left off, re-run to start fresh, or approve if the artifacts look good.
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -476,15 +499,13 @@ export default function FeatureDetail() {
                     <p className="text-xs text-[var(--color-text-tertiary)] mb-3">{nextStage.description}</p>
                   )}
                   {(() => {
-                    // Construction stages 3.1-3.5 run via Bolts internally
                     const isBoltStage = nextStage.stage_id.match(/^3\.[1-5]$/);
                     const pendingBolt = bolts.find(b => b.status === 'pending' || b.status === 'in_progress');
                     if (isBoltStage && pendingBolt) {
                       return (
                         <div>
                           <p className="text-xs text-[var(--color-text-secondary)] mb-2">
-                            This runs as <strong>Bolt {pendingBolt.bolt_number}</strong> — stages 3.1-3.5 execute together:
-                            Functional Design → NFR Requirements → NFR Design → Infrastructure Design → Code Generation.
+                            This runs as <strong>Bolt {pendingBolt.bolt_number}</strong> — stages 3.1-3.5 execute together.
                             {pendingBolt.is_walking_skeleton ? ' This is the walking skeleton — the smallest end-to-end slice.' : ''}
                           </p>
                           <Button variant="primary" onClick={() => runBoltMutation.mutate(pendingBolt.bolt_number)} disabled={runBoltMutation.isPending} isLoading={runBoltMutation.isPending} data-testid="run-stage-button">
