@@ -114,10 +114,14 @@ func (p *Pipeline) AdvanceFeature(ctx context.Context, featureID string, onOutpu
 
 		case actionMergeToMain:
 			// All construction complete (3.1-3.7) — merge to main.
+			// Record MERGE_ATTEMPTED immediately so we don't loop on failure.
 			log.Printf("AdvanceFeature: %s merging to main", featureID)
 			p.broadcastSSE(featureID, "merging_to_main", fmt.Sprintf(`{"feature_id":%s}`, jsonString(featureID)))
+			p.database.RecordAuditEvent(featureID, "MERGE_ATTEMPTED", "", "", "construction complete")
 			if err := p.MergeFeatureToMain(f); err != nil {
-				log.Printf("AdvanceFeature: merge to main failed for %s: %v — continuing", featureID, err)
+				log.Printf("AdvanceFeature: merge to main failed for %s: %v — continuing to operation", featureID, err)
+			} else {
+				p.database.RecordAuditEvent(featureID, "MERGED_TO_MAIN", "", "", "merge succeeded")
 			}
 			continue // loop to find next action (operation phase)
 
@@ -259,10 +263,10 @@ func (p *Pipeline) decideNextAction(f *feature.Feature, stages []db.FeatureStage
 		}
 	}
 	if stage37Done {
-		// Check if we already merged (audit event).
+		// Check if we already attempted merge (success or failure).
 		var mergeCount int
 		err := p.database.QueryRow(
-			`SELECT COUNT(*) FROM audit_events WHERE feature_id = ? AND event_type = 'MERGED_TO_MAIN'`, f.ID).Scan(&mergeCount)
+			`SELECT COUNT(*) FROM audit_events WHERE feature_id = ? AND event_type IN ('MERGED_TO_MAIN', 'MERGE_ATTEMPTED')`, f.ID).Scan(&mergeCount)
 		if err == nil && mergeCount == 0 {
 			return nextAction{kind: actionMergeToMain, reason: "3.7 done, not yet merged"}
 		}
