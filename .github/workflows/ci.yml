@@ -90,15 +90,32 @@ jobs:
         # that predate this feature and are out of scope to fix here.
         # Widened for settings-and-admin-ui to cover the feature's new +
         # extended packages (internal/repos, internal/settings,
-        # internal/opencode, internal/config write path). These are net-new
-        # or extended under this feature and should vet clean; if they don't,
-        # the fix is to the code, not the gate.
-        run: go vet ./internal/db/... ./internal/api/... ./internal/repos/... ./internal/settings/... ./internal/opencode/... ./internal/config/...
+        # internal/config write path). These are net-new or extended under
+        # this feature and should vet clean; if they don't, the fix is to
+        # the code, not the gate.
+        #
+        # Note: internal/opencode is NOT in scope. The opencode builder
+        # package was removed from this feature by the 1.7-gate strict
+        # scope cut (Q7 honored strictly — Providers deferred to the
+        # sibling feature multi-provider-llm-configuration, which owns the
+        # materializer). See ci-config.md §5 and bolt-plan revision 2 §6.
+        run: go vet ./internal/db/... ./internal/api/... ./internal/repos/... ./internal/settings/... ./internal/config/...
 
       - name: Unit tests — db + api packages (Bolt gate)
         # The load-bearing gate command from P7. Runs the two packages the
         # feature extends. Full `go test ./...` runs in the release job.
-        run: go test ./internal/db/... ./internal/api/... -count=1
+        # internal/config is added to the fast-gate set because the config
+        # write path (U-CONFIG-01) is the linchpin and should fail fast in
+        # CI, not wait for backend-full (see ci-config.md §5.1).
+        run: go test ./internal/db/... ./internal/api/... ./internal/config/... -count=1
+
+      - name: Race tests — concurrency-touching packages (QO-14)
+        # Binding per quality-report revision 2 §1.4 / QO-14: the
+        # concurrency-touching packages (repos flock, config atomic write,
+        # settings store) must be -race clean. Runs in the backend job
+        # alongside the db/api unit gate so a race regression fails the
+        # fast gate, not just backend-full.
+        run: go test -race ./internal/repos/... ./internal/config/... ./internal/settings/... -count=1
 
   # -------------------------------------------------------------------
   # Job 2 — Frontend (lint + build)
