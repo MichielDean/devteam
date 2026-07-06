@@ -263,15 +263,15 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 			}
 		}
 
+		// Init stages (0.1-0.3) always auto-approve — no gates, no human interaction.
+		isInitStage := stageDef.Phase == stage.PhaseInitialization
+
 		// Phase-end review gates pause in guided mode for human review.
-		// 1.7 = ideation → inception, 2.8 = inception → construction,
-		// 3.7 = construction final (CI pipeline), 4.7 = operation terminal,
-		// 3.5 = end of a construction Bolt (per-Bolt gate).
 		isPhaseEndGate := stageID == "1.7" || stageID == "2.8" ||
 			stageID == "3.7" || stageID == "4.7" ||
 			(stageDef.Phase == stage.PhaseConstruction && stageID == "3.5")
 
-		shouldAutoApprove := mode == ExecutionAutonomous ||
+		shouldAutoApprove := isInitStage || mode == ExecutionAutonomous ||
 			(mode == ExecutionGuided && !isPhaseEndGate)
 
 		if shouldAutoApprove {

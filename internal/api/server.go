@@ -488,37 +488,14 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 					log.Printf("init stages panic for feature %s: %v", f.ID, rec)
 				}
 			}()
-			initStages := []string{"0.1", "0.2", "0.3"}
-			for _, stageID := range initStages {
-				// Check if stage exists for this scope
-				stageDef, err := s.db.GetStageDefinition(stageID)
-				if err != nil || stageDef == nil {
-					continue
-				}
-				// Check if stage applies to this scope
-				scopeMatch := false
-				for _, sc := range stageDef.Scopes {
-					if sc == f.Scope {
-						scopeMatch = true
-						break
-					}
-				}
-				if !scopeMatch {
-					continue
-				}
-				// Run the stage
-				result, err := s.pipeline.RunStage(context.Background(), f, stageID, func(line string, isStderr bool) {
-					s.broadcastSSE(f.ID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
-				})
-				if err != nil {
-					log.Printf("init stage %s failed for feature %s: %v", stageID, f.ID, err)
-					break
-				}
-				// Auto-approve init stages (no gate needed)
-				if result != nil && result.Gate != nil && result.Gate.IsOpen() {
-					s.pipeline.ApproveStage(f, stageID)
-				}
-			}
+
+			// runStageAsync handles the full lifecycle: run stage → broadcast → auto-advance
+			// In guided/autonomous mode, it will chain through all stages automatically.
+			// In human mode, it runs just the first stage and stops.
+			// Init stages (0.1-0.3) are always auto-approved (no gates), so even in human
+			// mode, runStageAsync will auto-advance through 0.1→0.2→0.3 and stop at 1.1.
+			s.markFeatureActive(f.ID)
+			s.runStageAsync(context.Background(), f.ID, "0.1")
 		}()
 	}
 
