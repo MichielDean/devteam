@@ -496,6 +496,30 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 		return fmt.Errorf("writing AGENTS.md: %w", err)
 	}
 
+	// Write .bashrc in context dir to ensure devteam CLI is in PATH.
+	// The --pure flag may reset PATH, so we find the devteam binary
+	// at runtime and add its directory to PATH.
+	devteamPath, _ := exec.LookPath("devteam")
+	if devteamPath == "" {
+		// Fallback: check common locations
+		for _, p := range []string{
+			filepath.Join(os.Getenv("HOME"), "go", "bin", "devteam"),
+			"/usr/local/bin/devteam",
+			"/usr/bin/devteam",
+		} {
+			if _, err := os.Stat(p); err == nil {
+				devteamPath = p
+				break
+			}
+		}
+	}
+	if devteamPath != "" {
+		devteamDir := filepath.Dir(devteamPath)
+		bashrcContent := fmt.Sprintf("export PATH=\"%s:$PATH\"\n", devteamDir)
+		bashrcPath := filepath.Join(contextDir, ".bashrc")
+		os.WriteFile(bashrcPath, []byte(bashrcContent), 0644)
+	}
+
 	return nil
 }
 
