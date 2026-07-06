@@ -456,10 +456,32 @@ export default function FeatureDetail() {
                 </div>
               ) : nextStage ? (
                 <div data-testid="next-stage-panel">
-                  <p className="text-sm text-[var(--color-text-secondary)] mb-2">Next stage: <strong className="text-[var(--color-text-primary)]">{nextStage.stage_id}</strong></p>
-                  <Button variant="primary" onClick={() => runStageMutation.mutate(nextStage.stage_id)} disabled={runStageMutation.isPending} isLoading={runStageMutation.isPending} data-testid="run-stage-button">
-                    ▶ Run Stage {nextStage.stage_id}
-                  </Button>
+                  {nextStage.stage_id.startsWith('3.') && !nextStage.stage_id.match(/^3\.[67]$/) && bolts.length > 0 ? (
+                    <>
+                      <p className="text-sm text-[var(--color-text-secondary)] mb-2">
+                        Construction phase — run via Bolts, not individual stages.
+                        {bolts.find(b => b.status === 'pending') ? ` Next: Bolt ${bolts.find(b => b.status === 'pending')?.bolt_number}` : ''}
+                      </p>
+                      {(() => {
+                        const nextBolt = bolts.find(b => b.status === 'pending');
+                        if (nextBolt) {
+                          return (
+                            <Button variant="primary" onClick={() => runBoltMutation.mutate(nextBolt.bolt_number)} disabled={runBoltMutation.isPending} isLoading={runBoltMutation.isPending} data-testid="run-bolt-button">
+                              🔨 Run Bolt {nextBolt.bolt_number}
+                            </Button>
+                          );
+                        }
+                        return <p className="text-sm text-[var(--color-text-tertiary)]">All bolts complete. Run stage 3.6 next.</p>;
+                      })()}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-[var(--color-text-secondary)] mb-2">Next stage: <strong className="text-[var(--color-text-primary)]">{nextStage.stage_id}{nextStage.name ? ` · ${nextStage.name}` : ''}</strong></p>
+                      <Button variant="primary" onClick={() => runStageMutation.mutate(nextStage.stage_id)} disabled={runStageMutation.isPending} isLoading={runStageMutation.isPending} data-testid="run-stage-button">
+                        ▶ Run Stage {nextStage.stage_id}
+                      </Button>
+                    </>
+                  )}
                 </div>
               ) : (
                 <p className="text-sm text-[var(--color-text-tertiary)]" data-testid="no-next-stage">All stages complete or in progress.</p>
