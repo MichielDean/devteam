@@ -24,23 +24,23 @@ import (
 )
 
 type Server struct {
-	httpServer   *http.Server
-	pipeline     *pipeline.Pipeline
-	specProvider *spec.SpecProvider
-	db           *db.DB
-	active       sync.Map // featureID -> struct{} (set of currently running features)
-	sseMu        sync.Mutex
-	sseClients   map[string][]chan SSEMessage
-	sseBuffers   map[string][]*SSEMessage
-	baseDir      string
-	staticFS     fs.FS
+	httpServer    *http.Server
+	pipeline      *pipeline.Pipeline
+	specProvider  *spec.SpecProvider
+	db            *db.DB
+	active        sync.Map // featureID -> struct{} (set of currently running features)
+	sseMu         sync.Mutex
+	sseClients    map[string][]chan SSEMessage
+	sseBuffers    map[string][]*SSEMessage
+	baseDir       string
+	staticFS      fs.FS
 	questionStore feature.QuestionStore
 }
 
 func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore, database *db.DB) *Server {
 	s := &Server{
 		specProvider:  specProvider,
-		pipeline:     pipe,
+		pipeline:      pipe,
 		baseDir:       specProvider.BaseDir(),
 		staticFS:      staticFS,
 		questionStore: questionStore,
@@ -149,7 +149,11 @@ func (s *Server) RestoreActiveProcesses() {
 			} else if fs.Status == stage.StatusAwaitingApproval && (f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided") {
 				// In autonomous/guided mode, auto-approve any awaiting_approval stages
 				// that were left pending from mode switches or server restarts
-				s.recoverStage(f.ID, fs.StageID)
+				if fs.BoltNumber > 0 {
+					s.recoverBoltStage(f.ID, fs.StageID, fs.BoltNumber)
+				} else {
+					s.recoverStage(f.ID, fs.StageID)
+				}
 				continue
 			} else {
 				continue
@@ -169,6 +173,7 @@ func (s *Server) RestoreActiveProcesses() {
 				log.Printf("RestoreActiveProcesses: re-attaching poll for stage %s feature %s (tmux still alive)", fs.StageID, f.ID)
 				s.active.Store(f.ID, struct{}{})
 				stageID := fs.StageID
+				boltNum := fs.BoltNumber
 				featureID := f.ID
 				go func() {
 					defer s.unmarkFeatureActive(featureID)
@@ -195,19 +200,30 @@ func (s *Server) RestoreActiveProcesses() {
 					}
 
 					log.Printf("RestoreActiveProcesses: tmux session %s exited", sessionName)
-					s.recoverStage(featureID, stageID)
+					if boltNum > 0 {
+						s.recoverBoltStage(featureID, stageID, boltNum)
+					} else {
+						s.recoverStage(featureID, stageID)
+					}
 				}()
 				continue
 			}
 
 			// No tmux session — recover immediately
-			s.recoverStage(f.ID, fs.StageID)
+			if fs.BoltNumber > 0 {
+				s.recoverBoltStage(f.ID, fs.StageID, fs.BoltNumber)
+			} else {
+				s.recoverStage(f.ID, fs.StageID)
+			}
 		}
 	}
 }
 
 // recoverStage processes a stuck stage after server restart.
+// recoverStage processes a stuck stage after server restart.
 // Uses the state machine for all gate/mode/advance decisions.
+// For per-Bolt construction stages, this is called per (stageID, boltNumber)
+// via recoverBoltStage; this entry point handles the bolt_number=0 case.
 func (s *Server) recoverStage(featureID, stageID string) {
 	fs, _ := s.db.GetFeatureStage(featureID, stageID)
 	if fs == nil {
@@ -224,12 +240,12 @@ func (s *Server) recoverStage(featureID, stageID string) {
 	if fs.Status == stage.StatusAwaitingApproval {
 		if f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided" {
 			stageDef, _ := s.db.GetStageDefinition(stageID)
-			isPhaseEndGate := stageDef != nil && (stageID == "1.7" || stageID == "2.8" || stageID == "3.7" || stageID == "4.7" || (stageDef.Phase == "construction" && stageID == "3.5"))
+			isPhaseEndGate := stageDef != nil && (stageID == "1.7" || stageID == "2.8" || stageID == "3.7" || stageID == "4.7")
 			isInitStage := stageDef != nil && stageDef.Phase == "initialization"
 			shouldAutoApprove := isInitStage || f.ExecutionMode == "autonomous" || (f.ExecutionMode == "guided" && !isPhaseEndGate)
 			if shouldAutoApprove {
 				log.Printf("recoverStage: auto-approving awaiting_approval stage %s (%s mode)", stageID, f.ExecutionMode)
-				nextStageID, _ := s.pipeline.ApproveStage(f, stageID)
+				nextStageID, _ := s.pipeline.ApproveStage(f, stageID, 0)
 				if nextStageID != "" && !s.isFeatureActive(featureID) {
 					s.markFeatureActive(featureID)
 					go s.runStageAsync(context.Background(), featureID, nextStageID)
@@ -252,6 +268,7 @@ func (s *Server) recoverStage(featureID, stageID string) {
 		// Agent signaled pass — construct a result with open gate for state machine to process
 		result = &pipeline.StageRunResult{
 			StageID:       stageID,
+			BoltNumber:    0,
 			OutcomeSource: "agent_signal",
 			Outcome:       outcome,
 			Gate:          gate.New(featureID, stageID), // open gate — state machine decides
@@ -276,6 +293,7 @@ func (s *Server) recoverStage(featureID, stageID string) {
 		if len(artifacts) > 0 {
 			result = &pipeline.StageRunResult{
 				StageID:       stageID,
+				BoltNumber:    0,
 				OutcomeSource: "default_pass",
 				Gate:          gate.New(featureID, stageID),
 			}
@@ -305,6 +323,83 @@ func (s *Server) recoverStage(featureID, stageID string) {
 			s.markFeatureActive(featureID)
 			go s.runStageAsync(context.Background(), featureID, nextStageID)
 		}
+	}
+}
+
+// recoverBoltStage processes a stuck per-Bolt construction stage after server
+// restart. Mirrors recoverStage but routes DB reads/writes through the
+// per-Bolt store (GetFeatureStageForBolt / UpdateFeatureStageForBolt) and
+// passes boltNumber to the state machine.
+func (s *Server) recoverBoltStage(featureID, stageID string, boltNumber int) {
+	fs, _ := s.db.GetFeatureStageForBolt(featureID, stageID, boltNumber)
+	if fs == nil {
+		return
+	}
+
+	f, err := s.pipeline.GetFeature(featureID)
+	if err != nil {
+		return
+	}
+
+	if fs.Status == stage.StatusAwaitingApproval {
+		if f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided" {
+			// Per-Bolt stages are not phase-end gates; the Bolt/batch gate
+			// replaces 3.5's individual gate (AIDLC v2 spec). So in guided
+			// mode these still auto-approve.
+			shouldAutoApprove := f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided"
+			if shouldAutoApprove {
+				log.Printf("recoverBoltStage: auto-approving awaiting_approval stage %s bolt %d (%s mode)", stageID, boltNumber, f.ExecutionMode)
+				s.pipeline.ApproveStage(f, stageID, boltNumber)
+				return
+			}
+		}
+		return
+	}
+
+	if fs.Status != stage.StatusInProgress {
+		return
+	}
+
+	outcome, _ := s.db.GetLatestOutcome(featureID, stageID)
+	var result *pipeline.StageRunResult
+
+	if outcome != nil && outcome.Outcome == "pass" {
+		result = &pipeline.StageRunResult{
+			StageID:       stageID,
+			BoltNumber:    boltNumber,
+			OutcomeSource: "agent_signal",
+			Outcome:       outcome,
+			Gate:          gate.New(featureID, stageID),
+		}
+	} else {
+		artifacts, _ := s.db.GetSpecArtifactsForStage(featureID, stageID)
+		if len(artifacts) > 0 {
+			result = &pipeline.StageRunResult{
+				StageID:       stageID,
+				BoltNumber:    boltNumber,
+				OutcomeSource: "default_pass",
+				Gate:          gate.New(featureID, stageID),
+			}
+		} else {
+			now := time.Now()
+			s.db.UpdateFeatureStageForBolt(featureID, stageID, boltNumber, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, &now)
+			s.db.RecordAuditEvent(featureID, "STAGE_INTERRUPTED", stageID, "", fmt.Sprintf("server restarted mid-dispatch (bolt %d)", boltNumber))
+			s.broadcastSSE(featureID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d}`, jsonString(featureID), jsonString(stageID), boltNumber))
+			f.CurrentStage = stageID
+			f.CurrentBolt = boltNumber
+			s.pipeline.SaveFeature(f)
+			return
+		}
+	}
+
+	outcomeResult := s.pipeline.ProcessStageResult(f, stageID, result)
+	f.CurrentStage = stageID
+	f.CurrentBolt = boltNumber
+	s.pipeline.SaveFeature(f)
+
+	if outcomeResult == pipeline.OutcomeAutoApproved && s.pipeline.ShouldAutoAdvance(f, stageID) {
+		// Per-Bolt stages don't use NextStageToRun — RunAllBolts drives them.
+		// Nothing to auto-dispatch here; the bolt loop resumes on next run.
 	}
 }
 

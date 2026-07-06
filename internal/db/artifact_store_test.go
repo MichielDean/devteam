@@ -125,3 +125,79 @@ func TestDeleteArtifact(t *testing.T) {
 		t.Fatal("expected error after delete")
 	}
 }
+
+func TestPerBoltStageTracking(t *testing.T) {
+	d := setupTestDB(t)
+	seedFeature(t, d, "feat-bolt")
+	// Seed the stage definitions the per-bolt logic needs (3.1-3.5, 1.1).
+	// We can't import internal/stage here (circular), so seed directly.
+	for _, s := range []StageDefinition{
+		{ID: "1.1", Phase: "ideation", Name: "Intent Capture", LeadAgent: "product", Scopes: []string{"feature"}, SortOrder: 1},
+		{ID: "3.1", Phase: "construction", Name: "Functional Design", LeadAgent: "architect", Scopes: []string{"feature"}, SortOrder: 20},
+		{ID: "3.2", Phase: "construction", Name: "NFR Requirements", LeadAgent: "architect", Scopes: []string{"feature"}, SortOrder: 21},
+		{ID: "3.3", Phase: "construction", Name: "NFR Design", LeadAgent: "architect", Scopes: []string{"feature"}, SortOrder: 22},
+		{ID: "3.4", Phase: "construction", Name: "Infra Design", LeadAgent: "platform", Scopes: []string{"feature"}, SortOrder: 23},
+		{ID: "3.5", Phase: "construction", Name: "Code Generation", LeadAgent: "developer", Scopes: []string{"feature"}, SortOrder: 24},
+	} {
+		if err := d.UpsertStageDefinition(s); err != nil {
+			t.Fatalf("UpsertStageDefinition %s: %v", s.ID, err)
+		}
+	}
+
+	// Init non-construction stages (bolt_number=0).
+	if err := d.InitFeatureStages("feat-bolt", "feature"); err != nil {
+		t.Fatalf("InitFeatureStages: %v", err)
+	}
+
+	// Init per-Bolt stage rows for bolt 1 and bolt 2.
+	if err := d.InitBoltStages("feat-bolt", 1, "feature"); err != nil {
+		t.Fatalf("InitBoltStages bolt 1: %v", err)
+	}
+	if err := d.InitBoltStages("feat-bolt", 2, "feature"); err != nil {
+		t.Fatalf("InitBoltStages bolt 2: %v", err)
+	}
+
+	// 3.1 for bolt 1 should be a distinct row from 3.1 for bolt 2.
+	fs1, err := d.GetFeatureStageForBolt("feat-bolt", "3.1", 1)
+	if err != nil || fs1 == nil {
+		t.Fatalf("GetFeatureStageForBolt 3.1/1: %v", err)
+	}
+	if fs1.BoltNumber != 1 || fs1.Status != "not_started" {
+		t.Errorf("bolt 1 row = %+v, want BoltNumber=1 Status=not_started", fs1)
+	}
+
+	fs2, err := d.GetFeatureStageForBolt("feat-bolt", "3.1", 2)
+	if err != nil || fs2 == nil {
+		t.Fatalf("GetFeatureStageForBolt 3.1/2: %v", err)
+	}
+	if fs2.BoltNumber != 2 {
+		t.Errorf("bolt 2 row BoltNumber = %d, want 2", fs2.BoltNumber)
+	}
+
+	// Mark bolt 1's 3.1 complete; bolt 2's 3.1 should stay not_started.
+	if err := d.UpdateFeatureStageForBolt("feat-bolt", "3.1", 1, "completed", 0, nil, nil); err != nil {
+		t.Fatalf("UpdateFeatureStageForBolt: %v", err)
+	}
+	fs1After, _ := d.GetFeatureStageForBolt("feat-bolt", "3.1", 1)
+	fs2After, _ := d.GetFeatureStageForBolt("feat-bolt", "3.1", 2)
+	if fs1After.Status != "completed" {
+		t.Errorf("bolt 1 status = %s, want completed", fs1After.Status)
+	}
+	if fs2After.Status != "not_started" {
+		t.Errorf("bolt 2 status = %s, want not_started (should be unaffected)", fs2After.Status)
+	}
+
+	// Non-construction stage (1.1) should be at bolt_number=0.
+	fs11, err := d.GetFeatureStage("feat-bolt", "1.1")
+	if err != nil || fs11 == nil {
+		t.Fatalf("GetFeatureStage 1.1: %v", err)
+	}
+	if fs11.BoltNumber != 0 {
+		t.Errorf("1.1 BoltNumber = %d, want 0 (non-construction)", fs11.BoltNumber)
+	}
+
+	// InitBoltStages is idempotent — re-init bolt 1 should not error or duplicate.
+	if err := d.InitBoltStages("feat-bolt", 1, "feature"); err != nil {
+		t.Fatalf("InitBoltStages bolt 1 (repeat): %v", err)
+	}
+}

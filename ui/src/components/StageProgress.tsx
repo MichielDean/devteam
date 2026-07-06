@@ -66,22 +66,24 @@ export default function StageProgress({ stages, currentStageId }: StageProgressP
                 {phaseStages.map((s) => {
                   const isCurrent = s.stage_id === currentStageId;
                   const color = STATUS_COLORS[s.status] || 'text-gray-400';
+                  const key = `${s.stage_id}-bolt${s.bolt_number ?? 0}`;
                   return (
                     <div
-                      key={s.stage_id}
+                      key={key}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
                         isCurrent ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800' : 'bg-gray-50 dark:bg-gray-900/30'
                       }`}
-                      data-testid={`stage-item-${s.stage_id}`}
+                      data-testid={`stage-item-${key}`}
                     >
-                      <span className={`font-mono text-sm ${color}`} data-testid={`stage-checkbox-${s.stage_id}`}>
+                      <span className={`font-mono text-sm ${color}`} data-testid={`stage-checkbox-${key}`}>
                         {STAGE_CHECKBOX[s.status] || '[ ]'}
                       </span>
                       <span className={`flex-1 truncate ${isCurrent ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
                         {s.stage_id}
+                        {s.bolt_number > 0 && <span className="text-xs text-gray-400 ml-1">·B{s.bolt_number}</span>}
                       </span>
                       {s.revision_count > 0 && (
-                        <span className="text-xs text-orange-500" data-testid={`stage-revisions-${s.stage_id}`}>
+                        <span className="text-xs text-orange-500" data-testid={`stage-revisions-${key}`}>
                           ×{s.revision_count}
                         </span>
                       )}

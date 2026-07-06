@@ -90,8 +90,8 @@ export default function StageRail({ stages, currentStageId, bolts = [] }: StageR
               <div className="space-y-0.5">
                 {phaseItems.map((item) => {
                   if (isBolt(item)) {
-                    // Render bolt with its sub-stages
-                    const boltStages = stages.filter(s => s.stage_id.match(/^3\.[1-5]$/));
+                    // Render bolt with its sub-stages (per-bolt rows only).
+                    const boltStages = stages.filter(s => s.stage_id.match(/^3\.[1-5]$/) && (s.bolt_number ?? 0) === item.bolt_number);
                     const boltStatus = item.status;
                     const boltIcon = STATUS_ICONS[boltStatus] || '○';
                     const boltColor = statusColor[boltStatus] || 'var(--color-text-tertiary)';
@@ -122,12 +122,13 @@ export default function StageRail({ stages, currentStageId, bolts = [] }: StageR
                           {boltStages.map(s => {
                             const icon = STATUS_ICONS[s.status] || '○';
                             const color = statusColor[s.status] || 'var(--color-text-tertiary)';
+                            const key = `${s.stage_id}-bolt${s.bolt_number ?? 0}`;
                             return (
                               <button
-                                key={s.stage_id}
+                                key={key}
                                 onClick={() => setSelectedStage(s.stage_id)}
                                 className="w-full flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-sm)] text-left text-[11px] transition-colors hover:bg-[var(--color-surface-hover)]"
-                                data-testid={`rail-stage-${s.stage_id}`}
+                                data-testid={`rail-stage-${key}`}
                               >
                                 <span className="w-3 text-center shrink-0 font-mono" style={{ color }}>{icon}</span>
                                 <span className="truncate text-[var(--color-text-tertiary)]">{s.stage_id} {s.name ? `· ${s.name}` : ''}</span>
@@ -149,7 +150,7 @@ export default function StageRail({ stages, currentStageId, bolts = [] }: StageR
                   const stageDesc = s.description || '';
                   return (
                     <button
-                      key={s.stage_id}
+                      key={`${s.stage_id}-bolt${s.bolt_number ?? 0}`}
                       onClick={() => setSelectedStage(s.stage_id)}
                       title={stageDesc || undefined}
                       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-left text-xs transition-colors ${

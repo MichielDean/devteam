@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MichielDean/devteam/internal/db"
+	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/stage"
 )
@@ -229,6 +230,8 @@ func (s *Server) resumeStage(w http.ResponseWriter, r *http.Request) {
 }
 
 // approveStage approves a stage gate and advances.
+// For per-Bolt construction stages (3.1-3.5), the bolt number is read from
+// f.CurrentBolt (set by RunBolt). For all other stages, bolt number is 0.
 func (s *Server) approveStage(w http.ResponseWriter, r *http.Request) {
 	featureID := r.PathValue("id")
 	stageID := r.PathValue("stageId")
@@ -238,7 +241,8 @@ func (s *Server) approveStage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nextStageID, err := s.pipeline.ApproveStage(f, stageID)
+	boltNumber := resolveBoltNumberForStage(f, stageID)
+	nextStageID, err := s.pipeline.ApproveStage(f, stageID, boltNumber)
 	if err != nil {
 		http.Error(w, `{"error":"approve_failed","details":"`+err.Error()+`"}`, http.StatusBadRequest)
 		return
@@ -278,7 +282,8 @@ func (s *Server) rejectStage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.pipeline.RejectStage(f, stageID, req.Notes); err != nil {
+	boltNumber := resolveBoltNumberForStage(f, stageID)
+	if err := s.pipeline.RejectStage(f, stageID, boltNumber, req.Notes); err != nil {
 		http.Error(w, `{"error":"reject_failed","details":"`+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
@@ -297,7 +302,8 @@ func (s *Server) acceptStageAsIs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.pipeline.AcceptStageAsIs(f, stageID); err != nil {
+	boltNumber := resolveBoltNumberForStage(f, stageID)
+	if err := s.pipeline.AcceptStageAsIs(f, stageID, boltNumber); err != nil {
 		http.Error(w, `{"error":"accept_failed","details":"`+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
@@ -399,32 +405,34 @@ func (s *Server) getFeatureStages(w http.ResponseWriter, r *http.Request) {
 	// Enrich with stage definition data (name, key_artifacts, lead_agent, phase)
 	type enrichedStage struct {
 		ID            int64      `json:"id"`
-		FeatureID    string     `json:"feature_id"`
-		StageID      string     `json:"stage_id"`
-		Status       string     `json:"status"`
-		RevisionCount int       `json:"revision_count"`
-		StartedAt    *time.Time `json:"started_at,omitempty"`
-		CompletedAt  *time.Time `json:"completed_at,omitempty"`
+		FeatureID     string     `json:"feature_id"`
+		StageID       string     `json:"stage_id"`
+		BoltNumber    int        `json:"bolt_number"`
+		Status        string     `json:"status"`
+		RevisionCount int        `json:"revision_count"`
+		StartedAt     *time.Time `json:"started_at,omitempty"`
+		CompletedAt   *time.Time `json:"completed_at,omitempty"`
 		// Enriched fields
-		Name          string   `json:"name"`
-		Description   string   `json:"description"`
-		Phase         string   `json:"phase"`
-		LeadAgent     string   `json:"lead_agent"`
-		KeyArtifacts  []string `json:"key_artifacts"`
-		Reviewer      string   `json:"reviewer"`
+		Name         string   `json:"name"`
+		Description  string   `json:"description"`
+		Phase        string   `json:"phase"`
+		LeadAgent    string   `json:"lead_agent"`
+		KeyArtifacts []string `json:"key_artifacts"`
+		Reviewer     string   `json:"reviewer"`
 	}
 
 	result := []enrichedStage{}
 	for _, fs := range stages {
 		es := enrichedStage{
 			ID:            fs.ID,
-			FeatureID:    fs.FeatureID,
-			StageID:      fs.StageID,
-			Status:       fs.Status,
+			FeatureID:     fs.FeatureID,
+			StageID:       fs.StageID,
+			BoltNumber:    fs.BoltNumber,
+			Status:        fs.Status,
 			RevisionCount: fs.RevisionCount,
-			StartedAt:    fs.StartedAt,
-			CompletedAt:  fs.CompletedAt,
-			KeyArtifacts: []string{},
+			StartedAt:     fs.StartedAt,
+			CompletedAt:   fs.CompletedAt,
+			KeyArtifacts:  []string{},
 		}
 
 		// Get stage definition
@@ -885,6 +893,17 @@ func (s *Server) markFeatureActive(featureID string) {
 // unmarkFeatureActive unmarks a feature as being processed.
 func (s *Server) unmarkFeatureActive(featureID string) {
 	s.active.Delete(featureID)
+}
+
+// resolveBoltNumberForStage returns the bolt number to use for a stage action.
+// Per-Bolt construction stages (3.1-3.5) use f.CurrentBolt; all other stages
+// return 0. Mirrors pipeline.isPerBoltStageID.
+func resolveBoltNumberForStage(f *feature.Feature, stageID string) int {
+	switch stageID {
+	case "3.1", "3.2", "3.3", "3.4", "3.5":
+		return f.CurrentBolt
+	}
+	return 0
 }
 
 // jsonString safely quotes a string for JSON embedding.

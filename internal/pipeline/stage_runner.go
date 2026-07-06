@@ -56,6 +56,7 @@ type StageRunResult struct {
 	StageID        string
 	Phase          string
 	StageName      string
+	BoltNumber     int // 0 for non-construction stages; 1+ for per-Bolt stages
 	RoleResult     *role.DispatchResult
 	SmokeFailures  []string
 	Outcome        *db.OutcomeRow
@@ -98,21 +99,31 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		return nil, fmt.Errorf("loading stage definition %s: %w", stageID, err)
 	}
 
-	log.Printf("RunStage: starting stage %s (%s) for feature %s", stageID, stageDef.Name, f.ID)
+	// Resolve the bolt number for this stage. Per-Bolt construction stages
+	// (3.1-3.5) track state per bolt; all other stages use bolt_number=0.
+	boltNumber := 0
+	if isPerBoltStageID(stageID) {
+		boltNumber = f.CurrentBolt
+		if boltNumber <= 0 {
+			return nil, fmt.Errorf("stage %s is per-Bolt but feature %s has CurrentBolt=%d", stageID, f.ID, f.CurrentBolt)
+		}
+	}
+
+	log.Printf("RunStage: starting stage %s (%s) for feature %s (bolt=%d)", stageID, stageDef.Name, f.ID, boltNumber)
 
 	now := time.Now()
 
-	fs, err := p.database.GetFeatureStage(f.ID, stageID)
+	fs, err := p.getFeatureStageRow(f.ID, stageID, boltNumber)
 	if err != nil {
 		return nil, fmt.Errorf("getting feature stage %s: %w", stageID, err)
 	}
 	if fs == nil {
-		return nil, fmt.Errorf("feature stage %s not initialized for feature %s — call InitFeatureStages first", stageID, f.ID)
+		return nil, fmt.Errorf("feature stage %s not initialized for feature %s (bolt=%d) — call InitFeatureStages/InitBoltStages first", stageID, f.ID, boltNumber)
 	}
 
-	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusInProgress, fs.RevisionCount, &now, nil)
+	p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusInProgress, fs.RevisionCount, &now, nil)
 	p.database.RecordAuditEvent(f.ID, db.AuditStageStart, stageID, stageDef.Phase, "")
-	p.broadcastSSE(f.ID, "stage_started", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase)))
+	p.broadcastSSE(f.ID, "stage_started", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s,"bolt":%d}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase), boltNumber))
 
 	// Update session state to running
 	if p.sessionMgr != nil {
@@ -182,7 +193,7 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	close(lineCh)
 	<-streamDone
 	if err != nil {
-		p.database.UpdateFeatureStage(f.ID, stageID, "failed", fs.RevisionCount, &now, nil)
+		p.updateFeatureStageRow(f.ID, stageID, boltNumber, "failed", fs.RevisionCount, &now, nil)
 		p.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(err.Error())))
 		return nil, fmt.Errorf("dispatching agent %s for stage %s: %w", stageDef.LeadAgent, stageID, err)
 	}
@@ -240,11 +251,12 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	}
 
 	g := gate.New(f.ID, stageID)
+	g.BoltNumber = boltNumber
 
 	if outcomeSource == "smoke_failed" || outcomeSource == "reviewer_rejected" {
-		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusRevising, fs.RevisionCount + 1, &now, nil)
+		p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusRevising, fs.RevisionCount+1, &now, nil)
 		p.database.RecordAuditEvent(f.ID, db.AuditStageRevising, stageID, stageDef.Phase, strings.Join(smokeFailures, "; "))
-		p.broadcastSSE(f.ID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"reason":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(outcomeSource)))
+		p.broadcastSSE(f.ID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d,"reason":%s}`, jsonString(f.ID), jsonString(stageID), boltNumber, jsonString(outcomeSource)))
 		g.RevisionNotes = strings.Join(smokeFailures, "\n")
 		if reviewerResult != nil && reviewerResult.Verdict == "NOT-READY" {
 			g.RevisionNotes = reviewerResult.Notes
@@ -254,15 +266,11 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		// Gate open for user approval — the state machine (ProcessStageResult)
 		// handles auto-approval based on execution mode. RunStage just opens
 		// the gate and returns. No duplicate mode/gate logic here.
-		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, &now, nil)
+		p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusAwaitingApproval, fs.RevisionCount, &now, nil)
 		p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, stageDef.Phase, "")
-		p.broadcastSSE(f.ID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase)))
+		p.broadcastSSE(f.ID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s,"bolt":%d}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase), boltNumber))
 
 		if p.sessionMgr != nil {
-			boltNumber := 0
-			if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
-				boltNumber = f.CurrentBolt
-			}
 			p.sessionMgr.SetSessionAwaitingGate(f.ID, stageDef.Phase, boltNumber, stageID)
 		}
 	}
@@ -272,7 +280,7 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	} else if outcome.Outcome == "pass" {
 		// Gate open for user approval
 	} else if outcome.Outcome == "failed" {
-		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusRevising, fs.RevisionCount, &now, nil)
+		p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusRevising, fs.RevisionCount, &now, nil)
 		p.database.RecordAuditEvent(f.ID, "STAGE_FAILED", stageID, stageDef.Phase, result.Error)
 		p.broadcastSSE(f.ID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(result.Error)))
 	}
@@ -283,6 +291,7 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		StageID:        stageID,
 		Phase:          stageDef.Phase,
 		StageName:      stageDef.Name,
+		BoltNumber:     boltNumber,
 		RoleResult:     result,
 		SmokeFailures:  smokeFailures,
 		Outcome:        outcome,
@@ -388,29 +397,30 @@ func (p *Pipeline) recordReviewerAudit(f *feature.Feature, stageDef *db.StageDef
 		fmt.Sprintf("reviewer=%s verdict=%s", result.Reviewer, result.Verdict))
 }
 
-// ApproveStage approves the gate for a stage and advances to the next stage.
 // ApproveStage approves a stage gate and advances to the next stage.
+// boltNumber is 0 for non-construction stages; 1+ for per-Bolt stages.
 // Delegates to the state machine (ApproveAndAdvance) for all logic.
-// Returns the next stage ID to run (empty if no more stages).
-func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) (string, error) {
-	return p.ApproveAndAdvance(f, stageID)
+// Returns the next NON-per-Bolt stage ID to run (empty if no more stages).
+func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string, boltNumber int) (string, error) {
+	return p.ApproveAndAdvance(f, stageID, boltNumber)
 }
 
 // RejectStage rejects the gate, saves rejection notes as a rule (learning loop),
 // and sets the stage to revising state.
-func (p *Pipeline) RejectStage(f *feature.Feature, stageID, rejectionNotes string) error {
+// boltNumber is 0 for non-construction stages; 1+ for per-Bolt stages.
+func (p *Pipeline) RejectStage(f *feature.Feature, stageID string, boltNumber int, rejectionNotes string) error {
 	if p.database == nil {
 		return fmt.Errorf("database required")
 	}
 
-	fs, err := p.database.GetFeatureStage(f.ID, stageID)
+	fs, err := p.getFeatureStageRow(f.ID, stageID, boltNumber)
 	if err != nil || fs == nil {
-		return fmt.Errorf("feature stage %s not found", stageID)
+		return fmt.Errorf("feature stage %s (bolt %d) not found", stageID, boltNumber)
 	}
 
 	// Only allow rejecting stages that are awaiting approval or already revising
 	if fs.Status != stage.StatusAwaitingApproval && fs.Status != stage.StatusRevising {
-		return fmt.Errorf("stage %s is in %s state — can only reject stages that are awaiting_approval or revising", stageID, fs.Status)
+		return fmt.Errorf("stage %s (bolt %d) is in %s state — can only reject stages that are awaiting_approval or revising", stageID, boltNumber, fs.Status)
 	}
 
 	stageDef, err := p.database.GetStageDefinition(stageID)
@@ -419,31 +429,30 @@ func (p *Pipeline) RejectStage(f *feature.Feature, stageID, rejectionNotes strin
 	}
 
 	newRevisionCount := fs.RevisionCount + 1
-	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusRevising, newRevisionCount, fs.StartedAt, nil)
+	p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusRevising, newRevisionCount, fs.StartedAt, nil)
 
-	if p.database != nil {
-		p.database.AddNote(f.ID, stageID, stageDef.LeadAgent, "revision", rejectionNotes)
-		p.database.RecordAuditEvent(f.ID, db.AuditGateRejected, stageID, "", rejectionNotes)
-		p.database.RecordAuditEvent(f.ID, db.AuditRuleLearned, stageID, "", rejectionNotes)
-		p.broadcastSSE(f.ID, "gate_rejected", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"notes":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(rejectionNotes)))
+	p.database.AddNote(f.ID, stageID, stageDef.LeadAgent, "revision", rejectionNotes)
+	p.database.RecordAuditEvent(f.ID, db.AuditGateRejected, stageID, "", rejectionNotes)
+	p.database.RecordAuditEvent(f.ID, db.AuditRuleLearned, stageID, "", rejectionNotes)
+	p.broadcastSSE(f.ID, "gate_rejected", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d,"notes":%s}`, jsonString(f.ID), jsonString(stageID), boltNumber, jsonString(rejectionNotes)))
 
-		// Learning loop: save rejection as a rule for this agent
-		ruleText := fmt.Sprintf("Stage %s rejection: %s", stageID, rejectionNotes)
-		p.database.SaveRule(f.ID, stageDef.LeadAgent, stageID, ruleText, rejectionNotes)
-	}
+	// Learning loop: save rejection as a rule for this agent
+	ruleText := fmt.Sprintf("Stage %s rejection: %s", stageID, rejectionNotes)
+	p.database.SaveRule(f.ID, stageDef.LeadAgent, stageID, ruleText, rejectionNotes)
 
 	return nil
 }
 
 // AcceptStageAsIs uses the 3-strike escape hatch to accept a stage despite issues.
-func (p *Pipeline) AcceptStageAsIs(f *feature.Feature, stageID string) error {
+// boltNumber is 0 for non-construction stages; 1+ for per-Bolt stages.
+func (p *Pipeline) AcceptStageAsIs(f *feature.Feature, stageID string, boltNumber int) error {
 	if p.database == nil {
 		return fmt.Errorf("database required")
 	}
 
-	fs, err := p.database.GetFeatureStage(f.ID, stageID)
+	fs, err := p.getFeatureStageRow(f.ID, stageID, boltNumber)
 	if err != nil || fs == nil {
-		return fmt.Errorf("feature stage %s not found", stageID)
+		return fmt.Errorf("feature stage %s (bolt %d) not found", stageID, boltNumber)
 	}
 
 	if fs.RevisionCount < gate.MaxRevisions {
@@ -451,12 +460,16 @@ func (p *Pipeline) AcceptStageAsIs(f *feature.Feature, stageID string) error {
 	}
 
 	now := time.Now().UTC()
-	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
+	p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
 	p.database.RecordAuditEvent(f.ID, db.AuditGateAcceptAsIs, stageID, "", "")
 	p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
-	p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
+	p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"bolt":%d}`, jsonString(f.ID), jsonString(stageID), boltNumber))
 
-	return p.AdvanceStage(f, stageID)
+	// AdvanceStage only applies to non-per-Bolt stages.
+	if !isPerBoltStageID(stageID) {
+		return p.AdvanceStage(f, stageID)
+	}
+	return nil
 }
 
 // AdvanceStage moves to the next stage in the feature's scope, respecting conditions.
@@ -895,4 +908,34 @@ func (p *Pipeline) resolveContextDir(f *feature.Feature, stageDef *db.StageDefin
 		return tmuxMgr.ContextDirForBolt(f.ID, boltNumber)
 	}
 	return tmuxMgr.ContextDirForPhase(f.ID, stageDef.Phase)
+}
+
+// isPerBoltStageID reports whether a stage runs per-Bolt (3.1-3.5).
+// Mirrors db.isPerBoltStage but lives here to avoid an import cycle from
+// pipeline → db for a single boolean.
+func isPerBoltStageID(stageID string) bool {
+	switch stageID {
+	case "3.1", "3.2", "3.3", "3.4", "3.5":
+		return true
+	}
+	return false
+}
+
+// getFeatureStageRow reads a feature_stage row, routing to the per-Bolt store
+// when boltNumber > 0 and the shared store when boltNumber == 0.
+func (p *Pipeline) getFeatureStageRow(featureID, stageID string, boltNumber int) (*db.FeatureStage, error) {
+	if boltNumber > 0 {
+		return p.database.GetFeatureStageForBolt(featureID, stageID, boltNumber)
+	}
+	return p.database.GetFeatureStage(featureID, stageID)
+}
+
+// updateFeatureStageRow writes a feature_stage row, routing to the per-Bolt
+// store when boltNumber > 0 and the shared store when boltNumber == 0.
+func (p *Pipeline) updateFeatureStageRow(featureID, stageID string, boltNumber int, status string, revisionCount int, startedAt, completedAt *time.Time) {
+	if boltNumber > 0 {
+		p.database.UpdateFeatureStageForBolt(featureID, stageID, boltNumber, status, revisionCount, startedAt, completedAt)
+		return
+	}
+	p.database.UpdateFeatureStage(featureID, stageID, status, revisionCount, startedAt, completedAt)
 }

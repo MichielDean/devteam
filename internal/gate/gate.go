@@ -7,10 +7,10 @@ import (
 
 // State values for an approval gate.
 const (
-	StateOpen        = "open"         // awaiting user decision
-	StateApproved    = "approved"     // user approved, advance
-	StateRejected    = "rejected"     // user requested changes, revision cycle
-	StateAcceptAsIs  = "accept_as_is" // 3-strike escape hatch
+	StateOpen       = "open"         // awaiting user decision
+	StateApproved   = "approved"     // user approved, advance
+	StateRejected   = "rejected"     // user requested changes, revision cycle
+	StateAcceptAsIs = "accept_as_is" // 3-strike escape hatch
 )
 
 // MaxRevisions is the number of rejections before accept-as-is becomes available.
@@ -20,9 +20,10 @@ const MaxRevisions = 3
 type Gate struct {
 	FeatureID     string
 	StageID       string
+	BoltNumber    int // 0 for non-construction stages; 1+ for per-Bolt stages
 	State         string
 	RevisionCount int
-	RevisionNotes string    // notes from last rejection
+	RevisionNotes string     // notes from last rejection
 	DecidedAt     *time.Time // when user approved/rejected/accepted
 }
 
