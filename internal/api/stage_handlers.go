@@ -955,6 +955,33 @@ func (s *Server) setExecutionMode(w http.ResponseWriter, r *http.Request) {
 	if s.db != nil {
 		s.db.RecordAuditEvent(id, db.AuditScopeChange, "", "", "execution_mode="+req.Mode)
 	}
+
+	// If switching to autonomous/guided and a stage is awaiting_approval,
+	// auto-approve it and advance — the user switched mode to unblock.
+	if (req.Mode == "autonomous" || req.Mode == "guided") && !s.isFeatureActive(id) {
+		stages, _ := s.db.GetFeatureStages(id)
+		for _, fs := range stages {
+			if fs.Status == "awaiting_approval" {
+				s.markFeatureActive(id)
+				go func(stageID string, boltNum int) {
+					defer s.unmarkFeatureActive(id)
+					_, err := s.pipeline.ApproveStage(f, stageID, boltNum)
+					if err != nil {
+						log.Printf("setExecutionMode: auto-approve failed for %s stage %s: %v", id, stageID, err)
+						return
+					}
+					if req.Mode == "autonomous" || req.Mode == "guided" {
+						next := s.pipeline.NextStageToRun(id)
+						if next != "" {
+							s.runStageAsync(context.Background(), id, next)
+						}
+					}
+				}(fs.StageID, fs.BoltNumber)
+				break
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "mode": req.Mode})
 }
 
