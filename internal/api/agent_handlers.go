@@ -1,9 +1,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -80,11 +85,171 @@ func (s *Server) handleSignal(w http.ResponseWriter, r *http.Request) {
 	s.broadcastSSE(id, "outcome_signal", fmt.Sprintf(`{"feature_id":"%s","outcome":"%s","target":"%s","notes":"%s"}`,
 		id, req.Outcome, req.Target, escapeJSON(req.Notes)))
 
+	// In autonomous/guided mode, auto-answer questions via human-proxy agent
+	if req.Outcome == "needs_feedback" {
+		f, err := s.pipeline.GetFeature(id)
+		if err == nil && (f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided") {
+			log.Printf("handleSignal: needs_feedback in %s mode — dispatching human-proxy agent for %s", f.ExecutionMode, id)
+			go s.dispatchHumanProxy(id, f.CurrentStage)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"feature_id": id,
 		"outcome":    req.Outcome,
 		"status":     "recorded",
 	})
+}
+
+// dispatchHumanProxy runs the human-proxy agent to auto-answer pending questions.
+// The agent reads questions via CLI, reads artifacts for context, answers each
+// question, and signals pass to resume the stage.
+func (s *Server) dispatchHumanProxy(featureID, phase string) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("dispatchHumanProxy panic for feature %s: %v", featureID, rec)
+		}
+	}()
+
+	f, err := s.pipeline.GetFeature(featureID)
+	if err != nil {
+		log.Printf("dispatchHumanProxy: failed to get feature %s: %v", featureID, err)
+		return
+	}
+
+	// Build context for the human-proxy agent
+	stageDef, _ := s.db.GetStageDefinition(f.CurrentStage)
+	stageName := ""
+	if stageDef != nil {
+		stageName = stageDef.Name
+	}
+
+	// Dispatch the human-proxy agent in a tmux session
+	tmuxMgr := s.pipeline.Dispatcher().TmuxManager()
+	sessionName := tmuxMgr.SessionNameForPhase(featureID, phase) + "-proxy"
+	contextDir := tmuxMgr.ContextDirForPhase(featureID, phase) + "-proxy"
+
+	// Prepare context dir
+	if err := os.MkdirAll(contextDir, 0755); err != nil {
+		log.Printf("dispatchHumanProxy: failed to create context dir: %v", err)
+		return
+	}
+
+	// Write minimal context
+	contextContent := fmt.Sprintf("# Human Proxy Task\n\nFeature: %s\nTitle: %s\nScope: %s\nDepth: %s\nCurrent Stage: %s (%s)\n\nA stage agent has asked questions that need answers. You are acting as the human-in-the-loop proxy. Read the questions, review the artifacts and code, and answer them.\n",
+		f.ID, f.Title, f.Scope, f.Depth, f.CurrentStage, stageName)
+	os.WriteFile(filepath.Join(contextDir, "CONTEXT.md"), []byte(contextContent), 0644)
+
+	// Write opencode config (same isolated config as stage agents)
+	opencodeConfig := `{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ollama/glm-5.2:cloud",
+  "permission": "allow",
+  "instructions": [],
+  "plugin": [],
+  "compaction": { "enabled": false },
+  "snapshot": false,
+  "mcp": {},
+  "agent": {},
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": { "baseURL": "http://localhost:11434/v1" },
+      "models": { "glm-5.2:cloud": { "name": "GLM 5.2 Cloud" } }
+    }
+  }
+}`
+	os.WriteFile(filepath.Join(contextDir, "opencode.json"), []byte(opencodeConfig), 0644)
+
+	// Write AGENTS.md
+	agentsMD := "# Human Proxy Agent\n\nYou are answering questions on behalf of the human in an autonomous pipeline. Use the devteam CLI to read and answer questions.\n"
+	os.WriteFile(filepath.Join(contextDir, "AGENTS.md"), []byte(agentsMD), 0644)
+
+	// Write .bashrc for PATH
+	devteamPath, _ := exec.LookPath("devteam")
+	if devteamPath == "" {
+		devteamPath = filepath.Join(os.Getenv("HOME"), "go", "bin", "devteam")
+	}
+	if devteamPath != "" {
+		os.WriteFile(filepath.Join(contextDir, ".bashrc"), []byte(fmt.Sprintf("export PATH=\"%s:$PATH\"\n", filepath.Dir(devteamPath))), 0644)
+	}
+
+	// Write agent role file
+	agentsDir := filepath.Join(contextDir, "agents")
+	os.MkdirAll(agentsDir, 0755)
+	agentMD := "---\ndescription: Answers questions on behalf of the human\nmode: primary\nmodel: ollama/glm-5.2:cloud\n---\n\nYou are the human-proxy agent. Read the pending questions and answer them.\n"
+	os.WriteFile(filepath.Join(agentsDir, "human-proxy.md"), []byte(agentMD), 0644)
+
+	// Build and run the opencode command
+	cmdPath := "opencode"
+	if p, err := exec.LookPath("opencode"); err == nil {
+		cmdPath = p
+	}
+	prompt := fmt.Sprintf("Read CONTEXT.md. Then: devteam questions list %s. Answer each pending question using devteam questions answer. Then signal pass.", featureID)
+	agentCmd := fmt.Sprintf("%s run --pure --dangerously-skip-permissions --agent human-proxy '%s' 2>&1 | tee %s; echo ${PIPESTATUS[0]} > %s",
+		cmdPath, prompt,
+		filepath.Join(contextDir, "proxy.log"),
+		filepath.Join(contextDir, "exit_code"))
+
+	logPath := filepath.Join(contextDir, "logs")
+	os.MkdirAll(logPath, 0755)
+
+	// Create tmux session
+	args := []string{"new-session", "-d", "-s", sessionName, "-c", contextDir}
+	home := os.Getenv("HOME")
+	tmuxPath := os.Getenv("PATH")
+	if home != "" {
+		tmuxPath = filepath.Join(home, "go/bin") + ":" + filepath.Join(home, ".opencode/bin") + ":" + tmuxPath
+	}
+	args = append(args, "-e", "PATH="+tmuxPath, "-e", "HOME="+home, "-e", "OPENCODE_CONFIG_DIR="+contextDir, "-e", "OPENCODE_DISABLE_PROJECT_CONFIG=1")
+	args = append(args, agentCmd)
+
+	createCmd := exec.Command("tmux", args...)
+	createCmd.Env = minimalTmuxEnvForProxy()
+	if out, err := createCmd.CombinedOutput(); err != nil {
+		log.Printf("dispatchHumanProxy: failed to create tmux session: %v: %s", err, string(out))
+		return
+	}
+
+	log.Printf("dispatchHumanProxy: created session %s for feature %s", sessionName, featureID)
+
+	// Poll for tmux session exit
+	for i := 0; i < 600; i++ { // 10 minute timeout
+		if !tmuxMgr.IsSessionAlive(sessionName) {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	// Kill if still alive
+	tmuxMgr.KillSession(sessionName)
+
+	// Check if questions were answered
+	questions, _ := s.db.GetPendingQuestions(featureID)
+	if len(questions) > 0 {
+		log.Printf("dispatchHumanProxy: %d questions still pending after proxy — leaving for human", len(questions))
+		return
+	}
+
+	// All questions answered — resume the stage
+	log.Printf("dispatchHumanProxy: all questions answered — resuming stage %s for %s", f.CurrentStage, featureID)
+	if !s.isFeatureActive(featureID) {
+		s.markFeatureActive(featureID)
+		go s.runStageAsync(context.Background(), featureID, f.CurrentStage)
+	}
+}
+
+func minimalTmuxEnvForProxy() []string {
+	home, _ := os.UserHomeDir()
+	env := []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + home,
+		"USER=" + os.Getenv("USER"),
+		"SHELL=" + os.Getenv("SHELL"),
+		"TERM=" + os.Getenv("TERM"),
+	}
+	return env
 }
 
 // NotesRequest is the body for POST /api/features/{id}/notes

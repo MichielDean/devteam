@@ -64,6 +64,31 @@ func (db *DB) GetQuestion(id string) (*QuestionRow, error) {
 	return &q, nil
 }
 
+// GetPendingQuestions returns all pending (unanswered) questions for a feature.
+func (db *DB) GetPendingQuestions(featureID string) ([]QuestionRow, error) {
+	rows, err := db.Query(
+		`SELECT id, feature_id, phase, role, question, type, options, answer, status, assumed, created_at, answered_at
+		 FROM questions WHERE feature_id = ? AND status = 'pending' ORDER BY created_at`,
+		featureID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("getting pending questions: %w", err)
+	}
+	defer rows.Close()
+
+	questions := []QuestionRow{}
+	for rows.Next() {
+		var q QuestionRow
+		var answeredAt *time.Time
+		if err := rows.Scan(&q.ID, &q.FeatureID, &q.Phase, &q.Role, &q.Question, &q.Type, &q.Options, &q.Answer, &q.Status, &q.Assumed, &q.CreatedAt, &answeredAt); err != nil {
+			return nil, fmt.Errorf("scanning question: %w", err)
+		}
+		q.AnsweredAt = answeredAt
+		questions = append(questions, q)
+	}
+	return questions, nil
+}
+
 // ListQuestions retrieves all questions for a feature.
 func (db *DB) ListQuestions(featureID string) ([]QuestionRow, error) {
 	rows, err := db.Query(
