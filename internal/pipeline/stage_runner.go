@@ -189,7 +189,71 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	}
 
 	log.Printf("RunStage: dispatching agent %s for stage %s (session=%s)", stageDef.LeadAgent, stageID, req.SessionName)
-	result, err := p.dispatcher.DispatchStreaming(ctx, req, lineCh)
+
+	// Acquire a concurrency slot — limits how many agents run at once to
+	// avoid exhausting LLM API quota. Released when the dispatch completes.
+	slotRelease := p.acquireAgentSlot()
+	defer slotRelease()
+
+	// Retry dispatch on transient failures (LLM quota, rate limits, network).
+	// Up to 3 attempts with exponential backoff (30s, 60s, 120s).
+	// Non-transient errors (missing files, bad config) fail immediately.
+	var result *role.DispatchResult
+	{
+		maxRetries := 3
+		backoffs := []time.Duration{30 * time.Second, 60 * time.Second, 120 * time.Second}
+		for attempt := 0; attempt <= maxRetries; attempt++ {
+			result, err = p.dispatcher.DispatchStreaming(ctx, req, lineCh)
+			if err == nil {
+				break
+			}
+			// Check if this is a transient error worth retrying
+			errStr := err.Error()
+			isTransient := strings.Contains(errStr, "429") ||
+				strings.Contains(errStr, "rate limit") ||
+				strings.Contains(errStr, "quota") ||
+				strings.Contains(errStr, "insufficient") ||
+				strings.Contains(errStr, "balance") ||
+				strings.Contains(errStr, "payment") ||
+				strings.Contains(errStr, "temporarily unavailable") ||
+				strings.Contains(errStr, "connection refused") ||
+				strings.Contains(errStr, "timeout") ||
+				strings.Contains(errStr, "EOF")
+			// Also retry on non-zero exit codes that look like LLM errors
+			if result != nil && !result.Success {
+				outStr := result.Output
+				isTransient = isTransient ||
+					strings.Contains(outStr, "429") ||
+					strings.Contains(outStr, "rate limit") ||
+					strings.Contains(outStr, "quota") ||
+					strings.Contains(outStr, "insufficient") ||
+					strings.Contains(outStr, "balance") ||
+					strings.Contains(outStr, "payment") ||
+					strings.Contains(outStr, "Too Many Requests")
+			}
+			if !isTransient || attempt == maxRetries {
+				break
+			}
+			backoff := backoffs[attempt]
+			if attempt < len(backoffs) {
+				backoff = backoffs[attempt]
+			} else {
+				backoff = 120 * time.Second
+			}
+			log.Printf("RunStage: transient error for %s (attempt %d/%d) — retrying in %v: %s",
+				stageID, attempt+1, maxRetries, backoff, errStr)
+			p.broadcastSSE(f.ID, "stage_retry",
+				fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"attempt":%d,"max":%d,"backoff_seconds":%d}`,
+					jsonString(f.ID), jsonString(stageID), attempt+1, maxRetries, int(backoff.Seconds())))
+			select {
+			case <-ctx.Done():
+				close(lineCh)
+				<-streamDone
+				return nil, ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+	}
 	close(lineCh)
 	<-streamDone
 	if err != nil {

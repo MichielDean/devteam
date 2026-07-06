@@ -19,6 +19,11 @@ import (
 	"github.com/MichielDean/devteam/internal/spec"
 )
 
+// maxConcurrentAgents limits how many agent tmux sessions can run at once.
+// Too many concurrent agents will exhaust LLM API quota. The semaphore is
+// acquired before dispatch and released after the agent exits.
+const maxConcurrentAgents = 4
+
 // Pipeline orchestrates agent dispatch, outcome reading, and feature state.
 // One phase per RunPhase call — no recursion, no autopilot loop.
 type Pipeline struct {
@@ -33,20 +38,22 @@ type Pipeline struct {
 	repoManager    *repo.Manager
 	database       *db.DB
 	sessionMgr     *SessionManager
+	agentSemaphore chan struct{} // limits concurrent agent dispatches
 }
 
 func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline {
 	baseDir := specProvider.BaseDir()
 	return &Pipeline{
-		config:        cfg,
-		specProvider:  specProvider,
-		specWriter:    spec.NewSpecWriter(baseDir),
-		ruleLoader:    rules.NewRuleLoaderWithConfig(baseDir, cfg),
-		roleLoader:    role.NewRoleLoader(baseDir),
-		dispatcher:    role.NewDispatcher(baseDir),
-		questionStore: feature.NewFileQuestionStore(baseDir),
-		gitClient:     gitops.NewGitClient(baseDir),
-		repoManager:   repo.NewManager(baseDir),
+		config:         cfg,
+		specProvider:   specProvider,
+		specWriter:     spec.NewSpecWriter(baseDir),
+		ruleLoader:     rules.NewRuleLoaderWithConfig(baseDir, cfg),
+		roleLoader:     role.NewRoleLoader(baseDir),
+		dispatcher:     role.NewDispatcher(baseDir),
+		questionStore:  feature.NewFileQuestionStore(baseDir),
+		gitClient:      gitops.NewGitClient(baseDir),
+		repoManager:    repo.NewManager(baseDir),
+		agentSemaphore: make(chan struct{}, maxConcurrentAgents),
 	}
 }
 
@@ -57,6 +64,13 @@ func (p *Pipeline) SetDatabase(database *db.DB) {
 
 func (p *Pipeline) SetQuestionStore(qs feature.QuestionStore) {
 	p.questionStore = qs
+}
+
+// acquireAgentSlot blocks until a concurrent-agent slot is available.
+// Releases on return. Call via defer in the dispatch path.
+func (p *Pipeline) acquireAgentSlot() func() {
+	p.agentSemaphore <- struct{}{}
+	return func() { <-p.agentSemaphore }
 }
 
 func (p *Pipeline) Dispatcher() *role.Dispatcher {
