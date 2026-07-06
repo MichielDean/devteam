@@ -118,21 +118,22 @@ func (p *Pipeline) ShouldAutoAdvance(f *feature.Feature, stageID string) bool {
 
 // ApproveAndAdvance approves a stage gate and advances to the next stage.
 // Used by the approve API handler and by auto-approval flows.
-func (p *Pipeline) ApproveAndAdvance(f *feature.Feature, stageID string) error {
+// Returns the next stage ID to run (empty if no more stages).
+func (p *Pipeline) ApproveAndAdvance(f *feature.Feature, stageID string) (string, error) {
 	fs, err := p.database.GetFeatureStage(f.ID, stageID)
 	if err != nil || fs == nil {
-		return fmt.Errorf("feature stage %s not found", stageID)
+		return "", fmt.Errorf("feature stage %s not found", stageID)
 	}
 
 	// Only allow approving from awaiting_approval or revising
 	if fs.Status != stage.StatusAwaitingApproval && fs.Status != stage.StatusRevising {
-		return fmt.Errorf("stage %s is in %s state — can only approve awaiting_approval or revising", stageID, fs.Status)
+		return "", fmt.Errorf("stage %s is in %s state — can only approve awaiting_approval or revising", stageID, fs.Status)
 	}
 
 	// Check reviewer rejection
 	outcome, _ := p.database.GetLatestOutcome(f.ID, stageID)
 	if outcome != nil && outcome.Outcome == "recirculate" {
-		return fmt.Errorf("stage %s was rejected by reviewer — re-run before approving", stageID)
+		return "", fmt.Errorf("stage %s was rejected by reviewer — re-run before approving", stageID)
 	}
 
 	now := time.Now().UTC()
@@ -142,5 +143,10 @@ func (p *Pipeline) ApproveAndAdvance(f *feature.Feature, stageID string) error {
 	p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
 	p.broadcastSSE(f.ID, "gate_approved", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
 
-	return p.AdvanceStage(f, stageID)
+	if err := p.AdvanceStage(f, stageID); err != nil {
+		return "", err
+	}
+
+	// Return the next stage to run
+	return p.NextStageToRun(f.ID), nil
 }

@@ -391,7 +391,8 @@ func (p *Pipeline) recordReviewerAudit(f *feature.Feature, stageDef *db.StageDef
 // ApproveStage approves the gate for a stage and advances to the next stage.
 // ApproveStage approves a stage gate and advances to the next stage.
 // Delegates to the state machine (ApproveAndAdvance) for all logic.
-func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) error {
+// Returns the next stage ID to run (empty if no more stages).
+func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) (string, error) {
 	return p.ApproveAndAdvance(f, stageID)
 }
 

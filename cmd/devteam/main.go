@@ -373,7 +373,7 @@ func handleApprove(baseDir string, cfg *config.Config) {
 	p := pipeline.NewPipeline(cfg, provider)
 	p.SetDatabase(database)
 
-	if err := p.ApproveStage(f, stageID); err != nil {
+	if _, err := p.ApproveStage(f, stageID); err != nil {
 		fmt.Fprintf(os.Stderr, "error approving stage: %v\n", err)
 		os.Exit(1)
 	}

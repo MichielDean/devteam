@@ -237,9 +237,18 @@ func (s *Server) approveStage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.pipeline.ApproveStage(f, stageID); err != nil {
+	nextStageID, err := s.pipeline.ApproveStage(f, stageID)
+	if err != nil {
 		http.Error(w, `{"error":"approve_failed","details":"`+err.Error()+`"}`, http.StatusBadRequest)
 		return
+	}
+
+	// In autonomous/guided mode, auto-advance to the next stage
+	if nextStageID != "" && (f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided") {
+		if !s.isFeatureActive(featureID) {
+			s.markFeatureActive(featureID)
+			go s.runStageAsync(context.Background(), featureID, nextStageID)
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
