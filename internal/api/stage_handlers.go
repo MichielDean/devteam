@@ -665,6 +665,21 @@ func (s *Server) runBolt(w http.ResponseWriter, r *http.Request) {
 		}
 		resultJSON, _ := json.Marshal(result)
 		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"bolt":%d,"result":%s}`, jsonString(featureID), boltNumber, string(resultJSON)))
+
+		// In autonomous/guided mode, if the bolt completed (not paused at a gate),
+		// continue to the next non-per-bolt stage (3.6, 3.7, 4.x) via the linear
+		// auto-advance loop. RunBolt only does 3.1-3.5; 3.6/3.7 are driven by
+		// NextStageToRun + runStageAsync.
+		if !result.Failed && (f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided") {
+			nextStageID := s.pipeline.NextStageToRun(featureID)
+			if nextStageID != "" {
+				log.Printf("runBolt: bolt %d complete — auto-advancing to stage %s for feature %s", boltNumber, nextStageID, featureID)
+				time.Sleep(2 * time.Second)
+				s.runStageAsync(context.Background(), featureID, nextStageID)
+			} else {
+				log.Printf("runBolt: bolt %d complete — no more stages for feature %s", boltNumber, featureID)
+			}
+		}
 	}()
 
 	w.Header().Set("Content-Type", "application/json")
