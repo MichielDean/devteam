@@ -1,11 +1,10 @@
 import { useUIStore } from '../store/ui-store';
 import { Badge } from '../ui/primitives';
 import { PHASE_LABELS, AGENT_LABELS } from '../types';
-import type { FeatureStage, StageDefinitionDetail } from '../types';
+import type { FeatureStage } from '../types';
 
 interface StageRailProps {
   stages: FeatureStage[];
-  stageDefinitions?: StageDefinitionDetail[];
   currentStageId?: string;
 }
 
@@ -38,14 +37,11 @@ function groupByPhase(stages: FeatureStage[]): Record<string, FeatureStage[]> {
   return groups;
 }
 
-export default function StageRail({ stages, stageDefinitions, currentStageId }: StageRailProps) {
+export default function StageRail({ stages, currentStageId }: StageRailProps) {
   const { selectedStageId, setSelectedStage } = useUIStore();
   const grouped = groupByPhase(stages);
   const completed = stages.filter((s) => s.status === 'completed').length;
   const total = stages.length;
-
-  const getStageDef = (stageId: string): StageDefinitionDetail | undefined =>
-    stageDefinitions?.find((d) => d.id === stageId);
 
   return (
     <div className="w-64 shrink-0 rounded-[var(--radius-lg)] overflow-y-auto h-full" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-sm)' }} data-testid="stage-rail">
@@ -70,16 +66,17 @@ export default function StageRail({ stages, stageDefinitions, currentStageId }: 
               </h4>
               <div className="space-y-0.5">
                 {phaseStages.map((s) => {
-                  const def = getStageDef(s.stage_id);
                   const isCurrent = s.stage_id === currentStageId;
                   const isSelected = s.stage_id === selectedStageId;
                   const icon = STATUS_ICONS[s.status] || '○';
                   const color = statusColor[s.status] || 'var(--color-text-tertiary)';
+                  const stageName = s.name || '';
+                  const stageDesc = s.description || '';
                   return (
                     <button
                       key={s.stage_id}
                       onClick={() => setSelectedStage(s.stage_id)}
-                      title={def?.description || undefined}
+                      title={stageDesc || undefined}
                       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-left text-xs transition-colors ${
                         isSelected
                           ? 'bg-[var(--color-surface-active)]'
@@ -91,14 +88,14 @@ export default function StageRail({ stages, stageDefinitions, currentStageId }: 
                       <span className="w-4 text-center shrink-0 font-mono text-xs" style={{ color }} data-testid={`rail-icon-${s.stage_id}`}>{icon}</span>
                       <div className="flex-1 min-w-0">
                         <div className={`truncate ${isCurrent ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}`}>
-                          {s.stage_id} {def?.name ? `· ${def.name}` : ''}
+                          {s.stage_id}{stageName ? ` · ${stageName}` : ''}
                         </div>
-                        {def && (
-                          <div className="text-[10px] text-[var(--color-text-tertiary)] truncate">{AGENT_LABELS[def.lead_agent] || def.lead_agent}</div>
+                        {s.lead_agent && (
+                          <div className="text-[10px] text-[var(--color-text-tertiary)] truncate">{AGENT_LABELS[s.lead_agent] || s.lead_agent}</div>
                         )}
                       </div>
                       {s.revision_count > 0 && <Badge color="yellow" className="text-[10px] px-1 py-0">×{s.revision_count}</Badge>}
-                      {def?.reviewer && <span className="text-[10px]" style={{ color: 'var(--color-text-tertiary)' }} title={`Reviewer: ${AGENT_LABELS[def.reviewer]}`}>🔍</span>}
+                      {s.reviewer && <span className="text-[10px]" style={{ color: 'var(--color-text-tertiary)' }} title={`Reviewer: ${AGENT_LABELS[s.reviewer]}`}>🔍</span>}
                     </button>
                   );
                 })}
