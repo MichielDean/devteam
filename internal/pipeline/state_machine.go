@@ -40,7 +40,7 @@ func (p *Pipeline) ProcessStageResult(f *feature.Feature, stageID string, result
 
 	// Save agent output to DB
 	if result.RoleResult != nil && result.RoleResult.Output != "" {
-		p.database.SaveStageLog(f.ID, stageID, result.StageName, result.RoleResult.Output)
+		p.database.SaveStageLogForBolt(f.ID, stageID, boltNumber, result.StageName, result.RoleResult.Output)
 	}
 
 	// Check for failures first

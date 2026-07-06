@@ -4,11 +4,12 @@ import { API_BASE } from '../api/client';
 interface AgentOutputLiveProps {
   featureId: string;
   stageId?: string;
+  boltNumber?: number;
   isProcessing: boolean;
   phase?: string;
 }
 
-export default function AgentOutputLive({ featureId, stageId, isProcessing }: AgentOutputLiveProps) {
+export default function AgentOutputLive({ featureId, stageId, boltNumber, isProcessing }: AgentOutputLiveProps) {
   const [content, setContent] = useState('');
   const [isExpanded, setIsExpanded] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,7 +22,8 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing }: Ag
 
     const fetchLog = async () => {
       try {
-        const res = await fetch(`${API_BASE}/features/${featureId}/log/${stageId}`);
+        const boltParam = boltNumber && boltNumber > 0 ? `?bolt=${boltNumber}` : '';
+        const res = await fetch(`${API_BASE}/features/${featureId}/log/${stageId}${boltParam}`);
         if (res.ok) {
           const text = await res.text();
           setContent(text);
@@ -35,7 +37,7 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing }: Ag
     const interval = isProcessing ? 2000 : 10000;
     const timer = setInterval(fetchLog, interval);
     return () => clearInterval(timer);
-  }, [featureId, stageId, isProcessing]);
+  }, [featureId, stageId, boltNumber, isProcessing]);
 
   // Auto-scroll to bottom if user was at bottom
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function AgentOutputLive({ featureId, stageId, isProcessing }: Ag
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-[var(--color-text-primary)]">
             Agent Output
-            {stageId && <span className="ml-2 text-xs text-[var(--color-text-tertiary)]">· {stageId}</span>}
+            {stageId && <span className="ml-2 text-xs text-[var(--color-text-tertiary)]">· {stageId}{boltNumber && boltNumber > 0 ? ` · Bolt ${boltNumber}` : ''}</span>}
           </h3>
           <span className="text-xs text-[var(--color-text-tertiary)]">{lines.length} lines</span>
           {isProcessing && <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-success)' }} title="Live" />}

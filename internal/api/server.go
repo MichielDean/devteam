@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -732,11 +733,20 @@ func (s *Server) updateArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 // getStageLog returns the agent output log for a specific stage.
+// For per-Bolt construction stages (3.1-3.5), pass ?bolt=N to read the
+// log for a specific bolt. Without ?bolt, reads bolt_number=0 (non-construction).
 // During active dispatch, reads from the log file (being actively written).
 // After dispatch completes, reads from the DB (saved by RunStage).
 func (s *Server) getStageLog(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	stageID := r.PathValue("stageId")
+
+	boltNumber := 0
+	if boltStr := r.URL.Query().Get("bolt"); boltStr != "" {
+		if n, err := strconv.Atoi(boltStr); err == nil && n > 0 {
+			boltNumber = n
+		}
+	}
 
 	// Always try the file first — it's live during dispatch and has the freshest content
 	base := os.Getenv("XDG_DATA_HOME")
@@ -745,7 +755,15 @@ func (s *Server) getStageLog(w http.ResponseWriter, r *http.Request) {
 		base = filepath.Join(home, ".local", "share")
 	}
 	sessionsDir := filepath.Join(base, "devteam", "sessions", id)
-	pattern := filepath.Join(sessionsDir, "*", "logs", stageID+"-*.log")
+
+	var pattern string
+	if boltNumber > 0 {
+		// Per-Bolt: narrow to this bolt's context dir.
+		pattern = filepath.Join(sessionsDir, fmt.Sprintf("construction-bolt%d", boltNumber), "logs", stageID+"-*.log")
+	} else {
+		// Non-construction: any phase context dir.
+		pattern = filepath.Join(sessionsDir, "*", "logs", stageID+"-*.log")
+	}
 	matches, _ := filepath.Glob(pattern)
 
 	if len(matches) > 0 {
@@ -760,7 +778,7 @@ func (s *Server) getStageLog(w http.ResponseWriter, r *http.Request) {
 
 	// Fall back to DB
 	if s.db != nil {
-		content, err := s.db.GetStageLog(id, stageID)
+		content, err := s.db.GetStageLogForBolt(id, stageID, boltNumber)
 		if err == nil && content != "" {
 			w.Header().Set("Content-Type", "text/plain")
 			w.Write([]byte(content))

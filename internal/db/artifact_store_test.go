@@ -201,3 +201,53 @@ func TestPerBoltStageTracking(t *testing.T) {
 		t.Fatalf("InitBoltStages bolt 1 (repeat): %v", err)
 	}
 }
+
+func TestPerBoltStageLogs(t *testing.T) {
+	d := setupTestDB(t)
+	seedFeature(t, d, "feat-log")
+
+	// Bolt 1's 3.5 log and bolt 2's 3.5 log should be distinct rows.
+	if err := d.SaveStageLogForBolt("feat-log", "3.5", 1, "developer", "bolt 1 output"); err != nil {
+		t.Fatalf("SaveStageLogForBolt 1: %v", err)
+	}
+	if err := d.SaveStageLogForBolt("feat-log", "3.5", 2, "developer", "bolt 2 output"); err != nil {
+		t.Fatalf("SaveStageLogForBolt 2: %v", err)
+	}
+
+	log1, err := d.GetStageLogForBolt("feat-log", "3.5", 1)
+	if err != nil {
+		t.Fatalf("GetStageLogForBolt 1: %v", err)
+	}
+	if log1 != "bolt 1 output" {
+		t.Errorf("bolt 1 log = %q, want %q", log1, "bolt 1 output")
+	}
+
+	log2, err := d.GetStageLogForBolt("feat-log", "3.5", 2)
+	if err != nil {
+		t.Fatalf("GetStageLogForBolt 2: %v", err)
+	}
+	if log2 != "bolt 2 output" {
+		t.Errorf("bolt 2 log = %q, want %q", log2, "bolt 2 output")
+	}
+
+	// Non-construction stage at bolt_number=0 via the legacy signature.
+	if err := d.SaveStageLog("feat-log", "1.1", "product", "ideation output"); err != nil {
+		t.Fatalf("SaveStageLog 1.1: %v", err)
+	}
+	log11, err := d.GetStageLog("feat-log", "1.1")
+	if err != nil {
+		t.Fatalf("GetStageLog 1.1: %v", err)
+	}
+	if log11 != "ideation output" {
+		t.Errorf("1.1 log = %q, want %q", log11, "ideation output")
+	}
+
+	// Overwriting bolt 1's log must not affect bolt 2's log.
+	if err := d.SaveStageLogForBolt("feat-log", "3.5", 1, "developer", "bolt 1 revised"); err != nil {
+		t.Fatalf("SaveStageLogForBolt 1 (revise): %v", err)
+	}
+	log2After, _ := d.GetStageLogForBolt("feat-log", "3.5", 2)
+	if log2After != "bolt 2 output" {
+		t.Errorf("bolt 2 log after bolt 1 revise = %q, want %q (should be unaffected)", log2After, "bolt 2 output")
+	}
+}

@@ -200,8 +200,8 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 
 	// Save the full agent output to the DB for persistent per-stage history
 	if result != nil && result.Output != "" {
-		if saveErr := p.database.SaveStageLog(f.ID, stageID, stageDef.LeadAgent, result.Output); saveErr != nil {
-			log.Printf("RunStage: failed to save stage log for %s: %v", stageID, saveErr)
+		if saveErr := p.database.SaveStageLogForBolt(f.ID, stageID, boltNumber, stageDef.LeadAgent, result.Output); saveErr != nil {
+			log.Printf("RunStage: failed to save stage log for %s bolt %d: %v", stageID, boltNumber, saveErr)
 		}
 	}
 
