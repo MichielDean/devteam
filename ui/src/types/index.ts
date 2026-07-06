@@ -45,9 +45,15 @@ export const DEPTHS = ['minimal', 'standard', 'comprehensive'] as const;
 export type DepthName = typeof DEPTHS[number];
 
 export const DEPTH_LABELS: Record<string, string> = {
-  minimal: 'Minimal',
-  standard: 'Standard',
-  comprehensive: 'Comprehensive',
+  minimal: 'Minimal — 1-2 page artifacts, key decisions only',
+  standard: 'Standard — Complete artifacts, all required sections',
+  comprehensive: 'Comprehensive — Full enterprise detail, compliance matrices',
+};
+
+export const DEPTH_DESCRIPTIONS: Record<string, string> = {
+  minimal: 'Core essentials only. Short documents, key decisions, minimal supporting analysis. Best for quick fixes, patches, proofs of concept.',
+  standard: 'Balanced detail. Complete requirements, architecture decisions with rationale, thorough test plans. Best for most features and MVPs.',
+  comprehensive: 'Full enterprise detail. Exhaustive requirements, compliance matrices, detailed NFR specifications, complete audit documentation. Best for regulated features.',
 };
 
 // ─── Test Strategy ───

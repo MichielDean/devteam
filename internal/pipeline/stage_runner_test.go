@@ -12,8 +12,8 @@ import (
 func TestShouldSkipStageAlways(t *testing.T) {
 	p := &Pipeline{}
 	f := &feature.Feature{Scope: stage.ScopeFeature}
-	s := db.StageDefinition{Condition: stage.CondAlways}
-	if p.shouldSkipStage(f, s) {
+	s := db.StageDefinition{Condition: stage.CondAlways, Scopes: []string{stage.ScopeFeature, stage.ScopeEnterprise, stage.ScopeMVP, stage.ScopePOC, stage.ScopeBugfix, stage.ScopeRefactor, stage.ScopeInfra, stage.ScopeSecurityPatch, stage.ScopeWorkshop}}
+	if p.ShouldSkipStage(f, s) {
 		t.Error("ALWAYS stage should not be skipped")
 	}
 }
@@ -21,9 +21,18 @@ func TestShouldSkipStageAlways(t *testing.T) {
 func TestShouldSkipStageConditional(t *testing.T) {
 	p := &Pipeline{}
 	f := &feature.Feature{Scope: stage.ScopeFeature}
-	s := db.StageDefinition{Condition: stage.CondConditional}
-	if p.shouldSkipStage(f, s) {
-		t.Error("CONDITIONAL stage already in scope set should not be skipped")
+	s := db.StageDefinition{Condition: stage.CondConditional, Scopes: []string{stage.ScopeFeature}}
+	if p.ShouldSkipStage(f, s) {
+		t.Error("CONDITIONAL stage in scope set should not be skipped")
+	}
+}
+
+func TestShouldSkipStageNotInScope(t *testing.T) {
+	p := &Pipeline{}
+	f := &feature.Feature{Scope: stage.ScopeBugfix}
+	s := db.StageDefinition{Condition: stage.CondConditional, Scopes: []string{stage.ScopeFeature, stage.ScopeEnterprise}}
+	if !p.ShouldSkipStage(f, s) {
+		t.Error("Stage not in bugfix scope should be skipped")
 	}
 }
 

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listRepos } from '../api/client';
 import type { CreateFeatureRequest, ScopeName } from '../types';
-import { SCOPES, SCOPE_LABELS, SCOPE_DESCRIPTIONS } from '../types';
+import { SCOPES, SCOPE_LABELS, SCOPE_DESCRIPTIONS, DEPTH_DESCRIPTIONS } from '../types';
 
 interface IntakeFormProps {
   onSubmit: (req: CreateFeatureRequest, startImmediately: boolean) => void;
@@ -221,24 +221,27 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
         </div>
 
         <div>
-          <label htmlFor="scope" className={labelClass}>Scope</label>
+          <label htmlFor="scope" className={labelClass}>Scope — controls which stages run</label>
           <select id="scope" value={scope} onChange={(e) => setScope(e.target.value as ScopeName | '')} className={inputClass} data-testid="scope-select">
             <option value="">Auto-detect{detectedScope ? ` (${SCOPE_LABELS[detectedScope]})` : ''}</option>
-            {SCOPES.map((s) => <option key={s} value={s}>{SCOPE_LABELS[s]}</option>)}
+            {SCOPES.map((s) => <option key={s} value={s}>{SCOPE_LABELS[s]} — {SCOPE_DESCRIPTIONS[s]}</option>)}
           </select>
-          <p className="mt-1 text-xs text-[var(--color-text-tertiary)]" data-testid="scope-hint">
-            {scope ? SCOPE_DESCRIPTIONS[scope] : detectedScope ? `Auto-detected: ${SCOPE_DESCRIPTIONS[detectedScope]}` : 'Scope determines how many stages run. Type a description to see auto-detection.'}
+          <p className="mt-1.5 text-xs text-[var(--color-text-tertiary)]" data-testid="scope-hint">
+            {scope ? SCOPE_DESCRIPTIONS[scope] : detectedScope ? `Auto-detected: ${SCOPE_DESCRIPTIONS[detectedScope]}` : 'Scope determines which stages execute. Auto-detects from your description.'}
           </p>
         </div>
 
         <div>
-          <label htmlFor="depth" className={labelClass}>Depth (optional)</label>
+          <label htmlFor="depth" className={labelClass}>Depth — controls artifact detail level</label>
           <select id="depth" value={depth} onChange={(e) => setDepth(e.target.value)} className={inputClass} data-testid="depth-select">
             <option value="">Default for scope</option>
-            <option value="minimal">Minimal — core essentials</option>
-            <option value="standard">Standard — complete artifacts</option>
-            <option value="comprehensive">Comprehensive — full enterprise detail</option>
+            <option value="minimal">Minimal — 1-2 page artifacts, key decisions only</option>
+            <option value="standard">Standard — Complete artifacts, all required sections</option>
+            <option value="comprehensive">Comprehensive — Full enterprise detail, compliance matrices</option>
           </select>
+          <p className="mt-1.5 text-xs text-[var(--color-text-tertiary)]" data-testid="depth-hint">
+            {depth ? DEPTH_DESCRIPTIONS[depth] : 'Depth controls how detailed each artifact is. Does NOT skip stages — use Scope for that.'}
+          </p>
         </div>
 
         <div>

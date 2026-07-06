@@ -498,7 +498,7 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 	oldStageDef := &stages[currentIdx]
 
 	// Check condition — skip stages that don't apply
-	for p.shouldSkipStage(f, nextStage) {
+	for p.ShouldSkipStage(f, nextStage) {
 		p.database.UpdateFeatureStage(f.ID, nextStage.ID, stage.StatusSkipped, 0, nil, nil)
 		p.database.RecordAuditEvent(f.ID, db.AuditStageSkipped, nextStage.ID, nextStage.Phase, nextStage.Condition)
 		currentIdx++
@@ -540,17 +540,25 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 	return nil
 }
 
-// shouldSkipStage evaluates whether a CONDITIONAL stage should be skipped.
-func (p *Pipeline) shouldSkipStage(f *feature.Feature, s db.StageDefinition) bool {
-	switch s.Condition {
-	case stage.CondAlways:
-		return false
-	case stage.CondConditional, stage.CondUserFacing, stage.CondUIProject, stage.CondBrownfield, stage.CondPerBolt, stage.CondOnceAtEnd:
-		// Already filtered by scope — if it's in the scope's stage set, it runs.
-		// Brownfield/user-facing conditions are handled at scope detection time.
-		return false
+// ShouldSkipStage evaluates whether a stage should be skipped based on
+// the feature's scope. Each stage definition has a Scopes list — if the
+// feature's scope is not in that list, the stage is skipped.
+func (p *Pipeline) ShouldSkipStage(f *feature.Feature, s db.StageDefinition) bool {
+	scope := f.Scope
+	if scope == "" {
+		scope = stage.ScopeFeature
 	}
-	return false
+
+	// Check if the stage's scope list includes the feature's scope
+	for _, sc := range s.Scopes {
+		if sc == scope || sc == "all" {
+			return false // stage is in scope — don't skip
+		}
+	}
+
+	// Stage is not in the feature's scope — skip it
+	log.Printf("shouldSkipStage: stage %s not in scope %q (scopes: %v) — skipping", s.ID, scope, s.Scopes)
+	return true
 }
 
 // JumpToStage jumps to a specific stage, marking intervening stages as skipped.
