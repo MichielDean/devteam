@@ -17,6 +17,7 @@ type DispatchRequest struct {
 	WorkingDir  string
 	SessionName string // tmux session name — if set, reuse existing session; if empty, derive from feature+phase
 	ContextDir  string // persistent context dir — if set, use it; if empty, derive from feature+phase
+	BoltNumber  int    // construction bolt number (1+); 0 for non-construction stages. Threaded to the batcher's FlushFunc.
 }
 
 type DispatchResult struct {

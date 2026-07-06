@@ -735,8 +735,20 @@ func (s *Server) updateArtifact(w http.ResponseWriter, r *http.Request) {
 // getStageLog returns the agent output log for a specific stage.
 // For per-Bolt construction stages (3.1-3.5), pass ?bolt=N to read the
 // log for a specific bolt. Without ?bolt, reads bolt_number=0 (non-construction).
-// During active dispatch, reads from the log file (being actively written).
-// After dispatch completes, reads from the DB (saved by RunStage).
+//
+// DB-first (ADR-5): the primary source is the stage_logs row. The legacy-file
+// fallback fires ONLY when the DB row is empty AND log_file_fallback == true
+// (StreamingConfig, default false) AND a legacy file exists (transition-only,
+// for pre-feature sessions with no DB row). The fallback is read-only — no
+// write path uses it (C-9 governs writes, ADR-1).
+//
+// Response shape (additive, non-breaking — arch-review N-1): the response is
+// JSON `{content: string, source: "db" | "file-legacy"}`. The `source` field
+// lets the UI footer (FR-13) label the source. Existing clients reading
+// `{content}` ignore the new field; the UI defaults to "db" if absent.
+//
+// TRANSITION: the legacy-file fallback is marked for removal after no
+// pre-feature worktrees remain — DR-3.
 func (s *Server) getStageLog(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	stageID := r.PathValue("stageId")
@@ -748,46 +760,48 @@ func (s *Server) getStageLog(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Always try the file first — it's live during dispatch and has the freshest content
-	base := os.Getenv("XDG_DATA_HOME")
-	if base == "" {
-		home, _ := os.UserHomeDir()
-		base = filepath.Join(home, ".local", "share")
-	}
-	sessionsDir := filepath.Join(base, "devteam", "sessions", id)
-
-	var pattern string
-	if boltNumber > 0 {
-		// Per-Bolt: narrow to this bolt's context dir.
-		pattern = filepath.Join(sessionsDir, fmt.Sprintf("construction-bolt%d", boltNumber), "logs", stageID+"-*.log")
-	} else {
-		// Non-construction: any phase context dir.
-		pattern = filepath.Join(sessionsDir, "*", "logs", stageID+"-*.log")
-	}
-	matches, _ := filepath.Glob(pattern)
-
-	if len(matches) > 0 {
-		// Read the most recent matching file
-		data, err := os.ReadFile(matches[0])
-		if err == nil && len(data) > 0 {
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write(data)
-			return
-		}
-	}
-
-	// Fall back to DB
+	// Primary source: DB (stage_logs row).
 	if s.db != nil {
 		content, err := s.db.GetStageLogForBolt(id, stageID, boltNumber)
 		if err == nil && content != "" {
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte(content))
+			writeJSON(w, http.StatusOK, map[string]string{"content": content, "source": "db"})
 			return
 		}
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusNoContent)
+	// Legacy-file fallback (read-only, flag-gated, transition-only — ADR-5).
+	// Fires ONLY when: DB row is empty AND log_file_fallback == true AND a
+	// legacy file exists. The flag is read from the pipeline config (U-BK-01).
+	fallbackEnabled := false
+	if s.pipeline != nil && s.pipeline.Config() != nil {
+		fallbackEnabled = s.pipeline.Config().Pipeline.Streaming.GetLogFileFallback()
+	}
+	if fallbackEnabled {
+		base := os.Getenv("XDG_DATA_HOME")
+		if base == "" {
+			home, _ := os.UserHomeDir()
+			base = filepath.Join(home, ".local", "share")
+		}
+		sessionsDir := filepath.Join(base, "devteam", "sessions", id)
+
+		var pattern string
+		if boltNumber > 0 {
+			pattern = filepath.Join(sessionsDir, fmt.Sprintf("construction-bolt%d", boltNumber), "logs", stageID+"-*.log")
+		} else {
+			pattern = filepath.Join(sessionsDir, "*", "logs", stageID+"-*.log")
+		}
+		matches, _ := filepath.Glob(pattern)
+		if len(matches) > 0 {
+			if data, err := os.ReadFile(matches[0]); err == nil && len(data) > 0 {
+				writeJSON(w, http.StatusOK, map[string]string{"content": string(data), "source": "file-legacy"})
+				return
+			}
+		}
+	}
+
+	// No content — return empty JSON with the db source (the row is absent or
+	// empty; the UI renders an empty state).
+	writeJSON(w, http.StatusOK, map[string]string{"content": "", "source": "db"})
 }
 
 func (s *Server) cancelFeature(w http.ResponseWriter, r *http.Request) {

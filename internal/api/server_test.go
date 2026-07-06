@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MichielDean/devteam/internal/config"
 	"github.com/MichielDean/devteam/internal/db"
@@ -74,6 +75,7 @@ func truncateTables(database *db.DB) {
 		"spec_artifacts", "outcomes", "notes", "events", "questions",
 		"rules", "team_knowledge", "feature_repos", "sessions",
 		"phase_states", "gate_results", "recirculations", "features",
+		"stage_logs",
 	}
 	for _, table := range tables {
 		database.Conn().Exec("TRUNCATE TABLE " + table + " CASCADE")
@@ -1019,5 +1021,62 @@ func TestQuestionsJSONArraysNeverNull(t *testing.T) {
 	raw = w.Body.String()
 	if strings.Contains(raw, `"options":null`) {
 		t.Errorf("list response contains options:null — should be []")
+	}
+}
+
+// TestGetStageLogDBSource verifies the DB-first read path returns JSON with
+// source: "db" when the stage_logs row has content (U-BK-07 / ADR-5).
+func TestGetStageLogDBSource(t *testing.T) {
+	s, _ := setupTestServer(t)
+
+	// Seed a feature + stage_logs row.
+	featureID := "feat-log-db"
+	s.db.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
+		featureID, featureID, time.Now().UTC(), time.Now().UTC())
+	if err := s.db.AppendStageLogForBolt(featureID, "2.1", 0, "developer", "DB content line one\nDB content line two\n"); err != nil {
+		t.Fatalf("AppendStageLogForBolt: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/features/"+featureID+"/log/2.1", nil)
+	req.SetPathValue("id", featureID)
+	req.SetPathValue("stageId", "2.1")
+	w := httptest.NewRecorder()
+	s.getStageLog(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"source":"db"`) {
+		t.Errorf("body missing source:db: %s", body)
+	}
+	if !strings.Contains(body, "DB content line one") {
+		t.Errorf("body missing content: %s", body)
+	}
+}
+
+// TestGetStageLogEmptyReturnsDBSource verifies an empty/missing row returns
+// JSON with content:"" and source:"db" (no legacy fallback when flag is off) (U-BK-07).
+func TestGetStageLogEmptyReturnsDBSource(t *testing.T) {
+	s, _ := setupTestServer(t)
+	featureID := "feat-log-empty"
+	s.db.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count) VALUES (?, ?, 'inception', 'in_progress', 3, 'loose_idea', '', ?, ?, 0) ON CONFLICT (id) DO NOTHING`,
+		featureID, featureID, time.Now().UTC(), time.Now().UTC())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/features/"+featureID+"/log/9.9", nil)
+	req.SetPathValue("id", featureID)
+	req.SetPathValue("stageId", "9.9")
+	w := httptest.NewRecorder()
+	s.getStageLog(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"content":""`) {
+		t.Errorf("body missing empty content: %s", body)
+	}
+	if !strings.Contains(body, `"source":"db"`) {
+		t.Errorf("body missing source:db: %s", body)
 	}
 }

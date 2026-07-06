@@ -15,6 +15,25 @@ pipeline:
   # Modes: human (approve every stage), guided (auto-run, pause at phase-end gates),
   # autonomous (auto-run everything, auto-approve all gates).
   execution_mode: human
+  # Streaming configures the DB-streaming write path (the batcher) and the
+  # read-path legacy-file fallback.
+  #
+  # The write path is ALWAYS DB-backed (Shape B / ADR-1). There is no write-path
+  # flag — full write-path reversibility is via git revert of the feature PR.
+  #
+  # log_file_fallback governs the READ-PATH legacy fallback ONLY ([PRODUCT CALL]
+  # B-1 / ADR-1). When true, getStageLog falls back to a legacy log file on disk
+  # if the DB row is empty. Default false. TRANSITION: remove after no
+  # pre-feature worktrees remain — DR-3. Target removal: TBD (O-6).
+  streaming:
+    log_file_fallback: false
+    # Batcher flush thresholds. Defaults: 200ms (bounds live latency, NFR-1)
+    # and 8192 bytes (8KB). Line-boundary flush is always on. A value of 0
+    # means "use the default"; negative values are rejected at load.
+    flush_interval_ms: 200
+    flush_bytes: 8192
+    # UI render cap (FR-15, ratified stage 2.5). Bounds DOM size. 0 = default.
+    render_cap_lines: 5000
   # Phases are kept for backward compat with config loading.
   # AIDLC v2 uses 32 stages across 5 phases, not 6 phases.
   phases:

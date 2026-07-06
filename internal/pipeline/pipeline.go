@@ -37,22 +37,47 @@ type Pipeline struct {
 
 func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline {
 	baseDir := specProvider.BaseDir()
-	return &Pipeline{
+	dispatcher := role.NewDispatcher(baseDir)
+	p := &Pipeline{
 		config:        cfg,
 		specProvider:  specProvider,
 		specWriter:    spec.NewSpecWriter(baseDir),
 		ruleLoader:    rules.NewRuleLoaderWithConfig(baseDir, cfg),
 		roleLoader:    role.NewRoleLoader(baseDir),
-		dispatcher:    role.NewDispatcher(baseDir),
+		dispatcher:    dispatcher,
 		questionStore: feature.NewFileQuestionStore(baseDir),
 		gitClient:     gitops.NewGitClient(baseDir),
 		repoManager:   repo.NewManager(baseDir),
 	}
+	// Wire the batcher config (thresholds) from the loaded Streaming config
+	// (U-BK-01). The FlushFunc / ResetFunc are wired in SetDatabase (they
+	// need the *db.DB) — U-BK-06.
+	streamCfg := cfg.Pipeline.Streaming
+	dispatcher.TmuxManager().SetStreamConfig(role.StreamConfig{
+		FlushIntervalMs: streamCfg.GetFlushIntervalMs(),
+		FlushBytes:      streamCfg.GetFlushBytes(),
+	})
+	return p
 }
 
 func (p *Pipeline) SetDatabase(database *db.DB) {
 	p.database = database
 	p.sessionMgr = NewSessionManager(database, p.dispatcher)
+	// Wire the FlushFunc and ResetFunc (U-BK-06 / ADR-7 / ADR-2). These are
+	// the DI seams that keep internal/role free of internal/db (AC-5). The
+	// closures adapt the batcher's signature to the store methods. Skipped
+	// when the dispatcher is nil (some test paths construct a pipeline with
+	// a nil dispatcher — e.g. server_test.go's setupTestServer).
+	if p.dispatcher == nil {
+		return
+	}
+	tmuxMgr := p.dispatcher.TmuxManager()
+	tmuxMgr.SetFlushFn(func(ctx context.Context, featureID, stageID, agentRole string, bolt int, chunk string) error {
+		return database.AppendStageLogForBolt(featureID, stageID, bolt, agentRole, chunk)
+	})
+	tmuxMgr.SetResetFn(func(ctx context.Context, featureID, stageID string, bolt int) error {
+		return database.SaveStageLogForBolt(featureID, stageID, bolt, "", "")
+	})
 }
 
 func (p *Pipeline) SetQuestionStore(qs feature.QuestionStore) {
@@ -61,6 +86,13 @@ func (p *Pipeline) SetQuestionStore(qs feature.QuestionStore) {
 
 func (p *Pipeline) Dispatcher() *role.Dispatcher {
 	return p.dispatcher
+}
+
+// Config returns the loaded configuration (or nil if not set — e.g. some test
+// paths). Exposed so the API server can read the Streaming config (the
+// log_file_fallback flag for the read-path legacy fallback — U-BK-07 / ADR-5).
+func (p *Pipeline) Config() *config.Config {
+	return p.config
 }
 
 func (p *Pipeline) Database() *db.DB {
@@ -74,7 +106,7 @@ func (p *Pipeline) SessionMgr() *SessionManager {
 
 func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecProvider, dispatcher *role.Dispatcher) *Pipeline {
 	baseDir := specProvider.BaseDir()
-	return &Pipeline{
+	p := &Pipeline{
 		config:        cfg,
 		specProvider:  specProvider,
 		specWriter:    spec.NewSpecWriter(baseDir),
@@ -85,6 +117,14 @@ func NewPipelineWithDispatcher(cfg *config.Config, specProvider *spec.SpecProvid
 		gitClient:     gitops.NewGitClient(baseDir),
 		repoManager:   repo.NewManager(baseDir),
 	}
+	if cfg != nil && dispatcher != nil {
+		streamCfg := cfg.Pipeline.Streaming
+		dispatcher.TmuxManager().SetStreamConfig(role.StreamConfig{
+			FlushIntervalMs: streamCfg.GetFlushIntervalMs(),
+			FlushBytes:      streamCfg.GetFlushBytes(),
+		})
+	}
+	return p
 }
 
 func NewPipelineWithQuestionStore(cfg *config.Config, specProvider *spec.SpecProvider, questionStore feature.QuestionStore) *Pipeline {

@@ -162,38 +162,42 @@ func (sm *SessionManager) CleanupFeatureSessions(featureID string) error {
 }
 
 // GetSessionOutput returns the accumulated log output for a session.
-// If stageID is provided, returns only that stage's log. Otherwise returns
-// the raw capture-pane output.
+// If stageID is provided, reads from the DB (stage_logs) for that stage —
+// the DB is the single source of truth (NFR-9 / ADR-5). No legacy-file fallback
+// for this path (pre-feature sessions return empty + UI label).
+// If stageID is empty, falls back to capture-pane for live sessions (legacy
+// pane-only view; the pane viewer is re-routed to SSE+DB in U-UI-13).
 func (sm *SessionManager) GetSessionOutput(featureID, phase string, boltNumber int, stageID string) (string, error) {
 	if sm == nil {
 		return "", nil
 	}
 
+	// Stage-specific: read from the DB (U-BK-08 / NFR-9). The DB is the single
+	// read source for all three UI surfaces (fan-in, ADR-5).
+	if stageID != "" {
+		if sm.database != nil {
+			content, err := sm.database.GetStageLogForBolt(featureID, stageID, boltNumber)
+			if err != nil {
+				return "", nil // missing row = empty (no error to caller)
+			}
+			return content, nil
+		}
+		return "", nil
+	}
+
+	// No stageID: live session capture-pane (legacy pane-only view).
 	tmuxMgr := sm.dispatcher.TmuxManager()
-	var sessionName, contextDir string
+	var sessionName string
 	if boltNumber > 0 && phase == "construction" {
 		sessionName = tmuxMgr.SessionNameForBolt(featureID, boltNumber)
-		contextDir = tmuxMgr.ContextDirForBolt(featureID, boltNumber)
 	} else {
 		sessionName = tmuxMgr.SessionNameForPhase(featureID, phase)
-		contextDir = tmuxMgr.ContextDirForPhase(featureID, phase)
 	}
 
-	// If stage-specific, read from the log file
-	if stageID != "" {
-		_ = contextDir // used for log path resolution in future
-		// Try to find the log file for this stage
-		// We don't know the agent role here, so read the capture-pane instead
-		// and let the UI filter. Or we can glob for stageID-*.log
-	}
-
-	// Fall back to capture-pane
 	if sm.dispatcher.IsSessionAliveByName(sessionName) {
 		return tmuxMgr.CapturePane(sessionName)
 	}
 
-	// Session not alive — try reading from log files
-	// Read all log files in the context dir and concatenate
 	return "", nil
 }
 
