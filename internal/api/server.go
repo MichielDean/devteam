@@ -114,10 +114,7 @@ func (s *Server) IsProcessing(id string) bool {
 }
 
 // RestoreActiveProcesses restores active state from tmux sessions on startup.
-// Stuck stages (in_progress with no tmux session) are recovered:
-//   - If the agent signaled an outcome → mark stage awaiting_approval
-//   - If no outcome → mark stage as revising (user can re-run)
-// Feature status is NOT changed to failed — user can continue the workflow.
+// Recovers stuck stages and auto-approves if execution mode is autonomous/guided.
 func (s *Server) RestoreActiveProcesses() {
 	if s.db == nil {
 		return
@@ -129,7 +126,6 @@ func (s *Server) RestoreActiveProcesses() {
 		log.Printf("restored active state for feature %s from tmux session", featureID)
 	}
 
-	// Find stuck stages (in_progress with no tmux session)
 	features, err := s.pipeline.ListFeatures()
 	if err != nil {
 		log.Printf("RestoreActiveProcesses: failed to list features: %v", err)
@@ -144,7 +140,6 @@ func (s *Server) RestoreActiveProcesses() {
 			continue
 		}
 
-		// Find stages stuck in_progress
 		stages, _ := s.db.GetFeatureStages(f.ID)
 		for _, fs := range stages {
 			if fs.Status != stage.StatusInProgress {
@@ -161,8 +156,7 @@ func (s *Server) RestoreActiveProcesses() {
 			}
 
 			if tmuxAlive {
-				// Stage is in_progress and tmux is alive — re-attach polling goroutine
-				// to wait for the tmux session to exit and process the outcome.
+				// Re-attach polling goroutine
 				log.Printf("RestoreActiveProcesses: re-attaching poll for stage %s feature %s (tmux still alive)", fs.StageID, f.ID)
 				s.active.Store(f.ID, struct{}{})
 				stageID := fs.StageID
@@ -171,13 +165,11 @@ func (s *Server) RestoreActiveProcesses() {
 					defer s.unmarkFeatureActive(featureID)
 					defer func() {
 						if rec := recover(); rec != nil {
-							log.Printf("RestoreActiveProcesses: poll goroutine panic for %s: %v", featureID, rec)
+							log.Printf("RestoreActiveProcesses: poll panic for %s: %v", featureID, rec)
 						}
 					}()
 
-					// Wait for the tmux session to exit by polling
 					tmuxMgr := s.pipeline.Dispatcher().TmuxManager()
-					// Find the session name for this feature
 					var sessionName string
 					for name := range sessions {
 						if strings.Contains(name, featureID) {
@@ -186,114 +178,110 @@ func (s *Server) RestoreActiveProcesses() {
 						}
 					}
 					if sessionName == "" {
-						log.Printf("RestoreActiveProcesses: could not find session name for %s", featureID)
 						return
 					}
 
-					// Poll until tmux session exits
 					for tmuxMgr.IsSessionAlive(sessionName) {
 						time.Sleep(5 * time.Second)
 					}
 
-					// Tmux session exited — process the outcome
-					log.Printf("RestoreActiveProcesses: tmux session %s exited, processing outcome for %s", sessionName, featureID)
-					f, err := s.pipeline.GetFeature(featureID)
-					if err != nil {
-						log.Printf("RestoreActiveProcesses: failed to get feature %s: %v", featureID, err)
-						return
-					}
-
-				// Check if outcome was signaled
-				outcome, _ := s.db.GetLatestOutcome(featureID, stageID)
-				if outcome != nil && outcome.Outcome == "pass" {
-					// Agent explicitly signaled pass
-					s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
-					s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart")
-					s.broadcastSSE(featureID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
-				} else {
-					// No explicit outcome — check if artifacts were produced
-					// First check by stage_id, then fall back to checking expected key_artifacts by name
-					artifacts, _ := s.db.GetSpecArtifactsForStage(featureID, stageID)
-					if len(artifacts) == 0 {
-						// stage_id might not be set on artifacts — check by expected key_artifacts
-						stageDef, _ := s.db.GetStageDefinition(stageID)
-						if stageDef != nil && len(stageDef.KeyArtifacts) > 0 {
-							allArtifacts, _ := s.db.ListArtifacts(featureID)
-							for _, a := range allArtifacts {
-								for _, expected := range stageDef.KeyArtifacts {
-									if a.ArtifactType == expected {
-										artifacts = append(artifacts, a)
-										break
-									}
-								}
-							}
-						}
-					}
-					if len(artifacts) > 0 {
-						// Artifacts exist — agent completed work but server died before processing
-						log.Printf("RestoreActiveProcesses: stage %s has %d artifacts, treating as pass", stageID, len(artifacts))
-						s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
-						s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart (artifacts found)")
-						s.broadcastSSE(featureID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
-					} else {
-						s.db.UpdateFeatureStage(featureID, stageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
-						s.db.RecordAuditEvent(featureID, "STAGE_INTERRUPTED", stageID, "", "server restarted mid-dispatch")
-						s.broadcastSSE(featureID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
-					}
-				}
-
-					// Update feature state
-					f.CurrentStage = stageID
-					s.pipeline.SaveFeature(f)
+					log.Printf("RestoreActiveProcesses: tmux session %s exited", sessionName)
+					s.recoverStage(featureID, stageID)
 				}()
 				continue
 			}
 
-		// Stage is in_progress but no tmux session — agent exited (server died mid-dispatch)
-		// Check if the agent signaled an outcome
-		outcome, _ := s.db.GetLatestOutcome(f.ID, fs.StageID)
-		if outcome != nil && outcome.Outcome == "pass" {
-			// Agent signaled pass — mark as awaiting_approval
-			log.Printf("RestoreActiveProcesses: stage %s for feature %s has outcome pass — marking awaiting_approval", fs.StageID, f.ID)
-			s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
-			s.db.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, fs.StageID, "", "recovered after server restart")
-		} else {
-			// No explicit outcome — check if artifacts were produced
-			artifacts, _ := s.db.GetSpecArtifactsForStage(f.ID, fs.StageID)
-			if len(artifacts) == 0 {
-				// stage_id might not be set — check by expected key_artifacts
-				stageDef, _ := s.db.GetStageDefinition(fs.StageID)
-				if stageDef != nil && len(stageDef.KeyArtifacts) > 0 {
-					allArtifacts, _ := s.db.ListArtifacts(f.ID)
-					for _, a := range allArtifacts {
-						for _, expected := range stageDef.KeyArtifacts {
-							if a.ArtifactType == expected {
-								artifacts = append(artifacts, a)
-								break
-							}
+			// No tmux session — recover immediately
+			s.recoverStage(f.ID, fs.StageID)
+		}
+	}
+}
+
+// recoverStage processes a stuck stage after server restart.
+// Checks for outcome/artifacts, marks awaiting_approval or revising,
+// and auto-approves + continues if execution mode is autonomous/guided.
+func (s *Server) recoverStage(featureID, stageID string) {
+	fs, _ := s.db.GetFeatureStage(featureID, stageID)
+	if fs == nil || fs.Status != stage.StatusInProgress {
+		return
+	}
+
+	f, err := s.pipeline.GetFeature(featureID)
+	if err != nil {
+		return
+	}
+
+	// Determine if the agent did useful work
+	outcome, _ := s.db.GetLatestOutcome(featureID, stageID)
+	recovered := false
+
+	if outcome != nil && outcome.Outcome == "pass" {
+		s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
+		s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart")
+		recovered = true
+	} else {
+		artifacts, _ := s.db.GetSpecArtifactsForStage(featureID, stageID)
+		if len(artifacts) == 0 {
+			stageDef, _ := s.db.GetStageDefinition(stageID)
+			if stageDef != nil && len(stageDef.KeyArtifacts) > 0 {
+				allArtifacts, _ := s.db.ListArtifacts(featureID)
+				for _, a := range allArtifacts {
+					for _, expected := range stageDef.KeyArtifacts {
+						if a.ArtifactType == expected {
+							artifacts = append(artifacts, a)
+							break
 						}
 					}
 				}
 			}
-			if len(artifacts) > 0 {
-				log.Printf("RestoreActiveProcesses: stage %s for feature %s has %d artifacts — marking awaiting_approval", fs.StageID, f.ID, len(artifacts))
-				s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
-				s.db.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, fs.StageID, "", "recovered after server restart (artifacts found)")
-			} else {
-				// No outcome and no artifacts — mark as revising so user can re-run
-				log.Printf("RestoreActiveProcesses: stage %s for feature %s stuck in_progress, no outcome — marking revising", fs.StageID, f.ID)
-				s.db.UpdateFeatureStage(f.ID, fs.StageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
-				s.db.RecordAuditEvent(f.ID, "STAGE_INTERRUPTED", fs.StageID, "", "server restarted mid-dispatch")
-			}
 		}
+		if len(artifacts) > 0 {
+			log.Printf("recoverStage: stage %s has %d artifacts — marking awaiting_approval", stageID, len(artifacts))
+			s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
+			s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart (artifacts found)")
+			recovered = true
+		} else {
+			log.Printf("recoverStage: stage %s no outcome/artifacts — marking revising", stageID)
+			s.db.UpdateFeatureStage(featureID, stageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
+			s.db.RecordAuditEvent(featureID, "STAGE_INTERRUPTED", stageID, "", "server restarted mid-dispatch")
+			s.broadcastSSE(featureID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
+		}
+	}
 
-			// Update the feature's current_stage and persist the full feature state
-			// so the JSON blob (feature_data) stays in sync with the DB columns.
-			// Without this, LoadFeatureState reads stale status from the JSON blob.
-			f.CurrentStage = fs.StageID
-			if err := s.pipeline.SaveFeature(f); err != nil {
-				log.Printf("RestoreActiveProcesses: failed to save feature state for %s: %v", f.ID, err)
-			}
+	// Update feature state
+	f.CurrentStage = stageID
+	s.pipeline.SaveFeature(f)
+
+	if !recovered {
+		return
+	}
+
+	s.broadcastSSE(featureID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
+
+	// Auto-approve and continue if execution mode allows
+	if f.ExecutionMode != "autonomous" && f.ExecutionMode != "guided" {
+		return
+	}
+
+	stageDef, _ := s.db.GetStageDefinition(stageID)
+	isPhaseEndGate := stageDef != nil && (stageID == "1.7" || stageID == "2.8" || stageID == "3.7" || stageID == "4.7" || (stageDef.Phase == "construction" && stageID == "3.5"))
+	isInitStage := stageDef != nil && stageDef.Phase == "initialization"
+	shouldAutoApprove := isInitStage || f.ExecutionMode == "autonomous" || (f.ExecutionMode == "guided" && !isPhaseEndGate)
+
+	if !shouldAutoApprove {
+		return
+	}
+
+	log.Printf("recoverStage: auto-approving recovered stage %s (%s mode)", stageID, f.ExecutionMode)
+	s.pipeline.ApproveStage(f, stageID)
+
+	// Find next not_started stage and continue
+	allStages, _ := s.db.GetFeatureStages(featureID)
+	for _, ns := range allStages {
+		if ns.Status == stage.StatusNotStarted {
+			s.markFeatureActive(featureID)
+			go s.runStageAsync(context.Background(), featureID, ns.StageID)
+			break
 		}
 	}
 }
