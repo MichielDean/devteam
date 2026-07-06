@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getFeature, getFeatureStages, getAuditTrail, getBolts, getRules,
   runStage, resumeStage, forceRerunStage, approveStage, rejectStage, acceptStageAsIs, jumpToStage,
-  setScope, setDepth, setTestStrategy, setLadderMode, prepareBolts,
+  setScope, setDepth, setTestStrategy, setLadderMode, setExecutionMode, prepareBolts,
   runBolt, cancelFeature, listQuestions, answerQuestion, ApiError,
 } from '../api/client';
 import { useSSE } from '../hooks/useSSE';
@@ -289,6 +289,12 @@ export default function FeatureDetail() {
     onError: (err: Error) => addToast('error', err.message),
   });
 
+  const executionModeMutation = useMutation({
+    mutationFn: (mode: string) => setExecutionMode(id!, mode),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['feature', id!] }); addToast('success', 'Execution mode updated'); },
+    onError: (err: Error) => addToast('error', err.message),
+  });
+
   const prepareBoltsMutation = useMutation({
     mutationFn: () => prepareBolts(id!),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['bolts', id!] }); addToast('success', 'Bolts prepared'); },
@@ -385,6 +391,7 @@ export default function FeatureDetail() {
   const currentScope = feature.scope || 'feature';
   const currentDepth = feature.depth || 'standard';
   const currentTestStrategy = feature.test_strategy || 'standard';
+  const currentExecutionMode = feature.execution_mode || '';
   const selectedStage = stages.find((s) => s.stage_id === (selectedStageId ?? feature.current_stage));
   const awaitingStage = stages.find((s) => s.status === 'awaiting_approval');
   const revisingStage = stages.find((s) => s.status === 'revising');
@@ -649,10 +656,12 @@ export default function FeatureDetail() {
           onSetScope={(s) => scopeMutation.mutate(s)}
           onSetDepth={(d) => depthMutation.mutate(d)}
           onSetTestStrategy={(t) => testStrategyMutation.mutate(t)}
+          onSetExecutionMode={(m) => executionModeMutation.mutate(m)}
           onCancel={() => cancelMutation.mutate()}
           currentScope={currentScope}
           currentDepth={currentDepth}
           currentTestStrategy={currentTestStrategy}
+          currentExecutionMode={currentExecutionMode}
           availableStages={stages}
           isTerminal={terminal}
         />

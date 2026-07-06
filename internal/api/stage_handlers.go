@@ -29,6 +29,7 @@ func (s *Server) registerStageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/features/{id}/depth", s.setDepth)
 	mux.HandleFunc("POST /api/features/{id}/test-strategy", s.setTestStrategy)
 	mux.HandleFunc("POST /api/features/{id}/ladder", s.setLadderMode)
+	mux.HandleFunc("POST /api/features/{id}/execution-mode", s.setExecutionMode)
 	mux.HandleFunc("GET /api/features/{id}/bolts", s.getBolts)
 	mux.HandleFunc("POST /api/features/{id}/prepare-bolts", s.prepareBolts)
 	mux.HandleFunc("POST /api/features/{id}/run-bolt/{boltNumber}", s.runBolt)
@@ -112,6 +113,14 @@ func (s *Server) runStage(w http.ResponseWriter, r *http.Request) {
 		// Broadcast the final result via SSE
 		resultJSON, _ := json.Marshal(result)
 		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"result":%s}`, jsonString(featureID), jsonString(req.StageID), string(resultJSON)))
+
+		// Auto-advance: in guided or autonomous mode, if the gate was auto-approved
+		// (i.e. it's closed), chain into the next stage via autoAdvanceStages.
+		if (f.ExecutionMode == "guided" || f.ExecutionMode == "autonomous") &&
+			result != nil && result.Gate != nil && !result.Gate.IsOpen() {
+			log.Printf("runStage: auto-advancing from stage %s (mode=%s)", req.StageID, f.ExecutionMode)
+			s.autoAdvanceStages(context.Background(), featureID, req.StageID)
+		}
 	}()
 
 	// Return immediately — client watches SSE for updates
@@ -888,4 +897,114 @@ func (s *Server) unmarkFeatureActive(featureID string) {
 func jsonString(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
+}
+
+// setExecutionMode changes the execution mode of a feature mid-flight.
+// Valid modes: human, guided, autonomous.
+func (s *Server) setExecutionMode(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var req struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+		return
+	}
+	if req.Mode != "human" && req.Mode != "guided" && req.Mode != "autonomous" {
+		http.Error(w, `{"error":"bad_request","details":"mode must be human, guided, or autonomous"}`, http.StatusBadRequest)
+		return
+	}
+	f, err := s.pipeline.GetFeature(id)
+	if err != nil {
+		http.Error(w, `{"error":"feature_not_found"}`, http.StatusNotFound)
+		return
+	}
+	f.ExecutionMode = req.Mode
+	if err := s.pipeline.SaveFeature(f); err != nil {
+		http.Error(w, `{"error":"save_failed"}`, http.StatusInternalServerError)
+		return
+	}
+	if s.db != nil {
+		s.db.RecordAuditEvent(id, db.AuditScopeChange, "", "", "execution_mode="+req.Mode)
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "mode": req.Mode})
+}
+
+// autoAdvanceStages runs stages in sequence for guided/autonomous features.
+// It loops: run current stage → if gate auto-approved, find next not_started stage → repeat.
+// Stops when: a gate needs human review (guided phase-end gate), a stage fails,
+// no more stages exist, or the execution mode is switched back to human.
+//
+// startStageID is the stage that was JUST run by the caller — autoAdvanceStages
+// looks it up to verify it was auto-approved, then finds and runs the NEXT not_started stage.
+func (s *Server) autoAdvanceStages(ctx context.Context, featureID string, startStageID string) {
+	defer s.unmarkFeatureActive(featureID)
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("autoAdvanceStages panic for feature %s: %v", featureID, rec)
+			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":"auto-advance panic"}`, jsonString(featureID)))
+		}
+	}()
+
+	for {
+		f, err := s.pipeline.GetFeature(featureID)
+		if err != nil {
+			log.Printf("autoAdvance: failed to load feature %s: %v", featureID, err)
+			return
+		}
+		if f.ExecutionMode != "guided" && f.ExecutionMode != "autonomous" {
+			log.Printf("autoAdvance: feature %s execution mode is %q — stopping", featureID, f.ExecutionMode)
+			return
+		}
+
+		// Find the next not_started stage.
+		if s.db == nil {
+			return
+		}
+		stages, err := s.db.GetFeatureStages(featureID)
+		if err != nil {
+			log.Printf("autoAdvance: failed to list stages for %s: %v", featureID, err)
+			return
+		}
+		var nextStageID string
+		for _, ns := range stages {
+			if ns.Status == stage.StatusNotStarted {
+				nextStageID = ns.StageID
+				break
+			}
+		}
+		if nextStageID == "" {
+			log.Printf("autoAdvance: no more not_started stages for feature %s — complete", featureID)
+			return
+		}
+
+		log.Printf("autoAdvance: running stage %s for feature %s (mode=%s)", nextStageID, featureID, f.ExecutionMode)
+		result, err := s.pipeline.RunStage(ctx, f, nextStageID, func(line string, isStderr bool) {
+			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+		})
+		if err != nil {
+			log.Printf("autoAdvance: RunStage failed for %s stage %s: %v", featureID, nextStageID, err)
+			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":%s}`, jsonString(featureID), jsonString(nextStageID), jsonString(err.Error())))
+			return
+		}
+
+		resultJSON, _ := json.Marshal(result)
+		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"result":%s}`, jsonString(featureID), jsonString(nextStageID), string(resultJSON)))
+
+		// If the gate is still open, the stage needs human approval (guided phase-end gate,
+		// reviewer rejection, smoke failure, etc.). Stop and wait for human.
+		if result != nil && result.Gate != nil && result.Gate.IsOpen() {
+			log.Printf("autoAdvance: gate open at stage %s — stopping for human review", nextStageID)
+			return
+		}
+
+		// If the stage failed (smoke or reviewer), stop — human intervention required.
+		if result != nil && (result.OutcomeSource == "smoke_failed" || result.OutcomeSource == "reviewer_rejected" || result.OutcomeSource == "agent_failed") {
+			log.Printf("autoAdvance: stage %s failed (source=%s) — stopping", nextStageID, result.OutcomeSource)
+			return
+		}
+
+		// Small delay between stages to let the UI update and avoid hammering the dispatcher.
+		time.Sleep(2 * time.Second)
+	}
 }

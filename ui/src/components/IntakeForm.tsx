@@ -49,6 +49,7 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
   const [priority, setPriority] = useState(2);
   const [scope, setScope] = useState<ScopeName | ''>('');
   const [depth, setDepth] = useState('');
+  const [executionMode, setExecutionMode] = useState('');
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [startImmediately, setStartImmediately] = useState(false);
@@ -106,6 +107,7 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
     };
     if (scope) req.scope = scope;
     if (depth) req.depth = depth;
+    if (executionMode) req.execution_mode = executionMode;
     if (type === 'external_spec' && fileContent) req.file_content = fileContent;
 
     // Add selected repos
@@ -236,6 +238,22 @@ export default function IntakeForm({ onSubmit, onCancel, isLoading }: IntakeForm
             <option value="minimal">Minimal — core essentials</option>
             <option value="standard">Standard — complete artifacts</option>
             <option value="comprehensive">Comprehensive — full enterprise detail</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="execution-mode" className={labelClass}>Execution Mode (optional)</label>
+          <select
+            id="execution-mode"
+            value={executionMode}
+            onChange={(e) => setExecutionMode(e.target.value)}
+            className={inputClass}
+            data-testid="execution-mode-select"
+          >
+            <option value="">Use default (Human in the Loop)</option>
+            <option value="human">Human in the Loop — approve every stage</option>
+            <option value="guided">Partially Autonomous — auto-run, review at phase gates</option>
+            <option value="autonomous">Fully Autonomous — no human interaction</option>
           </select>
         </div>
 

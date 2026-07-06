@@ -11,6 +11,10 @@ database:
 # This config is kept for the human interaction timeout and role rules.
 pipeline:
   human_interaction_timeout_minutes: 30
+  # Default execution mode for new features.
+  # Modes: human (approve every stage), guided (auto-run, pause at phase-end gates),
+  # autonomous (auto-run everything, auto-approve all gates).
+  execution_mode: human
   # Phases are kept for backward compat with config loading.
   # AIDLC v2 uses 32 stages across 5 phases, not 6 phases.
   phases:

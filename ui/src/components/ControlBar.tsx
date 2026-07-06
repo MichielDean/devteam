@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Modal } from '../ui/primitives';
-import { SCOPES, SCOPE_LABELS, SCOPE_DESCRIPTIONS, DEPTHS, DEPTH_LABELS, TEST_STRATEGIES, TEST_STRATEGY_LABELS } from '../types';
+import { SCOPES, SCOPE_LABELS, SCOPE_DESCRIPTIONS, DEPTHS, DEPTH_LABELS, TEST_STRATEGIES, TEST_STRATEGY_LABELS, EXECUTION_MODES, EXECUTION_MODE_LABELS, EXECUTION_MODE_DESCRIPTIONS } from '../types';
 
 interface ControlBarProps {
   onJumpStage: (stageId: string) => void;
@@ -8,10 +8,12 @@ interface ControlBarProps {
   onSetScope: (scope: string) => void;
   onSetDepth: (depth: string) => void;
   onSetTestStrategy: (strategy: string) => void;
+  onSetExecutionMode: (mode: string) => void;
   onCancel: () => void;
   currentScope: string;
   currentDepth: string;
   currentTestStrategy: string;
+  currentExecutionMode: string;
   availableStages: { stage_id: string; status: string }[];
   isTerminal: boolean;
 }
@@ -21,8 +23,8 @@ const selectClass =
 const labelClass = 'block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5';
 
 export default function ControlBar({
-  onJumpStage, onJumpPhase, onSetScope, onSetDepth, onSetTestStrategy, onCancel,
-  currentScope, currentDepth, currentTestStrategy, availableStages, isTerminal,
+  onJumpStage, onJumpPhase, onSetScope, onSetDepth, onSetTestStrategy, onSetExecutionMode, onCancel,
+  currentScope, currentDepth, currentTestStrategy, currentExecutionMode, availableStages, isTerminal,
 }: ControlBarProps) {
   const [jumpOpen, setJumpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -110,6 +112,20 @@ export default function ControlBar({
             >
               {TEST_STRATEGIES.map((t) => <option key={t} value={t}>{TEST_STRATEGY_LABELS[t]}</option>)}
             </select>
+          </div>
+          <div>
+            <label className={labelClass}>Execution Mode</label>
+            <select
+              value={currentExecutionMode || 'human'}
+              onChange={(e) => onSetExecutionMode(e.target.value)}
+              className={selectClass}
+              data-testid="settings-execution-mode"
+            >
+              {EXECUTION_MODES.map((m) => <option key={m} value={m}>{EXECUTION_MODE_LABELS[m]}</option>)}
+            </select>
+            <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+              {EXECUTION_MODE_DESCRIPTIONS[currentExecutionMode || 'human']}
+            </p>
           </div>
         </div>
       </Modal>

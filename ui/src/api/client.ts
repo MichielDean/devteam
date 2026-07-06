@@ -17,6 +17,7 @@ import type {
   SetDepthRequest,
   SetTestStrategyRequest,
   SetLadderRequest,
+  SetExecutionModeRequest,
   SaveKnowledgeRequest,
   ErrorResponse,
   TmuxSession,
@@ -153,6 +154,14 @@ export async function setTestStrategy(featureId: string, testStrategy: string): 
 export async function setLadderMode(featureId: string, mode: string): Promise<void> {
   const body: SetLadderRequest = { mode };
   await request<void>(`/features/${featureId}/ladder`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function setExecutionMode(featureId: string, mode: string): Promise<void> {
+  const body: SetExecutionModeRequest = { mode };
+  await request<void>(`/features/${featureId}/execution-mode`, {
     method: 'POST',
     body: JSON.stringify(body),
   });

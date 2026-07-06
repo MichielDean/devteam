@@ -23,6 +23,7 @@ type Feature struct {
 	Scope         string     `yaml:"scope,omitempty" json:"scope,omitempty"`
 	Depth         string     `yaml:"depth,omitempty" json:"depth,omitempty"`
 	TestStrategy  string     `yaml:"test_strategy,omitempty" json:"test_strategy,omitempty"`
+	ExecutionMode string     `yaml:"execution_mode,omitempty" json:"execution_mode,omitempty"`
 	AutonomyMode  string     `yaml:"autonomy_mode,omitempty" json:"autonomy_mode,omitempty"`
 	CurrentStage  string     `yaml:"current_stage,omitempty" json:"current_stage,omitempty"`
 	CurrentBolt   int        `yaml:"current_bolt,omitempty" json:"current_bolt,omitempty"`

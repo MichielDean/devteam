@@ -30,6 +30,13 @@ const (
 	AutonomyAutonomous = "autonomous" // skip per-Bolt gates, halt on failure
 )
 
+// Execution modes (apply to all phases, not just construction).
+const (
+	ExecutionHuman      = "human"       // Mode 1: every stage started and approved manually
+	ExecutionGuided     = "guided"      // Mode 2: auto-run stages, pause at phase-end review gates
+	ExecutionAutonomous = "autonomous"  // Mode 3: auto-run everything, auto-approve all gates, LLM answers questions
+)
+
 // PrepareBolts reads units-of-work from inception output (stage 2.7) and creates
 // Bolt records in the bolts table. Bolt 1 is the walking skeleton.
 func (p *Pipeline) PrepareBolts(f *feature.Feature) error {

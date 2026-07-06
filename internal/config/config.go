@@ -26,6 +26,7 @@ type DatabaseConfig struct {
 type PipelineConfig struct {
 	Phases                         []PhaseConfig `yaml:"phases"`
 	HumanInteractionTimeoutMinutes *int          `yaml:"human_interaction_timeout_minutes"`
+	ExecutionMode                  string        `yaml:"execution_mode" json:"execution_mode"`
 }
 
 // GetHumanInteractionTimeoutMinutes returns the configured timeout, defaulting to 30 if not set.
@@ -34,6 +35,14 @@ func (pc *PipelineConfig) GetHumanInteractionTimeoutMinutes() int {
 		return 30
 	}
 	return *pc.HumanInteractionTimeoutMinutes
+}
+
+// GetExecutionMode returns the configured default execution mode, defaulting to "human" if not set.
+func (pc *PipelineConfig) GetExecutionMode() string {
+	if pc.ExecutionMode == "" {
+		return "human"
+	}
+	return pc.ExecutionMode
 }
 
 type PhaseConfig struct {

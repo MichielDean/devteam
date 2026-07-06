@@ -22,6 +22,7 @@ type CreateFeatureRequest struct {
 	Scope            string            `json:"scope,omitempty"`
 	Depth            string            `json:"depth,omitempty"`
 	TestStrategy     string            `json:"test_strategy,omitempty"`
+	ExecutionMode    string            `json:"execution_mode,omitempty"`
 	Repos            []feature.RepoRef `json:"repos,omitempty"`
 }
 
@@ -52,6 +53,7 @@ type FeatureDetailResponse struct {
 	Depth          string            `json:"depth,omitempty"`
 	TestStrategy   string            `json:"test_strategy,omitempty"`
 	AutonomyMode   string            `json:"autonomy_mode,omitempty"`
+	ExecutionMode  string            `json:"execution_mode,omitempty"`
 	CurrentStage   string            `json:"current_stage,omitempty"`
 	CreatedAt      time.Time         `json:"created_at"`
 	UpdatedAt      time.Time         `json:"updated_at"`
@@ -124,6 +126,7 @@ func FeatureToDetailResponse(f *feature.Feature, isProcessing bool, processingMo
 		Depth:          f.Depth,
 		TestStrategy:   f.TestStrategy,
 		AutonomyMode:   f.AutonomyMode,
+		ExecutionMode:  f.ExecutionMode,
 		CurrentStage:   f.CurrentStage,
 		CreatedAt:      f.CreatedAt,
 		UpdatedAt:      f.UpdatedAt,

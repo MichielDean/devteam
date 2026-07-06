@@ -471,6 +471,9 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 			f.TestStrategy = stage.TestStrategyStandard
 		}
 	}
+	if req.ExecutionMode != "" {
+		f.ExecutionMode = req.ExecutionMode
+	}
 	s.pipeline.SaveFeature(f)
 	if s.db != nil {
 		s.db.InitFeatureStages(f.ID, f.Scope)

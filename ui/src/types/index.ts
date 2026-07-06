@@ -86,6 +86,22 @@ export const STAGE_CHECKBOX: Record<string, string> = {
 export const AUTONOMY_MODES = ['gated', 'autonomous'] as const;
 export type AutonomyMode = typeof AUTONOMY_MODES[number];
 
+// ─── Execution Mode ───
+export const EXECUTION_MODES = ['human', 'guided', 'autonomous'] as const;
+export type ExecutionMode = typeof EXECUTION_MODES[number];
+
+export const EXECUTION_MODE_LABELS: Record<string, string> = {
+  human: 'Human in the Loop',
+  guided: 'Partially Autonomous',
+  autonomous: 'Fully Autonomous',
+};
+
+export const EXECUTION_MODE_DESCRIPTIONS: Record<string, string> = {
+  human: 'Approve every stage manually',
+  guided: 'Auto-run stages, review at phase-end gates',
+  autonomous: 'Auto-run everything, auto-approve all gates',
+};
+
 // ─── Feature ───
 export interface FeatureSummary {
   id: string;
@@ -115,6 +131,7 @@ export interface FeatureDetail {
   depth?: string;
   test_strategy?: string;
   autonomy_mode?: string;
+  execution_mode?: string;
   current_stage?: string;
   created_at: string;
   updated_at: string;
@@ -239,6 +256,7 @@ export interface CreateFeatureRequest {
   depth?: string;
   test_strategy?: string;
   repos?: RepoRef[];
+  execution_mode?: string;
 }
 
 export interface RunStageRequest {
@@ -267,6 +285,10 @@ export interface SetTestStrategyRequest {
 }
 
 export interface SetLadderRequest {
+  mode: string;
+}
+
+export interface SetExecutionModeRequest {
   mode: string;
 }
 
