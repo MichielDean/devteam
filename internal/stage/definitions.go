@@ -37,7 +37,9 @@ func allMinus(exclude ...string) []string {
 // Compliance stages folded into architect/devsecops. Platform agent is cloud-agnostic.
 //
 // Agent names: product, design, delivery, architect, platform, devsecops, developer,
-//              quality, pipeline-deploy, operations
+//
+//	quality, pipeline-deploy, operations
+//
 // Reviewers: product-lead, architecture-reviewer
 var stageDefinitions = []db.StageDefinition{
 	// ── Phase 0: Initialization (3 stages, auto-proceed, no gates) ──
@@ -74,10 +76,10 @@ var stageDefinitions = []db.StageDefinition{
 	{"2.5", PhaseInception, "Refined Mockups", "Refine mockups — hi-fi mockups, interaction specifications, and accessibility considerations. The design agent produces detailed UI specs.", "design", []string{"product"}, []string{"hi-fi-mockups", "interaction-spec"}, CondUIProject, scopes(ScopeEnterprise, ScopeFeature, ScopeMVP, ScopeWorkshop), "product-lead", 15},
 	// 2.6 Application Design — CONDITIONAL, skip for poc/bugfix/refactor
 	{"2.6", PhaseInception, "Application Design", "Design the application — architecture, domain model, ADRs (architecture decision records), and technology choices. The architect produces the technical design.", "architect", []string{"platform", "design"}, []string{"app-design", "adrs"}, CondConditional, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor), "architecture-reviewer", 16},
-	// 2.7 Units Generation — ALWAYS, all scopes (skip for security-patch to hit 9)
+	// 2.7 Units Generation — skip for security-patch only (refactor needs units to prepare bolts for 3.5)
 	{"2.7", PhaseInception, "Units Generation", "Generate units of work — decompose the design into implementation units, dependency DAG, and story-to-unit mapping. This is what Bolts are built from.", "architect", []string{"delivery"}, []string{"unit-of-work", "dependency-dag", "story-map"}, CondAlways, allMinus(ScopeSecurityPatch), "architecture-reviewer", 17},
-	// 2.8 Delivery Planning — skip for poc/bugfix/refactor/security-patch
-	{"2.8", PhaseInception, "Delivery Planning", "Plan delivery — Bolt plan (sequencing), team allocation, risk and sequencing rationale, and external dependency map. This is the verification gate between inception and construction.", "delivery", []string{"architect"}, []string{"bolt-plan", "team-allocation", "risk-rationale", "external-dep-map"}, CondAlways, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeSecurityPatch), "", 18},
+	// 2.8 Delivery Planning — skip for poc/bugfix/security-patch (refactor needs bolt preparation for 3.5)
+	{"2.8", PhaseInception, "Delivery Planning", "Plan delivery — Bolt plan (sequencing), team allocation, risk and sequencing rationale, and external dependency map. This is the verification gate between inception and construction.", "delivery", []string{"architect"}, []string{"bolt-plan", "team-allocation", "risk-rationale", "external-dep-map"}, CondAlways, allMinus(ScopePOC, ScopeBugfix, ScopeSecurityPatch), "", 18},
 
 	// ── Phase 3: Construction (7 stages) ──
 	// 3.1 Functional Design — PER_BOLT, skip for poc/bugfix/refactor/infra (infra = no app design)
