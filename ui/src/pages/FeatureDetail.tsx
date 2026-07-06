@@ -18,7 +18,6 @@ import MobileStageRail from '../components/MobileStageRail';
 import GatePanel from '../components/GatePanel';
 import AgentOutputLive from '../components/AgentOutputLive';
 import QuestionPanel from '../components/QuestionPanel';
-import BoltPanel from '../components/BoltPanel';
 import ControlBar from '../components/ControlBar';
 import AuditDrawer from '../components/AuditDrawer';
 import ArtifactViewer from '../components/ArtifactViewer';
@@ -531,15 +530,37 @@ export default function FeatureDetail() {
             </Card>
           )}
 
-          {feature.current_phase === 'construction' && (
-            <BoltPanel
-              bolts={bolts}
-              onPrepareBolts={() => prepareBoltsMutation.mutate()}
-              onRunBolt={(n) => runBoltMutation.mutate(n)}
-              onSetLadder={(m) => ladderMutation.mutate(m)}
-              autonomyMode={feature.autonomy_mode}
-              showLadderPrompt={showLadderPrompt}
-            />
+          {feature.current_phase === 'construction' && bolts.length > 0 && (
+            <div className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-sm)' }} data-testid="bolt-progress">
+              <h3 className="text-base font-medium text-[var(--color-text-primary)] mb-1">Construction Progress</h3>
+              <p className="text-xs text-[var(--color-text-tertiary)] mb-3">Bolts run automatically when you click Run on construction stages (3.1-3.5).</p>
+              <div className="space-y-1.5">
+                {bolts.map((b) => (
+                  <div key={b.bolt_number} className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-surface)' }} data-testid={`bolt-progress-${b.bolt_number}`}>
+                    <span className="text-sm font-medium text-[var(--color-text-primary)]">Bolt {b.bolt_number}</span>
+                    {b.is_walking_skeleton && <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}>skeleton</span>}
+                    <span className={`text-xs ${b.status === 'completed' ? 'text-[var(--color-success)]' : b.status === 'in_progress' ? 'text-[var(--color-accent)]' : b.status === 'failed' ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-tertiary)]'}`}>
+                      {b.status}
+                    </span>
+                    {b.unit_ids && b.unit_ids.length > 0 && (
+                      <span className="text-xs text-[var(--color-text-tertiary)]">{b.unit_ids.join(', ')}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {showLadderPrompt && (
+                <div className="mt-3 p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)' }}>
+                  <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-warning)' }}>Walking skeleton complete — choose mode for remaining bolts:</p>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => ladderMutation.mutate('gated')} data-testid="ladder-gated">Gated (review each)</Button>
+                    <Button variant="primary" size="sm" onClick={() => ladderMutation.mutate('autonomous')} data-testid="ladder-autonomous">Autonomous (skip gates)</Button>
+                  </div>
+                </div>
+              )}
+              {feature.autonomy_mode && (
+                <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">Mode: <span style={{ color: feature.autonomy_mode === 'autonomous' ? 'var(--color-accent)' : 'var(--color-warning)' }}>{feature.autonomy_mode}</span></p>
+              )}
+            </div>
           )}
 
           {rules.length > 0 && (
