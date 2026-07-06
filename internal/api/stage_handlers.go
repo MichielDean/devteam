@@ -248,14 +248,45 @@ func (s *Server) approveStage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In autonomous/guided mode, auto-advance to the next stage
-	if nextStageID != "" && (f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided") {
-		if !s.isFeatureActive(featureID) {
+	// In autonomous/guided mode, auto-advance.
+	if f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided" {
+		if s.isFeatureActive(featureID) {
+			// Already running (e.g. RunAllBolts is driving the bolt loop) —
+			// the approval will unblock it. Don't dispatch a new goroutine.
+			goto respond
+		}
+
+		// If this was a per-bolt stage (3.1-3.5), continue the bolt loop
+		// by re-dispatching RunBolt for the same bolt. RunBolt will skip
+		// already-completed stages and continue from the next one.
+		if isPerBoltStageAPI(stageID) && boltNumber > 0 {
+			s.markFeatureActive(featureID)
+			go func() {
+				defer s.unmarkFeatureActive(featureID)
+				_, err := s.pipeline.RunBolt(context.Background(), f, boltNumber, func(line string, isStderr bool) {
+					s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+				})
+				if err != nil {
+					log.Printf("approveStage: RunBolt continuation failed for %s bolt %d: %v", featureID, boltNumber, err)
+					return
+				}
+				// After bolt completes, check if all bolts are done and advance to 3.6+
+				next := s.pipeline.NextStageToRun(featureID)
+				if next != "" {
+					s.runStageAsync(context.Background(), featureID, next)
+				}
+			}()
+			goto respond
+		}
+
+		// Non-per-bolt stage — advance linearly
+		if nextStageID != "" {
 			s.markFeatureActive(featureID)
 			go s.runStageAsync(context.Background(), featureID, nextStageID)
 		}
 	}
 
+respond:
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"approved"}`))
 }
@@ -914,11 +945,19 @@ func (s *Server) unmarkFeatureActive(featureID string) {
 // Per-Bolt construction stages (3.1-3.5) use f.CurrentBolt; all other stages
 // return 0. Mirrors pipeline.isPerBoltStageID.
 func resolveBoltNumberForStage(f *feature.Feature, stageID string) int {
-	switch stageID {
-	case "3.1", "3.2", "3.3", "3.4", "3.5":
+	if isPerBoltStageAPI(stageID) {
 		return f.CurrentBolt
 	}
 	return 0
+}
+
+// isPerBoltStageAPI reports whether a stage is per-Bolt (3.1-3.5).
+func isPerBoltStageAPI(stageID string) bool {
+	switch stageID {
+	case "3.1", "3.2", "3.3", "3.4", "3.5":
+		return true
+	}
+	return false
 }
 
 // jsonString safely quotes a string for JSON embedding.
