@@ -81,21 +81,24 @@ type BoltRow struct {
 	FeatureID         string    `json:"feature_id"`
 	BoltNumber        int       `json:"bolt_number"`
 	UnitIDs           []string  `json:"unit_ids"`
-	Status            string    `json:"status"`         // pending, in_progress, completed, failed
+	DependsOn         []int     `json:"depends_on"` // bolt numbers this Bolt depends on (empty = ready)
+	Status            string    `json:"status"`     // pending, in_progress, completed, failed
 	IsWalkingSkeleton bool      `json:"is_walking_skeleton"`
 	CreatedAt         time.Time `json:"created_at"`
 }
 
-// CreateBolt inserts a Bolt record.
-func (db *DB) CreateBolt(featureID string, boltNumber int, unitIDs []string, isWalkingSkeleton bool) error {
+// CreateBolt inserts a Bolt record. dependsOn is the list of bolt numbers this
+// Bolt depends on (empty for the walking skeleton or ready-to-run bolts).
+func (db *DB) CreateBolt(featureID string, boltNumber int, unitIDs []string, dependsOn []int, isWalkingSkeleton bool) error {
 	units, _ := json.Marshal(unitIDs)
+	deps, _ := json.Marshal(dependsOn)
 	ws := 0
 	if isWalkingSkeleton {
 		ws = 1
 	}
 	_, err := db.Exec(
-		`INSERT INTO bolts (feature_id, bolt_number, unit_ids, status, is_walking_skeleton, created_at) VALUES (?, ?, ?, 'pending', ?, ?)`,
-		featureID, boltNumber, string(units), ws, time.Now().UTC(),
+		`INSERT INTO bolts (feature_id, bolt_number, unit_ids, depends_on, status, is_walking_skeleton, created_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+		featureID, boltNumber, string(units), string(deps), ws, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("creating bolt %d for %s: %w", boltNumber, featureID, err)
@@ -106,7 +109,7 @@ func (db *DB) CreateBolt(featureID string, boltNumber int, unitIDs []string, isW
 // GetBolts returns all Bolts for a feature ordered by bolt_number.
 func (db *DB) GetBolts(featureID string) ([]BoltRow, error) {
 	rows, err := db.Query(
-		`SELECT id, feature_id, bolt_number, unit_ids, status, is_walking_skeleton, created_at
+		`SELECT id, feature_id, bolt_number, unit_ids, depends_on, status, is_walking_skeleton, created_at
 		 FROM bolts WHERE feature_id = ? ORDER BY bolt_number ASC`,
 		featureID,
 	)
@@ -118,12 +121,13 @@ func (db *DB) GetBolts(featureID string) ([]BoltRow, error) {
 	bolts := []BoltRow{}
 	for rows.Next() {
 		var b BoltRow
-		var unitIDs string
+		var unitIDs, dependsOn string
 		var wsInt int
-		if err := rows.Scan(&b.ID, &b.FeatureID, &b.BoltNumber, &unitIDs, &b.Status, &wsInt, &b.CreatedAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.FeatureID, &b.BoltNumber, &unitIDs, &dependsOn, &b.Status, &wsInt, &b.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning bolt: %w", err)
 		}
 		json.Unmarshal([]byte(unitIDs), &b.UnitIDs)
+		json.Unmarshal([]byte(dependsOn), &b.DependsOn)
 		b.IsWalkingSkeleton = wsInt == 1
 		bolts = append(bolts, b)
 	}

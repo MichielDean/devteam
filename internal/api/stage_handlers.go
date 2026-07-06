@@ -34,6 +34,7 @@ func (s *Server) registerStageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/features/{id}/bolts", s.getBolts)
 	mux.HandleFunc("POST /api/features/{id}/prepare-bolts", s.prepareBolts)
 	mux.HandleFunc("POST /api/features/{id}/run-bolt/{boltNumber}", s.runBolt)
+	mux.HandleFunc("POST /api/features/{id}/run-construction", s.runConstruction)
 	mux.HandleFunc("GET /api/features/{id}/rules", s.getRules)
 	mux.HandleFunc("DELETE /api/features/{id}/rules/{ruleId}", s.deleteRule)
 
@@ -661,6 +662,56 @@ func (s *Server) runBolt(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(`{"status":"dispatched","bolt":` + boltStr + `}`))
+}
+
+// runConstruction runs the full construction phase per the AIDLC v2 spec:
+// walking skeleton → ladder prompt → dependency-batched parallel bolts → 3.6/3.7.
+// This is the spec-correct entry point; run-bolt remains for manual per-bolt
+// dispatch in human mode. Returns 202 Accepted — output streams via SSE.
+func (s *Server) runConstruction(w http.ResponseWriter, r *http.Request) {
+	featureID := r.PathValue("id")
+	f, err := s.pipeline.GetFeature(featureID)
+	if err != nil {
+		http.Error(w, `{"error":"feature_not_found"}`, http.StatusNotFound)
+		return
+	}
+
+	if s.isFeatureActive(featureID) {
+		http.Error(w, `{"error":"conflict","details":"feature already running"}`, http.StatusConflict)
+		return
+	}
+
+	// Ensure bolts are prepared (idempotent — PrepareBolts no-ops if they exist).
+	if err := s.pipeline.PrepareBolts(f); err != nil {
+		http.Error(w, `{"error":"prepare_bolts_failed","details":"`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	s.markFeatureActive(featureID)
+
+	go func() {
+		defer s.unmarkFeatureActive(featureID)
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("runConstruction goroutine panic for feature %s: %v", featureID, rec)
+				s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":"construction panic"}`, jsonString(featureID)))
+			}
+		}()
+
+		err := s.pipeline.RunAllBolts(context.Background(), f, func(line string, isStderr bool) {
+			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+		})
+		if err != nil {
+			log.Printf("runConstruction: failed for feature %s: %v", featureID, err)
+			s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":%s}`, jsonString(featureID), jsonString(err.Error())))
+			return
+		}
+		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"construction":true}`, jsonString(featureID)))
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte(`{"status":"dispatched","construction":true}`))
 }
 
 // getRules returns learned rules for a feature.
