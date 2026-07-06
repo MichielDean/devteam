@@ -90,7 +90,12 @@ func (s *Server) handleSignal(w http.ResponseWriter, r *http.Request) {
 		f, err := s.pipeline.GetFeature(id)
 		if err == nil && (f.ExecutionMode == "autonomous" || f.ExecutionMode == "guided") {
 			log.Printf("handleSignal: needs_feedback in %s mode — dispatching human-proxy agent for %s", f.ExecutionMode, id)
-			go s.dispatchHumanProxy(id, f.CurrentStage)
+			// Use current phase (not stage) for session naming — stage may be empty
+			phase := string(f.CurrentPhase())
+			if phase == "" {
+				phase = "ideation"
+			}
+			go s.dispatchHumanProxy(id, phase)
 		}
 	}
 
@@ -225,10 +230,20 @@ func (s *Server) dispatchHumanProxy(featureID, phase string) {
 	// Kill if still alive
 	tmuxMgr.KillSession(sessionName)
 
+	// Read exit code to check if the proxy actually ran
+	exitCodeBytes, _ := os.ReadFile(filepath.Join(contextDir, "exit_code"))
+	exitCode := strings.TrimSpace(string(exitCodeBytes))
+	if exitCode != "0" {
+		log.Printf("dispatchHumanProxy: proxy exited with code %s (not 0) — agent may not have answered questions", exitCode)
+		// Read the proxy log for debugging
+		proxyLog, _ := os.ReadFile(filepath.Join(contextDir, "proxy.log"))
+		log.Printf("dispatchHumanProxy: proxy log tail: %s", string(proxyLog))
+	}
+
 	// Check if questions were answered
 	questions, _ := s.db.GetPendingQuestions(featureID)
 	if len(questions) > 0 {
-		log.Printf("dispatchHumanProxy: %d questions still pending after proxy — leaving for human", len(questions))
+		log.Printf("dispatchHumanProxy: %d questions still pending after proxy (exit=%s) — leaving for human", len(questions), exitCode)
 		return
 	}
 
