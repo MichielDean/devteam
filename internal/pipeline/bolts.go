@@ -22,6 +22,13 @@ type BoltResult struct {
 	FailureStage      string
 	FailureReason     string
 	Duration          time.Duration
+	pausedAtGate      bool // true if the bolt stopped at a gate (human mode)
+}
+
+// PausedAtGate reports whether the bolt stopped at an approval gate waiting
+// for human input (human execution mode).
+func (r *BoltResult) PausedAtGate() bool {
+	return r.pausedAtGate
 }
 
 // AutonomyMode constants for construction.
@@ -294,6 +301,7 @@ func (p *Pipeline) RunBolt(ctx context.Context, f *feature.Feature, boltNumber i
 			// Human mode — pause for manual approval
 			log.Printf("RunBolt: stage %s opened gate — pausing bolt %d (human mode)", stageID, boltNumber)
 			p.database.UpdateBoltStatus(f.ID, boltNumber, "pending")
+			result.pausedAtGate = true
 			result.StageResults = stageResults
 			result.Duration = time.Since(now)
 			return result, nil
