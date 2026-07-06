@@ -96,18 +96,27 @@ jobs:
         # out of scope to fix here (see team-practices evidence §3).
         # Covers: streaming (internal/role, internal/pipeline, internal/config)
         # and settings-and-admin-ui (internal/repos, internal/settings,
-        # internal/opencode, internal/config write path).
-        run: go vet ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/repos/... ./internal/settings/... ./internal/opencode/... ./internal/config/...
+        # internal/config write path). internal/opencode is NOT in scope —
+        # the builder package is owned by the sibling feature
+        # multi-provider-llm-configuration (Q7 scope cut).
+        run: go vet ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/repos/... ./internal/settings/... ./internal/config/...
 
       - name: Unit tests — feature packages (per-bolt gate)
         # The load-bearing gate command from team-practices P7/P8. Runs the
         # packages the feature extends. Full `go test ./...` runs in the
         # release job (backend-full).
-        # Extension (stream-agent-output feature): added internal/role
-        # (new streamer.go, rewritten tmux.go), internal/pipeline
-        # (stage_runner.go, session_manager.go), internal/config
-        # (new Streaming block).
-        run: go test ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/config/... -count=1
+        # Streaming: internal/role, internal/pipeline, internal/config.
+        # Settings-and-admin-ui: internal/repos, internal/settings,
+        # internal/config (write path — U-CONFIG-01 linchpin, fails fast).
+        run: go test ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/repos/... ./internal/config/... -count=1
+
+      - name: Race tests — concurrency-touching packages (QO-14)
+        # Binding per quality-report revision 2 §1.4 / QO-14: the
+        # concurrency-touching packages (repos flock, config atomic write,
+        # settings store, role batcher) must be -race clean. Runs in the
+        # backend job alongside the db/api unit gate so a race regression
+        # fails the fast gate, not just backend-full.
+        run: go test -race ./internal/role/... ./internal/pipeline/... ./internal/repos/... ./internal/config/... ./internal/settings/... -count=1
 
   # -------------------------------------------------------------------
   # Job 2 — Backend race test (QG-2 — the C-5/R-1 drain invariant)
