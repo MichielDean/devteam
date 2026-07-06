@@ -251,56 +251,19 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		}
 		g.RevisionCount = fs.RevisionCount
 	} else {
-		// Determine auto-approval based on execution mode (and legacy autonomy mode).
-		// Execution modes take precedence; autonomy_mode is the construction-only back-compat.
-		mode := f.ExecutionMode
-		if mode == "" {
-			// Legacy: autonomy_mode only applies within construction, but preserve old behavior.
-			if f.AutonomyMode == AutonomyAutonomous {
-				mode = ExecutionAutonomous
-			} else {
-				mode = ExecutionHuman
+		// Gate open for user approval — the state machine (ProcessStageResult)
+		// handles auto-approval based on execution mode. RunStage just opens
+		// the gate and returns. No duplicate mode/gate logic here.
+		p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, &now, nil)
+		p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, stageDef.Phase, "")
+		p.broadcastSSE(f.ID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase)))
+
+		if p.sessionMgr != nil {
+			boltNumber := 0
+			if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
+				boltNumber = f.CurrentBolt
 			}
-		}
-
-		// Init stages (0.1-0.3) always auto-approve — no gates, no human interaction.
-		isInitStage := stageDef.Phase == stage.PhaseInitialization
-
-		// Phase-end review gates pause in guided mode for human review.
-		isPhaseEndGate := stageID == "1.7" || stageID == "2.8" ||
-			stageID == "3.7" || stageID == "4.7" ||
-			(stageDef.Phase == stage.PhaseConstruction && stageID == "3.5")
-
-		shouldAutoApprove := isInitStage || mode == ExecutionAutonomous ||
-			(mode == ExecutionGuided && !isPhaseEndGate)
-
-		if shouldAutoApprove {
-			log.Printf("RunStage: %s mode — auto-approving stage %s for feature %s", mode, stageID, f.ID)
-			p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, &now, nil)
-			p.database.RecordAuditEvent(f.ID, db.AuditGateApproved, stageID, "", fmt.Sprintf("auto-approved (%s mode)", mode))
-			p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
-			p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
-			p.broadcastSSE(f.ID, "gate_approved", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"auto":true}`, jsonString(f.ID), jsonString(stageID)))
-			// Mark gate as approved so caller sees it closed
-			g.Approve()
-		} else {
-			// Human mode, or guided mode at a phase-end gate — pause for manual approval.
-			p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, &now, nil)
-			reason := ""
-			if mode == ExecutionGuided && isPhaseEndGate {
-				reason = fmt.Sprintf("phase-end review gate (%s mode)", mode)
-			}
-			p.database.RecordAuditEvent(f.ID, db.AuditStageAwaitingApproval, stageID, stageDef.Phase, reason)
-			p.broadcastSSE(f.ID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"phase":%s}`, jsonString(f.ID), jsonString(stageID), jsonString(stageDef.Phase)))
-
-			// Update session state to awaiting gate
-			if p.sessionMgr != nil {
-				boltNumber := 0
-				if stageDef.Phase == stage.PhaseConstruction && f.CurrentBolt > 0 {
-					boltNumber = f.CurrentBolt
-				}
-				p.sessionMgr.SetSessionAwaitingGate(f.ID, stageDef.Phase, boltNumber, stageID)
-			}
+			p.sessionMgr.SetSessionAwaitingGate(f.ID, stageDef.Phase, boltNumber, stageID)
 		}
 	}
 
@@ -426,35 +389,10 @@ func (p *Pipeline) recordReviewerAudit(f *feature.Feature, stageDef *db.StageDef
 }
 
 // ApproveStage approves the gate for a stage and advances to the next stage.
+// ApproveStage approves a stage gate and advances to the next stage.
+// Delegates to the state machine (ApproveAndAdvance) for all logic.
 func (p *Pipeline) ApproveStage(f *feature.Feature, stageID string) error {
-	if p.database == nil {
-		return fmt.Errorf("database required")
-	}
-
-	fs, err := p.database.GetFeatureStage(f.ID, stageID)
-	if err != nil || fs == nil {
-		return fmt.Errorf("feature stage %s not found", stageID)
-	}
-
-	// Allow approving from awaiting_approval or revising (user override)
-	if fs.Status != stage.StatusAwaitingApproval && fs.Status != stage.StatusRevising {
-		return fmt.Errorf("stage %s is in %s state — can only approve stages that are awaiting_approval or revising", stageID, fs.Status)
-	}
-
-	// Check if reviewer rejected — can't approve a NOT-READY stage
-	outcome, _ := p.database.GetLatestOutcome(f.ID, stageID)
-	if outcome != nil && outcome.Outcome == "recirculate" {
-		return fmt.Errorf("stage %s was rejected by reviewer (NOT-READY) — address the feedback and re-run the stage before approving", stageID)
-	}
-
-	now := time.Now().UTC()
-	p.database.UpdateFeatureStage(f.ID, stageID, stage.StatusCompleted, fs.RevisionCount, fs.StartedAt, &now)
-	p.database.RecordAuditEvent(f.ID, db.AuditGateApproved, stageID, "", "")
-	p.database.RecordAuditEvent(f.ID, db.AuditStageCompleted, stageID, "", "")
-	p.broadcastSSE(f.ID, "stage_completed", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
-	p.broadcastSSE(f.ID, "gate_approved", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(f.ID), jsonString(stageID)))
-
-	return p.AdvanceStage(f, stageID)
+	return p.ApproveAndAdvance(f, stageID)
 }
 
 // RejectStage rejects the gate, saves rejection notes as a rule (learning loop),

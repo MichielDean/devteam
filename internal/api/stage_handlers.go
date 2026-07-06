@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MichielDean/devteam/internal/db"
+	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/stage"
 )
 
@@ -864,8 +865,8 @@ func (s *Server) setExecutionMode(w http.ResponseWriter, r *http.Request) {
 }
 
 // runStageAsync is the SINGLE entry point for running a stage asynchronously.
-// It runs the stage, broadcasts SSE, and auto-advances if execution mode is guided/autonomous.
-// All callers (runStage, resumeStage, forceRerun, init stages) should use this.
+// It runs the stage, processes the result via the state machine, and
+// auto-advances if execution mode allows. All callers use this.
 func (s *Server) runStageAsync(ctx context.Context, featureID, stageID string) {
 	defer s.unmarkFeatureActive(featureID)
 	defer func() {
@@ -882,7 +883,7 @@ func (s *Server) runStageAsync(ctx context.Context, featureID, stageID string) {
 			return
 		}
 
-		// Run the current stage
+		// Run the stage
 		log.Printf("runStageAsync: running stage %s for feature %s (mode=%s)", stageID, featureID, f.ExecutionMode)
 		result, err := s.pipeline.RunStage(ctx, f, stageID, func(line string, isStderr bool) {
 			s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
@@ -893,49 +894,37 @@ func (s *Server) runStageAsync(ctx context.Context, featureID, stageID string) {
 			return
 		}
 
+		// Broadcast completion
 		resultJSON, _ := json.Marshal(result)
 		s.broadcastSSE(featureID, "processing_complete", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"result":%s}`, jsonString(featureID), jsonString(stageID), string(resultJSON)))
 
-		// If gate is open, stop — needs human approval (guided phase-end gate, reviewer rejection, etc.)
-		if result != nil && result.Gate != nil && result.Gate.IsOpen() {
-			log.Printf("runStageAsync: gate open at stage %s — stopping for human review", stageID)
+		// Process the result through the state machine — ONE place for all gate/mode/advance logic
+		outcome := s.pipeline.ProcessStageResult(f, stageID, result)
+
+		switch outcome {
+		case pipeline.OutcomeNeedsReview:
+			log.Printf("runStageAsync: stage %s needs human review — stopping", stageID)
+			return
+		case pipeline.OutcomeFailed:
+			log.Printf("runStageAsync: stage %s failed — stopping", stageID)
+			return
+		case pipeline.OutcomeComplete:
+			log.Printf("runStageAsync: feature %s complete", featureID)
 			return
 		}
 
-		// If the stage failed, stop — human intervention required
-		if result != nil && (result.OutcomeSource == "smoke_failed" || result.OutcomeSource == "reviewer_rejected" || result.OutcomeSource == "agent_failed") {
-			log.Printf("runStageAsync: stage %s failed (source=%s) — stopping", stageID, result.OutcomeSource)
-			return
-		}
-
-		// Check if we should auto-advance to the next stage
-		// Init stages always auto-advance (they're auto-proceed).
-		// Guided/autonomous modes auto-advance after auto-approval.
-		// Human mode stops after each non-init stage.
-		stageDef, _ := s.db.GetStageDefinition(stageID)
-		isInitStage := stageDef != nil && stageDef.Phase == "initialization"
-		if !isInitStage && f.ExecutionMode != "guided" && f.ExecutionMode != "autonomous" {
+		// OutcomeAutoApproved — check if we should advance to the next stage
+		if !s.pipeline.ShouldAutoAdvance(f, stageID) {
 			return // human mode — stop after each stage
 		}
 
-		// Find the next not_started stage
-		if s.db == nil {
-			return
-		}
-		allStages, _ := s.db.GetFeatureStages(featureID)
-		var nextStageID string
-		for _, ns := range allStages {
-			if ns.Status == stage.StatusNotStarted {
-				nextStageID = ns.StageID
-				break
-			}
-		}
+		nextStageID := s.pipeline.NextStageToRun(featureID)
 		if nextStageID == "" {
 			log.Printf("runStageAsync: no more stages for feature %s — complete", featureID)
 			return
 		}
 
 		stageID = nextStageID
-		time.Sleep(2 * time.Second) // small delay between stages
+		time.Sleep(2 * time.Second)
 	}
 }

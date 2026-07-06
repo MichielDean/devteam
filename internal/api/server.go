@@ -15,6 +15,7 @@ import (
 
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
+	"github.com/MichielDean/devteam/internal/gate"
 	"github.com/MichielDean/devteam/internal/intake"
 	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/spec"
@@ -198,8 +199,7 @@ func (s *Server) RestoreActiveProcesses() {
 }
 
 // recoverStage processes a stuck stage after server restart.
-// Checks for outcome/artifacts, marks awaiting_approval or revising,
-// and auto-approves + continues if execution mode is autonomous/guided.
+// Uses the state machine for all gate/mode/advance decisions.
 func (s *Server) recoverStage(featureID, stageID string) {
 	fs, _ := s.db.GetFeatureStage(featureID, stageID)
 	if fs == nil || fs.Status != stage.StatusInProgress {
@@ -213,13 +213,18 @@ func (s *Server) recoverStage(featureID, stageID string) {
 
 	// Determine if the agent did useful work
 	outcome, _ := s.db.GetLatestOutcome(featureID, stageID)
-	recovered := false
+	var result *pipeline.StageRunResult
 
 	if outcome != nil && outcome.Outcome == "pass" {
-		s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
-		s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart")
-		recovered = true
+		// Agent signaled pass — construct a result with open gate for state machine to process
+		result = &pipeline.StageRunResult{
+			StageID:       stageID,
+			OutcomeSource: "agent_signal",
+			Outcome:       outcome,
+			Gate:          gate.New(featureID, stageID), // open gate — state machine decides
+		}
 	} else {
+		// Check for artifacts (agent may have completed without signaling)
 		artifacts, _ := s.db.GetSpecArtifactsForStage(featureID, stageID)
 		if len(artifacts) == 0 {
 			stageDef, _ := s.db.GetStageDefinition(stageID)
@@ -236,52 +241,36 @@ func (s *Server) recoverStage(featureID, stageID string) {
 			}
 		}
 		if len(artifacts) > 0 {
-			log.Printf("recoverStage: stage %s has %d artifacts — marking awaiting_approval", stageID, len(artifacts))
-			s.db.UpdateFeatureStage(featureID, stageID, stage.StatusAwaitingApproval, fs.RevisionCount, fs.StartedAt, nil)
-			s.db.RecordAuditEvent(featureID, db.AuditStageAwaitingApproval, stageID, "", "recovered after server restart (artifacts found)")
-			recovered = true
+			result = &pipeline.StageRunResult{
+				StageID:       stageID,
+				OutcomeSource: "default_pass",
+				Gate:          gate.New(featureID, stageID),
+			}
 		} else {
-			log.Printf("recoverStage: stage %s no outcome/artifacts — marking revising", stageID)
-			s.db.UpdateFeatureStage(featureID, stageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, nil)
+			// No outcome, no artifacts — mark as revising
+			now := time.Now()
+			s.db.UpdateFeatureStage(featureID, stageID, stage.StatusRevising, fs.RevisionCount, fs.StartedAt, &now)
 			s.db.RecordAuditEvent(featureID, "STAGE_INTERRUPTED", stageID, "", "server restarted mid-dispatch")
 			s.broadcastSSE(featureID, "stage_revising", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
+			f.CurrentStage = stageID
+			s.pipeline.SaveFeature(f)
+			return
 		}
 	}
+
+	// Process through the state machine — ONE place for all gate/mode/advance logic
+	outcomeResult := s.pipeline.ProcessStageResult(f, stageID, result)
 
 	// Update feature state
 	f.CurrentStage = stageID
 	s.pipeline.SaveFeature(f)
 
-	if !recovered {
-		return
-	}
-
-	s.broadcastSSE(featureID, "stage_awaiting_approval", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(stageID)))
-
-	// Auto-approve and continue if execution mode allows
-	if f.ExecutionMode != "autonomous" && f.ExecutionMode != "guided" {
-		return
-	}
-
-	stageDef, _ := s.db.GetStageDefinition(stageID)
-	isPhaseEndGate := stageDef != nil && (stageID == "1.7" || stageID == "2.8" || stageID == "3.7" || stageID == "4.7" || (stageDef.Phase == "construction" && stageID == "3.5"))
-	isInitStage := stageDef != nil && stageDef.Phase == "initialization"
-	shouldAutoApprove := isInitStage || f.ExecutionMode == "autonomous" || (f.ExecutionMode == "guided" && !isPhaseEndGate)
-
-	if !shouldAutoApprove {
-		return
-	}
-
-	log.Printf("recoverStage: auto-approving recovered stage %s (%s mode)", stageID, f.ExecutionMode)
-	s.pipeline.ApproveStage(f, stageID)
-
-	// Find next not_started stage and continue
-	allStages, _ := s.db.GetFeatureStages(featureID)
-	for _, ns := range allStages {
-		if ns.Status == stage.StatusNotStarted {
+	// If auto-approved, continue to next stage
+	if outcomeResult == pipeline.OutcomeAutoApproved && s.pipeline.ShouldAutoAdvance(f, stageID) {
+		nextStageID := s.pipeline.NextStageToRun(featureID)
+		if nextStageID != "" {
 			s.markFeatureActive(featureID)
-			go s.runStageAsync(context.Background(), featureID, ns.StageID)
-			break
+			go s.runStageAsync(context.Background(), featureID, nextStageID)
 		}
 	}
 }
