@@ -1039,6 +1039,42 @@ func (s *Server) runStageAsync(ctx context.Context, featureID, stageID string) {
 			return // human mode — stop after each stage
 		}
 
+		// After 2.8 (Delivery Planning) completes, prepare bolts for construction.
+		// Then trigger RunAllBolts instead of linear advance — 3.1-3.5 are per-bolt
+		// stages driven by the bolt loop, not by NextStageToRun.
+		if stageID == "2.8" {
+			if err := s.pipeline.PrepareBolts(f); err != nil {
+				log.Printf("runStageAsync: PrepareBolts failed for %s: %v — continuing to 3.6", featureID, err)
+			}
+			bolts, _ := s.db.GetBolts(featureID)
+			if len(bolts) > 0 {
+				log.Printf("runStageAsync: 2.8 complete — %d bolts prepared, starting RunAllBolts for %s", len(bolts), featureID)
+				go func() {
+					defer s.unmarkFeatureActive(featureID)
+					defer func() {
+						if rec := recover(); rec != nil {
+							log.Printf("runStageAsync: RunAllBolts panic for %s: %v", featureID, rec)
+						}
+					}()
+					err := s.pipeline.RunAllBolts(context.Background(), f, func(line string, isStderr bool) {
+						s.broadcastSSE(featureID, "agent_output", fmt.Sprintf(`{"line":%s,"stderr":%v}`, jsonString(line), isStderr))
+					})
+					if err != nil {
+						log.Printf("runStageAsync: RunAllBolts failed for %s: %v", featureID, err)
+						s.broadcastSSE(featureID, "error", fmt.Sprintf(`{"feature_id":%s,"message":%s}`, jsonString(featureID), jsonString(err.Error())))
+						return
+					}
+					// After RunAllBolts completes (3.1-3.7), continue to operation phase
+					next := s.pipeline.NextStageToRun(featureID)
+					if next != "" {
+						s.runStageAsync(context.Background(), featureID, next)
+					}
+				}()
+				return // RunAllBolts handles 3.1-3.7, don't continue the linear loop
+			}
+			// No bolts prepared — fall through to linear advance (3.6+)
+		}
+
 		nextStageID := s.pipeline.NextStageToRun(featureID)
 		if nextStageID == "" {
 			log.Printf("runStageAsync: no more stages for feature %s — complete", featureID)
