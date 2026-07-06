@@ -90,14 +90,14 @@ jobs:
         run: go build ./...
 
       - name: Vet (feature packages)
-        # Scoped to the packages this feature and the prior feature extend.
+        # Scoped to the packages this feature and prior features extend.
         # A full `go vet ./...` surfaces pre-existing unkeyed-field warnings
         # in internal/stage/definitions.go that predate this feature and are
         # out of scope to fix here (see team-practices evidence §3).
-        # Extension (stream-agent-output feature): added internal/role,
-        # internal/pipeline, internal/config — the packages the streaming
-        # refactor touches.
-        run: go vet ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/config/...
+        # Covers: streaming (internal/role, internal/pipeline, internal/config)
+        # and settings-and-admin-ui (internal/repos, internal/settings,
+        # internal/opencode, internal/config write path).
+        run: go vet ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/repos/... ./internal/settings/... ./internal/opencode/... ./internal/config/...
 
       - name: Unit tests — feature packages (per-bolt gate)
         # The load-bearing gate command from team-practices P7/P8. Runs the
