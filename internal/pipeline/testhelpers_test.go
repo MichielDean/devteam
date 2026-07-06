@@ -31,6 +31,7 @@ func truncateAllTables(database *db.DB) {
 		"rules", "team_knowledge", "feature_repos", "sessions",
 		"phase_states", "gate_results", "recirculations", "features",
 		"stage_logs",
+		"repo_operation_config",
 	}
 	for _, table := range tables {
 		database.Conn().Exec("TRUNCATE TABLE " + table + " CASCADE")
