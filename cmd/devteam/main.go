@@ -73,6 +73,16 @@ func main() {
 			os.Exit(1)
 		}
 
+		// Seed the implementation-repo registry from repos.yaml on first boot.
+		// Idempotent: only seeds when the repos table is empty. Missing file +
+		// empty table is a no-op (empty registry is valid). Never writes back
+		// to repos.yaml — the file is a read-only seed source (ADR-002).
+		reposYAMLPath := filepath.Join(baseDir, "repos.yaml")
+		if err := database.SeedReposFromYAML(reposYAMLPath); err != nil {
+			fmt.Fprintf(os.Stderr, "error seeding repo registry: %v\n", err)
+			os.Exit(1)
+		}
+
 		// Wire database and DB question store into pipeline
 		questionStore := feature.NewDBQuestionStore(database)
 		p.SetDatabase(database)
