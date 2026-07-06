@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -59,7 +59,31 @@ export default function FeatureDetail() {
     queryFn: () => getFeatureStages(id!),
     enabled: !!id,
     refetchInterval: isProcessing ? 2000 : false,
+    select: (data) => {
+      // Detect stage status changes and trigger artifact refresh
+      return data;
+    },
   });
+
+  // Track previous stage statuses to detect transitions
+  const prevStageStatuses = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (!stages.length) return;
+    const changes: string[] = [];
+    for (const s of stages) {
+      const prev = prevStageStatuses.current[s.stage_id];
+      if (prev && prev !== s.status) {
+        changes.push(`${s.stage_id}: ${prev} → ${s.status}`);
+      }
+      prevStageStatuses.current[s.stage_id] = s.status;
+    }
+    if (changes.length > 0) {
+      // Stage status changed — refetch artifacts and invalidate queries
+      setArtifactRefreshKey((k) => k + 1);
+      queryClient.invalidateQueries({ queryKey: ['feature', id!] });
+      queryClient.invalidateQueries({ queryKey: ['audit', id!] });
+    }
+  }, [stages, id, queryClient]);
 
   const { data: auditEvents = [] } = useQuery({
     queryKey: ['audit', id!],
