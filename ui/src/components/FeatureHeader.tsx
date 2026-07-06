@@ -22,12 +22,6 @@ const statusColor: Record<string, Color> = {
   waiting_for_feedback: 'yellow',
 };
 
-const modeColor: Record<string, Color> = {
-  human: 'gray',
-  guided: 'blue',
-  autonomous: 'green',
-};
-
 export default function FeatureHeader({ feature, sessionsCount = 0, isTerminal, onModeChange }: FeatureHeaderProps) {
   const mode = feature.execution_mode || 'human';
 
@@ -63,13 +57,17 @@ export default function FeatureHeader({ feature, sessionsCount = 0, isTerminal, 
         </div>
         <div>
           <span className="text-[var(--color-text-tertiary)] text-xs uppercase tracking-wide">Execution Mode</span>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="mt-0.5">
             {onModeChange ? (
               <select
                 value={mode}
                 onChange={(e) => onModeChange(e.target.value)}
-                className="text-sm font-medium text-[var(--color-text-primary)] bg-transparent border-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)] rounded"
-                style={{ color: mode === 'autonomous' ? 'var(--color-success)' : mode === 'guided' ? 'var(--color-accent)' : 'var(--color-text-primary)' }}
+                className="text-sm font-medium rounded-[var(--radius-sm)] px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+                style={{
+                  backgroundColor: 'var(--color-surface-hover)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border-subtle)',
+                }}
                 data-testid="execution-mode-select-header"
               >
                 <option value="human">Human in the Loop</option>
@@ -77,9 +75,9 @@ export default function FeatureHeader({ feature, sessionsCount = 0, isTerminal, 
                 <option value="autonomous">Fully Autonomous</option>
               </select>
             ) : (
-              <Badge color={modeColor[mode] || 'gray'} data-testid="execution-mode-badge">
+              <p className="text-sm font-medium" style={{ color: mode === 'autonomous' ? 'var(--color-success)' : mode === 'guided' ? 'var(--color-accent)' : 'var(--color-text-primary)' }}>
                 {EXECUTION_MODE_LABELS[mode] || mode}
-              </Badge>
+              </p>
             )}
           </div>
         </div>
