@@ -195,62 +195,58 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 	slotRelease := p.acquireAgentSlot()
 	defer slotRelease()
 
-	// Retry dispatch on transient failures (LLM quota, rate limits, network).
-	// Up to 3 attempts with exponential backoff (30s, 60s, 120s).
-	// Non-transient errors (missing files, bad config) fail immediately.
+	// Dispatch the agent. On failure, distinguish between:
+	//   - Quota/credit errors (429, quota, insufficient balance, payment):
+	//     these don't resolve in minutes — they're a hard wall that may take
+	//     hours or days to reset. PAUSE the feature and surface to the user.
+	//     No retry — retrying just wastes time.
+	//   - Transient errors (timeout, EOF, connection refused): one quick
+	//     retry (10s), then fail. These are blips.
+	//   - Non-transient errors: fail immediately.
 	var result *role.DispatchResult
 	{
-		maxRetries := 3
-		backoffs := []time.Duration{30 * time.Second, 60 * time.Second, 120 * time.Second}
+		maxRetries := 1 // only for transient (non-quota) errors
 		for attempt := 0; attempt <= maxRetries; attempt++ {
 			result, err = p.dispatcher.DispatchStreaming(ctx, req, lineCh)
 			if err == nil {
 				break
 			}
-			// Check if this is a transient error worth retrying
 			errStr := err.Error()
-			isTransient := strings.Contains(errStr, "429") ||
-				strings.Contains(errStr, "rate limit") ||
-				strings.Contains(errStr, "quota") ||
-				strings.Contains(errStr, "insufficient") ||
-				strings.Contains(errStr, "balance") ||
-				strings.Contains(errStr, "payment") ||
-				strings.Contains(errStr, "temporarily unavailable") ||
+			combinedOutput := errStr
+			if result != nil {
+				combinedOutput = errStr + " " + result.Output
+			}
+			isQuotaError := isQuotaExhaustion(combinedOutput)
+			isTransient := !isQuotaError && (strings.Contains(errStr, "timeout") ||
+				strings.Contains(errStr, "EOF") ||
 				strings.Contains(errStr, "connection refused") ||
-				strings.Contains(errStr, "timeout") ||
-				strings.Contains(errStr, "EOF")
-			// Also retry on non-zero exit codes that look like LLM errors
-			if result != nil && !result.Success {
-				outStr := result.Output
-				isTransient = isTransient ||
-					strings.Contains(outStr, "429") ||
-					strings.Contains(outStr, "rate limit") ||
-					strings.Contains(outStr, "quota") ||
-					strings.Contains(outStr, "insufficient") ||
-					strings.Contains(outStr, "balance") ||
-					strings.Contains(outStr, "payment") ||
-					strings.Contains(outStr, "Too Many Requests")
+				strings.Contains(errStr, "temporarily unavailable"))
+			if isQuotaError {
+				// Quota exhausted — pause the feature, surface to user, stop.
+				log.Printf("RunStage: LLM quota exhausted for %s stage %s — pausing feature: %s",
+					f.ID, stageID, errStr)
+				p.broadcastSSE(f.ID, "quota_exhausted",
+					fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"message":"LLM quota exhausted — feature paused. Add credits or switch provider to resume."}`,
+						jsonString(f.ID), jsonString(stageID)))
+				p.database.RecordAuditEvent(f.ID, "QUOTA_EXHAUSTED", stageID, stageDef.Phase, errStr)
+				// Mark the stage as paused (revising state) so it can be re-run
+				// when the user resolves the quota issue.
+				p.updateFeatureStageRow(f.ID, stageID, boltNumber, stage.StatusRevising, fs.RevisionCount, &now, nil)
+				close(lineCh)
+				<-streamDone
+				return nil, fmt.Errorf("LLM quota exhausted — feature %s paused at stage %s: %s", f.ID, stageID, errStr)
 			}
 			if !isTransient || attempt == maxRetries {
 				break
 			}
-			backoff := backoffs[attempt]
-			if attempt < len(backoffs) {
-				backoff = backoffs[attempt]
-			} else {
-				backoff = 120 * time.Second
-			}
-			log.Printf("RunStage: transient error for %s (attempt %d/%d) — retrying in %v: %s",
-				stageID, attempt+1, maxRetries, backoff, errStr)
-			p.broadcastSSE(f.ID, "stage_retry",
-				fmt.Sprintf(`{"feature_id":%s,"stage_id":%s,"attempt":%d,"max":%d,"backoff_seconds":%d}`,
-					jsonString(f.ID), jsonString(stageID), attempt+1, maxRetries, int(backoff.Seconds())))
+			// One quick retry for transient blips
+			log.Printf("RunStage: transient error for %s — retrying in 10s: %s", stageID, errStr)
 			select {
 			case <-ctx.Done():
 				close(lineCh)
 				<-streamDone
 				return nil, ctx.Err()
-			case <-time.After(backoff):
+			case <-time.After(10 * time.Second):
 			}
 		}
 	}
@@ -981,6 +977,35 @@ func isPerBoltStageID(stageID string) bool {
 	switch stageID {
 	case "3.1", "3.2", "3.3", "3.4", "3.5":
 		return true
+	}
+	return false
+}
+
+// isQuotaExhaustion reports whether an error/output string indicates the LLM
+// provider's quota or credits are exhausted. These are hard walls — retrying
+// won't help for hours or days. The feature should be paused and surfaced.
+func isQuotaExhaustion(s string) bool {
+	sLower := strings.ToLower(s)
+	quotaMarkers := []string{
+		"429",
+		"rate limit",
+		"rate_limit",
+		"quota",
+		"insufficient",
+		"balance",
+		"payment",
+		"credit",
+		"billing",
+		"too many requests",
+		"exceeded your current quota",
+		"plan limits",
+		"usage limit",
+		"spending limit",
+	}
+	for _, m := range quotaMarkers {
+		if strings.Contains(sLower, m) {
+			return true
+		}
 	}
 	return false
 }
