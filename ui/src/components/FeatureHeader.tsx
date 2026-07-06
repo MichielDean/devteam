@@ -1,6 +1,6 @@
 import { Badge } from '../ui/primitives';
 import type { Color } from '../ui/primitives/Badge';
-import { STATUS_LABELS, PRIORITY_LABELS, SCOPE_LABELS, DEPTH_LABELS } from '../types';
+import { STATUS_LABELS, PRIORITY_LABELS, SCOPE_LABELS, DEPTH_LABELS, EXECUTION_MODE_LABELS } from '../types';
 import type { FeatureDetail } from '../types';
 import SessionIndicator from './SessionIndicator';
 
@@ -8,6 +8,7 @@ interface FeatureHeaderProps {
   feature: FeatureDetail;
   sessionsCount?: number;
   isTerminal: boolean;
+  onModeChange?: (mode: string) => void;
 }
 
 const statusColor: Record<string, Color> = {
@@ -21,7 +22,15 @@ const statusColor: Record<string, Color> = {
   waiting_for_feedback: 'yellow',
 };
 
-export default function FeatureHeader({ feature, sessionsCount = 0, isTerminal }: FeatureHeaderProps) {
+const modeColor: Record<string, Color> = {
+  human: 'gray',
+  guided: 'blue',
+  autonomous: 'green',
+};
+
+export default function FeatureHeader({ feature, sessionsCount = 0, isTerminal, onModeChange }: FeatureHeaderProps) {
+  const mode = feature.execution_mode || 'human';
+
   return (
     <div className="rounded-[var(--radius-lg)] p-4 mb-4" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-sm)' }} data-testid="feature-header">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -53,8 +62,26 @@ export default function FeatureHeader({ feature, sessionsCount = 0, isTerminal }
           <p className="text-sm font-medium text-[var(--color-text-primary)] mt-0.5">{feature.intake_path === 'loose_idea' ? 'Loose Idea' : 'External Spec'}</p>
         </div>
         <div>
-          <span className="text-[var(--color-text-tertiary)] text-xs uppercase tracking-wide">Processing</span>
-          <p className="text-sm font-medium text-[var(--color-text-primary)] mt-0.5" data-testid="feature-processing">{feature.is_processing ? 'Yes' : 'No'}</p>
+          <span className="text-[var(--color-text-tertiary)] text-xs uppercase tracking-wide">Execution Mode</span>
+          <div className="flex items-center gap-2 mt-0.5">
+            {onModeChange ? (
+              <select
+                value={mode}
+                onChange={(e) => onModeChange(e.target.value)}
+                className="text-sm font-medium text-[var(--color-text-primary)] bg-transparent border-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)] rounded"
+                style={{ color: mode === 'autonomous' ? 'var(--color-success)' : mode === 'guided' ? 'var(--color-accent)' : 'var(--color-text-primary)' }}
+                data-testid="execution-mode-select-header"
+              >
+                <option value="human">Human in the Loop</option>
+                <option value="guided">Partially Autonomous</option>
+                <option value="autonomous">Fully Autonomous</option>
+              </select>
+            ) : (
+              <Badge color={modeColor[mode] || 'gray'} data-testid="execution-mode-badge">
+                {EXECUTION_MODE_LABELS[mode] || mode}
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
     </div>

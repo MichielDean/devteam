@@ -407,7 +407,7 @@ export default function FeatureDetail() {
         <Link to="/" className="text-sm text-[var(--color-accent)] hover:underline">&larr; Dashboard</Link>
       </div>
 
-      <FeatureHeader feature={feature} sessionsCount={sessions.length} isTerminal={terminal} />
+      <FeatureHeader feature={feature} sessionsCount={sessions.length} isTerminal={terminal} onModeChange={(m) => executionModeMutation.mutate(m)} />
 
       {/* Mobile: horizontal stage rail. Desktop: hidden (sidebar in grid below) */}
       <div className="lg:hidden mb-4">
