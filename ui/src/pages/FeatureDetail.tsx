@@ -26,6 +26,15 @@ import { STAGE_STATUS_LABELS, AGENT_LABELS } from '../types';
 
 const MAX_REVISIONS = 3;
 
+const STATUS_ICONS_MAP: Record<string, string> = {
+  not_started: '○', in_progress: '▶', awaiting_approval: '?', revising: '↻', completed: '✓', skipped: '·',
+};
+const STATUS_COLOR_MAP: Record<string, string> = {
+  not_started: 'var(--color-text-tertiary)', in_progress: 'var(--color-accent)', awaiting_approval: 'var(--color-warning)', revising: 'var(--color-warning)', completed: 'var(--color-success)', skipped: 'var(--color-text-tertiary)',
+};
+function statusColorForStatus(status: string) { return STATUS_COLOR_MAP[status] || 'var(--color-text-tertiary)'; }
+function STATUS_ICONS_FOR_STATUS(status: string) { return STATUS_ICONS_MAP[status] || '○'; }
+
 export default function FeatureDetail() {
   const { id, stageId: routeStageId } = useParams<{ id: string; stageId?: string }>();
   const queryClient = useQueryClient();
@@ -400,7 +409,7 @@ export default function FeatureDetail() {
       <div className="flex flex-col lg:grid lg:grid-cols-[260px_1fr] gap-4 flex-1 min-h-0">
         {/* Desktop sidebar */}
         <div className="hidden lg:block">
-          <StageRail stages={stages} currentStageId={feature.current_stage} />
+          <StageRail stages={stages} currentStageId={feature.current_stage} bolts={bolts} />
         </div>
 
         <div className="flex-1 min-w-0 overflow-y-auto space-y-4">
@@ -455,7 +464,7 @@ export default function FeatureDetail() {
                 </div>
               ) : nextStage ? (
                 <div data-testid="next-stage-panel">
-                  <p className="text-sm text-[var(--color-text-secondary)] mb-2">Next: <strong className="text-[var(--color-text-primary)]">{nextStage.stage_id}{nextStage.name ? ` · ${nextStage.name}` : ''}</strong></p>
+                  <p className="text-sm text-[var(--color-text-secondary)] mb-1">Next: <strong className="text-[var(--color-text-primary)]">{nextStage.stage_id}{nextStage.name ? ` · ${nextStage.name}` : ''}</strong></p>
                   {nextStage.description && (
                     <p className="text-xs text-[var(--color-text-tertiary)] mb-3">{nextStage.description}</p>
                   )}
@@ -465,13 +474,19 @@ export default function FeatureDetail() {
                     const pendingBolt = bolts.find(b => b.status === 'pending' || b.status === 'in_progress');
                     if (isBoltStage && pendingBolt) {
                       return (
-                        <Button variant="primary" onClick={() => runBoltMutation.mutate(pendingBolt.bolt_number)} disabled={runBoltMutation.isPending} isLoading={runBoltMutation.isPending} data-testid="run-stage-button">
-                          ▶ Run {nextStage.stage_id}
-                        </Button>
+                        <div>
+                          <p className="text-xs text-[var(--color-text-secondary)] mb-2">
+                            This runs as <strong>Bolt {pendingBolt.bolt_number}</strong> — stages 3.1-3.5 execute together:
+                            Functional Design → NFR Requirements → NFR Design → Infrastructure Design → Code Generation.
+                            {pendingBolt.is_walking_skeleton ? ' This is the walking skeleton — the smallest end-to-end slice.' : ''}
+                          </p>
+                          <Button variant="primary" onClick={() => runBoltMutation.mutate(pendingBolt.bolt_number)} disabled={runBoltMutation.isPending} isLoading={runBoltMutation.isPending} data-testid="run-stage-button">
+                            ▶ Run Bolt {pendingBolt.bolt_number}
+                          </Button>
+                        </div>
                       );
                     }
                     if (isBoltStage && !pendingBolt) {
-                      // Need to prepare bolts first
                       return (
                         <Button variant="primary" onClick={() => prepareBoltsMutation.mutate()} disabled={prepareBoltsMutation.isPending} isLoading={prepareBoltsMutation.isPending} data-testid="prepare-bolts-button">
                           ▶ Prepare Bolts
@@ -532,21 +547,31 @@ export default function FeatureDetail() {
 
           {feature.current_phase === 'construction' && bolts.length > 0 && (
             <div className="rounded-[var(--radius-lg)] p-4" style={{ backgroundColor: 'var(--color-surface-raised)', boxShadow: 'var(--shadow-sm)' }} data-testid="bolt-progress">
-              <h3 className="text-base font-medium text-[var(--color-text-primary)] mb-1">Construction Progress</h3>
-              <p className="text-xs text-[var(--color-text-tertiary)] mb-3">Bolts run automatically when you click Run on construction stages (3.1-3.5).</p>
+              <h3 className="text-base font-medium text-[var(--color-text-primary)] mb-1">Bolts</h3>
+              <p className="text-xs text-[var(--color-text-tertiary)] mb-3">Each bolt runs stages 3.1-3.5 together. Review the gate after each bolt completes.</p>
               <div className="space-y-1.5">
-                {bolts.map((b) => (
-                  <div key={b.bolt_number} className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-surface)' }} data-testid={`bolt-progress-${b.bolt_number}`}>
-                    <span className="text-sm font-medium text-[var(--color-text-primary)]">Bolt {b.bolt_number}</span>
-                    {b.is_walking_skeleton && <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}>skeleton</span>}
-                    <span className={`text-xs ${b.status === 'completed' ? 'text-[var(--color-success)]' : b.status === 'in_progress' ? 'text-[var(--color-accent)]' : b.status === 'failed' ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-tertiary)]'}`}>
-                      {b.status}
-                    </span>
-                    {b.unit_ids && b.unit_ids.length > 0 && (
-                      <span className="text-xs text-[var(--color-text-tertiary)]">{b.unit_ids.join(', ')}</span>
-                    )}
-                  </div>
-                ))}
+                {bolts.map((b) => {
+                  const boltStages = stages.filter(s => s.stage_id.match(/^3\.[1-5]$/));
+                  return (
+                    <div key={b.bolt_number} className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-surface)' }} data-testid={`bolt-progress-${b.bolt_number}`}>
+                      <span className="text-sm font-medium text-[var(--color-text-primary)]">Bolt {b.bolt_number}</span>
+                      {b.is_walking_skeleton && <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--color-accent)', color: 'white' }}>skeleton</span>}
+                      <div className="flex gap-1">
+                        {boltStages.map(s => (
+                          <span key={s.stage_id} className="text-[10px] font-mono" style={{ color: statusColorForStatus(s.status) }} title={`${s.stage_id} ${s.name || ''}`}>
+                            {STATUS_ICONS_FOR_STATUS(s.status)}
+                          </span>
+                        ))}
+                      </div>
+                      <span className={`text-xs ${b.status === 'completed' ? 'text-[var(--color-success)]' : b.status === 'in_progress' ? 'text-[var(--color-accent)]' : b.status === 'failed' ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-tertiary)]'}`}>
+                        {b.status}
+                      </span>
+                      {b.unit_ids && b.unit_ids.length > 0 && (
+                        <span className="text-xs text-[var(--color-text-tertiary)] ml-auto truncate">{b.unit_ids.join(', ')}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               {showLadderPrompt && (
                 <div className="mt-3 p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: 'var(--color-warning-surface)' }}>

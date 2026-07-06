@@ -1,11 +1,12 @@
 import { useUIStore } from '../store/ui-store';
 import { Badge } from '../ui/primitives';
 import { PHASE_LABELS, AGENT_LABELS } from '../types';
-import type { FeatureStage } from '../types';
+import type { FeatureStage, Bolt } from '../types';
 
 interface StageRailProps {
   stages: FeatureStage[];
   currentStageId?: string;
+  bolts?: Bolt[];
 }
 
 const STATUS_ICONS: Record<string, string> = {
@@ -26,20 +27,42 @@ const statusColor: Record<string, string> = {
   skipped: 'var(--color-text-tertiary)',
 };
 
-function groupByPhase(stages: FeatureStage[]): Record<string, FeatureStage[]> {
-  const groups: Record<string, FeatureStage[]> = {};
+function groupByPhase(stages: FeatureStage[], bolts: Bolt[]): Record<string, (FeatureStage | Bolt)[]> {
+  const groups: Record<string, (FeatureStage | Bolt)[]> = {};
   for (const s of stages) {
     const phaseNum = s.stage_id.split('.')[0];
     const phaseName = phaseNum === '0' ? 'initialization' : phaseNum === '1' ? 'ideation' : phaseNum === '2' ? 'inception' : phaseNum === '3' ? 'construction' : phaseNum === '4' ? 'operation' : 'unknown';
     if (!groups[phaseName]) groups[phaseName] = [];
-    groups[phaseName].push(s);
+
+    // During construction: group 3.1-3.5 under bolts, show 3.6-3.7 individually
+    if (phaseName === 'construction' && bolts.length > 0) {
+      const isBoltStage = s.stage_id.match(/^3\.[1-5]$/);
+      if (isBoltStage) {
+        continue;
+      }
+      groups[phaseName].push(s);
+    } else {
+      groups[phaseName].push(s);
+    }
   }
+
+  // Add bolts to construction group
+  if (bolts.length > 0 && groups['construction']) {
+    // Insert bolts before 3.6/3.7
+    const nonBoltStages = groups['construction'];
+    groups['construction'] = [...bolts, ...nonBoltStages];
+  }
+
   return groups;
 }
 
-export default function StageRail({ stages, currentStageId }: StageRailProps) {
+function isBolt(item: FeatureStage | Bolt): item is Bolt {
+  return 'bolt_number' in item;
+}
+
+export default function StageRail({ stages, currentStageId, bolts = [] }: StageRailProps) {
   const { selectedStageId, setSelectedStage } = useUIStore();
-  const grouped = groupByPhase(stages);
+  const grouped = groupByPhase(stages, bolts);
   const completed = stages.filter((s) => s.status === 'completed').length;
   const total = stages.length;
 
@@ -59,13 +82,65 @@ export default function StageRail({ stages, currentStageId }: StageRailProps) {
         <p className="text-xs text-[var(--color-text-tertiary)] p-3" data-testid="rail-empty">No stages initialized.</p>
       ) : (
         <div className="p-2 space-y-3" data-testid="rail-stages">
-          {Object.entries(grouped).map(([phase, phaseStages]) => (
+          {Object.entries(grouped).map(([phase, phaseItems]) => (
             <div key={phase} data-testid={`rail-phase-${phase}`}>
               <h4 className="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1 px-1">
                 {PHASE_LABELS[phase] || phase}
               </h4>
               <div className="space-y-0.5">
-                {phaseStages.map((s) => {
+                {phaseItems.map((item) => {
+                  if (isBolt(item)) {
+                    // Render bolt with its sub-stages
+                    const boltStages = stages.filter(s => s.stage_id.match(/^3\.[1-5]$/));
+                    const boltStatus = item.status;
+                    const boltIcon = STATUS_ICONS[boltStatus] || '○';
+                    const boltColor = statusColor[boltStatus] || 'var(--color-text-tertiary)';
+                    const isBoltCurrent = boltStages.some(s => s.stage_id === currentStageId);
+                    const isBoltSelected = boltStages.some(s => s.stage_id === selectedStageId);
+                    const completedSubSteps = boltStages.filter(s => s.status === 'completed').length;
+
+                    return (
+                      <div key={`bolt-${item.bolt_number}`} data-testid={`rail-bolt-${item.bolt_number}`}>
+                        <button
+                          onClick={() => setSelectedStage(`bolt-${item.bolt_number}`)}
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-left text-xs transition-colors ${
+                            isBoltSelected ? 'bg-[var(--color-surface-active)]' : 'hover:bg-[var(--color-surface-hover)]'
+                          }`}
+                          style={isBoltSelected ? { borderLeft: `2px solid var(--color-accent)`, paddingLeft: '6px' } : { borderLeft: '2px solid transparent' }}
+                          data-testid={`rail-stage-bolt-${item.bolt_number}`}
+                        >
+                          <span className="w-4 text-center shrink-0 font-mono text-xs" style={{ color: boltColor }}>{boltIcon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className={`truncate ${isBoltCurrent ? 'font-medium text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'}`}>
+                              Bolt {item.bolt_number}{item.is_walking_skeleton ? ' · Skeleton' : ''}
+                            </div>
+                            <div className="text-[10px] text-[var(--color-text-tertiary)]">{completedSubSteps}/5 stages · {item.unit_ids?.join(', ') || ''}</div>
+                          </div>
+                        </button>
+                        {/* Sub-steps */}
+                        <div className="ml-6 mt-0.5 space-y-0.5">
+                          {boltStages.map(s => {
+                            const icon = STATUS_ICONS[s.status] || '○';
+                            const color = statusColor[s.status] || 'var(--color-text-tertiary)';
+                            return (
+                              <button
+                                key={s.stage_id}
+                                onClick={() => setSelectedStage(s.stage_id)}
+                                className="w-full flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-sm)] text-left text-[11px] transition-colors hover:bg-[var(--color-surface-hover)]"
+                                data-testid={`rail-stage-${s.stage_id}`}
+                              >
+                                <span className="w-3 text-center shrink-0 font-mono" style={{ color }}>{icon}</span>
+                                <span className="truncate text-[var(--color-text-tertiary)]">{s.stage_id} {s.name ? `· ${s.name}` : ''}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Render normal stage
+                  const s = item;
                   const isCurrent = s.stage_id === currentStageId;
                   const isSelected = s.stage_id === selectedStageId;
                   const icon = STATUS_ICONS[s.status] || '○';
@@ -78,9 +153,7 @@ export default function StageRail({ stages, currentStageId }: StageRailProps) {
                       onClick={() => setSelectedStage(s.stage_id)}
                       title={stageDesc || undefined}
                       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-left text-xs transition-colors ${
-                        isSelected
-                          ? 'bg-[var(--color-surface-active)]'
-                          : 'hover:bg-[var(--color-surface-hover)]'
+                        isSelected ? 'bg-[var(--color-surface-active)]' : 'hover:bg-[var(--color-surface-hover)]'
                       }`}
                       style={isSelected ? { borderLeft: `2px solid var(--color-accent)`, paddingLeft: '6px' } : { borderLeft: '2px solid transparent' }}
                       data-testid={`rail-stage-${s.stage_id}`}
