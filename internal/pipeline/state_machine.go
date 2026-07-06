@@ -93,13 +93,18 @@ func (p *Pipeline) ProcessStageResult(f *feature.Feature, stageID string, result
 	return OutcomeNeedsReview
 }
 
-// NextStageToRun finds the next not_started NON-per-Bolt stage for a feature,
-// skipping any stages that are not in the feature's scope.
-// Per-Bolt construction stages (3.1-3.5) are driven by RunAllBolts/RunBolt,
-// NOT by this function — they are skipped here so the auto-advance loop in
-// runStageAsync doesn't try to run them out of bolt order.
-// Marks skipped stages as skipped in the DB and records audit events.
-// Returns empty string if no more stages exist.
+// NextStageToRun finds the next not_started stage for a feature, skipping any
+// stages that are not in the feature's scope.
+//
+// Per-Bolt construction stages (3.1-3.5) are normally driven by RunAllBolts/
+// RunBolt, NOT by this function — so they're skipped here to prevent the
+// auto-advance loop from running them out of bolt order.
+//
+// EXCEPTION: if a feature has per-Bolt stages at bolt_number=0 but NO per-Bolt
+// rows at bolt_number>0, it's legacy data (pre-PR-70). Those bolt=0 rows are
+// treated as normal linear stages so the feature can complete. This happens
+// when bolts were never prepared (PrepareBolts never ran) but InitFeatureStages
+// created the rows before PR #70 split per-Bolt stages out.
 func (p *Pipeline) NextStageToRun(featureID string) string {
 	stages, err := p.database.GetFeatureStages(featureID)
 	if err != nil {
@@ -109,9 +114,33 @@ func (p *Pipeline) NextStageToRun(featureID string) string {
 	if f, err := p.GetFeature(featureID); err == nil {
 		scope = f.Scope
 	}
+	// Detect legacy mode: per-Bolt stages exist only at bolt_number=0.
+	hasPerBoltRows := false
+	hasLegacyBolt0 := false
 	for _, s := range stages {
-		// Skip per-Bolt stages — they're driven by RunAllBolts/RunBolt.
 		if isPerBoltStageID(s.StageID) {
+			if s.BoltNumber > 0 {
+				hasPerBoltRows = true
+			} else {
+				hasLegacyBolt0 = true
+			}
+		}
+	}
+	skipPerBolt := hasPerBoltRows && !hasLegacyBolt0
+	// If we have both bolt=0 and bolt>0 rows, the bolt=0 rows are stale
+	// duplicates from the old model — mark them skipped so they don't block.
+	if hasPerBoltRows && hasLegacyBolt0 {
+		for _, s := range stages {
+			if isPerBoltStageID(s.StageID) && s.BoltNumber == 0 && s.Status == stage.StatusNotStarted {
+				now := time.Now()
+				p.database.UpdateFeatureStage(featureID, s.StageID, stage.StatusSkipped, 0, &now, nil)
+			}
+		}
+	}
+
+	for _, s := range stages {
+		// Skip per-Bolt stages when per-Bolt rows exist (driven by RunAllBolts).
+		if skipPerBolt && isPerBoltStageID(s.StageID) {
 			continue
 		}
 		if s.Status == stage.StatusNotStarted {
@@ -119,10 +148,14 @@ func (p *Pipeline) NextStageToRun(featureID string) string {
 			stageDef, _ := p.database.GetStageDefinition(s.StageID)
 			if stageDef != nil && p.ShouldSkipStage(&feature.Feature{Scope: scope}, *stageDef) {
 				now := time.Now()
-				p.database.UpdateFeatureStage(featureID, s.StageID, stage.StatusSkipped, 0, &now, nil)
+				if s.BoltNumber > 0 {
+					p.database.UpdateFeatureStageForBolt(featureID, s.StageID, s.BoltNumber, stage.StatusSkipped, 0, &now, nil)
+				} else {
+					p.database.UpdateFeatureStage(featureID, s.StageID, stage.StatusSkipped, 0, &now, nil)
+				}
 				p.database.RecordAuditEvent(featureID, db.AuditStageSkipped, s.StageID, stageDef.Phase, fmt.Sprintf("not in scope %q", scope))
 				p.broadcastSSE(featureID, "stage_skipped", fmt.Sprintf(`{"feature_id":%s,"stage_id":%s}`, jsonString(featureID), jsonString(s.StageID)))
-				continue // skip this stage, check the next one
+				continue
 			}
 			return s.StageID
 		}

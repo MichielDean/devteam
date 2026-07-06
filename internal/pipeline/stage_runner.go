@@ -101,11 +101,31 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 
 	// Resolve the bolt number for this stage. Per-Bolt construction stages
 	// (3.1-3.5) track state per bolt; all other stages use bolt_number=0.
+	// Legacy exception: if the feature has a per-Bolt stage row at bolt_number=0
+	// but NO rows at bolt_number>0, it's pre-PR-70 data — run at bolt_number=0.
 	boltNumber := 0
 	if isPerBoltStageID(stageID) {
 		boltNumber = f.CurrentBolt
 		if boltNumber <= 0 {
-			return nil, fmt.Errorf("stage %s is per-Bolt but feature %s has CurrentBolt=%d", stageID, f.ID, f.CurrentBolt)
+			// Check for legacy bolt=0 row.
+			legacyFS, _ := p.database.GetFeatureStage(f.ID, stageID)
+			if legacyFS != nil {
+				// Verify no per-bolt rows exist for this feature.
+				allStages, _ := p.database.GetFeatureStages(f.ID)
+				hasPerBoltRows := false
+				for _, s := range allStages {
+					if isPerBoltStageID(s.StageID) && s.BoltNumber > 0 {
+						hasPerBoltRows = true
+						break
+					}
+				}
+				if !hasPerBoltRows {
+					boltNumber = 0 // legacy mode — run at bolt=0
+				}
+			}
+			if boltNumber <= 0 {
+				return nil, fmt.Errorf("stage %s is per-Bolt but feature %s has CurrentBolt=%d and no legacy bolt=0 row", stageID, f.ID, f.CurrentBolt)
+			}
 		}
 	}
 
