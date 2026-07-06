@@ -82,8 +82,8 @@ var stageDefinitions = []db.StageDefinition{
 	{"2.8", PhaseInception, "Delivery Planning", "Plan delivery — Bolt plan (sequencing), team allocation, risk and sequencing rationale, and external dependency map. This is the verification gate between inception and construction.", "delivery", []string{"architect"}, []string{"bolt-plan", "team-allocation", "risk-rationale", "external-dep-map"}, CondAlways, allMinus(ScopePOC, ScopeBugfix, ScopeSecurityPatch), "", 18},
 
 	// ── Phase 3: Construction (7 stages) ──
-	// 3.1 Functional Design — PER_BOLT, skip for poc/bugfix/refactor/infra (infra = no app design)
-	{"3.1", PhaseConstruction, "Functional Design", "Functional design — business logic model, business rules, and domain contracts for the Bolt. The architect designs the implementation approach.", "architect", []string{"developer"}, []string{"business-logic-model", "business-rules"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor, ScopeInfra), "architecture-reviewer", 19},
+	// 3.1 Functional Design — PER_BOLT, skip for poc/bugfix/infra (refactor needs design to plan the approach)
+	{"3.1", PhaseConstruction, "Functional Design", "Functional design — business logic model, business rules, and domain contracts for the Bolt. The architect designs the implementation approach.", "architect", []string{"developer"}, []string{"business-logic-model", "business-rules"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeInfra), "architecture-reviewer", 19},
 	// 3.2 NFR Requirements — PER_BOLT, skip for poc/bugfix/refactor
 	{"3.2", PhaseConstruction, "NFR Requirements", "NFR requirements — security, performance, and reliability requirements specific to this Bolt. The architect with devsecops and quality input.", "architect", []string{"devsecops", "quality"}, []string{"security-nfrs", "performance-nfrs", "reliability-nfrs"}, CondPerBolt, allMinus(ScopePOC, ScopeBugfix, ScopeRefactor), "architecture-reviewer", 20},
 	// 3.3 NFR Design — PER_BOLT, skip for poc/bugfix/refactor
