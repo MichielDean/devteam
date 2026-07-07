@@ -435,34 +435,8 @@ roles:
 	}
 }
 
-func TestLoadRepos(t *testing.T) {
-	tmpDir := t.TempDir()
-	reposContent := `
-repos:
-  - name: devteam
-    url: git@github.com:MichielDean/devteam.git
-    description: Dev Team platform
-    primary: true
-  - name: cistern
-    url: git@github.com:MichielDean/cistern.git
-    description: Workflow orchestrator
-`
-	reposPath := filepath.Join(tmpDir, "repos.yaml")
-	if err := os.WriteFile(reposPath, []byte(reposContent), 0644); err != nil {
-		t.Fatalf("writing repos: %v", err)
-	}
-
-	repos, err := LoadRepos(reposPath)
-	if err != nil {
-		t.Fatalf("LoadRepos() error: %v", err)
-	}
-	if len(repos.Repos) != 2 {
-		t.Errorf("expected 2 repos, got %d", len(repos.Repos))
-	}
-	if repos.Repos[0].Name != "devteam" {
-		t.Errorf("expected first repo to be devteam, got %s", repos.Repos[0].Name)
-	}
-	if !repos.Repos[0].Primary {
-		t.Error("expected devteam to be primary")
-	}
-}
+// TestLoadRepos was removed in settings-and-admin-ui (FR-CONFIG-07): the
+// slice-based LoadRepos parser was deleted because repos.yaml uses a
+// map-keyed shape and the DB store (repo_store.go) is now the source of
+// truth. The seed hook (SeedReposFromYAML) parses the map-keyed shape and
+// has its own coverage in internal/db/seed_test.go.

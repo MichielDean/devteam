@@ -308,3 +308,70 @@ export interface AvailableRepo {
 export async function listRepos(): Promise<AvailableRepo[]> {
   return request<AvailableRepo[]>('/repos');
 }
+
+// ─── Admin: Repos CRUD ───
+// The write endpoints are guarded by AdminGuard on the backend (localhost or
+// X-Devteam-Admin-Token). From the browser on the same host, the localhost
+// bypass applies and no token is needed.
+export async function createRepoAdmin(r: import('../types/admin').RepoInput): Promise<import('../types/admin').RepoRow> {
+  return request<import('../types/admin').RepoRow>('/repos', {
+    method: 'POST',
+    body: JSON.stringify(r),
+  });
+}
+
+export async function updateRepoAdmin(name: string, r: import('../types/admin').RepoInput): Promise<import('../types/admin').RepoRow> {
+  return request<import('../types/admin').RepoRow>(`/repos/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    body: JSON.stringify(r),
+  });
+}
+
+export async function deleteRepoAdmin(name: string): Promise<void> {
+  await request<void>(`/repos/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
+// ─── Admin: Feature Defaults ───
+export async function getDefaults(): Promise<import('../types/admin').DefaultsResponse> {
+  return request<import('../types/admin').DefaultsResponse>('/settings/defaults');
+}
+
+export async function putGlobalDefaults(d: import('../types/admin').DefaultsRow): Promise<import('../types/admin').DefaultsRow> {
+  return request<import('../types/admin').DefaultsRow>('/settings/defaults/global', {
+    method: 'PUT',
+    body: JSON.stringify(d),
+  });
+}
+
+export async function putRepoDefaults(repo: string, d: import('../types/admin').DefaultsRow): Promise<import('../types/admin').DefaultsRow> {
+  return request<import('../types/admin').DefaultsRow>(`/settings/defaults/${encodeURIComponent(repo)}`, {
+    method: 'PUT',
+    body: JSON.stringify(d),
+  });
+}
+
+export async function deleteRepoDefaults(repo: string): Promise<void> {
+  await request<void>(`/settings/defaults/${encodeURIComponent(repo)}`, { method: 'DELETE' });
+}
+
+// ─── Admin: Audit ───
+export async function listAuditEvents(filter: {
+  type?: string;
+  feature_id?: string;
+  actor?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<import('../types/admin').AuditListResponse> {
+  const params = new URLSearchParams();
+  if (filter.type) params.set('type', filter.type);
+  if (filter.feature_id) params.set('feature_id', filter.feature_id);
+  if (filter.actor) params.set('actor', filter.actor);
+  if (filter.from) params.set('from', filter.from);
+  if (filter.to) params.set('to', filter.to);
+  if (filter.page) params.set('page', String(filter.page));
+  if (filter.page_size) params.set('page_size', String(filter.page_size));
+  const qs = params.toString();
+  return request<import('../types/admin').AuditListResponse>(`/audit${qs ? '?' + qs : ''}`);
+}

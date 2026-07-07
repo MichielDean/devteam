@@ -111,4 +111,14 @@ const (
 	AuditSwarmRebalance         = "SWARM_REBALANCE"
 	AuditSwarmExpand            = "SWARM_EXPAND"
 	AuditSwarmContract          = "SWARM_CONTRACT"
+
+	// Admin / config-mutation events (settings-and-admin-ui feature, bolt-plan rev2).
+	// Per Q7/Q8 strict scope cut, the v1 event set is 4 constants — no
+	// PROVIDER_CONFIG_MUTATED (providers deferred to the sibling feature) and no
+	// CI_CONFIG_MUTATED (CI/CD cut to a separate feature). CONFIG_REVERTED was
+	// dropped per F-1 (no revert flow in v1).
+	AuditConfigUpdated            = "CONFIG_UPDATED"
+	AuditConfigValidationFailed   = "CONFIG_VALIDATION_FAILED"
+	AuditReposRegistryMutated     = "REPOS_REGISTRY_MUTATED"
+	AuditFeatureDefaultsMutated   = "FEATURE_DEFAULTS_MUTATED"
 )

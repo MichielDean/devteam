@@ -332,11 +332,6 @@ func (m *Manager) RemoveAllWorktreesFor(featureID string) error {
 	return os.RemoveAll(featureDir)
 }
 
-func (m *Manager) LoadReposConfig() (*config.ReposConfig, error) {
-	path := filepath.Join(m.baseDir, "repos.yaml")
-	return config.LoadRepos(path)
-}
-
 // FeatureBranchName returns the canonical feature branch name for a feature ID.
 // All repos participating in a feature use the same branch name so the PR
 // title/body can reference it consistently.

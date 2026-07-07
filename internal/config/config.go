@@ -89,15 +89,23 @@ type SpecRepoConfig struct {
 	ConstitutionDir string `yaml:"constitution_dir"`
 }
 
-type ReposConfig struct {
-	Repos []RepoEntry `yaml:"repos"`
-}
-
+// NOTE: The slice-based `ReposConfig` / `LoadRepos` parser was removed in the
+// settings-and-admin-ui feature (FR-CONFIG-07). It parsed `repos` as a YAML
+// sequence, but the on-disk repos.yaml uses a map keyed by repo name, so the
+// parser silently produced an empty slice. The DB-backed `repos` table
+// (migration 017, repo_store.go) is now the source of truth for the registry,
+// and `repos.yaml` is only the seed source (seed.go:SeedReposFromYAML, which
+// parses the map-keyed shape). `internal/repo/manager.LoadReposConfig` (the
+// sole caller of LoadRepos) was dead code and is also removed.
+//
+// RepoEntry is retained because internal/repo/manager.CloneForFeature still
+// consumes it as the in-memory shape for a repo to clone. It is no longer
+// parsed from YAML by this package; callers construct it from the DB store.
 type RepoEntry struct {
-	Name        string `yaml:"name"`
-	URL         string `yaml:"url"`
-	Description string `yaml:"description"`
-	Primary     bool   `yaml:"primary,omitempty"`
+	Name        string `yaml:"name" json:"name"`
+	URL         string `yaml:"url" json:"url"`
+	Description string `yaml:"description" json:"description"`
+	Primary     bool   `yaml:"primary,omitempty" json:"primary"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -113,18 +121,6 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("validating config: %w", err)
 	}
 	return &cfg, nil
-}
-
-func LoadRepos(path string) (*ReposConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading repos file %s: %w", path, err)
-	}
-	var repos ReposConfig
-	if err := yaml.Unmarshal(data, &repos); err != nil {
-		return nil, fmt.Errorf("parsing repos file %s: %w", path, err)
-	}
-	return &repos, nil
 }
 
 func validateConfig(cfg *Config) error {

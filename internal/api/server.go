@@ -20,8 +20,8 @@ import (
 	"github.com/MichielDean/devteam/internal/intake"
 	"github.com/MichielDean/devteam/internal/pipeline"
 	"github.com/MichielDean/devteam/internal/spec"
+	"github.com/MichielDean/devteam/internal/settings/defaults"
 	"github.com/MichielDean/devteam/internal/stage"
-	"gopkg.in/yaml.v3"
 )
 
 type Server struct {
@@ -36,6 +36,7 @@ type Server struct {
 	baseDir       string
 	staticFS      fs.FS
 	questionStore feature.QuestionStore
+	defaultsStore *defaults.Store
 }
 
 func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore, database *db.DB) *Server {
@@ -48,6 +49,9 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 		db:            database,
 		sseClients:    make(map[string][]chan SSEMessage),
 		sseBuffers:    make(map[string][]*SSEMessage),
+	}
+	if database != nil {
+		s.defaultsStore = defaults.NewStore(database)
 	}
 
 	// Register the server as the SSE broadcaster for pipeline events
@@ -67,6 +71,19 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 	mux.HandleFunc("GET /api/features/{id}/stream", s.streamFeature)
 	mux.HandleFunc("GET /api/features/{id}/output", s.getCapturedOutput)
 	mux.HandleFunc("GET /api/repos", s.listRepos)
+	// Admin/repos write endpoints — guarded by AdminGuard (FR-ROUTE-03).
+	mux.Handle("POST /api/repos", AdminGuard(http.HandlerFunc(s.createRepoHandler)))
+	mux.Handle("PUT /api/repos/{name}", AdminGuard(http.HandlerFunc(s.updateRepoHandler)))
+	mux.Handle("DELETE /api/repos/{name}", AdminGuard(http.HandlerFunc(s.deleteRepoHandler)))
+
+	// Settings/defaults endpoints — reads unguarded, writes guarded (FR-ROUTE-02/03).
+	mux.HandleFunc("GET /api/settings/defaults", s.getDefaultsHandler)
+	mux.Handle("PUT /api/settings/defaults/global", AdminGuard(http.HandlerFunc(s.putGlobalDefaultsHandler)))
+	mux.Handle("PUT /api/settings/defaults/{repo}", AdminGuard(http.HandlerFunc(s.putRepoDefaultsHandler)))
+	mux.Handle("DELETE /api/settings/defaults/{repo}", AdminGuard(http.HandlerFunc(s.deleteRepoDefaultsHandler)))
+
+	// Audit read endpoint — unguarded (FR-ROUTE-02), read-only.
+	mux.HandleFunc("GET /api/audit", s.listAuditHandler)
 
 	// Agent CLI endpoints (called by devteam CLI from agents)
 	mux.HandleFunc("POST /api/features/{id}/signal", s.handleSignal)
@@ -494,8 +511,20 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 		needsRepos := map[string]bool{"feature": true, "enterprise": true, "mvp": true, "infra": true, "security-patch": true}
 		scope := req.Scope
 		if scope == "" {
-			detectedScope, _ := stage.DetectScope(req.Title + " " + req.Description)
-			scope = string(detectedScope)
+			// Consult defaults before scope-detection: if a global or
+			// per-repo default scope is set, it takes precedence over the
+			// detected scope for the needsRepos check too (FR-DEF-02
+			// precedence applies here because the check decides whether to
+			// reject the request before createFeature applies defaults).
+			if s.defaultsStore != nil {
+				if gd, err := s.defaultsStore.GetGlobal(r.Context()); err == nil && gd.Scope != "" {
+					scope = gd.Scope
+				}
+			}
+			if scope == "" {
+				detectedScope, _ := stage.DetectScope(req.Title + " " + req.Description)
+				scope = string(detectedScope)
+			}
 		}
 		if needsRepos[scope] {
 			writeError(w, http.StatusBadRequest, "repos_required", "This scope requires at least one implementation repository. Add repos to the request (e.g. {\"repos\": [{\"name\": \"devteam\", \"url\": \"git@github.com:MichielDean/devteam.git\"}]}).")
@@ -548,18 +577,48 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 			f.ID, f.Title, f.CurrentPhaseLegacy(), string(f.Status), f.Priority, string(f.IntakePath), f.SpecDir, f.CreatedAt, f.UpdatedAt)
 	}
 
-	// Set AIDLC v2 scope/depth/test_strategy
+	// Set AIDLC v2 scope/depth/test_strategy with precedence:
+	// explicit request > per-repo default > global default > scope-derived fallback
+	// (ADR-DEFAULTS-PRECEDENCE, FR-DEF-02). The defaults store is DB-backed;
+	// when the DB is unavailable or no defaults are set, the behavior is
+	// identical to the pre-feature path (scope-derived fallback).
+	var repoDefault *defaults.Defaults
+	var globalDefault *defaults.Defaults
+	if s.defaultsStore != nil && len(req.Repos) > 0 {
+		// Use the first repo as the per-repo key. If a per-repo override
+		// exists, it takes precedence over global.
+		rd, err := s.defaultsStore.GetForRepo(r.Context(), req.Repos[0].Name)
+		if err == nil {
+			repoDefault = rd
+		}
+	}
+	if s.defaultsStore != nil {
+		gd, err := s.defaultsStore.GetGlobal(r.Context())
+		if err == nil {
+			globalDefault = gd
+		}
+	}
+
+	// Scope
 	if req.Scope != "" {
 		f.Scope = req.Scope
+	} else if repoDefault != nil && repoDefault.Scope != "" {
+		f.Scope = repoDefault.Scope
+	} else if globalDefault != nil && globalDefault.Scope != "" {
+		f.Scope = globalDefault.Scope
 	} else {
-		// Auto-detect scope from title + description
 		detectedScope, _ := stage.DetectScope(req.Title + " " + req.Description)
 		f.Scope = detectedScope
 	}
+
+	// Depth
 	if req.Depth != "" {
 		f.Depth = req.Depth
+	} else if repoDefault != nil && repoDefault.Depth != "" {
+		f.Depth = repoDefault.Depth
+	} else if globalDefault != nil && globalDefault.Depth != "" {
+		f.Depth = globalDefault.Depth
 	} else {
-		// Default depth from scope
 		scopeInfo := stage.GetScopeInfo(f.Scope)
 		if scopeInfo != nil {
 			f.Depth = scopeInfo.DefaultDepth
@@ -567,8 +626,14 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 			f.Depth = stage.DepthStandard
 		}
 	}
+
+	// TestStrategy
 	if req.TestStrategy != "" {
 		f.TestStrategy = req.TestStrategy
+	} else if repoDefault != nil && repoDefault.TestStrategy != "" {
+		f.TestStrategy = repoDefault.TestStrategy
+	} else if globalDefault != nil && globalDefault.TestStrategy != "" {
+		f.TestStrategy = globalDefault.TestStrategy
 	} else {
 		scopeInfo := stage.GetScopeInfo(f.Scope)
 		if scopeInfo != nil {
@@ -577,8 +642,14 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 			f.TestStrategy = stage.TestStrategyStandard
 		}
 	}
+
+	// ExecutionMode
 	if req.ExecutionMode != "" {
 		f.ExecutionMode = req.ExecutionMode
+	} else if repoDefault != nil && repoDefault.ExecutionMode != "" {
+		f.ExecutionMode = repoDefault.ExecutionMode
+	} else if globalDefault != nil && globalDefault.ExecutionMode != "" {
+		f.ExecutionMode = globalDefault.ExecutionMode
 	}
 	s.pipeline.SaveFeature(f)
 	if s.db != nil {
@@ -612,41 +683,29 @@ func (s *Server) createFeature(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, FeatureToDetailResponse(f, s.IsProcessing(f.ID), ""))
 }
 
-// listRepos returns the available implementation repos from repos.yaml.
+// listRepos returns the available implementation repos from the DB-backed
+// registry (FR-REPOS-01 — refactored from the YAML read to the DB store).
+// The response shape [{name,url,description,primary}] is preserved
+// unchanged (C-INTEG-03) so the intake form's consumption stays functional.
+// When the DB is unavailable, returns an empty array (not an error) to keep
+// the intake form working in degraded mode.
 func (s *Server) listRepos(w http.ResponseWriter, r *http.Request) {
-	type repoEntry struct {
-		Name        string `json:"name"`
-		URL         string `json:"url"`
-		Description string `json:"description"`
-		Primary     bool   `json:"primary"`
+	if s.db == nil {
+		writeJSON(w, http.StatusOK, []repoListEntry{})
+		return
 	}
-
-	reposPath := filepath.Join(s.baseDir, "repos.yaml")
-	data, err := os.ReadFile(reposPath)
+	rows, err := s.db.ListRepos()
 	if err != nil {
-		writeJSON(w, http.StatusOK, []repoEntry{})
+		writeJSON(w, http.StatusOK, []repoListEntry{})
 		return
 	}
-
-	var parsed struct {
-		Repos map[string]struct {
-			URL         string `yaml:"url"`
-			Description string `yaml:"description"`
-			Primary     bool   `yaml:"primary"`
-		} `yaml:"repos"`
-	}
-	if err := yaml.Unmarshal(data, &parsed); err != nil {
-		writeJSON(w, http.StatusOK, []repoEntry{})
-		return
-	}
-
-	result := []repoEntry{}
-	for name, r := range parsed.Repos {
-		result = append(result, repoEntry{
-			Name:        name,
-			URL:         r.URL,
-			Description: r.Description,
-			Primary:     r.Primary,
+	result := make([]repoListEntry, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, repoListEntry{
+			Name:        row.Name,
+			URL:         row.URL,
+			Description: row.Description,
+			Primary:    row.Primary,
 		})
 	}
 	writeJSON(w, http.StatusOK, result)
