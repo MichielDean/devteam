@@ -75,6 +75,25 @@ func (db *DB) GetAuditEventsForStage(featureID, stageID string) ([]AuditEvent, e
 	return events, nil
 }
 
+// RecordAuditEventChat inserts an audit event linked to a chat session.
+// This is the chat-expert path: featureID is the real feature id OR the
+// "__chat__" sentinel for pure methodology Q&A; sessionID links to
+// chat_sessions; actor is "expert" for chat-driven ops. Append-only (SEC-6).
+//
+// The existing RecordAuditEvent signature is unchanged; this is the additive
+// overload that populates the migration-018 nullable columns.
+func (db *DB) RecordAuditEventChat(featureID, eventType, stageID, phase, details, sessionID, actor string) error {
+	_, err := db.Exec(
+		`INSERT INTO audit_events (feature_id, event_type, stage_id, phase, details, created_at, session_id, actor)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		featureID, eventType, stageID, phase, details, time.Now().UTC(), sessionID, actor,
+	)
+	if err != nil {
+		return fmt.Errorf("recording audit event %s (chat): %w", eventType, err)
+	}
+	return nil
+}
+
 // BoltRow is a construction Bolt record.
 type BoltRow struct {
 	ID                int64     `json:"id"`

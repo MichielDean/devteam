@@ -33,6 +33,10 @@ var agentRoster = map[string]struct {
 	"operations":           {"sonnet", false},
 	"product-lead":         {"sonnet", true},
 	"architecture-reviewer": {"sonnet", true},
+	// expert — the AIDLC v2 / devteam knowledge + action agent. Knowledge agent,
+	// not a gate reviewer (FR-G1-5). Default tier opus (resolved via provider
+	// resolver; default-safe to ollama/glm-5.2:cloud if unmapped — C15/NFR-REL-4).
+	"expert":               {"opus", false},
 }
 
 func AgentRoster() map[string]struct {
@@ -122,7 +126,7 @@ func (rl *RoleLoader) Validate() error {
 
 // Agents returns the ordered list of non-reviewer agent names.
 func Agents() []string {
-	return []string{"product", "design", "delivery", "architect", "platform", "devsecops", "developer", "quality", "pipeline-deploy", "operations"}
+	return []string{"product", "design", "delivery", "architect", "platform", "devsecops", "developer", "quality", "pipeline-deploy", "operations", "expert"}
 }
 
 // Reviewers returns the list of reviewer agent names.

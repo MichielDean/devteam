@@ -16,6 +16,14 @@ type Config struct {
 	Intake     IntakeConfig               `yaml:"intake"`
 	SpecRepo   SpecRepoConfig             `yaml:"spec_repo"`
 	Database   DatabaseConfig             `yaml:"database"`
+	// ADDITIVE (AIDLC Expert Agent and Chat UI):
+	// Providers — multi-provider LLM config (FR-G3-1). Empty/absent → default-safe
+	// (the resolver returns ollama/glm-5.2:cloud — NFR-REL-4).
+	Providers ProviderList `yaml:"providers"`
+	// Expert — expert scope toggle (FR-CL-6). Default false = hard refusal.
+	Expert ExpertConfig `yaml:"expert"`
+	// Chat — chat-surface settings. Trust mode is Should-after-MVS.
+	Chat ChatConfig `yaml:"chat"`
 }
 
 // DatabaseConfig configures the PostgreSQL database connection.
@@ -133,6 +141,29 @@ func validateConfig(cfg *Config) error {
 	// -1 is a valid timeout meaning "no timeout" (wait indefinitely).
 	if cfg.Pipeline.HumanInteractionTimeoutMinutes != nil && *cfg.Pipeline.HumanInteractionTimeoutMinutes < -1 {
 		return fmt.Errorf("human_interaction_timeout_minutes must be >= -1 (use -1 for no timeout), got %d", *cfg.Pipeline.HumanInteractionTimeoutMinutes)
+	}
+	// Validate providers (FR-G3-1): unique names, non-empty base_url + model + adapter.
+	seen := map[string]bool{}
+	for i, p := range cfg.Providers {
+		if p.Name == "" {
+			return fmt.Errorf("providers[%d]: name is required", i)
+		}
+		if seen[p.Name] {
+			return fmt.Errorf("providers[%d]: duplicate name %q", i, p.Name)
+		}
+		seen[p.Name] = true
+		if p.BaseURL == "" {
+			return fmt.Errorf("providers[%d] (%s): base_url is required", i, p.Name)
+		}
+		if p.Model == "" {
+			return fmt.Errorf("providers[%d] (%s): model is required", i, p.Name)
+		}
+		if p.Adapter == "" {
+			return fmt.Errorf("providers[%d] (%s): adapter is required (\"openai\" or \"anthropic\")", i, p.Name)
+		}
+		if p.Adapter != "openai" && p.Adapter != "anthropic" {
+			return fmt.Errorf("providers[%d] (%s): adapter must be \"openai\" or \"anthropic\", got %q", i, p.Name, p.Adapter)
+		}
 	}
 	return nil
 }
