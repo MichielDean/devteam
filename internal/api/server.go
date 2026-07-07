@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MichielDean/devteam/internal/chat"
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
 	"github.com/MichielDean/devteam/internal/gate"
@@ -36,6 +37,9 @@ type Server struct {
 	baseDir       string
 	staticFS      fs.FS
 	questionStore feature.QuestionStore
+	// chatService is the AIDLC Expert Agent + Chat UI integration hub.
+	// Additive (C1) — nil when chat is not configured (e.g. some unit tests).
+	chatService *chat.Service
 }
 
 func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipeline, staticFS fs.FS, questionStore feature.QuestionStore, database *db.DB) *Server {
@@ -86,6 +90,12 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 
 	// Tmux session management endpoints
 	s.registerSessionRoutes(mux)
+
+	// Chat routes (AIDLC Expert Agent and Chat UI). Registered here so they
+	// inherit the recovery + CORS middleware stack. The chatService itself is
+	// constructed via SetChatConfig after NewServer (additive — keeps the
+	// existing NewServer signature stable for tests).
+	s.registerChatRoutes(mux)
 
 	if staticFS != nil {
 		mux.Handle("/", s.spaHandler(staticFS))

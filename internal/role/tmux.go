@@ -441,35 +441,20 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 	// Write self-contained opencode config — fully isolated from global harness.
 	// Config files are MERGED by opencode, so we must explicitly override
 	// everything from the global config that we don't want (plugins, agents, mcp, instructions).
-	opencodeConfig := `{
-  "$schema": "https://opencode.ai/config.json",
-  "model": "ollama/glm-5.2:cloud",
-  "permission": "allow",
-  "instructions": [],
-  "plugin": [],
-  "compaction": {
-    "enabled": false
-  },
-  "snapshot": false,
-  "mcp": {},
-  "agent": {},
-  "provider": {
-    "ollama": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Ollama (local)",
-      "options": {
-        "baseURL": "http://localhost:11434/v1"
-      },
-      "models": {
-        "glm-5.2:cloud": {
-          "name": "GLM 5.2 Cloud"
-        }
-      }
-    }
-  }
-}`
+	//
+	// The config is emitted by the shared BuildOpencodeJSON (G3-2, NFR-MAINT-1)
+	// so this site and internal/api/agent_handlers.go cannot diverge (R4).
+	// When no providers are configured, the default ollama provider is emitted
+	// (default-safe — NFR-REL-4, C15). Pre-feature behavior is preserved.
+	opencodeConfigBytes, err := BuildOpencodeJSON(OpencodeConfigInput{
+		Model:     DefaultModel,
+		Providers: nil, // nil → default ollama provider (pre-feature behavior)
+	})
+	if err != nil {
+		return fmt.Errorf("building opencode.json: %w", err)
+	}
 	configPath := filepath.Join(contextDir, "opencode.json")
-	if err := os.WriteFile(configPath, []byte(opencodeConfig), 0644); err != nil {
+	if err := os.WriteFile(configPath, opencodeConfigBytes, 0644); err != nil {
 		return fmt.Errorf("writing opencode.json: %w", err)
 	}
 

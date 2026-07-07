@@ -101,15 +101,28 @@ func TestRoleLoaderValidateMissing(t *testing.T) {
 
 func TestAgentRosterComplete(t *testing.T) {
 	agents := Agents()
-	if len(agents) != 10 {
-		t.Errorf("Agents() returned %d, want 10", len(agents))
+	// 10 pre-existing agents + 1 expert (AIDLC Expert Agent and Chat UI) = 11.
+	if len(agents) != 11 {
+		t.Errorf("Agents() returned %d, want 11", len(agents))
 	}
 	reviewers := Reviewers()
 	if len(reviewers) != 2 {
 		t.Errorf("Reviewers() returned %d, want 2", len(reviewers))
 	}
 	all := AllRoles()
-	if len(all) != 12 {
-		t.Errorf("AllRoles() returned %d, want 12", len(all))
+	// 11 agents + 2 reviewers = 13.
+	if len(all) != 13 {
+		t.Errorf("AllRoles() returned %d, want 13", len(all))
+	}
+	// Expert is in the roster, non-reviewer, tier opus.
+	info, ok := agentRoster["expert"]
+	if !ok {
+		t.Fatal("expected 'expert' in agentRoster")
+	}
+	if info.reviewer {
+		t.Error("expert should not be a reviewer (FR-G1-5)")
+	}
+	if info.tier != "opus" {
+		t.Errorf("expert tier = %q, want opus", info.tier)
 	}
 }

@@ -21,15 +21,28 @@ func setupTestDB(t *testing.T) *DB {
 // truncateAllTables clears all data tables for clean test state.
 func truncateAllTables(d *DB) {
 	tables := []string{
+		"chat_messages", "chat_sessions",
 		"audit_events", "tmux_sessions", "bolts", "feature_stages",
 		"spec_artifacts", "outcomes", "notes", "events", "questions",
 		"rules", "team_knowledge", "feature_repos", "sessions",
 		"phase_states", "gate_results", "recirculations", "features",
-		"repos",
+		// repos tables (migration 017) — truncate so repo tests start clean.
+		"repo_settings", "repo_operation_config", "repo_registry", "repos",
 	}
 	for _, table := range tables {
 		d.Conn().Exec("TRUNCATE TABLE " + table + " CASCADE")
 	}
+	// Re-seed the __chat__ sentinel feature row — it's the FK parent for
+	// chat_cli_exec audit events with no real feature. Truncate removes it;
+	// tests that depend on it need it present.
+	seedChatSentinel(d)
+}
+
+// seedChatSentinel re-inserts the __chat__ sentinel feature row.
+func seedChatSentinel(d *DB) {
+	d.Exec(`INSERT INTO features (id, title, current_phase, status, priority, intake_path, spec_dir, created_at, updated_at, recirculation_count, scope, depth, test_strategy)
+		VALUES ('__chat__', '__chat__ sentinel', 'operation', 'sentinel', 0, 'loose_idea', '', now(), now(), 0, 'feature', 'minimal', 'standard')
+		ON CONFLICT (id) DO NOTHING`)
 }
 
 func seedFeature(t *testing.T, d *DB, id string) {

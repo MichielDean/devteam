@@ -111,4 +111,10 @@ const (
 	AuditSwarmRebalance         = "SWARM_REBALANCE"
 	AuditSwarmExpand            = "SWARM_EXPAND"
 	AuditSwarmContract          = "SWARM_CONTRACT"
+
+	// Chat (AIDLC Expert Agent and Chat UI)
+	// AuditChatCliExec is the audit event type for CLI-proxy operations driven by
+	// the chat expert. Written via RecordAuditEventChat, append-only (SEC-6).
+	// Every op emits one — including rejected (confirmed:false).
+	AuditChatCliExec = "CHAT_CLI_EXEC"
 )

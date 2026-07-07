@@ -1,0 +1,36 @@
+# Expert Knowledge Manifest
+#
+# Declares the RAG index scope (core corpus) and the skills list. This is the
+# single source the indexer reads to know what to index (D2 hybrid RAG + skills).
+# The indexer walks these files, chunks them, and writes .devteam/rag-index.json.
+# Corpus files are NOT modified by indexing (DR-4) — the index is a derived
+# artifact, rebuildable on corpus change.
+
+# Core corpus — the frequently-cited, stable, authoritative files the expert
+# grounds factual methodology answers against (SC1/SC2 verify against these).
+# MVS scope (FR-K-1). The rules/** tree is a Should fast-follow (FR-K-2).
+corpus:
+  - AGENTS.md
+  - README.md
+  - roles/architect/INSTRUCTIONS.md
+  - roles/architecture-reviewer/INSTRUCTIONS.md
+  - roles/delivery/INSTRUCTIONS.md
+  - roles/design/INSTRUCTIONS.md
+  - roles/developer/INSTRUCTIONS.md
+  - roles/devsecops/INSTRUCTIONS.md
+  - roles/human-proxy/INSTRUCTIONS.md
+  - roles/operations/INSTRUCTIONS.md
+  - roles/orchestrator/INSTRUCTIONS.md
+  - roles/pipeline-deploy/INSTRUCTIONS.md
+  - roles/platform/INSTRUCTIONS.md
+  - roles/product/INSTRUCTIONS.md
+  - roles/product-lead/INSTRUCTIONS.md
+  - roles/quality/INSTRUCTIONS.md
+  - roles/expert/INSTRUCTIONS.md
+
+# Skills — the on-demand procedural knowledge + action surface. Each skill
+# maps a conversational intent to a proposed devteam CLI verb. The chat
+# backend routes proposals through the confirm gate (FR-CL-1..4).
+skills:
+  - file: roles/expert/skills.md
+    description: devteam CLI-proxy verbs (status, stages, create, signal, run-stage, answer, cancel)

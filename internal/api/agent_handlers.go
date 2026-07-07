@@ -14,6 +14,7 @@ import (
 
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
+	"github.com/MichielDean/devteam/internal/role"
 )
 
 // ensureFeatureInDB inserts a minimal feature row if it doesn't exist (for FK constraints)
@@ -145,27 +146,19 @@ func (s *Server) dispatchHumanProxy(featureID, phase string) {
 		f.ID, f.Title, f.Scope, f.Depth, f.CurrentStage, stageName)
 	os.WriteFile(filepath.Join(contextDir, "CONTEXT.md"), []byte(contextContent), 0644)
 
-	// Write opencode config (same isolated config as stage agents)
-	opencodeConfig := `{
-  "$schema": "https://opencode.ai/config.json",
-  "model": "ollama/glm-5.2:cloud",
-  "permission": "allow",
-  "instructions": [],
-  "plugin": [],
-  "compaction": { "enabled": false },
-  "snapshot": false,
-  "mcp": {},
-  "agent": {},
-  "provider": {
-    "ollama": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Ollama (local)",
-      "options": { "baseURL": "http://localhost:11434/v1" },
-      "models": { "glm-5.2:cloud": { "name": "GLM 5.2 Cloud" } }
-    }
-  }
-}`
-	os.WriteFile(filepath.Join(contextDir, "opencode.json"), []byte(opencodeConfig), 0644)
+	// Write opencode config via the shared BuildOpencodeJSON (G3-2, NFR-MAINT-1).
+	// Both emit sites (this one and internal/role/tmux.go) call the same function
+	// so the output is structurally identical (SC5). Default-safe: no providers
+	// configured → default ollama provider (pre-feature behavior).
+	opencodeConfigBytes, err := role.BuildOpencodeJSON(role.OpencodeConfigInput{
+		Model:     role.DefaultModel,
+		Providers: nil,
+	})
+	if err != nil {
+		log.Printf("dispatchHumanProxy: build opencode.json: %v", err)
+		return
+	}
+	os.WriteFile(filepath.Join(contextDir, "opencode.json"), opencodeConfigBytes, 0644)
 
 	// Write AGENTS.md
 	agentsMD := "# Human Proxy Agent\n\nYou are answering questions on behalf of the human in an autonomous pipeline. Use the devteam CLI to read and answer questions.\n"

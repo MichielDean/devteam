@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/MichielDean/devteam/internal/api"
+	"github.com/MichielDean/devteam/internal/chat"
 	"github.com/MichielDean/devteam/internal/config"
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
@@ -98,6 +99,10 @@ func main() {
 		// If ui/dist doesn't exist, staticFS is nil — API-only mode (no frontend)
 
 		server := api.NewServer(*httpAddr, specProvider, p, staticFS, questionStore, database)
+		// Construct the chat service (AIDLC Expert Agent + Chat UI). Additive —
+		// the chat routes are registered in NewServer; SetChatConfig wires the
+		// service with the loaded config + the pipeline's dispatcher.
+		server.SetChatConfig(cfg, p.Dispatcher())
 		server.RestoreActiveProcesses()
 
 		fmt.Printf("Dev Team Web UI starting on %s\n", *httpAddr)
@@ -194,6 +199,8 @@ func main() {
 		handleStages(baseDir, cfg)
 	case "audit":
 		handleAudit(baseDir, cfg)
+	case "rag":
+		handleRAG(baseDir, cfg)
 	case "plugin":
 		handlePlugin(baseDir, cfg)
 	case "bootstrap":
@@ -519,6 +526,41 @@ func handleAudit(baseDir string, cfg *config.Config) {
 			details = " — " + e.Details
 		}
 		fmt.Printf("  %s  %s%s%s\n", e.CreatedAt.Format("2006-01-02 15:04:05"), e.EventType, stageStr, details)
+	}
+}
+
+// handleRAG implements `devteam rag build` and `devteam rag inspect` — the
+// RAG index CLI for the AIDLC expert agent (U-CH-5, U-CH-7, NFR-OBS-2).
+func handleRAG(baseDir string, cfg *config.Config) {
+	if len(os.Args) < 3 {
+		fmt.Fprintf(os.Stderr, "Usage: devteam rag <build|inspect>\n")
+		os.Exit(1)
+	}
+	sub := os.Args[2]
+	manifestPath := filepath.Join(baseDir, "roles", "expert", "knowledge.yaml")
+	outPath := filepath.Join(baseDir, ".devteam", "rag-index.json")
+	switch sub {
+	case "build":
+		idx, err := chat.BuildRAGIndex(baseDir, manifestPath, outPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "rag build failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("RAG index built: %d chunks → %s\n", len(idx.Chunks), outPath)
+	case "inspect":
+		idx, err := chat.LoadRAGIndex(outPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "rag inspect: index not built (%v). Run `devteam rag build` first.\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("RAG index: %d chunks, built %s, corpus mtime %s\n",
+			len(idx.Chunks), idx.BuiltAt, idx.CorpusMTime)
+		for _, c := range idx.Chunks {
+			fmt.Printf("  %s §%s (%s)\n", c.File, c.Section, c.Lines)
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "unknown rag subcommand: %s (use build|inspect)\n", sub)
+		os.Exit(1)
 	}
 }
 
