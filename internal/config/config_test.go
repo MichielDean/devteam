@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -464,5 +465,166 @@ repos:
 	}
 	if !repos.Repos[0].Primary {
 		t.Error("expected devteam to be primary")
+	}
+}
+
+// TestStreamingConfigDefaults verifies the streaming config block defaults
+// when the block is absent (U-BK-01).
+func TestStreamingConfigDefaults(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgContent := `
+version: "2.0"
+pipeline:
+  human_interaction_timeout_minutes: 30
+roles:
+  product:
+    name: Product
+    description: Product Agent
+    instructions: roles/product/INSTRUCTIONS.md
+`
+	cfgPath := filepath.Join(tmpDir, "devteam.yaml")
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if cfg.Pipeline.Streaming.GetLogFileFallback() {
+		t.Error("GetLogFileFallback() = true, want false (default-off, ADR-1)")
+	}
+	if got := cfg.Pipeline.Streaming.GetFlushIntervalMs(); got != 200 {
+		t.Errorf("GetFlushIntervalMs() = %d, want 200 (NFR-1 default)", got)
+	}
+	if got := cfg.Pipeline.Streaming.GetFlushBytes(); got != 8192 {
+		t.Errorf("GetFlushBytes() = %d, want 8192", got)
+	}
+	if got := cfg.Pipeline.Streaming.GetRenderCapLines(); got != 5000 {
+		t.Errorf("GetRenderCapLines() = %d, want 5000 (FR-15)", got)
+	}
+}
+
+// TestStreamingConfigExplicit verifies explicit values are honored (U-BK-01).
+func TestStreamingConfigExplicit(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgContent := `
+version: "2.0"
+pipeline:
+  human_interaction_timeout_minutes: 30
+  streaming:
+    log_file_fallback: true
+    flush_interval_ms: 100
+    flush_bytes: 4096
+    render_cap_lines: 1000
+roles:
+  product:
+    name: Product
+    description: Product Agent
+    instructions: roles/product/INSTRUCTIONS.md
+`
+	cfgPath := filepath.Join(tmpDir, "devteam.yaml")
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if !cfg.Pipeline.Streaming.GetLogFileFallback() {
+		t.Error("GetLogFileFallback() = false, want true (explicit)")
+	}
+	if got := cfg.Pipeline.Streaming.GetFlushIntervalMs(); got != 100 {
+		t.Errorf("GetFlushIntervalMs() = %d, want 100", got)
+	}
+	if got := cfg.Pipeline.Streaming.GetFlushBytes(); got != 4096 {
+		t.Errorf("GetFlushBytes() = %d, want 4096", got)
+	}
+	if got := cfg.Pipeline.Streaming.GetRenderCapLines(); got != 1000 {
+		t.Errorf("GetRenderCapLines() = %d, want 1000", got)
+	}
+}
+
+// TestStreamingConfigZeroUsesDefault verifies that a value of 0 means "use default"
+// (not "never flush") — the getter substitutes the default for <= 0 (U-BK-01).
+func TestStreamingConfigZeroUsesDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgContent := `
+version: "2.0"
+pipeline:
+  streaming:
+    flush_interval_ms: 0
+    flush_bytes: 0
+    render_cap_lines: 0
+roles:
+  product:
+    name: Product
+    description: Product Agent
+    instructions: roles/product/INSTRUCTIONS.md
+`
+	cfgPath := filepath.Join(tmpDir, "devteam.yaml")
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error: %v", err)
+	}
+
+	if got := cfg.Pipeline.Streaming.GetFlushIntervalMs(); got != 200 {
+		t.Errorf("GetFlushIntervalMs() with 0 = %d, want 200 (default)", got)
+	}
+	if got := cfg.Pipeline.Streaming.GetFlushBytes(); got != 8192 {
+		t.Errorf("GetFlushBytes() with 0 = %d, want 8192 (default)", got)
+	}
+	if got := cfg.Pipeline.Streaming.GetRenderCapLines(); got != 5000 {
+		t.Errorf("GetRenderCapLines() with 0 = %d, want 5000 (default)", got)
+	}
+}
+
+// TestStreamingConfigRejectsNegative verifies negative threshold values are rejected at load
+// (U-BK-01 / app-design §10 config-misparse guard).
+func TestStreamingConfigRejectsNegative(t *testing.T) {
+	cases := []struct {
+		name    string
+		block   string
+		wantSub string
+	}{
+		{
+			name:    "negative flush_interval_ms",
+			block:  "streaming:\n    flush_interval_ms: -1\n",
+			wantSub: "flush_interval_ms",
+		},
+		{
+			name:    "negative flush_bytes",
+			block:  "streaming:\n    flush_bytes: -1\n",
+			wantSub: "flush_bytes",
+		},
+		{
+			name:    "negative render_cap_lines",
+			block:  "streaming:\n    render_cap_lines: -1\n",
+			wantSub: "render_cap_lines",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			cfgContent := "version: \"2.0\"\npipeline:\n  " + c.block + "roles:\n  product:\n    name: Product\n    description: x\n    instructions: x\n"
+			cfgPath := filepath.Join(tmpDir, "devteam.yaml")
+			if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+				t.Fatalf("writing config: %v", err)
+			}
+			_, err := LoadConfig(cfgPath)
+			if err == nil {
+				t.Fatalf("expected validation error for %s, got nil", c.name)
+			}
+			if !strings.Contains(err.Error(), c.wantSub) {
+				t.Errorf("error %q does not mention %q", err.Error(), c.wantSub)
+			}
+		})
 	}
 }

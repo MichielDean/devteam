@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { API_BASE } from '../api/client';
+import { useOutputStream } from '../hooks/useOutputStream';
 
 interface AgentOutputLiveProps {
   featureId: string;
@@ -9,35 +9,19 @@ interface AgentOutputLiveProps {
   phase?: string;
 }
 
+// AgentOutputLive — the canonical streaming surface for agent output.
+//
+// Bolt 1 slice: consumes useOutputStream (one-shot GET + agent_output SSE),
+// NO log-polling setInterval (U-UI-12 slice). The old 2s/10s polling timer is
+// GONE — the SSE event is the live transport. The full rewire (B6) adds the
+// footer (U-UI-11), render cap 5000 + [Load all], [Jump to latest], isExpanded
+// default !isProcessing, and a11y attrs (role="log", aria-live).
 export default function AgentOutputLive({ featureId, stageId, boltNumber, isProcessing }: AgentOutputLiveProps) {
-  const [content, setContent] = useState('');
+  const { content, source } = useOutputStream({ featureId, stageId, boltNumber, isProcessing });
   const [isExpanded, setIsExpanded] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasAtBottom = useRef(true);
-
-  // Poll the log file endpoint every 2 seconds while processing, every 10s when idle
-  useEffect(() => {
-    if (!stageId) return;
-
-    const fetchLog = async () => {
-      try {
-        const boltParam = boltNumber && boltNumber > 0 ? `?bolt=${boltNumber}` : '';
-        const res = await fetch(`${API_BASE}/features/${featureId}/log/${stageId}${boltParam}`);
-        if (res.ok) {
-          const text = await res.text();
-          setContent(text);
-        }
-      } catch {
-        // ignore
-      }
-    };
-
-    fetchLog();
-    const interval = isProcessing ? 2000 : 10000;
-    const timer = setInterval(fetchLog, interval);
-    return () => clearInterval(timer);
-  }, [featureId, stageId, boltNumber, isProcessing]);
 
   // Auto-scroll to bottom if user was at bottom
   useEffect(() => {
@@ -69,6 +53,9 @@ export default function AgentOutputLive({ featureId, stageId, boltNumber, isProc
           </h3>
           <span className="text-xs text-[var(--color-text-tertiary)]">{lines.length} lines</span>
           {isProcessing && <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-success)' }} title="Live" />}
+          {source === 'file-legacy' && (
+            <span className="text-xs text-[var(--color-text-tertiary)]" title="Legacy file fallback (read-path, ADR-5)">· legacy</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <input

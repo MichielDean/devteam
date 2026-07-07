@@ -186,6 +186,7 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		WorkingDir:  p.dispatchWorkingDirForStage(f, stageDef),
 		SessionName: p.resolveSessionName(f, stageDef),
 		ContextDir:  p.resolveContextDir(f, stageDef),
+		BoltNumber:  boltNumber,
 	}
 
 	log.Printf("RunStage: dispatching agent %s for stage %s (session=%s)", stageDef.LeadAgent, stageID, req.SessionName)
@@ -258,12 +259,13 @@ func (p *Pipeline) RunStage(ctx context.Context, f *feature.Feature, stageID str
 		return nil, fmt.Errorf("dispatching agent %s for stage %s: %w", stageDef.LeadAgent, stageID, err)
 	}
 
-	// Save the full agent output to the DB for persistent per-stage history
-	if result != nil && result.Output != "" {
-		if saveErr := p.database.SaveStageLogForBolt(f.ID, stageID, boltNumber, stageDef.LeadAgent, result.Output); saveErr != nil {
-			log.Printf("RunStage: failed to save stage log for %s bolt %d: %v", stageID, boltNumber, saveErr)
-		}
-	}
+	// ADR-2: the batcher's final flush IS the final save. SaveStageLogForBolt
+	// is NOT called at completion — there is no second writer to race against
+	// the batcher (R-1 eliminated at the architecture level). The batcher
+	// (StreamOutput) appended chunks to stage_logs via the injected FlushFunc
+	// during dispatch; its final flush before return is the authoritative save.
+	// The only residual SaveStageLogForBolt is the re-dispatch reset at
+	// DispatchStreaming entry (O-11), wired via ResetFunc (U-BK-06).
 
 	outcomeSource := "default_pass"
 	var outcome *db.OutcomeRow
