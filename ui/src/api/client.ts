@@ -308,3 +308,91 @@ export interface AvailableRepo {
 export async function listRepos(): Promise<AvailableRepo[]> {
   return request<AvailableRepo[]>('/repos');
 }
+// ─── Chat (AIDLC Expert Agent and Chat UI) ───────────────────────────────
+
+import type {
+  ChatSession,
+  ChatSessionDetail,
+  ChatProvider,
+  ChatStreamChunk,
+  ChatCliConfirmRequest,
+  ChatCliConfirmResponse,
+} from '../types';
+
+export async function listChatSessions(): Promise<ChatSession[]> {
+  return request<ChatSession[]>('/chat/sessions');
+}
+
+export async function createChatSession(title?: string, selectedProvider?: string): Promise<ChatSession> {
+  return request<ChatSession>('/chat/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ title, selected_provider: selectedProvider }),
+  });
+}
+
+export async function getChatSession(id: string): Promise<ChatSessionDetail> {
+  return request<ChatSessionDetail>(`/chat/sessions/${id}`);
+}
+
+export async function deleteChatSession(id: string): Promise<void> {
+  await request<void>(`/chat/sessions/${id}`, { method: 'DELETE' });
+}
+
+export async function listChatProviders(): Promise<ChatProvider[]> {
+  return request<ChatProvider[]>('/chat/providers');
+}
+
+export async function confirmChatCliOp(
+  sessionId: string,
+  req: ChatCliConfirmRequest,
+): Promise<ChatCliConfirmResponse> {
+  return request<ChatCliConfirmResponse>(`/chat/sessions/${sessionId}/cli-confirm`, {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+// sendChatMessage opens an SSE stream to POST /chat/sessions/{id}/messages
+// and invokes onChunk for each chunk received. Returns when the stream
+// closes (done/error) or the AbortSignal aborts (client disconnect).
+export async function sendChatMessage(
+  sessionId: string,
+  content: string,
+  provider: string | undefined,
+  onChunk: (chunk: ChatStreamChunk) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const resp = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, provider }),
+    signal,
+  });
+  if (!resp.ok || !resp.body) {
+    const err = await resp.json().catch(() => ({ error: 'unknown', details: resp.statusText }));
+    throw new ApiError(resp.status, err.error, err.details);
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // SSE framing: events separated by \n\n; each event is "data: <json>\n\n"
+    let idx: number;
+    while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      const event = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      const line = event.startsWith('data: ') ? event.slice(6) : event;
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const chunk = JSON.parse(trimmed) as ChatStreamChunk;
+        onChunk(chunk);
+      } catch {
+        // Malformed chunk — skip (the stream is best-effort).
+      }
+    }
+  }
+}

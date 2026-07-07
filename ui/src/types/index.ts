@@ -443,4 +443,68 @@ export const AGENT_LABELS: Record<string, string> = {
   operations: 'Operations',
   'product-lead': 'Product Lead (Reviewer)',
   'architecture-reviewer': 'Architecture Reviewer',
+  expert: 'Expert (AIDLC v2)',
 };
+
+// ─── Chat (AIDLC Expert Agent and Chat UI) ───────────────────────────────
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  selected_provider?: string | null;
+  created_at: string;
+}
+
+export interface ChatCitation {
+  file: string;
+  section?: string;
+  lines?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'expert' | 'tool';
+  content: string;
+  provider_used?: string | null;
+  created_at: string;
+  citations?: ChatCitation[];
+}
+
+export interface ChatSessionDetail extends ChatSession {
+  messages: ChatMessage[];
+}
+
+export interface ChatProvider {
+  name: string;
+  model: string;
+  adapter: string;
+  available: boolean;
+}
+
+// StreamChunk — one unit of the SSE stream from POST /messages.
+export interface ChatStreamChunk {
+  type: 'token' | 'tool-call' | 'citations' | 'done' | 'error';
+  content?: string;
+  proposal_id?: string;
+  command?: string;
+  classification?: string;
+  consequence?: string;
+  needs_confirm?: boolean;
+  message_id?: string;
+  provider_used?: string;
+  citations?: ChatCitation[];
+  error?: string;
+}
+
+// CliProposal — a pending CLI op awaiting user confirm.
+export interface ChatCliConfirmRequest {
+  proposal_id: string;
+  approved: boolean;
+}
+
+export interface ChatCliConfirmResponse {
+  executed: boolean;
+  rejected?: boolean;
+  stdout?: string;
+  exit_code?: number;
+}

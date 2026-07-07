@@ -26,6 +26,8 @@ const EVENT_ICONS: Record<string, string> = {
   JUMP_TO_STAGE: '⇒',
   HALT_AND_ASK: '⚠',
   ERROR_STAGE: '⚠',
+  // Chat (AIDLC Expert Agent and Chat UI) — expert-driven CLI ops.
+  CHAT_CLI_EXEC: '💬',
 };
 
 export default function AuditTimeline({ events }: AuditTimelineProps) {

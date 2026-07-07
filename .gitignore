@@ -47,3 +47,6 @@ Thumbs.db
 .devteam.db-wal
 specs/
 logs/
+
+# Chat RAG index — derived artifact (rebuilt by `devteam rag build`), not committed
+.devteam/
