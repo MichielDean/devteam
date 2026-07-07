@@ -77,12 +77,12 @@ jobs:
           git diff --exit-code go.mod go.sum
 
       - name: Create test databases
-        # The test harness uses 5 isolated test DBs (devteam_test_db,
+        # The test harness uses isolated test DBs (devteam_test_db,
         # devteam_test_api, devteam_test_spec, devteam_test_intake,
-        # devteam_test_pipeline). The postgres service container only
-        # creates the default DB, so create the rest here.
+        # devteam_test_pipeline, devteam_test_chat). The postgres service
+        # container only creates the default DB, so create the rest here.
         run: |
-          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline; do
+          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline devteam_test_chat; do
             PGPASSWORD=devteam psql -h localhost -U devteam -d devteam -c "CREATE DATABASE $db;" || true
           done
 
@@ -159,7 +159,7 @@ jobs:
 
       - name: Create test databases
         run: |
-          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline; do
+          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline devteam_test_chat; do
             PGPASSWORD=devteam psql -h localhost -U devteam -d devteam -c "CREATE DATABASE $db;" || true
           done
 
@@ -249,7 +249,7 @@ jobs:
         # The full test suite exercises every package, each with its own
         # isolated test DB. Create them all here.
         run: |
-          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline; do
+          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline devteam_test_chat; do
             PGPASSWORD=devteam psql -h localhost -U devteam -d devteam -c "CREATE DATABASE $db;" || true
           done
 
