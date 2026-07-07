@@ -546,6 +546,21 @@ func (p *Pipeline) AdvanceStage(f *feature.Feature, currentStageID string) error
 		if p.sessionMgr != nil {
 			p.sessionMgr.CompletePhaseSessions(f.ID, oldStageDef.Phase)
 		}
+		// Auth-health check at the phase boundary (feature github-authorization-integration,
+		// ADR-15, FR-AUTH-04). A revoked installation must halt the pipeline at the
+		// phase boundary, never mid-phase (F-7 invariant — the phase boundary is the
+		// half-write blast-radius boundary). If the github: block is absent (ghClient
+		// nil), this is a no-op (pre-feature behavior preserved).
+		if p.ghClient != nil {
+			if err := p.ghClient.AuthHealthCheck(context.Background()); err != nil {
+				log.Printf("AdvanceStage: auth-health check failed at phase boundary (%s→%s) for %s: %v",
+					oldStageDef.Phase, newStageDef.Phase, f.ID, err)
+				p.database.RecordAuditEvent(f.ID, "AUTH_HEALTH_FAILED", "", newStageDef.Phase,
+					fmt.Sprintf("phase boundary auth check failed: %v", err))
+				return fmt.Errorf("auth precondition failed at phase boundary (%s→%s): %w; see docs/github-app-setup.md",
+					oldStageDef.Phase, newStageDef.Phase, err)
+			}
+		}
 		// Push impl repo changes for the completed phase
 		if err := p.PushPhaseChanges(f, oldStageDef.Phase); err != nil {
 			log.Printf("AdvanceStage: failed to push phase changes for %s: %v", oldStageDef.Phase, err)

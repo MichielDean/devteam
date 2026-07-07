@@ -73,6 +73,19 @@ func main() {
 			os.Exit(1)
 		}
 
+		// Auth-health check at startup (feature github-authorization-integration,
+		// ADR-15, FR-AUTH-04). If the github: config block is present, verify the
+		// identity is alive before serving. Failure exits 1 with the W-1 block.
+		// If the block is absent, this is a no-op (pre-feature behavior preserved).
+		if cfg.GitHub.AppID != 0 || cfg.GitHub.Provider != "" {
+			if err := startupAuthHealth(cfg, database, baseDir); err != nil {
+				fmt.Fprintf(os.Stderr, "✗ startup auth-health check failed: %v\n", err)
+				fmt.Fprintf(os.Stderr, "  see docs/github-app-setup.md\n")
+				os.Exit(1)
+			}
+			fmt.Printf("[auth] ✓ machine identity alive at startup\n")
+		}
+
 		// Wire database and DB question store into pipeline
 		questionStore := feature.NewDBQuestionStore(database)
 		p.SetDatabase(database)
@@ -115,6 +128,12 @@ func main() {
 		return
 	case "init":
 		handleInit()
+		return
+	case "auth":
+		handleAuthCLI(os.Args[1:])
+		return
+	case "repo":
+		handleRepoCLI(os.Args[1:])
 		return
 	case "questions":
 		if len(os.Args) < 4 {

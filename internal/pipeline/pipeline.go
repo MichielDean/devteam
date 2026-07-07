@@ -12,6 +12,7 @@ import (
 	"github.com/MichielDean/devteam/internal/config"
 	"github.com/MichielDean/devteam/internal/db"
 	"github.com/MichielDean/devteam/internal/feature"
+	"github.com/MichielDean/devteam/internal/github"
 	"github.com/MichielDean/devteam/internal/gitops"
 	"github.com/MichielDean/devteam/internal/repo"
 	"github.com/MichielDean/devteam/internal/role"
@@ -30,6 +31,8 @@ type Pipeline struct {
 	dispatcher     *role.Dispatcher
 	questionStore  feature.QuestionStore
 	gitClient      *gitops.GitClient
+	ghClient       github.GitHubClient // feature github-authorization-integration; nil = not wired (pre-feature behavior)
+	credstore      *github.Credstore   // nil when the github: block is absent or master key not loadable
 	repoManager    *repo.Manager
 	database       *db.DB
 	sessionMgr     *SessionManager
@@ -53,6 +56,57 @@ func NewPipeline(cfg *config.Config, specProvider *spec.SpecProvider) *Pipeline 
 func (p *Pipeline) SetDatabase(database *db.DB) {
 	p.database = database
 	p.sessionMgr = NewSessionManager(database, p.dispatcher)
+	// Wire the GitHubClient from config now that the DB is available (the
+	// credstore needs the DB). Feature github-authorization-integration, FR-IFACE-06.
+	// If the github: block is absent, this is a no-op (pre-feature behavior).
+	p.wireGitHubClient()
+}
+
+// wireGitHubClient constructs the GitHubClient from the config github: block
+// and injects it into gitClient (FR-IFACE-06). Called from SetDatabase after
+// the DB is open (the credstore needs it). If the block is absent or the
+// master key isn't loadable, ghClient stays nil and the gitClient's PR
+// methods fail with "GitHubClient not wired" — pre-feature behavior is
+// preserved (NFR-COMPAT-03).
+func (p *Pipeline) wireGitHubClient() {
+	if p.config == nil {
+		// Tests may construct a Pipeline without config; guard against nil.
+		return
+	}
+	gcfg := p.config.GitHub
+	if gcfg.AppID == 0 && gcfg.Provider == "" {
+		// Feature not configured. Skip silently (the pipeline still works
+		// for everything that doesn't touch GitHub API ops).
+		return
+	}
+	// Try to load the credstore (master key). If it fails, log and skip —
+	// the pipeline should still run for non-GitHub work.
+	credstore, err := github.NewCredstore(p.database.Conn())
+	if err != nil {
+		log.Printf("pipeline: github: credstore not loaded (master key unavailable): %v", err)
+		return
+	}
+	p.credstore = credstore
+	baseDir := p.specProvider.BaseDir()
+	ghCfg := github.Config{
+		Provider:                gcfg.Provider,
+		AppID:                   gcfg.AppID,
+		InstallationID:           gcfg.InstallationID,
+		PrivateKeyPath:          gcfg.PrivateKeyPath,
+		TokenCacheTTL:           gcfg.TokenCacheTTL,
+		PATFallbackEnabled:      gcfg.PATFallback.Enabled,
+		ConflictPollMaxRetries:  gcfg.ConflictPollMaxRetries,
+		ConflictPollMaxDuration: gcfg.ConflictPollMaxDuration,
+		BaseDir:                 baseDir,
+		Credstore:               credstore,
+	}
+	ghClient, err := github.NewClient(ghCfg)
+	if err != nil {
+		log.Printf("pipeline: github: client construction failed: %v", err)
+		return
+	}
+	p.ghClient = ghClient
+	p.gitClient.SetGitHubClient(ghClient)
 }
 
 func (p *Pipeline) SetQuestionStore(qs feature.QuestionStore) {

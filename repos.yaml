@@ -1,5 +1,18 @@
 # Repository Registry
-
+#
+# DEPRECATED (feature github-authorization-integration, FR-DISC-05):
+# The canonical repo registry is now the `repo_registry` table in Postgres,
+# populated by `devteam repo list` (discovery) and `devteam repo manage <name>`
+# (curation). This root repos.yaml is now the SEED file: on first startup with
+# an empty repo_registry, its entries are loaded into the DB (managed=1) and
+# the DB becomes the source of truth. Thereafter this file is generated from
+# the DB on each materialization (do not hand-edit it — your edits will be
+# overwritten on next startup; use `devteam repo set` / `devteam repo manage`).
+#
+# The schema is unchanged (yaml.v3 ignores the new managed/provider/default_branch
+# fields in the generated overlay). `config.LoadRepos` continues to parse this
+# file for backward compatibility (no live main-branch caller breaks — RE §6.1).
+#
 # Maps feature specs to the implementation repos they touch.
 # Each feature declares which repos are in scope.
 # Implementation repos get a .devteam/ pointer back to the central spec.

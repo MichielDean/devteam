@@ -111,4 +111,14 @@ const (
 	AuditSwarmRebalance         = "SWARM_REBALANCE"
 	AuditSwarmExpand            = "SWARM_EXPAND"
 	AuditSwarmContract          = "SWARM_CONTRACT"
+
+	// GitHub Authorization Integration (feature github-authorization-integration, U-11, FR-AUDIT-04).
+	// These 5 constants are additive — the 68 existing constants above are frozen
+	// (BR-COMPAT-05, C-18). Only RecordCredentialAuditEvent writes credential_touched=1
+	// for the credential events; the repo events write credential_touched=0.
+	AuditCredentialStored      = "CREDENTIAL_STORED"
+	AuditCredentialRotated     = "CREDENTIAL_ROTATED"
+	AuditCredentialRevokeCheck = "CREDENTIAL_REVOKE_CHECK"
+	AuditRepoSettingsChanged   = "REPO_SETTINGS_CHANGED"
+	AuditRepoRegistrySynced    = "REPO_REGISTRY_SYNCED"
 )
