@@ -1,6 +1,5 @@
 import { lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router';
-import { Tabs } from '../ui/primitives';
 
 const ReposTab = lazy(() => import('./admin/ReposTab'));
 const DefaultsTab = lazy(() => import('./admin/DefaultsTab'));

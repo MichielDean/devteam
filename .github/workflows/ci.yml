@@ -72,12 +72,15 @@ jobs:
           git diff --exit-code go.mod go.sum
 
       - name: Create test databases
-        # The test harness uses 5 isolated test DBs (devteam_test_db,
+        # The test harness uses isolated test DBs (devteam_test_db,
         # devteam_test_api, devteam_test_spec, devteam_test_intake,
-        # devteam_test_pipeline). The postgres service container only
-        # creates the default DB, so create the rest here.
+        # devteam_test_pipeline, devteam_test_defaults). The postgres
+        # service container only creates the default DB, so create the
+        # rest here. devteam_test_defaults is dedicated to the
+        # internal/settings/defaults package to avoid truncate races with
+        # internal/db's shared devteam_test_db (see store_test.go:19).
         run: |
-          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline; do
+          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline devteam_test_defaults; do
             PGPASSWORD=devteam psql -h localhost -U devteam -d devteam -c "CREATE DATABASE $db;" || true
           done
 
@@ -89,7 +92,7 @@ jobs:
         # surfaces pre-existing unkeyed-field warnings in internal/stage
         # that predate this feature and are out of scope to fix here.
         # Widened for settings-and-admin-ui to cover the feature's new +
-        # extended packages (internal/repos, internal/settings,
+        # extended packages (internal/repo, internal/settings,
         # internal/config write path). These are net-new or extended under
         # this feature and should vet clean; if they don't, the fix is to
         # the code, not the gate.
@@ -99,7 +102,7 @@ jobs:
         # scope cut (Q7 honored strictly — Providers deferred to the
         # sibling feature multi-provider-llm-configuration, which owns the
         # materializer). See ci-config.md §5 and bolt-plan revision 2 §6.
-        run: go vet ./internal/db/... ./internal/api/... ./internal/repos/... ./internal/settings/... ./internal/config/...
+        run: go vet ./internal/db/... ./internal/api/... ./internal/repo/... ./internal/settings/... ./internal/config/...
 
       - name: Unit tests — db + api packages (Bolt gate)
         # The load-bearing gate command from P7. Runs the two packages the
@@ -115,7 +118,7 @@ jobs:
         # settings store) must be -race clean. Runs in the backend job
         # alongside the db/api unit gate so a race regression fails the
         # fast gate, not just backend-full.
-        run: go test -race ./internal/repos/... ./internal/config/... ./internal/settings/... -count=1
+        run: go test -race ./internal/repo/... ./internal/config/... ./internal/settings/... -count=1
 
   # -------------------------------------------------------------------
   # Job 2 — Frontend (lint + build)
@@ -194,9 +197,10 @@ jobs:
 
       - name: Create test databases
         # The full test suite exercises every package, each with its own
-        # isolated test DB. Create them all here.
+        # isolated test DB. Create them all here (including
+        # devteam_test_defaults for the settings/defaults package).
         run: |
-          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline; do
+          for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline devteam_test_defaults; do
             PGPASSWORD=devteam psql -h localhost -U devteam -d devteam -c "CREATE DATABASE $db;" || true
           done
 

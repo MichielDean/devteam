@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listRepos, createRepoAdmin, updateRepoAdmin, deleteRepoAdmin } from '../../api/client';
-import type { AvailableRepo, RepoInput } from '../../types/admin';
+import type { AvailableRepo } from '../../api/client';
+import type { RepoInput } from '../../types/admin';
 import { Button, Badge, Card } from '../../ui/primitives';
 import { Modal } from '../../ui/primitives';
 import { useToast } from '../../components/Toast';
