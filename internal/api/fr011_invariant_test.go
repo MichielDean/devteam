@@ -18,8 +18,13 @@ import (
 // provider info. The provider picker is chat-route-only. This test verifies
 // the invariant at the API level: the /api/features endpoints + /api/repos
 // do not surface provider config, even when providers are configured.
+//
+// Uses devteam_test_chat (not devteam_test_db) to avoid colliding with the
+// db package's tests when `go test ./...` runs packages in parallel —
+// TruncateAllTables on a shared DB wipes data mid-test.
 func TestFR011_ManagementConsoleHasNoProviderInfo(t *testing.T) {
-	database, err := db.Open(db.Config{DSN: db.PostgresTestDSN}, db.PostgresTestDSN)
+	const fr011TestDSN = "host=localhost port=5432 user=devteam password=devteam dbname=devteam_test_chat sslmode=disable"
+	database, err := db.Open(db.Config{DSN: fr011TestDSN}, fr011TestDSN)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
