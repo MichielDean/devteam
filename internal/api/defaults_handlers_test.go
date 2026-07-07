@@ -80,10 +80,15 @@ func TestPutGlobalDefaults_RoundTrip(t *testing.T) {
 	}
 
 	// Verify GET returns the saved values.
-	resp2, _ := http.Get(ts.URL + "/api/settings/defaults")
+	resp2, err := http.Get(ts.URL + "/api/settings/defaults")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
 	defer resp2.Body.Close()
 	var got defaultsResponse
-	json.NewDecoder(resp2.Body).Decode(&got)
+	if err := json.NewDecoder(resp2.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if got.Global.Scope != "feature" {
 		t.Errorf("global scope = %q, want feature", got.Global.Scope)
 	}
@@ -104,17 +109,25 @@ func TestPutRepoDefaults_RoundTrip(t *testing.T) {
 
 	req, _ := http.NewRequest(http.MethodPut, ts.URL+"/api/settings/defaults/devteam", bytes.NewReader(bodyBytes))
 	req.RemoteAddr = "127.0.0.1:54321"
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 
 	// GET should list the per-repo override.
-	resp2, _ := http.Get(ts.URL + "/api/settings/defaults")
+	resp2, err := http.Get(ts.URL + "/api/settings/defaults")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
 	defer resp2.Body.Close()
 	var got defaultsResponse
-	json.NewDecoder(resp2.Body).Decode(&got)
+	if err := json.NewDecoder(resp2.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if len(got.PerRepo) != 1 {
 		t.Fatalf("per_repo len = %d, want 1", len(got.PerRepo))
 	}
@@ -134,17 +147,25 @@ func TestDeleteRepoDefaults(t *testing.T) {
 
 	req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/settings/defaults/devteam", nil)
 	req.RemoteAddr = "127.0.0.1:54321"
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", resp.StatusCode)
 	}
 
 	// GET should show no per-repo overrides.
-	resp2, _ := http.Get(ts.URL + "/api/settings/defaults")
+	resp2, err := http.Get(ts.URL + "/api/settings/defaults")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
 	defer resp2.Body.Close()
 	var got defaultsResponse
-	json.NewDecoder(resp2.Body).Decode(&got)
+	if err := json.NewDecoder(resp2.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if len(got.PerRepo) != 0 {
 		t.Errorf("per_repo len = %d, want 0 after delete", len(got.PerRepo))
 	}
@@ -212,13 +233,18 @@ func TestCreateFeature_UsesDefaults_PerRepoOverGlobal(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/features", bytes.NewReader(bodyBytes))
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("createFeature status = %d, want 201", resp.StatusCode)
 	}
 	var respBody FeatureDetailResponse
-	json.NewDecoder(resp.Body).Decode(&respBody)
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if respBody.Scope != "greenfield" {
 		t.Errorf("scope = %q, want greenfield (per-repo over global)", respBody.Scope)
 	}
@@ -248,13 +274,18 @@ func TestCreateFeature_UsesDefaults_GlobalOverScopeDerived(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/features", bytes.NewReader(bodyBytes))
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status = %d, want 201", resp.StatusCode)
 	}
 	var respBody FeatureDetailResponse
-	json.NewDecoder(resp.Body).Decode(&respBody)
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if respBody.Scope != "greenfield" {
 		t.Errorf("scope = %q, want greenfield (global over scope-derived)", respBody.Scope)
 	}
@@ -278,10 +309,15 @@ func TestCreateFeature_ExplicitWins(t *testing.T) {
 	}
 	bodyBytes, _ := json.Marshal(body)
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/features", bytes.NewReader(bodyBytes))
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
 	defer resp.Body.Close()
 	var respBody FeatureDetailResponse
-	json.NewDecoder(resp.Body).Decode(&respBody)
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if respBody.Scope != "greenfield" {
 		t.Errorf("scope = %q, want greenfield (explicit wins)", respBody.Scope)
 	}

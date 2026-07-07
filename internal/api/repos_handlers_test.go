@@ -343,7 +343,10 @@ func TestPostRepo_DuplicateName_409(t *testing.T) {
 	// Second create → 409.
 	req2, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/repos", bytes.NewReader(bodyBytes))
 	req2.RemoteAddr = "127.0.0.1:54321"
-	resp2, _ := http.DefaultClient.Do(req2)
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("second POST: %v", err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != http.StatusConflict {
 		t.Fatalf("second create status = %d, want 409", resp2.StatusCode)
