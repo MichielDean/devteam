@@ -7,13 +7,13 @@ import (
 
 func init() {
 	RegisterMigration(Migration{
-		Version: 18,
+		Version: 21,
 		Name:    "chat_persistence",
-		Up:      migration018ChatPersistence,
+		Up:      migration021ChatPersistence,
 	})
 }
 
-// migration018ChatPersistence adds the chat persistence schema (DR-1, DR-2):
+// migration021ChatPersistence adds the chat persistence schema (DR-1, DR-2):
 //   - chat_sessions: one row per chat conversation
 //   - chat_messages: messages within a session (user/expert/tool roles)
 //   - audit_events.session_id, actor, feature_id_*: nullable columns so
@@ -22,9 +22,15 @@ func init() {
 //     no real feature is involved.
 //
 // Additive only (C1): new tables + nullable columns. Existing audit reads
-// are unaffected. Forward-only (R-DEP-1): no Down. A failed 018 rolls back
-// transactionally to pre-018 state.
-func migration018ChatPersistence(tx *sql.Tx) error {
+// are unaffected. Forward-only (R-DEP-1): no Down. A failed 021 rolls back
+// transactionally to pre-021 state.
+//
+// Version 21 (not 18): versions 18-20 were already claimed on the live DB
+// by sibling features (github-authorization-integration: 18/20;
+// settings-and-admin-ui: 19) before this feature merged. Renumbered from
+// the constructor's original 18 to the next free integer to avoid the
+// migration-runner silent-skip (D-3.6-1).
+func migration021ChatPersistence(tx *sql.Tx) error {
 	statements := []string{
 		// chat_sessions — UUID PK, selected_provider nullable (no provider = default)
 		`CREATE TABLE IF NOT EXISTS chat_sessions (

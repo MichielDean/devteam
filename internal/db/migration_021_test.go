@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestMigration018_ChatTablesExist(t *testing.T) {
+func TestMigration021_ChatTablesExist(t *testing.T) {
 	d := setupTestDB(t)
 	// Tables created at open time via migration runner. Verify they exist and the
 	// role CHECK constraint enforces the allowed values.
@@ -28,7 +28,7 @@ func TestMigration018_ChatTablesExist(t *testing.T) {
 	}
 }
 
-func TestMigration018_AuditColumnsExist(t *testing.T) {
+func TestMigration021_AuditColumnsExist(t *testing.T) {
 	d := setupTestDB(t)
 	for _, col := range []string{"session_id", "actor", "feature_id_chat"} {
 		var n int
@@ -45,7 +45,7 @@ func TestMigration018_AuditColumnsExist(t *testing.T) {
 	}
 }
 
-func TestMigration018_ChatSentinelFeatureExists(t *testing.T) {
+func TestMigration021_ChatSentinelFeatureExists(t *testing.T) {
 	d := setupTestDB(t)
 	var n int
 	err := d.QueryRow(
@@ -59,7 +59,7 @@ func TestMigration018_ChatSentinelFeatureExists(t *testing.T) {
 	}
 }
 
-func TestMigration018_IdempotentReapply(t *testing.T) {
+func TestMigration021_IdempotentReapply(t *testing.T) {
 	// Re-running the migration's SQL statements must be safe (IF NOT EXISTS / ON CONFLICT).
 	d := setupTestDB(t)
 	for _, stmt := range []string{
