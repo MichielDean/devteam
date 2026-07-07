@@ -8,6 +8,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 const TmuxPaneViewer = lazy(() => import('./components/TmuxPaneViewer'));
 const KnowledgePage = lazy(() => import('./pages/KnowledgePage'));
 const Chat = lazy(() => import('./pages/Chat'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
 
 const loadingStyle: React.CSSProperties = { color: 'var(--color-text-tertiary)' };
 
@@ -35,6 +36,12 @@ export default function App() {
             >
               Knowledge
             </Link>
+            <Link
+              to="/admin"
+              className="px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] rounded-[var(--radius-md)] transition-colors"
+            >
+              Admin
+            </Link>
             <ThemeToggle />
           </nav>
         </div>
@@ -61,6 +68,11 @@ export default function App() {
           <Route path="/chat" element={
             <Suspense fallback={<div className="text-center py-12" style={loadingStyle}>Loading chat...</div>}>
               <Chat />
+            </Suspense>
+          } />
+          <Route path="/admin" element={
+            <Suspense fallback={<div className="text-center py-12" style={loadingStyle}>Loading...</div>}>
+              <AdminPage />
             </Suspense>
           } />
         </Routes>
