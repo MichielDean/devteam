@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -138,10 +139,15 @@ func TestChatAPI_SendMessageStream(t *testing.T) {
 		t.Errorf("Content-Type = %q, want text/event-stream", resp.Header.Get("Content-Type"))
 	}
 
-	// Read the SSE stream — collect until "done"
-	buf := make([]byte, 64*1024)
-	n, _ := resp.Body.Read(buf)
-	stream := string(buf[:n])
+	// Read the SSE stream — collect until EOF / "done". A single Read may
+	// return only the first chunk (citations, etc.) before the stream has
+	// flushed the rest; io.ReadAll drains until the server closes the stream
+	// at the end of the response.
+	streamBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("reading stream: %v", err)
+	}
+	stream := string(streamBytes)
 	if !strings.Contains(stream, "data: ") {
 		t.Errorf("expected SSE 'data: ' framing, got: %s", stream[:min(200, len(stream))])
 	}
