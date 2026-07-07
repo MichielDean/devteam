@@ -1,0 +1,248 @@
+# Dev Team — CI Pipeline
+#
+# Stage 3.7 (CI Pipeline) artifact for feature operations-phase-configuration.
+# This is the FIRST CI workflow for the devteam repo (P-CI1: no CI was
+# configured before this feature). It implements the quality gates defined
+# in the companion `quality-gates` spec artifact and the platform's binding
+# NFRs (NFR-COMP-01..05, NFR-TEST-05, NFR-REL-01, FR-TEST-05).
+#
+# Triggers: push to any branch, PR to main. The platform is GitHub-flow
+# (P-CI6): every push to main is a release candidate; PRs gate merges.
+# No schedule, no tag-driven release — the platform has no semver tags
+# (P-CI6) and no release pipeline (D-D3: single binary, systemd-managed).
+#
+# Concurrency: cancel in-flight runs on the same ref so force-pushes and
+# fast follow-ups don't burn runner minutes on stale commits.
+#
+# Services: a PostgreSQL 16 container is provisioned per job because the
+# test suite is DB-backed (P-CI3: per-package test DBs devteam_test_*).
+# Without it, every DB test fails at `setupTestDB`. JSONB support is
+# native to Postgres 16 (matches production, P-D2).
+#
+# No caching of ~/.cache/go-build is configured beyond actions/setup-go's
+# default — the build is small (~13MB binary) and module count is 2
+# (gopkg.in/yaml.v3, github.com/lib/pq). Caching overhead would exceed
+# the build time it saves. This satisfies NFR-COMP-03 (no new build step)
+# and the pipeline-deploy principle "fast pipelines, fast feedback".
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # --- Build & vet gate -----------------------------------------------
+  # Runs first; every downstream job depends on it. If the module does not
+  # build, nothing else runs. `go vet` is NOT currently a gate on main
+  # (P-CI4: 32 existing unkeyed-field warnings in stage/definitions.go),
+  # but this job FAILS on NEW vet warnings introduced by the PR. The
+  # baseline is recorded as an env var so a regression is caught without
+  # blocking on pre-existing debt.
+  build:
+    name: Build + gofmt + vet (no new warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: go build ./...
+        run: go build ./...
+      - name: gofmt clean on changed files
+        # Only check files touched by the PR (or the push). The repo has
+        # 392 legacy unformatted files (P-CI4); reformatting them is out
+        # of scope for this feature. New code MUST be gofmt-clean
+        # (NFR-COMP-04).
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="$(git rev-parse HEAD^1 || git rev-parse HEAD)"
+          fi
+          changed="$(git diff --name-only "$base" HEAD -- '*.go' || true)"
+          if [ -z "$changed" ]; then
+            echo "no Go files changed"
+            exit 0
+          fi
+          bad="$(gofmt -l $changed)"
+          if [ -n "$bad" ]; then
+            echo "::error::gofmt would reformat:$bad"
+            exit 1
+          fi
+      - name: go vet (no new warnings vs baseline)
+        # Baseline = 32 (current warnings on main, all in stage/definitions.go).
+        # A PR that adds a vet warning fails. A PR that fixes one is welcome
+        # but does not lower the gate.
+        env:
+          VET_BASELINE: 32
+        run: |
+          set +e
+          warnings="$(go vet ./... 2>&1 | grep -c '^#' || true)"
+          set -e
+          echo "vet warnings: $warnings (baseline $VET_BASELINE)"
+          if [ "$warnings" -gt "$VET_BASELINE" ]; then
+            echo "::error::go vet warning count increased ($warnings > $VET_BASELINE)"
+            go vet ./... 2>&1 || true
+            exit 1
+          fi
+
+  # --- Unit + integration tests (DB-backed) --------------------------
+  # The entire test suite is DB-backed (P-CI3). Postgres 16 is provisioned
+  # as a service container; the test helpers create per-package DBs
+  # (devteam_test_db, devteam_test_api, devteam_test_pipeline,
+  # devteam_test_spec, devteam_test_intake) and truncate between tests
+  # (NFR-TEST-04). The DSN matches devteam.yaml's local config so tests
+  # do not branch on environment.
+  test:
+    name: Tests (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    needs: build
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: devteam
+          POSTGRES_PASSWORD: devteam
+          POSTGRES_DB: devteam
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U devteam"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DEVTEAM_DB_DSN: "host=localhost port=5432 user=devteam password=devteam dbname=devteam sslmode=disable"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Provision per-package test DBs
+        # Mirrors the local dev setup: one DB per package so tests run in
+        # parallel without cross-package row pollution (P-CI3, NFR-TEST-04).
+        run: |
+          for db in devteam_test_db devteam_test_api devteam_test_pipeline devteam_test_spec devteam_test_intake; do
+            psql "$DEVTEAM_DB_DSN" -c "CREATE DATABASE $db;" || true
+          done
+      - name: go test ./... -count=1
+        run: go test ./... -count=1
+      - name: go test -race (store layer)
+        # Race detector on the new store + dispatch path only — running
+        # -race across the full suite doubles runtime and the rest of the
+        # codebase has no history of races. Targets the feature's new code.
+        run: go test ./internal/db/... ./internal/pipeline/... -race -count=1
+
+  # --- Dependency invariant ------------------------------------------
+  # NFR-COMP-02 (no new third-party Go dep) is a binding constraint.
+  # The feature is not allowed to add to go.mod. This job makes that a
+  # CI gate, not a review-time hope. It diffs go.mod/go.sum against the
+  # PR base; any change fails the build.
+  deps-locked:
+    name: go.mod / go.sum unchanged (NFR-COMP-02)
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go.mod diff is empty
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="$(git rev-parse HEAD^1 || git rev-parse HEAD)"
+          fi
+          if ! git diff --quiet "$base" HEAD -- go.mod go.sum; then
+            echo "::error::go.mod or go.sum changed — NFR-COMP-02 violation"
+            git diff "$base" HEAD -- go.mod go.sum
+            exit 1
+          fi
+          echo "go.mod / go.sum unchanged"
+
+  # --- UI build gate --------------------------------------------------
+  # Conditional — only runs when ui/ has changes. The UI is a separate
+  # Vite/React 19 app (U12 territory). Building it catches TypeScript
+  # errors and broken imports without running a full e2e suite. Skipped
+  # on Go-only changes so Go PRs don't pay the npm install cost.
+  ui-build:
+    name: UI build (Vite + tsc)
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Skip if ui/ unchanged
+        id: ui-changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="$(git rev-parse HEAD^1 || git rev-parse HEAD)"
+          fi
+          if git diff --name-only "$base" HEAD -- ui/ | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "ui/ unchanged — skipping"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.ui-changed.outputs.changed == 'true'
+        with:
+          node-version-file: ui/package.json
+      - name: npm ci
+        if: steps.ui-changed.outputs.changed == 'true'
+        working-directory: ui
+        run: npm ci
+      - name: npm run build
+        if: steps.ui-changed.outputs.changed == 'true'
+        working-directory: ui
+        run: npm run build
+
+  # --- Aggregated quality gate ---------------------------------------
+  # A single required-status-check name downstream PRs gate on. This
+  # avoids the anti-pattern of requiring every job individually (a flaky
+  # race test blocks merges even when the suite is otherwise green).
+  # `needs` with `if: always()` runs even when an upstream fails — but
+  # the step itself re-fails if any required upstream failed.
+  quality-gate:
+    name: Quality Gate (aggregated)
+    runs-on: ubuntu-latest
+    needs: [build, test, deps-locked, ui-build]
+    if: always()
+    steps:
+      - name: Aggregate
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          DEPS_RESULT: ${{ needs.deps-locked.result }}
+          UI_RESULT: ${{ needs.ui-build.result }}
+        run: |
+          fail=0
+          for r in "$BUILD_RESULT" "$TEST_RESULT" "$DEPS_RESULT"; do
+            if [ "$r" != "success" ]; then
+              echo "::error::required job returned $r"
+              fail=1
+            fi
+          done
+          # ui-build may be skipped — that's a pass
+          if [ "$UI_RESULT" != "success" ] && [ "$UI_RESULT" != "skipped" ]; then
+            echo "::error::ui-build returned $UI_RESULT"
+            fail=1
+          fi
+          exit $fail
