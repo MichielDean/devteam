@@ -81,8 +81,6 @@ export default function App() {
               <AdminProvidersPage />
             </Suspense>
           } />
-            </Suspense>
-          } />
         </Routes>
       </main>
     </div>
