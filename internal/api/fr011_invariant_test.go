@@ -38,7 +38,7 @@ func TestFR011_ManagementConsoleHasNoProviderInfo(t *testing.T) {
 	// Configure providers — the invariant is that this DOES NOT leak into
 	// the management console endpoints.
 	s.SetChatConfig(&config.Config{
-		Providers: config.ProviderList{
+		Providers: config.YAMLProviderList{
 			{Name: "ollama", BaseURL: "http://localhost:11434/v1", Model: "glm-5.2:cloud", Adapter: "openai"},
 			{Name: "openai", BaseURL: "https://api.openai.com/v1", Model: "gpt-4o", Adapter: "openai"},
 		},

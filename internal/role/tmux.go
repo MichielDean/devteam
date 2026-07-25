@@ -240,6 +240,15 @@ func (m *TmuxSessionManager) DispatchStreaming(ctx context.Context, req Dispatch
 		for _, e := range m.tmuxEnvPairs(contextDir, req.Role) {
 			args = append(args, "-e", e)
 		}
+		// Inject the resolved provider's API key env var (e.g. ANTHROPIC_API_KEY=sk-...)
+		// so provider SDKs reading the env var pick it up. The value lives only in the
+		// tmux session env (never logged as a tmux arg that would surface in process lists
+		// — it's passed via -e which tmux stores in the session, not in the command line).
+		// See NFR-SEC-01, 3.3 review F-03 (no redaction layer; kept out of logs by construction).
+		envPairs := buildAgentEnvPairs(req)
+		for _, e := range envPairs {
+			args = append(args, "-e", e.k+"="+e.v)
+		}
 		log.Printf("tmux: creating session %s for feature %s phase %s", sessionName, req.FeatureID, req.Phase)
 		createCmd := exec.Command("tmux", args...)
 		createCmd.Env = minimalTmuxEnv()
@@ -486,19 +495,15 @@ func (m *TmuxSessionManager) prepareContextDir(req DispatchRequest, contextDir s
 	// Config files are MERGED by opencode, so we must explicitly override
 	// everything from the global config that we don't want (plugins, agents, mcp, instructions).
 	//
-	// The config is emitted by the shared BuildOpencodeJSON (G3-2, NFR-MAINT-1)
+	// The config is emitted by the shared buildOpencodeJSON (G3-2, NFR-MAINT-1)
 	// so this site and internal/api/agent_handlers.go cannot diverge (R4).
-	// When no providers are configured, the default ollama provider is emitted
-	// (default-safe — NFR-REL-4, C15). Pre-feature behavior is preserved.
-	opencodeConfigBytes, err := BuildOpencodeJSON(OpencodeConfigInput{
-		Model:     DefaultModel,
-		Providers: nil, // nil → default ollama provider (pre-feature behavior)
-	})
-	if err != nil {
-		return fmt.Errorf("building opencode.json: %w", err)
-	}
+	// When no provider is resolved (req.Provider == nil), the default ollama
+	// provider is emitted (default-safe — NFR-REL-4, C15). Pre-feature behavior
+	// is preserved. Mode 0600 because the file may carry a resolved API key
+	// value (NFR-SEC-01, 3.3 review F-05).
+	opencodeConfig := buildOpencodeJSON(req)
 	configPath := filepath.Join(contextDir, "opencode.json")
-	if err := os.WriteFile(configPath, opencodeConfigBytes, 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(opencodeConfig), 0600); err != nil {
 		return fmt.Errorf("writing opencode.json: %w", err)
 	}
 

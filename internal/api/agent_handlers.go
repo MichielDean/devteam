@@ -146,19 +146,14 @@ func (s *Server) dispatchHumanProxy(featureID, phase string) {
 		f.ID, f.Title, f.Scope, f.Depth, f.CurrentStage, stageName)
 	os.WriteFile(filepath.Join(contextDir, "CONTEXT.md"), []byte(contextContent), 0644)
 
-	// Write opencode config via the shared BuildOpencodeJSON (G3-2, NFR-MAINT-1).
-	// Both emit sites (this one and internal/role/tmux.go) call the same function
-	// so the output is structurally identical (SC5). Default-safe: no providers
-	// configured → default ollama provider (pre-feature behavior).
-	opencodeConfigBytes, err := role.BuildOpencodeJSON(role.OpencodeConfigInput{
-		Model:     role.DefaultModel,
-		Providers: nil,
-	})
-	if err != nil {
-		log.Printf("dispatchHumanProxy: build opencode.json: %v", err)
-		return
-	}
-	os.WriteFile(filepath.Join(contextDir, "opencode.json"), opencodeConfigBytes, 0644)
+	// Write opencode config (same isolated config as stage agents). Uses the
+	// consolidated buildOpencodeJSON builder (0600 mode, provider-aware).
+	// The human-proxy currently inherits the legacy ollama fallback (no
+	// Provider set on the request) — provider resolution for the human-proxy
+	// is a fast-follow; MVP keeps it on the default provider.
+	proxyReq := role.DispatchRequest{FeatureID: featureID, Role: "human-proxy"}
+	opencodeConfig := role.BuildOpencodeJSONExport(proxyReq)
+	os.WriteFile(filepath.Join(contextDir, "opencode.json"), []byte(opencodeConfig), 0600)
 
 	// Write AGENTS.md
 	agentsMD := "# Human Proxy Agent\n\nYou are answering questions on behalf of the human in an autonomous pipeline. Use the devteam CLI to read and answer questions.\n"
@@ -173,10 +168,18 @@ func (s *Server) dispatchHumanProxy(featureID, phase string) {
 		os.WriteFile(filepath.Join(contextDir, ".bashrc"), []byte(fmt.Sprintf("export PATH=\"%s:$PATH\"\n", filepath.Dir(devteamPath))), 0644)
 	}
 
-	// Write agent role file
+	// Write agent role file. Uses the consolidated buildAgentMD so the model line
+	// follows the resolved provider (legacy ollama fallback for human-proxy MVP).
 	agentsDir := filepath.Join(contextDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
-	agentMD := "---\ndescription: Answers questions on behalf of the human\nmode: primary\nmodel: ollama/glm-5.2:cloud\n---\n\nYou are the human-proxy agent. Read the pending questions and answer them.\n"
+	agentMD := role.BuildAgentMDExport(role.DispatchRequest{
+		FeatureID: featureID,
+		Phase:     phase,
+		Role:      "human-proxy",
+	})
+	// Append the human-proxy-specific instructions (buildAgentMD writes the
+	// generic Dev Team agent header; the human-proxy needs its own task line).
+	agentMD += "\nYou are the human-proxy agent. Read the pending questions and answer them.\n"
 	os.WriteFile(filepath.Join(agentsDir, "human-proxy.md"), []byte(agentMD), 0644)
 
 	// Build and run the opencode command

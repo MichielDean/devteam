@@ -80,7 +80,7 @@ providers:
 
 func TestValidateConfig_ProvidersRejectsDuplicate(t *testing.T) {
 	cfg := &Config{
-		Providers: ProviderList{
+		Providers: YAMLProviderList{
 			{Name: "x", BaseURL: "u", Model: "m", Adapter: "openai"},
 			{Name: "x", BaseURL: "u2", Model: "m2", Adapter: "openai"},
 		},
@@ -93,16 +93,16 @@ func TestValidateConfig_ProvidersRejectsDuplicate(t *testing.T) {
 func TestValidateConfig_ProvidersRejectsMissingFields(t *testing.T) {
 	cases := []struct {
 		name string
-		p    ProviderConfig
+		p    YAMLProviderConfig
 	}{
-		{"empty name", ProviderConfig{Name: "", BaseURL: "u", Model: "m", Adapter: "openai"}},
-		{"empty base_url", ProviderConfig{Name: "x", BaseURL: "", Model: "m", Adapter: "openai"}},
-		{"empty model", ProviderConfig{Name: "x", BaseURL: "u", Model: "", Adapter: "openai"}},
-		{"empty adapter", ProviderConfig{Name: "x", BaseURL: "u", Model: "m", Adapter: ""}},
-		{"bad adapter", ProviderConfig{Name: "x", BaseURL: "u", Model: "m", Adapter: "google"}},
+		{"empty name", YAMLProviderConfig{Name: "", BaseURL: "u", Model: "m", Adapter: "openai"}},
+		{"empty base_url", YAMLProviderConfig{Name: "x", BaseURL: "", Model: "m", Adapter: "openai"}},
+		{"empty model", YAMLProviderConfig{Name: "x", BaseURL: "u", Model: "", Adapter: "openai"}},
+		{"empty adapter", YAMLProviderConfig{Name: "x", BaseURL: "u", Model: "m", Adapter: ""}},
+		{"bad adapter", YAMLProviderConfig{Name: "x", BaseURL: "u", Model: "m", Adapter: "google"}},
 	}
 	for _, c := range cases {
-		cfg := &Config{Providers: ProviderList{c.p}}
+		cfg := &Config{Providers: YAMLProviderList{c.p}}
 		if err := validateConfig(cfg); err == nil {
 			t.Errorf("case %s: expected error, got nil", c.name)
 		}

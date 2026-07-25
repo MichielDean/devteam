@@ -8,7 +8,7 @@ import (
 
 // ─── Multi-provider config (G3) ───────────────────────────────────────────
 //
-// ProviderConfig describes one LLM provider in a provider-agnostic schema
+// YAMLProviderConfig describes one LLM provider in a provider-agnostic schema
 // (FR-G3-1). A provider is fully described by: name, base_url, api_key_env
 // (env var name, never the key value — NFR-SEC-4), model, adapter (the opencode
 // npm adapter package), and the tiers this provider serves (opus/sonnet).
@@ -18,7 +18,11 @@ import (
 // adapter field is the one place a provider-kind identifier is legitimate —
 // it selects the opencode npm package (@ai-sdk/openai-compatible vs
 // @ai-sdk/anthropic), not branching logic.
-type ProviderConfig struct {
+//
+// This is the file-based (YAML) provider config, retained for the file-config
+// path and the SC5 lockstep test. The DB-backed aggregate root is ProviderConfig
+// (types.go) — the two coexist; the DB aggregate is the admin-UI surface.
+type YAMLProviderConfig struct {
 	Name      string   `yaml:"name" json:"name"`
 	BaseURL   string   `yaml:"base_url" json:"base_url"`
 	APIKeyEnv string   `yaml:"api_key_env" json:"api_key_env"`
@@ -27,15 +31,15 @@ type ProviderConfig struct {
 	Tiers     []string `yaml:"tiers" json:"tiers"`       // ["opus","sonnet"]
 }
 
-// ProviderList unmarshals from YAML in three forms (FR-G3-5):
+// YAMLProviderList unmarshals from YAML in three forms (FR-G3-5):
 //   - absent / empty → zero providers (default-safe, NFR-REL-4)
 //   - a sequence of maps: providers: [{name: ...}, {name: ...}]
 //   - an empty map: providers: {} (treated as zero providers)
 //
 // This mirrors the prior-art ProviderList.UnmarshalYAML (re §7.1, CON-010).
-type ProviderList []ProviderConfig
+type YAMLProviderList []YAMLProviderConfig
 
-func (p *ProviderList) UnmarshalYAML(value *yaml.Node) error {
+func (p *YAMLProviderList) UnmarshalYAML(value *yaml.Node) error {
 	// Empty map or null → zero providers (default-safe).
 	if value.Kind == yaml.MappingNode && len(value.Content) == 0 {
 		*p = nil
@@ -46,7 +50,7 @@ func (p *ProviderList) UnmarshalYAML(value *yaml.Node) error {
 		return nil
 	}
 	// Otherwise treat as a sequence (the canonical form) or a single map.
-	var list []ProviderConfig
+	var list []YAMLProviderConfig
 	if err := value.Decode(&list); err != nil {
 		return fmt.Errorf("providers: must be a sequence of provider entries: %w", err)
 	}

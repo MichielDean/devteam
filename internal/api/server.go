@@ -114,6 +114,16 @@ func NewServer(addr string, specProvider *spec.SpecProvider, pipe *pipeline.Pipe
 	// existing NewServer signature stable for tests).
 	s.registerChatRoutes(mux)
 
+	// Provider config admin endpoints (multi-provider-llm-configuration).
+	// GET routes are unguarded (read-only, NFR-SEC-02); PUT routes are guarded
+	// by adminGuard (localhost OR X-Admin-Secret header).
+	mux.HandleFunc("GET /api/config/providers", s.handleGetProviders)
+	mux.HandleFunc("PUT /api/config/providers", adminGuard(s.handlePutProviders))
+	mux.HandleFunc("GET /api/config/tiers", s.handleGetTiers)
+	mux.HandleFunc("PUT /api/config/tiers", adminGuard(s.handlePutTiers))
+	mux.HandleFunc("GET /api/config/role-overrides", s.handleGetRoleOverrides)
+	mux.HandleFunc("PUT /api/config/role-overrides", adminGuard(s.handlePutRoleOverrides))
+
 	if staticFS != nil {
 		mux.Handle("/", s.spaHandler(staticFS))
 	}

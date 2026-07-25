@@ -7,6 +7,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// init wires the package-level env getter to os.Getenv. Tests may override
+// osGetenv (defined in types.go) to inject controlled env-var values.
+func init() {
+	osGetenv = os.Getenv
+}
+
 type Config struct {
 	Version    string                     `yaml:"version"`
 	Pipeline   PipelineConfig             `yaml:"pipeline"`
@@ -19,7 +25,7 @@ type Config struct {
 	// ADDITIVE (AIDLC Expert Agent and Chat UI):
 	// Providers — multi-provider LLM config (FR-G3-1). Empty/absent → default-safe
 	// (the resolver returns ollama/glm-5.2:cloud — NFR-REL-4).
-	Providers ProviderList `yaml:"providers"`
+	Providers YAMLProviderList `yaml:"providers"`
 	// Expert — expert scope toggle (FR-CL-6). Default false = hard refusal.
 	Expert ExpertConfig `yaml:"expert"`
 	// Chat — chat-surface settings. Trust mode is Should-after-MVS.
@@ -217,6 +223,9 @@ func validateConfig(cfg *Config) error {
 			return fmt.Errorf("providers[%d] (%s): adapter must be \"openai\" or \"anthropic\", got %q", i, p.Name, p.Adapter)
 		}
 	}
+	// PR multi-provider additions: validate DB-backed provider config constraints.
+	// (The DB aggregate ProviderConfig in types.go is validated at the store/API
+	// layer; this block is the file-config validation path retained from HEAD.)
 	// Streaming thresholds: a value of 0 means "use default"; negative values are invalid.
 	// 0 never flushes, which is an operator footgun (infinite buffering). The getters
 	// substitute defaults for <= 0; validation only rejects explicit negatives.
