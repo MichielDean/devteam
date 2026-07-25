@@ -79,8 +79,12 @@ jobs:
       - name: Create test databases
         # The test harness uses isolated test DBs (devteam_test_db,
         # devteam_test_api, devteam_test_spec, devteam_test_intake,
-        # devteam_test_pipeline, devteam_test_chat). The postgres service
-        # container only creates the default DB, so create the rest here.
+        # devteam_test_pipeline, devteam_test_chat, devteam_test_defaults).
+        # The postgres service container only creates the default DB, so
+        # create the rest here. devteam_test_chat is dedicated to the
+        # chat/streaming packages; devteam_test_defaults is dedicated to
+        # internal/settings/defaults to avoid truncate races with
+        # internal/db's shared devteam_test_db (see store_test.go:19).
         run: |
           for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline devteam_test_chat devteam_test_config devteam_test_defaults; do
             PGPASSWORD=devteam psql -h localhost -U devteam -d devteam -c "CREATE DATABASE $db;" || true
@@ -90,24 +94,33 @@ jobs:
         run: go build ./...
 
       - name: Vet (feature packages)
-        # Scoped to the packages this feature and the prior feature extend.
+        # Scoped to the packages this feature and prior features extend.
         # A full `go vet ./...` surfaces pre-existing unkeyed-field warnings
         # in internal/stage/definitions.go that predate this feature and are
         # out of scope to fix here (see team-practices evidence §3).
-        # Extension (stream-agent-output feature): added internal/role,
-        # internal/pipeline, internal/config — the packages the streaming
-        # refactor touches.
-        run: go vet ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/config/...
+        # Covers: streaming (internal/role, internal/pipeline, internal/config)
+        # and settings-and-admin-ui (internal/repo, internal/settings,
+        # internal/config write path). internal/opencode is NOT in scope —
+        # the builder package is owned by the sibling feature
+        # multi-provider-llm-configuration (Q7 scope cut).
+        run: go vet ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/repo/... ./internal/settings/... ./internal/config/...
 
       - name: Unit tests — feature packages (per-bolt gate)
         # The load-bearing gate command from team-practices P7/P8. Runs the
         # packages the feature extends. Full `go test ./...` runs in the
         # release job (backend-full).
-        # Extension (stream-agent-output feature): added internal/role
-        # (new streamer.go, rewritten tmux.go), internal/pipeline
-        # (stage_runner.go, session_manager.go), internal/config
-        # (new Streaming block).
-        run: go test ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/config/... -count=1
+        # Streaming: internal/role, internal/pipeline, internal/config.
+        # Settings-and-admin-ui: internal/repo, internal/settings,
+        # internal/config (write path — U-CONFIG-01 linchpin, fails fast).
+        run: go test ./internal/db/... ./internal/api/... ./internal/role/... ./internal/pipeline/... ./internal/repo/... ./internal/config/... -count=1
+
+      - name: Race tests — concurrency-touching packages (QO-14)
+        # Binding per quality-report revision 2 §1.4 / QO-14: the
+        # concurrency-touching packages (repos flock, config atomic write,
+        # settings store, role batcher) must be -race clean. Runs in the
+        # backend job alongside the db/api unit gate so a race regression
+        # fails the fast gate, not just backend-full.
+        run: go test -race ./internal/role/... ./internal/pipeline/... ./internal/repo/... ./internal/config/... ./internal/settings/... -count=1
 
   # -------------------------------------------------------------------
   # Job 2 — Backend race test (QG-2 — the C-5/R-1 drain invariant)
@@ -247,7 +260,8 @@ jobs:
 
       - name: Create test databases
         # The full test suite exercises every package, each with its own
-        # isolated test DB. Create them all here.
+        # isolated test DB. Create them all here (including
+        # devteam_test_defaults for the settings/defaults package).
         run: |
           for db in devteam_test_db devteam_test_api devteam_test_spec devteam_test_intake devteam_test_pipeline devteam_test_chat devteam_test_config devteam_test_defaults; do
             PGPASSWORD=devteam psql -h localhost -U devteam -d devteam -c "CREATE DATABASE $db;" || true

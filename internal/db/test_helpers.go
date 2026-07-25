@@ -16,6 +16,8 @@ func TruncateAllTables(d *DB) {
 		"phase_states", "gate_results", "recirculations", "features",
 		// repos tables (migration 017) — truncate so repo tests start clean.
 		"repo_settings", "repo_operation_config", "repo_registry", "repos",
+		// settings & admin UI (migration 019) — truncate so defaults/config tests start clean.
+		"feature_defaults", "server_config",
 	}
 	for _, table := range tables {
 		d.Conn().Exec("TRUNCATE TABLE " + table + " CASCADE")
