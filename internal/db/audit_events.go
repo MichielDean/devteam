@@ -117,7 +117,6 @@ const (
 	// the chat expert. Written via RecordAuditEventChat, append-only (SEC-6).
 	// Every op emits one — including rejected (confirmed:false).
 	AuditChatCliExec = "CHAT_CLI_EXEC"
-
 	// Admin / config-mutation events (settings-and-admin-ui feature, bolt-plan rev2).
 	// Per Q7/Q8 strict scope cut, the v1 event set is 4 constants — no
 	// PROVIDER_CONFIG_MUTATED (providers deferred to the sibling feature) and no
@@ -127,4 +126,14 @@ const (
 	AuditConfigValidationFailed   = "CONFIG_VALIDATION_FAILED"
 	AuditReposRegistryMutated     = "REPOS_REGISTRY_MUTATED"
 	AuditFeatureDefaultsMutated   = "FEATURE_DEFAULTS_MUTATED"
+
+	// GitHub Authorization Integration (feature github-authorization-integration, U-11, FR-AUDIT-04).
+	// These 5 constants are additive — the 68 existing constants above are frozen
+	// (BR-COMPAT-05, C-18). Only RecordCredentialAuditEvent writes credential_touched=1
+	// for the credential events; the repo events write credential_touched=0.
+	AuditCredentialStored      = "CREDENTIAL_STORED"
+	AuditCredentialRotated     = "CREDENTIAL_ROTATED"
+	AuditCredentialRevokeCheck = "CREDENTIAL_REVOKE_CHECK"
+	AuditRepoSettingsChanged   = "REPO_SETTINGS_CHANGED"
+	AuditRepoRegistrySynced    = "REPO_REGISTRY_SYNCED"
 )
