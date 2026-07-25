@@ -50,3 +50,6 @@ logs/
 
 # Chat RAG index — derived artifact (rebuilt by `devteam rag build`), not committed
 .devteam/
+
+# Nested git worktrees — never commit these, they're agent working directories
+worktrees/
