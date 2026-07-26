@@ -26,8 +26,12 @@ func configTestServer(t *testing.T) *Server {
 }
 
 func openTestDB() (d *db.DB, err error) {
-	return db.Open(db.Config{DSN: "host=localhost port=5432 user=devteam password=devteam dbname=devteam_test_db sslmode=disable"},
-		"host=localhost port=5432 user=devteam password=devteam dbname=devteam_test_db sslmode=disable")
+	// Use devteam_test_config (same as internal/config tests) to avoid
+	// cross-package parallel races with internal/db tests on devteam_test_db.
+	// The config handler tests truncate audit_events/providers which would
+	// collide with internal/db.TestGetAuditEventsFiltered if sharing the DB.
+	return db.Open(db.Config{DSN: "host=localhost port=5432 user=devteam password=devteam dbname=devteam_test_config sslmode=disable"},
+		"host=localhost port=5432 user=devteam password=devteam dbname=devteam_test_config sslmode=disable")
 }
 
 func truncateForAPITest(d *db.DB) {
