@@ -331,6 +331,11 @@ func TestStreamOutputRetryOnceOnFlushError(t *testing.T) {
 // within a single flush: the DB flush call completes before the channel send
 // (U-BK-03 / ADR-8). The unbuffered channel forces the send to block until the
 // receiver consumes, so the recorded order is strict.
+//
+// Synchronization: a buffered done channel lets the receiver acknowledge
+// each line without blocking. After StreamOutput returns, the test drains
+// the done channel to ensure all receiver appends have landed before
+// asserting order.
 func TestStreamOutputPersistBeforePushOrder(t *testing.T) {
 	order := make([]string, 0, 4)
 	var mu sync.Mutex
@@ -341,14 +346,16 @@ func TestStreamOutputPersistBeforePushOrder(t *testing.T) {
 		return nil
 	}
 
-	// Unbuffered channel — the send blocks until the receiver consumes, so
-	// the next flush cannot start until the previous channel send completes.
+	// Unbuffered channel — the send blocks until the receiver consumes.
+	// Buffered done channel — receiver acknowledges without blocking.
 	lineCh := make(chan OutputLine)
+	done := make(chan struct{}, 4)
 	go func() {
 		for line := range lineCh {
 			mu.Lock()
 			order = append(order, "chan:"+line.Line)
 			mu.Unlock()
+			done <- struct{}{}
 		}
 	}()
 
@@ -363,8 +370,11 @@ func TestStreamOutputPersistBeforePushOrder(t *testing.T) {
 	}
 	close(lineCh)
 
-	// Wait briefly for the receiver to observe the last send + the close.
-	time.Sleep(50 * time.Millisecond)
+	// Drain the done channel — 2 lines sent, 2 acks expected.
+	<-done
+	<-done
+	// Brief wait for the receiver goroutine to observe close.
+	time.Sleep(10 * time.Millisecond)
 
 	mu.Lock()
 	defer mu.Unlock()

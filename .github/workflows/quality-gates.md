@@ -48,7 +48,7 @@ Inherited gates (G1–G9) are the sibling feature's set, unchanged in command an
 | ID | Gate | This feature's re-scope |
 |----|------|--------------------------|
 | G2 | Go vet | **Vet scope widened** to include `./internal/repos/... ./internal/settings/... ./internal/config/...` (the feature's new + extended packages). `internal/opencode` is **excluded** — the builder package is owned by the sibling feature (scope cut, Q7). See `ci-config.md` §5.1. The widened scope is a strict superset of the sibling's; no regression. |
-| G3 | Go unit (db+api+config) | **`internal/config` added to the fast gate** (`ci-config.md` §5.2) so the linchpin (U-CONFIG-01) fails fast. Picks up this feature's new tests in `internal/db` (migration 018 round-trip, audit actor overload, audit constants structural), `internal/api` (settings handlers, auth guard, repos CRUD), and `internal/config` (write path, reconcile, masking helper). The command is widened; the test set grows. |
+| G3 | Go unit (db+api+config) | **`internal/config` added to the fast gate** (`ci-config.md` §5.2) so the linchpin (U-CONFIG-01) fails fast. Picks up this feature's new tests in `internal/db` (migration 019 round-trip, audit actor overload, audit constants structural), `internal/api` (settings handlers, auth guard, repos CRUD), and `internal/config` (write path, reconcile, masking helper). The command is widened; the test set grows. |
 | G4 | Go full suite | **Picks up `internal/repos`, `internal/settings`, `internal/config` write-path tests.** The command is unchanged; the test set grows. (`internal/opencode` is not built by this feature — scope cut.) |
 | G5 | Dep-tidy | **Enforces the two endorsed deps**: `go-playground/validator` (Go) and `zod` (npm, via `npm ci` strict). If either is imported but uncommitted, G5 (Go) or `npm ci` (frontend) fails. |
 | G8 | E2E | **Adds `admin.spec.ts`** to the spec set (5 v1 describe groups + 2 placeholder assertions — `ci-config.md` §3.3). Still non-blocking in v1 (`ci-config.md` §3.2). |
@@ -59,7 +59,7 @@ These are **not new CI jobs** — they are Go test functions that run inside the
 
 | ID | Gate | Test function(s) / command | Runs in | Blocks | Source |
 |----|------|----------------------------|---------|--------|--------|
-| G10 | Migration 018 round-trip (thinned) | `migration_018_test.go::TestMigration_RoundTrip`, `::TestMigration_AdditiveOnly`, `::TestMigration_ActorNullable`, `::TestMigration_NoReposTableAlteration`, `::TestMigration_Atomicity`, `::TestMigration_NumberIs018`, `::TestFeatureDefaults_ValidatorMinimal` | G3 (db subset), G4 | Bolt 0 go/no-go; release-candidate status | FR-MIG-01..04, R-TEST-03, `test-results` rev2 §2.1 T-MIG-01..07 |
+| G10 | Migration 019 round-trip (thinned) | `migration_019_test.go::TestMigration019_RoundTrip`, `::TestMigration019_AdditiveOnly`, `::TestMigration019_ActorNullable`, `::TestMigration019_NoReposTableAlteration`, `::TestMigration019_Atomicity`, `::TestMigration019_NumberIs019`, `::TestFeatureDefaults_ValidatorMinimal` | G3 (db subset), G4 | Bolt 0 go/no-go; release-candidate status | FR-MIG-01..04, R-TEST-03, `test-results` rev2 §2.1 T-MIG-01..07 |
 | G11 | Config write path (linchpin) | `config_test.go::TestWriteConfig_RoundTrip`, `::TestWriteConfig_CrashInjection`, `::TestWriteConfig_ValidationRejects`, `::TestReconcile_RegeneratesStaleYAML`, `::TestBootstrapFields_YAMLOnly`, `::TestReconcile_BootstrapUntouched`, `::TestWriteConfig_EmitsAuditEvent`, `::TestWriteConfig_AuditFailureNoRevert`, `::TestValidator_EnvVarRefPattern`, `::TestValidationDetails_SecretMasked`, `::TestLoadConfig_Unchanged` | G3 (config subset — added in rev2), G4 | Bolt 0 go/no-go; release-candidate status | FR-CONFIG-01..08, R-CONFIG-MATERIALIZE, R-CONFIG-VALIDATION, `test-results` rev2 §2.2 T-CONFIG-01..11 |
 | G12 | Auth guard (fail-closed) | `auth_guard_test.go::TestAdminGuard_LocalhostAllowed`, `::TestAdminGuard_NonLocalhost_TokenMatch`, `::TestAdminGuard_NonLocalhost_TokenMissingOrWrong_401`, `::TestAdminGuard_FailClosed_WhenEnvUnset`, `::TestAdminGuard_RejectsBeforeSideEffect`, `::TestAdminGuard_RejectionNoAudit`, `::TestAdminGuard_PluggableMiddleware`, `server_test.go::TestGetRepos_Unguarded` | G3 (api subset) | Bolt 0 go/no-go; release-candidate status; 4.1 security gate | FR-ROUTE-03, R-AUTH-ABSENT, `test-results` rev2 §2.4 T-AUTH-01..08 |
 | G13 | Audit constants + actor overload | `audit_events_test.go::TestFourEventConstants`, `::TestRecordAuditEventWithActor_PopulatesActor`, `::TestRecordAuditEvent_BackwardCompat`, `::TestActor_EmptyIsNULL`, `::TestActor_DefaultOperator`, `::TestActor_FromEnvOnly`, `::TestDetails_NoSecret` | G3 (db subset) | Bolt 0 go/no-go; release-candidate status; scope-creep block (QO-11) | FR-AUDIT-04 (rev2), FR-AUDIT-ACTOR-01..03, BR-AUDIT-01, `test-results` rev2 §2.3 T-AUDIT-CONST-01..07 |
@@ -108,7 +108,7 @@ The bolt-level go/no-go checkpoints map to CI gates as follows. This lets the bu
 
 | Bolt | Bolt gate (from `quality-report` rev2 §3 / `bolt-plan` rev2 §2) | CI gate(s) | MVP? | v1? |
 |------|------------------------------------------------------------------|------------|------|-----|
-| 0 — Walking Skeleton | Migration 018 round-trip green; config write path round-trip + crash-injection green; audit actor overload + 4 constants green; auth guard fail-closed green; POST /api/repos thin slice green; admin shell renders (4 v1 tabs + 2 placeholders) | G10, G11, G12, G13, G3 (api subset), G7 (shell build), G8 (shell E2E, non-blocking) | ✅ MVP | ✅ v1 |
+| 0 — Walking Skeleton | Migration 019 round-trip green; config write path round-trip + crash-injection green; audit actor overload + 4 constants green; auth guard fail-closed green; POST /api/repos thin slice green; admin shell renders (4 v1 tabs + 2 placeholders) | G10, G11, G12, G13, G3 (api subset), G7 (shell build), G8 (shell E2E, non-blocking) | ✅ MVP | ✅ v1 |
 | 1 — Repos | Repos service concurrent-write green; repos CRUD handlers green; `admin.spec.ts` repos cases green; `GET /api/repos` shape unchanged; `repos.yaml.lock` gitignored | G14, G3 (api subset), G8 (admin.spec, non-blocking), G4 (non-regression) | ✅ MVP | ✅ v1 |
 | 2 — Defaults (MVP complete) | Defaults precedence 4-branch green; `createFeature` backward-compat green; `FEATURE_DEFAULTS_MUTATED` emitted; defaults handlers guarded; `DefaultsTab` E2E green | G15, G3 (api subset), G8 (admin.spec, non-blocking) | ✅ MVP | ✅ v1 |
 | 3 — Server | DSN write-only green; restart classification green; `roles.*` not exposed; server handlers guarded; `ServerTab` E2E green | G16, G3 (api subset), G8 (admin.spec, non-blocking) | ❌ (v1 completeness) | ✅ v1 |
@@ -203,13 +203,13 @@ merge to main → deploy.sh (4.3 re-runs G8 as smoke)
 
 4.1 Deployment Pipeline consumes G9 (the `gate` job status) as its promotion input. 4.3 Deployment Execution re-runs **G8 (E2E)** post-deploy as the smoke test (P10: "deployment is not done until smoke passes"). `deploy.sh`'s pre-flight `gh run list --branch main` check is the branch-protection backstop for the private repo.
 
-### 6.1 Migration 018 rollback trigger (input to 4.1)
+### 6.1 Migration 019 rollback trigger (input to 4.1)
 
 Per principle #2 ("Rollback is not optional") and the existing `rollback.sh`:
 
 - **Smoke gate (G8) fails post-deploy** → `deploy.sh` auto-invokes `rollback.sh`. The rollback procedure is git-based: `git revert` the merge commit on `main`, rebuild, restart the systemd unit.
-- **Migration 018 is forward-only** (no `Down`). Code rollback (via `rollback.sh`) leaves migration 018's tables orphaned but harmless (additive, <1 MB, ignored by the reverted binary). Same posture as the sibling feature's migration 017.
-- **Data rollback** (if migration 018 fails in production): manual `pg_restore` or forward-fix migration 019. No automated data rollback — inherited posture.
+- **Migration 019 is forward-only** (no `Down`). Code rollback (via `rollback.sh`) leaves migration 019's tables orphaned but harmless (additive, <1 MB, ignored by the reverted binary). Same posture as the sibling feature's migration 017.
+- **Data rollback** (if migration 019 fails in production): manual `pg_restore` or forward-fix migration 020. No automated data rollback — inherited posture.
 - **Config-state recovery (new this feature)**: the startup reconciler (U-CONFIG-01, FR-CONFIG-05) re-materializes stale YAML from DB on next successful boot. 4.1 should record this in the rollback runbook: "settings-store config-state recovery does not require DB restore; the reconciler handles it on next boot."
 
 ---
@@ -232,7 +232,7 @@ Per `quality-report` rev2 §5 and the sibling feature's `quality-gates.md`:
 4. **Bolt mapping is consistent** with `bolt-plan` rev2 §2 and `quality-report` rev2 §3. MVP = Bolts 0–2; their gates (G10–G15) are the MVP sign-off set. v1 = Bolts 0–4; their gates (G10–G17) are the v1 sign-off set. ✓
 5. **Rule mapping covers the binding `discovered-rules`** — R-BUILD-*, R-TEST-01..06, R-TEST-08 all have an enforcing gate or an explicit "not a gate" note. ✓
 6. **Risk mapping covers the 8 v1 RAID risks** — every v1 risk has an enforcing gate, marked MVP / v1-completeness per the 1.7-gate strict scope. The 3 provider/cicd risks are **resolved by scope cut**, not deferred — no gate is defined for them because there is no code to gate. ✓
-7. **Rollback trigger is concrete** — G8 failure post-deploy → `rollback.sh` (git revert + rebuild + restart); migration 018 forward-only; reconciler handles config-state recovery. ✓
+7. **Rollback trigger is concrete** — G8 failure post-deploy → `rollback.sh` (git revert + rebuild + restart); migration 019 forward-only; reconciler handles config-state recovery. ✓
 8. **Scope discipline** — no coverage gate, no security scan gate, no performance gate, no cross-browser gate, no CI/CD gate, no opencode builder gate. Each omission is recorded with its source rationale (`ci-config.md` §7, `quality-report` rev2 §5). ✓
 9. **v1 scope is binding** — G20 (Providers integration) is explicitly gated on the sibling feature reaching 2.6; it is recorded for traceability but not enforced in v1. The CI/CD and opencode builder gates are removed entirely (resolved by scope cut, not deferred). ✓
 10. **Baseline shift is recorded** — §0 flags the 2.2/3.6 "no CI" staleness so 4.1/4.3 and the reviewer gate operate against the current baseline. ✓
